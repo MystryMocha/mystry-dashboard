@@ -44,9 +44,7 @@ const stderrLog = path.join(logDir, 'panel.stderr.log');
 const portableServerEntry = path.join(homeDir, 'app', 'server', 'dist', 'index.js');
 const repositoryServerEntry = path.join(homeDir, 'apps', 'server', 'dist', 'index.js');
 const portableMode = fs.existsSync(portableServerEntry);
-const serverEntry = portableMode
-  ? portableServerEntry
-  : repositoryServerEntry;
+const serverEntry = portableMode ? portableServerEntry : repositoryServerEntry;
 const managerLabel = portableMode ? '便携版' : '源码版';
 const managerCommand = portableMode ? 'mystryctl' : 'PanelManager.sh';
 const bundledNode = process.platform === 'win32'
@@ -321,14 +319,20 @@ async function readState() {
   }
 }
 
-async function clearState() {
+function isErrorCode(error, code) {
+  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === code);
+}
+
+async function unlinkIfExists(filePath) {
   try {
-    await fsp.unlink(statePath);
+    await fsp.unlink(filePath);
   } catch (error) {
-    if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) {
-      throw error;
-    }
+    if (!isErrorCode(error, 'ENOENT')) throw error;
   }
+}
+
+async function clearState() {
+  await unlinkIfExists(statePath);
 }
 
 function isProcessAlive(pid) {
@@ -348,19 +352,9 @@ async function acquireManagerLock() {
       const handle = await fsp.open(lockPath, 'wx', 0o600);
       await handle.writeFile(`${process.pid}\n`, 'utf8');
       await handle.close();
-      return async () => {
-        try {
-          await fsp.unlink(lockPath);
-        } catch (error) {
-          if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) {
-            throw error;
-          }
-        }
-      };
+      return () => unlinkIfExists(lockPath);
     } catch (error) {
-      if (!(error && typeof error === 'object' && 'code' in error && error.code === 'EEXIST')) {
-        throw error;
-      }
+      if (!isErrorCode(error, 'EEXIST')) throw error;
       const ownerText = await fsp.readFile(lockPath, 'utf8').catch(() => '');
       const owner = Number(ownerText.trim());
       if (isProcessAlive(owner)) throw new Error(`另一个 ${managerCommand} 正在运行，请稍后再试。`);
@@ -373,11 +367,17 @@ async function acquireManagerLock() {
 async function releaseCurrentManagerLock() {
   const ownerText = await fsp.readFile(lockPath, 'utf8').catch(() => '');
   if (Number(ownerText.trim()) !== process.pid) return;
-  await fsp.unlink(lockPath).catch((error) => {
-    if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')) {
-      throw error;
-    }
-  });
+  await unlinkIfExists(lockPath);
+}
+
+/** 只有 state.json 记录的进程仍存活、且健康检查返回同一指纹，才算本管理器启动的面板。 */
+async function isManagedPanelRunning(values, state) {
+  return Boolean(
+    values
+    && isProcessAlive(state?.pid)
+    && state?.fingerprint
+    && await getHealth(values, state.fingerprint),
+  );
 }
 
 function checkJava() {
@@ -417,17 +417,20 @@ async function waitForHealth(
   return false;
 }
 
+const OPEN_URL_COMMANDS = { win32: 'explorer.exe', darwin: 'open' };
+const CLIPBOARD_COMMANDS = {
+  win32: [['clip.exe', []]],
+  darwin: [['pbcopy', []]],
+};
+const LINUX_CLIPBOARD_COMMANDS = [['wl-copy', []], ['xclip', ['-selection', 'clipboard']]];
+
 async function openBrowser(values) {
   const url = getConnection(values).url;
   console.log(`面板地址：${url}`);
   if (process.env.MYSTRY_NO_BROWSER === '1') return;
-  const command = process.platform === 'win32'
-    ? ['explorer.exe', [url]]
-    : process.platform === 'darwin'
-      ? ['open', [url]]
-      : ['xdg-open', [url]];
+  const command = OPEN_URL_COMMANDS[process.platform] ?? 'xdg-open';
   try {
-    const child = spawn(command[0], command[1], {
+    const child = spawn(command, [url], {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
@@ -439,11 +442,7 @@ async function openBrowser(values) {
 }
 
 function copySetupToken(token) {
-  const commands = process.platform === 'win32'
-    ? [['clip.exe', []]]
-    : process.platform === 'darwin'
-      ? [['pbcopy', []]]
-      : [['wl-copy', []], ['xclip', ['-selection', 'clipboard']]];
+  const commands = CLIPBOARD_COMMANDS[process.platform] ?? LINUX_CLIPBOARD_COMMANDS;
   for (const [command, args] of commands) {
     const result = spawnSync(command, args, {
       input: token,
@@ -466,7 +465,7 @@ function showSetupToken(token) {
   }
 }
 
-async function spawnSetupFinalizer(values) {
+function spawnSetupFinalizer() {
   const child = spawn(
     nodeExecutable,
     ['--experimental-sqlite', scriptPath, INTERNAL_FINALIZE_SETUP],
@@ -479,7 +478,6 @@ async function spawnSetupFinalizer(values) {
     },
   );
   child.unref();
-  void values;
 }
 
 async function finalizeSetup() {
@@ -518,22 +516,20 @@ async function rotateLogs() {
   }
 }
 
-async function startBackground() {
+/**
+ * 前台与后台启动共用的启动前检查。
+ * 面板已由本管理器启动时只打开浏览器并返回 null；端口被未知面板或其他程序占用时抛错。
+ */
+async function prepareStart() {
   if (!fs.existsSync(serverEntry)) {
     throw new Error(`找不到服务端构建产物：${serverEntry}`);
   }
   const configuration = await ensureConfiguration();
-  const existingHealth = await getHealth(configuration.values);
-  if (existingHealth) {
-    const existingState = await readState();
-    if (
-      isProcessAlive(existingState?.pid)
-      && existingState?.fingerprint
-      && await getHealth(configuration.values, existingState.fingerprint)
-    ) {
+  if (await getHealth(configuration.values)) {
+    if (await isManagedPanelRunning(configuration.values, await readState())) {
       console.log('面板已经在运行。');
       await openBrowser(configuration.values);
-      return;
+      return null;
     }
     throw new Error('端口上已有无法由当前 mystryctl 指纹确认的面板，拒绝接管。');
   }
@@ -541,24 +537,41 @@ async function startBackground() {
   if (await isPortOpen(connection.port)) {
     throw new Error(`端口 ${connection.port} 已被其他程序占用。`);
   }
-
   checkJava();
+  return { configuration, connection };
+}
+
+function spawnServer(nonce, options) {
+  return spawn(
+    nodeExecutable,
+    ['--experimental-sqlite', serverEntry, `--mystry-fingerprint=${nonce}`],
+    { cwd: homeDir, env: childEnvironment(nonce), ...options },
+  );
+}
+
+async function announceStarted({ configuration, connection }) {
+  console.log(`面板已启动：${connection.url}`);
+  await openBrowser(configuration.values);
+  if (configuration.needsSetup) {
+    showSetupToken(configuration.setupToken);
+    spawnSetupFinalizer();
+  }
+}
+
+async function startBackground() {
+  const prepared = await prepareStart();
+  if (!prepared) return;
+  const { configuration, connection } = prepared;
   await rotateLogs();
   const nonce = crypto.randomBytes(16).toString('hex');
   const startedAt = new Date().toISOString();
   const stdout = fs.openSync(stdoutLog, 'a', 0o600);
   const stderr = fs.openSync(stderrLog, 'a', 0o600);
-  const child = spawn(
-    nodeExecutable,
-    ['--experimental-sqlite', serverEntry, `--mystry-fingerprint=${nonce}`],
-    {
-      cwd: homeDir,
-      env: childEnvironment(nonce),
-      detached: true,
-      stdio: ['ignore', stdout, stderr],
-      windowsHide: true,
-    },
-  );
+  const child = spawnServer(nonce, {
+    detached: true,
+    stdio: ['ignore', stdout, stderr],
+    windowsHide: true,
+  });
   fs.closeSync(stdout);
   fs.closeSync(stderr);
   child.unref();
@@ -571,52 +584,16 @@ async function startBackground() {
     if (recent) console.error(recent);
     throw new Error('面板未能在 60 秒内启动，请检查日志。');
   }
-
-  console.log(`面板已启动：${connection.url}`);
-  await openBrowser(configuration.values);
-  if (configuration.needsSetup) {
-    showSetupToken(configuration.setupToken);
-    await spawnSetupFinalizer(configuration.values);
-  }
+  await announceStarted(prepared);
 }
 
 async function startForeground() {
-  if (!fs.existsSync(serverEntry)) {
-    throw new Error(`找不到服务端构建产物：${serverEntry}`);
-  }
-  const configuration = await ensureConfiguration();
-  const existingHealth = await getHealth(configuration.values);
-  if (existingHealth) {
-    const existingState = await readState();
-    if (
-      isProcessAlive(existingState?.pid)
-      && existingState?.fingerprint
-      && await getHealth(configuration.values, existingState.fingerprint)
-    ) {
-      console.log('面板已经在运行。');
-      await openBrowser(configuration.values);
-      return;
-    }
-    throw new Error('端口上已有无法由当前 mystryctl 指纹确认的面板，拒绝接管。');
-  }
-  const connection = getConnection(configuration.values);
-  if (await isPortOpen(connection.port)) {
-    throw new Error(`端口 ${connection.port} 已被其他程序占用。`);
-  }
-
-  checkJava();
+  const prepared = await prepareStart();
+  if (!prepared) return;
+  const { configuration, connection } = prepared;
   const nonce = crypto.randomBytes(16).toString('hex');
   const startedAt = new Date().toISOString();
-  const child = spawn(
-    nodeExecutable,
-    ['--experimental-sqlite', serverEntry, `--mystry-fingerprint=${nonce}`],
-    {
-      cwd: homeDir,
-      env: childEnvironment(nonce),
-      stdio: 'inherit',
-      windowsHide: false,
-    },
-  );
+  const child = spawnServer(nonce, { stdio: 'inherit', windowsHide: false });
   const exitPromise = new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('exit', (code) => resolve(code ?? 1));
@@ -638,12 +615,7 @@ async function startForeground() {
       throw new Error('面板未能在 60 秒内启动，请检查前台输出。');
     }
     await releaseCurrentManagerLock();
-    console.log(`面板已启动：${connection.url}`);
-    await openBrowser(configuration.values);
-    if (configuration.needsSetup) {
-      showSetupToken(configuration.setupToken);
-      await spawnSetupFinalizer(configuration.values);
-    }
+    await announceStarted(prepared);
     const exitCode = await exitPromise;
     if (exitCode !== 0) process.exitCode = exitCode;
   } finally {
@@ -656,12 +628,7 @@ async function startForeground() {
 async function stopPanel() {
   const values = await loadConfiguration();
   const state = await readState();
-  const managedHealth = values
-    && isProcessAlive(state?.pid)
-    && state?.fingerprint
-    ? await getHealth(values, state.fingerprint)
-    : null;
-  if (!values || !managedHealth) {
+  if (!(await isManagedPanelRunning(values, state))) {
     if (values && await getHealth(values)) {
       throw new Error('检测到面板服务，但 PID 或进程指纹不匹配；拒绝停止未知进程。');
     }
@@ -716,12 +683,7 @@ async function stopPanel() {
 async function showStatus() {
   const values = await loadConfiguration();
   const state = await readState();
-  if (
-    values
-    && isProcessAlive(state?.pid)
-    && state?.fingerprint
-    && await getHealth(values, state.fingerprint)
-  ) {
+  if (await isManagedPanelRunning(values, state)) {
     const connection = getConnection(values);
     console.log(`状态：运行中  ${connection.url}`);
     if (state?.pid) console.log(`PID：${state.pid}`);
@@ -739,11 +701,11 @@ async function showStatus() {
 
 async function readRecentLogs(limit = 100) {
   const sections = [];
-  for (const [label, filePath] of [['stderr', stderrLog], ['stdout', stdoutLog]]) {
+  for (const [label, filePath] of [['最近的错误输出', stderrLog], ['最近的标准输出', stdoutLog]]) {
     if (!fs.existsSync(filePath)) continue;
     const content = await fsp.readFile(filePath, 'utf8');
     const lines = content.replace(/\r\n/g, '\n').split('\n');
-    sections.push(`===== ${label} =====\n${lines.slice(-limit).join('\n')}`);
+    sections.push(`--- ${label} ---\n${lines.slice(-limit).join('\n')}`);
   }
   return sections.join('\n');
 }
@@ -777,53 +739,32 @@ function printHelp() {
   ].join('\n'));
 }
 
+// 菜单项：[按键, 命令, 说明]。直接回车等同于 1，无法识别的输入显示帮助。
+const RUNNING_MENU = [
+  ['1', 'open', '打开面板（直接回车）'],
+  ['2', 'logs', '查看日志'],
+  ['3', 'restart', '重启面板'],
+  ['4', 'stop', '停止面板'],
+];
+const STOPPED_MENU = [
+  ['1', 'start', '后台启动面板（直接回车）'],
+  ['2', 'foreground', '前台启动并查看日志'],
+  ['3', 'logs', '查看最近日志'],
+];
+
 async function interactiveMenu() {
-  const values = await loadConfiguration();
-  const state = await readState();
-  const running = Boolean(
-    values
-    && isProcessAlive(state?.pid)
-    && state?.fingerprint
-    && await getHealth(values, state.fingerprint),
-  );
-  console.log('============================================================');
+  const running = await isManagedPanelRunning(await loadConfiguration(), await readState());
+  const menu = running ? RUNNING_MENU : STOPPED_MENU;
   console.log(`Mystry Dashboard ${managerLabel}`);
-  console.log('============================================================');
   console.log(running ? '状态：运行中' : '状态：未运行');
   console.log('');
-  if (running) {
-    console.log('[1] 打开面板（直接回车）');
-    console.log('[2] 查看日志');
-    console.log('[3] 重启面板');
-    console.log('[4] 停止面板');
-  } else {
-    console.log('[1] 后台启动面板（直接回车）');
-    console.log('[2] 前台启动并查看日志');
-    console.log('[3] 查看最近日志');
-  }
+  for (const [key, , label] of menu) console.log(`[${key}] ${label}`);
   console.log('[0] 退出');
   const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
-    const answer = (await terminal.question('\n请选择：')).trim();
+    const answer = (await terminal.question('\n请选择：')).trim() || '1';
     if (answer === '0') return null;
-    if (running) {
-      return answer === '' || answer === '1'
-        ? 'open'
-        : answer === '2'
-          ? 'logs'
-          : answer === '3'
-            ? 'restart'
-            : answer === '4'
-              ? 'stop'
-              : 'help';
-    }
-    return answer === '' || answer === '1'
-      ? 'start'
-      : answer === '2'
-        ? 'foreground'
-        : answer === '3'
-          ? 'logs'
-          : 'help';
+    return menu.find(([key]) => key === answer)?.[1] ?? 'help';
   } finally {
     terminal.close();
   }

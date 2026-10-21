@@ -50,9 +50,11 @@ chmod +x mystryctl
 .\PanelManager.cmd foreground
 .\PanelManager.cmd stop
 .\PanelManager.cmd restart
-.\PanelManager.cmd logs
 .\PanelManager.cmd rebuild
 .\PanelManager.cmd status
+.\PanelManager.cmd logs
+.\PanelManager.cmd open
+.\PanelManager.cmd help
 
 # 仅覆盖本次显示语言，不修改保存的偏好
 .\PanelManager.cmd status --lang en-US
@@ -82,7 +84,7 @@ export MYSTRY_DATA_DIR="${HOME}/mystry-test"
 ./PanelManager.sh start
 ```
 
-首次空用户库会自动生成三个不同的随机密钥，并在终端显示或复制 setup token；不要把 token 或 `panel.env` 分享到聊天、仓库或截图中。可用命令为 `start`、`foreground`、`stop`、`restart`、`logs`、`rebuild`、`status` 和 `open`；其中 `rebuild` 会构建后安全重启。
+首次空用户库会自动生成三个不同的随机密钥，并在终端显示或复制 setup token；不要把 token 或 `panel.env` 分享到聊天、仓库或截图中。可用命令为 `start`、`foreground`、`stop`、`restart`、`rebuild`、`status`、`logs`、`open` 和 `help`；其中 `rebuild` 会构建后安全重启。
 
 ## 手动安装与首次配置
 
