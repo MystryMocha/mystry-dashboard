@@ -20,6 +20,7 @@ import { ActionMenu } from '../components/ActionMenu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
+import { MINECRAFT_EULA_URL } from '../eula';
 
 const statusLabel: Record<string, string> = {
   stopped: '已停止',
@@ -68,7 +69,8 @@ export function DashboardPage() {
   const [emptyOpen, setEmptyOpen] = useState(false);
   const [emptyName, setEmptyName] = useState('自定义 Jar 实例');
   const [emptyJvm, setEmptyJvm] = useState('-Xms1G -Xmx2G');
-  const [emptyEula, setEmptyEula] = useState(true);
+  // EULA 必须由用户主动勾选同意，不预先替用户同意。
+  const [emptyEula, setEmptyEula] = useState(false);
   const [emptyJavaRuntimeId, setEmptyJavaRuntimeId] = useState<string | null>(null);
   const [emptyJavaMajor, setEmptyJavaMajor] = useState<number | null>(null);
   const [emptyJvmValid, setEmptyJvmValid] = useState(true);
@@ -305,11 +307,11 @@ export function DashboardPage() {
                   <span className="inst-stat-val">{processMetric(inst, metrics, metricsError, 'cpu')}</span>
                 </div>
                 <div className="inst-stat-item">
-                  <span className="inst-stat-label" title="实际进程内存占用，与 JVM 堆内存上限不同">进程内存</span>
+                  <span className="inst-stat-label" title="服务器进程实际占用的内存，通常略高于设置的最大内存">进程内存</span>
                   <span className="inst-stat-val">{processMetric(inst, metrics, metricsError, 'memory')}</span>
                 </div>
                 <div className="inst-stat-item">
-                  <span className="inst-stat-label">堆内存上限 (Xmx)</span>
+                  <span className="inst-stat-label">最大内存</span>
                   <span className="inst-stat-val">{extractXmx(inst.jvmArgs)}</span>
                 </div>
                 <div className="inst-stat-item">
@@ -387,7 +389,7 @@ export function DashboardPage() {
         title="创建空实例"
         description={
           <>
-            <p>将创建受管空目录，创建成功后请在文件页上传 server.jar 并配置启动 Jar。</p>
+            <p>将创建一个空的实例文件夹。创建后请在文件页上传服务端 jar 文件，并在「实例设置」中确认启动文件名。</p>
             <div className="field">
               <label htmlFor="empty-instance-name">实例名称</label>
               <input
@@ -421,7 +423,9 @@ export function DashboardPage() {
                 disabled={emptyBusy}
                 onChange={(e) => setEmptyEula(e.target.checked)}
               />
-              自动接受 Mojang EULA（eula=true）
+              <span>
+                我已阅读并同意 <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Minecraft EULA</a>（启动时自动写入同意标记）
+              </span>
             </label>
           </>
         }
@@ -447,7 +451,7 @@ export function DashboardPage() {
       <ConfirmDialog
         open={forceStopTarget !== null}
         title={`强制停止实例「${forceStopTarget?.name ?? ''}」？`}
-        description="强制停止会立即向进程发送 SIGKILL，可能导致世界损坏。建议先尝试普通「停止」。"
+        description="强制停止会立即结束服务器进程，未保存的世界数据可能丢失甚至损坏。建议先尝试普通「停止」。"
         confirmLabel="确认强制停止"
         danger
         busy={busyId === forceStopTarget?.id}

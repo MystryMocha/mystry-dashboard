@@ -93,10 +93,12 @@ export function listFiles(instanceId: string, relativePath = ''): FileEntry[] {
 
   // 按运行环境区域设置排序（Windows 资源管理器风格：目录优先 + 自然序）
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  // target 已由 resolveSafePath 逐段校验；readdir 返回的条目名不含路径分隔符，
+  // 每个条目只需一次 lstat 拒绝 symlink/junction，避免逐项 realpath 整条路径阻塞事件循环。
   return fs
     .readdirSync(target, { withFileTypes: true })
     .map((entry) => {
-      const full = resolveSafePath(root, path.relative(root, path.join(target, entry.name)));
+      const full = path.join(target, entry.name);
       const s = fs.lstatSync(full);
       if (s.isSymbolicLink()) throw new Error('目录中存在 symlink/junction，已拒绝访问');
       const rel = path.relative(root, full).replace(/\\/g, '/');

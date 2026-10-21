@@ -337,14 +337,14 @@ export class ProcessManager extends EventEmitter {
       const argsRel = instance.jar_file.slice('@args:'.length);
       const argsAbs = resolveSafePath(cwd, argsRel);
       if (!fs.existsSync(argsAbs)) {
-        throw new Error(`找不到 ModLoader 启动参数文件：${argsRel}`);
+        throw new Error(`找不到 Forge/NeoForge 启动参数文件：${argsRel}，请重新部署该实例`);
       }
       const safeArgsRel = path.relative(cwd, argsAbs).replace(/\\/g, '/');
       const userJvm = resolveSafePath(cwd, 'user_jvm_args.txt');
       fs.writeFileSync(userJvm, `${serializeJvmArgFile(jvmArgs)}\n`, 'utf8');
       args = ['@user_jvm_args.txt', `@${safeArgsRel}`, 'nogui'];
     } else if (instance.jar_file === '@modloader') {
-      throw new Error('ModLoader 尚未完成安装，请重新部署或检查安装日志');
+      throw new Error('Forge/NeoForge 尚未完成安装，请重新部署，或在任务队列中查看安装失败原因');
     } else {
       const jarPath = resolveSafePath(cwd, instance.jar_file);
       if (!fs.existsSync(jarPath)) {

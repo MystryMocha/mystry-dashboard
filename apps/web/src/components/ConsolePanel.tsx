@@ -51,7 +51,7 @@ export function ConsolePanel({ instanceId, canSend = true, onStatus }: Props) {
       convertEol: true,
       disableStdin: true,
       cursorBlink: false,
-      fontFamily: 'IBM Plex Mono, monospace',
+      fontFamily: "ui-monospace, 'Cascadia Mono', Consolas, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace",
       fontSize: 13,
       theme: {
         background: '#070508',
@@ -276,7 +276,7 @@ export function ConsolePanel({ instanceId, canSend = true, onStatus }: Props) {
                 boxShadow: connected ? '0 0 8px var(--ok)' : 'none',
               }}
             />
-            <span>{connected ? '实时输出日志 · WebSocket 已连接' : canSend ? '控制台正在连接…' : '实例未运行'}</span>
+            <span>{connected ? '实时日志 · 已连接' : canSend ? '控制台正在连接…' : '实例未运行'}</span>
           </span>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button

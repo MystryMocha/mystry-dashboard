@@ -178,4 +178,4 @@ Web 的 ZIP 导入先把文件写入 `uploads/.tmp-import-preview-*` 并执行�
 - `/api` → `http://127.0.0.1:3000`
 - `/ws` → `ws://127.0.0.1:3000`
 
-生产构建后由后端 `@fastify/static` 提供静态文件，无需 Vite。
+生产构建后由后端 `@fastify/static` 提供静态文件，无需 Vite。`npm run build -w @mystry/web` 会在 `vite build` 后为文本资源生成 `.br` / `.gz` 预压缩副本，后端按浏览器的 `Accept-Encoding` 直接发送；带 hash 的 `/assets/*` 允许浏览器缓存一年，`index.html` 每次重新校验，升级后刷新即可拿到新版本。反向代理无需再额外压缩这些资源。

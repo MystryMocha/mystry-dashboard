@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { DashboardPage } from '../src/pages/DashboardPage';
+import { DeployPage } from '../src/pages/DeployPage';
 import { ImportPage } from '../src/pages/ImportPage';
 import { NodesPage } from '../src/pages/NodesPage';
 import { TaskCenter } from '../src/components/TaskCenter';
@@ -202,6 +203,42 @@ test('任务抽屉关闭时不可访问，按钮、Escape 和遮罩关闭均恢�
     expect(document.activeElement).toBe(trigger);
     expect(screen.queryByRole('button', { name: '刷新任务' })).toBeNull();
   }
+});
+
+test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build 留空交给服务端取最新', async () => {
+  const baseFetch = globalThis.fetch;
+  const deployBodies: Array<Record<string, unknown>> = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/cores/paper/versions') {
+      requests.push(url);
+      return new Response(JSON.stringify({ versions: ['26.3', '26.2', '1.21.11'] }));
+    }
+    if (url === '/api/cores/deploy') {
+      deployBodies.push(JSON.parse(String(options?.body)));
+      return new Response(JSON.stringify({ id: 'deploy-task', type: 'deploy', status: 'pending', progress: 0 }));
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  mount(<DeployPage />);
+  const version = screen.getByRole('button', { name: '游戏版本' });
+  await waitFor(() => expect(version.textContent).toContain('26.3'));
+  expect(requests.filter((url) => url === '/api/cores/paper/versions')).toHaveLength(1);
+  expect(screen.getByRole('button', { name: 'Paper Build' }).textContent).toContain('自动使用最新构建');
+
+  const submit = screen.getByRole('button', { name: '立即开始自动化部署' }) as HTMLButtonElement;
+  const eula = screen.getByRole('checkbox', { name: /我已阅读并同意/ }) as HTMLInputElement;
+  expect(eula.checked).toBe(false);
+  expect(submit.disabled).toBe(true);
+  expect(screen.getByText(/勾选后才能开始部署/)).toBeTruthy();
+
+  await user.click(eula);
+  await waitFor(() => expect(submit.disabled).toBe(false));
+  await user.click(submit);
+  await waitFor(() => expect(deployBodies).toHaveLength(1));
+  expect(deployBodies[0]).toMatchObject({ coreType: 'paper', mcVersion: '26.3', acceptEula: true });
+  expect(deployBodies[0]?.build).toBeUndefined();
+  expect(deployBodies[0]?.loaderVersion).toBeUndefined();
 });
 
 test('ZIP 按钮可用键盘触发，选择与拖放拒绝非 ZIP 并允许重新选择', async () => {

@@ -5,12 +5,13 @@ import { api, pollTask } from '../api';
 import { LazyScrollSelect } from '../components/LazyScrollSelect';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
+import { MINECRAFT_EULA_URL } from '../eula';
 import '../deploy-error.css';
 
 type CoreType = 'paper' | 'fabric' | 'vanilla' | 'forge' | 'neoforge';
 
 const CORE_ITEMS: Array<{ id: CoreType; name: string; desc: string; icon: string }> = [
-  { id: 'paper', name: 'Paper', desc: '高性能插件服', icon: '📜' },
+  { id: 'paper', name: 'Paper', desc: '插件服 · 新手推荐', icon: '📜' },
   { id: 'fabric', name: 'Fabric', desc: '轻量现代化模组', icon: '🧵' },
   { id: 'forge', name: 'Forge', desc: '经典重型模组', icon: '🔨' },
   { id: 'neoforge', name: 'NeoForge', desc: '新一代模组端', icon: '⚡' },
@@ -28,7 +29,8 @@ function createErrorPreview(message: string): string {
 
 export function DeployPage() {
   const navigate = useNavigate();
-  const [coreType, setCoreType] = useState<CoreType | ''>('');
+  // 默认选中新手推荐的 Paper，进入页面即可直接部署最新正式版。
+  const [coreType, setCoreType] = useState<CoreType | ''>('paper');
   const [versions, setVersions] = useState<string[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [versionsLoadedFor, setVersionsLoadedFor] = useState<CoreType | ''>('');
@@ -50,7 +52,8 @@ export function DeployPage() {
   const [javaRuntimeId, setJavaRuntimeId] = useState<string | null>(null);
   const [javaMajor, setJavaMajor] = useState<number | null>(null);
   const [jvmValid, setJvmValid] = useState(true);
-  const [acceptEula, setAcceptEula] = useState(true);
+  // EULA 必须由用户主动勾选同意，不预先替用户同意。
+  const [acceptEula, setAcceptEula] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<TaskInfo | null>(null);
   const [busy, setBusy] = useState(false);
@@ -145,6 +148,8 @@ export function DeployPage() {
       if (generation !== metadataGenerationRef.current) return;
       setVersions(res.versions);
       setVersionsLoadedFor(coreType);
+      // 服务端按新到旧返回正式版，未手动选择时默认用最新版本。
+      setMcVersion((current) => current || res.versions[0] || '');
     } catch (err) {
       if (generation !== metadataGenerationRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
@@ -152,6 +157,11 @@ export function DeployPage() {
       if (generation === metadataGenerationRef.current) setVersionsLoading(false);
     }
   }, [coreType, versionsLoadedFor]);
+
+  // 选定核心后立即拉取版本列表，不必等用户展开下拉框。
+  useEffect(() => {
+    void loadVersions();
+  }, [loadVersions]);
 
   const loadBuilds = useCallback(async () => {
     if (coreType !== 'paper' || !mcVersion) return;
@@ -257,11 +267,8 @@ export function DeployPage() {
   const loaderLabel =
     coreType === 'forge' ? 'Forge 版本' : coreType === 'neoforge' ? 'NeoForge 版本' : 'Loader 版本';
 
-  const canDeploy =
-    Boolean(coreType && mcVersion) &&
-    (coreType !== 'paper' || build !== '') &&
-    (coreType !== 'fabric' || (Boolean(loaderVersion) && Boolean(installerVersion))) &&
-    ((coreType !== 'forge' && coreType !== 'neoforge') || Boolean(loaderVersion));
+  // Build、Loader 与 Installer 留空时由服务端解析为最新稳定版，只有核心与游戏版本必填。
+  const canDeploy = Boolean(coreType && mcVersion) && acceptEula;
   const progressValue = progress
     ? Math.min(100, Math.max(0, Number.isFinite(progress.progress) ? progress.progress : 0))
     : 0;
@@ -272,7 +279,7 @@ export function DeployPage() {
         <div>
           <h1 className="page-title" style={{ margin: 0 }}>一键部署全新 Minecraft 服务端</h1>
           <p className="page-desc" style={{ margin: '4px 0 0' }}>
-            官方镜像流式拉取 · 自动生成启动脚本与 EULA 配置
+            从官方源下载服务端核心，自动完成安装与启动配置
           </p>
         </div>
       </div>
@@ -321,13 +328,15 @@ export function DeployPage() {
               onOpen={() => void loadVersions()}
               loading={versionsLoading}
               disabled={busy || !coreType}
-              placeholder="请先选定上方核心后选择版本"
+              placeholder={
+                !coreType ? '请先选择上方核心' : versionsLoading ? '正在获取版本列表…' : '请选择游戏版本'
+              }
               emptyText="暂无可用版本"
             />
           </div>
           {coreType === 'paper' && (
             <div className="field">
-              <label id={`${nameFieldId}-paper-build-label`}>4. Paper 构建版本 (Build)</label>
+              <label id={`${nameFieldId}-paper-build-label`}>4. Paper 构建版本（可选）</label>
               <LazyScrollSelect
                 ariaLabel="Paper Build"
                 value={build}
@@ -337,14 +346,14 @@ export function DeployPage() {
                 loading={buildsLoading}
                 formatLabel={(b) => `#${b}`}
                 disabled={busy || !mcVersion}
-                placeholder="请选择构建"
+                placeholder="自动使用最新构建（优先稳定版）"
                 emptyText="暂无 Build"
               />
             </div>
           )}
           {(coreType === 'fabric' || coreType === 'forge' || coreType === 'neoforge') && (
             <div className="field">
-              <label id={`${nameFieldId}-loader-label`}>{loaderLabel}</label>
+              <label id={`${nameFieldId}-loader-label`}>{loaderLabel}（可选）</label>
               <LazyScrollSelect
                 ariaLabel={loaderLabel}
                 value={loaderVersion}
@@ -353,14 +362,14 @@ export function DeployPage() {
                 onOpen={() => void loadLoaders()}
                 loading={loadersLoading}
                 disabled={busy || !mcVersion}
-                placeholder="请选择"
+                placeholder="自动使用最新稳定版"
                 emptyText="暂无版本"
               />
             </div>
           )}
           {coreType === 'fabric' && (
             <div className="field">
-              <label id={`${nameFieldId}-installer-label`}>Installer 版本</label>
+              <label id={`${nameFieldId}-installer-label`}>Installer 版本（可选）</label>
               <LazyScrollSelect
                 ariaLabel="Fabric Installer 版本"
                 value={installerVersion}
@@ -369,14 +378,14 @@ export function DeployPage() {
                 onOpen={() => void loadInstallers()}
                 loading={installersLoading || loadersLoading}
                 disabled={busy || !mcVersion}
-                placeholder="请选择"
+                placeholder="自动使用最新稳定版"
                 emptyText="暂无版本"
               />
             </div>
           )}
           {(coreType === 'forge' || coreType === 'neoforge') && (
             <p className="muted" style={{ fontSize: '0.85rem' }}>
-              Forge/NeoForge 会下载官方 Installer 并在安装目录执行 --installServer，耗时可能较长。
+              Forge / NeoForge 需要先下载官方安装器并完成安装，耗时可能较长，请耐心等待。
             </p>
           )}
           <JavaRuntimeSelect
@@ -406,8 +415,13 @@ export function DeployPage() {
               disabled={busy}
               onChange={(e) => setAcceptEula(e.target.checked)}
             />
-            我已阅读并同意 <a href="https://account.mojang.com/documents/minecraft_eula" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Minecraft 最终用户许可协议 (EULA)</a>
+            我已阅读并同意 <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Minecraft 最终用户许可协议 (EULA)</a>
           </label>
+          {!acceptEula && (
+            <p className="muted field-help" style={{ margin: 0 }}>
+              Minecraft 服务器必须同意 EULA 才能运行，勾选后才能开始部署。
+            </p>
+          )}
 
           {progress && (
             <div style={{ marginTop: '10px' }} aria-live="polite">
@@ -523,19 +537,21 @@ export function DeployPage() {
           </div>
         </div>
 
-        {/* 右侧指导与说明卡片 */}
+        {/* 右侧新手指引：怎么选核心、部署后怎么进服 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-          <div className="form-card">
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>部署安全与隔离机制</h3>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>
-              面板采用二阶段原子暂存架构：下载与构建先写入 <code style={{ color: 'var(--accent)' }}>.mystry-staging/</code> 临时沙箱。
-              只有在服务端核心校验和安装成功后，才会原子移动至正式实例目录，保障数据安全无损。
-            </p>
-            <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontSize: '0.8rem', color: 'var(--ok)', lineHeight: 1.6 }}>
-              ✔ 环境变量脱敏保护（不向 Java 传递面板密钥）<br />
-              ✔ 进程安全关服宽限期保护<br />
-              ✔ 后台流式下载，可随时关闭页面
-            </div>
+          <div className="form-card deploy-guide">
+            <h3>选哪个核心？</h3>
+            <ul>
+              <li><strong>Paper</strong>：想装插件（领地、经济等）选它，性能也更好。</li>
+              <li><strong>Fabric / NeoForge / Forge</strong>：想装模组时，按模组页面要求的加载器选择。</li>
+              <li><strong>Vanilla</strong>：纯原版，不装插件和模组。</li>
+            </ul>
+            <h3>部署完成后</h3>
+            <ol>
+              <li>在实例页点「启动」，等控制台出现 <code>Done</code>。</li>
+              <li>同一台电脑的游戏里添加服务器地址 <code>127.0.0.1</code>。</li>
+              <li>朋友加入需要你的局域网或公网地址，并放行防火墙端口（默认 25565）。</li>
+            </ol>
           </div>
         </div>
       </div>

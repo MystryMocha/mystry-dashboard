@@ -84,7 +84,7 @@ mystry-dashboard/
 
 ### 入口 `apps/server/src/index.ts`
 
-- 注册 CORS、JWT、multipart、WebSocket、静态资源。
+- 注册 CORS、JWT、multipart、WebSocket、静态资源（`frontend-assets.ts`：发送构建时生成的 `.br` / `.gz` 预压缩副本，`/assets/*` 长期缓存，`index.html` 每次校验）。
 - 挂载路由：`auth`、`instances`、`files`、`cores`、`console`、`system`、`nodes`、`launcher`。
 - 健康检查：`GET /api/health`。
 
@@ -202,7 +202,7 @@ DATA_DIR/
 - `/` — 实例总览
 - `/deploy` — 一键部署
 - `/import` — 同机目录交接或 zip 导入
-- `/nodes` — 节点管理（当前以本机节点为主）
+- `/nodes` — 本机环境（当前只有内置本机节点）
 - `/instances/:id/*` — 实例详情 Tab
 
 ## 认证流程

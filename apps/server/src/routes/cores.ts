@@ -173,7 +173,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: '已有服务端导入参数包含不支持的字段或格式不正确' });
       }
       if (!req.body?.name?.trim() || !req.body.sourceId) {
-        return reply.code(400).send({ error: '实例名称和交接目录不能为空' });
+        return reply.code(400).send({ error: '实例名称和导入文件夹不能为空' });
       }
       try {
         return await importExistingServerDirectory({
