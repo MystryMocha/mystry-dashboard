@@ -193,10 +193,15 @@ DATA_DIR/
 |------|------|
 | `src/App.tsx` | 路由与侧栏布局 |
 | `src/auth.tsx` | 登录态、setup 检测 |
-| `src/api.ts` | `fetch` 封装、任务轮询 |
+| `src/api.ts` | `fetch` 封装、实例接口路径编码、实例启停、任务轮询、认证下载 |
+| `src/errors.ts` | 错误文案与中止判断 |
+| `src/instance-status.ts` | 实例状态文案与可执行操作判断 |
+| `src/hooks/*` | 统一间隔的页面轮询（隐藏时暂停）、实例操作、未保存修改拦截、原生 dialog 开关、按 key 缓存的元数据加载 |
 | `src/pages/*` | 各功能页 |
+| `src/components/FilesTab.tsx` | 实例文件管理（列表、上传、编辑、重命名、删除、下载） |
 | `src/components/ConsolePanel.tsx` | xterm + WebSocket |
 | `src/components/JvmSettingsEditor.tsx` | 四处复用的内存、预设、高级参数、检测选择与诊断界面 |
+| `src/components/EulaCheckbox.tsx` | 同样四处复用的 EULA 同意勾选框 |
 
 路由表：
 

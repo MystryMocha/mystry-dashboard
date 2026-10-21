@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, NavLink, Route, Routes, useBlocker, useParams } from 'react-router-dom';
+import { useCallback, useState } from 'react';
+import { Link, NavLink, Route, Routes, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Folder,
@@ -10,67 +10,27 @@ import {
   Sliders,
   Terminal,
 } from 'lucide-react';
-import type { FileEntry, InstanceInfo } from '@mystry/shared';
-import { isInstanceStopPendingResult } from '@mystry/shared';
-import { ApiError, api, apiForm, downloadAuthenticated } from '../api';
+import type { InstanceInfo } from '@mystry/shared';
+import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ConfigTab } from '../components/ConfigTab';
 import { ConsolePanel } from '../components/ConsolePanel';
+import { EulaCheckbox } from '../components/EulaCheckbox';
+import { FilesTab } from '../components/FilesTab';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
-import { MINECRAFT_EULA_URL } from '../eula';
-
-const statusLabel: Record<string, string> = {
-  stopped: '已停止',
-  starting: '启动中',
-  running: '运行中',
-  stopping: '停止中',
-  crashed: '已崩溃',
-};
-
-/** 进程仍可能存活的状态：允许强制停止。 */
-function canForceStop(status: InstanceInfo['status']): boolean {
-  return status === 'running' || status === 'starting' || status === 'stopping';
-}
-
-function canStartInstance(status: InstanceInfo['status']): boolean {
-  return status === 'stopped' || status === 'crashed';
-}
-
-function canStopInstance(status: InstanceInfo['status']): boolean {
-  return status === 'running';
-}
-
-function isLifecycleBusy(status: InstanceInfo['status']): boolean {
-  return status === 'starting' || status === 'stopping';
-}
-
-/** 与服务端默认 MAX_TEXT_FILE_BYTES 对齐，用于判断是否显示「编辑」。 */
-const MAX_EDITABLE_FILE_BYTES = 1_048_576;
-
-function canEditFile(file: FileEntry): boolean {
-  return !file.isDirectory && file.size <= MAX_EDITABLE_FILE_BYTES;
-}
-
-function parentOf(relativePath: string): string {
-  const parts = relativePath.split('/').filter(Boolean);
-  parts.pop();
-  return parts.join('/');
-}
-
-function isValidRenameName(name: string): string | null {
-  const trimmed = name.trim();
-  if (!trimmed) return '名称不能为空';
-  if (trimmed.includes('/') || trimmed.includes('\\')) return '名称不能包含路径分隔符';
-  return null;
-}
-
-function isAbortError(error: unknown): boolean {
-  return error !== null
-    && typeof error === 'object'
-    && 'name' in error
-    && error.name === 'AbortError';
-}
+import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
+import { errorMessage } from '../errors';
+import { useInstanceAction } from '../hooks/useInstanceAction';
+import { usePolling } from '../hooks/usePolling';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
+import {
+  canStartInstance,
+  canStopInstance,
+  instanceStatusLabel,
+  isLifecycleBusy,
+  isProcessAlive,
+} from '../instance-status';
 
 function ConsoleTab({ instance }: { instance: InstanceInfo }) {
   return (
@@ -85,8 +45,8 @@ function MigrationPanel({ instance, onAdopt }: { instance: InstanceInfo; onAdopt
   const [error, setError] = useState('');
   async function adopt() {
     setBusy(true); setError('');
-    try { await api(`/api/instances/${instance.id}/adopt-managed-directory`, { method: 'POST' }); await onAdopt(); }
-    catch (err) { setError(err instanceof Error ? err.message : '接管失败，请确认目录已复制完成。'); }
+    try { await api(instanceApi(instance.id, '/adopt-managed-directory'), { method: 'POST' }); await onAdopt(); }
+    catch (err) { setError(errorMessage(err)); }
     finally { setBusy(false); }
   }
   return <div className="migration-panel"><span className="badge migration">需要迁移</span><h2>接管托管目录</h2>
@@ -94,531 +54,6 @@ function MigrationPanel({ instance, onAdopt }: { instance: InstanceInfo; onAdopt
     <p className="muted">面板不会读取或删除旧目录。复制完成后点击「接管托管目录」，成功后将恢复实例操作。</p>{error && <p className="error">{error}</p>}
     <button className="btn" type="button" disabled={busy} onClick={() => void adopt()}>{busy ? '检查中…' : '接管托管目录'}</button>
   </div>;
-}
-
-function FilesTab({ instanceId }: { instanceId: string }) {
-  const [path, setPath] = useState('');
-  const [files, setFiles] = useState<FileEntry[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [editPath, setEditPath] = useState<string | null>(null);
-  const [content, setContent] = useState('');
-  const [error, setError] = useState('');
-  const [editError, setEditError] = useState('');
-  const [saved, setSaved] = useState(false);
-  const [newDir, setNewDir] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [loadingEdit, setLoadingEdit] = useState(false);
-  const [busyPath, setBusyPath] = useState<string | null>(null);
-  const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null);
-  const [renameName, setRenameName] = useState('');
-  const [renameError, setRenameError] = useState('');
-  const [renaming, setRenaming] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<FileEntry | null>(null);
-  const [deleteError, setDeleteError] = useState('');
-  const [deleting, setDeleting] = useState(false);
-  const editDialogRef = useRef<HTMLDialogElement>(null);
-  const renameDialogRef = useRef<HTMLDialogElement>(null);
-  /** 编辑代次：关闭编辑器或打开新文件时递增，用于丢弃慢响应到达的旧文件内容。 */
-  const editGenerationRef = useRef(0);
-  /** 文件列表请求代次：切换目录后丢弃迟到的旧列表，避免覆盖当前视图。 */
-  const loadGenerationRef = useRef(0);
-  const downloadControllersRef = useRef(new Set<AbortController>());
-  const downloadGenerationRef = useRef(0);
-
-  const load = useCallback(async () => {
-    const generation = loadGenerationRef.current + 1;
-    loadGenerationRef.current = generation;
-    setLoading(true);
-    try {
-      const list = await api<FileEntry[]>(
-        `/api/instances/${instanceId}/files?path=${encodeURIComponent(path)}`,
-      );
-      if (generation !== loadGenerationRef.current) return;
-      setFiles(list);
-      setLoaded(true);
-      setError('');
-    } catch (err) {
-      if (generation !== loadGenerationRef.current) return;
-      // 刷新失败时保留上一份成功列表，避免把暂时的网络问题误显示为目录为空。
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      if (generation === loadGenerationRef.current) setLoading(false);
-    }
-  }, [instanceId, path]);
-
-  useEffect(() => {
-    loadGenerationRef.current += 1;
-    setPath('');
-    setFiles([]);
-    setLoaded(false);
-    setLoading(true);
-    setError('');
-  }, [instanceId]);
-
-  useEffect(() => {
-    downloadGenerationRef.current += 1;
-    setBusyPath(null);
-    return () => {
-      downloadGenerationRef.current += 1;
-      for (const controller of downloadControllersRef.current) controller.abort();
-      downloadControllersRef.current.clear();
-    };
-  }, [instanceId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    const dialog = editDialogRef.current;
-    if (!dialog) return;
-    if (editPath && !dialog.open) dialog.showModal();
-    else if (!editPath && dialog.open) dialog.close();
-  }, [editPath]);
-
-  useEffect(() => {
-    const dialog = renameDialogRef.current;
-    if (!dialog) return;
-    if (renameTarget && !dialog.open) dialog.showModal();
-    else if (!renameTarget && dialog.open) dialog.close();
-  }, [renameTarget]);
-
-  function closeEditor() {
-    editGenerationRef.current += 1;
-    setEditPath(null);
-    setContent('');
-    setEditError('');
-    setLoadingEdit(false);
-  }
-
-  function closeRename() {
-    setRenameTarget(null);
-    setRenameName('');
-    setRenameError('');
-    setRenaming(false);
-  }
-
-  function closeDelete() {
-    setDeleteTarget(null);
-    setDeleteError('');
-  }
-
-  function changePath(nextPath: string) {
-    loadGenerationRef.current += 1;
-    setFiles([]);
-    setLoaded(false);
-    setLoading(true);
-    setError('');
-    setPath(nextPath);
-  }
-
-  function openDirectory(file: FileEntry) {
-    if (!file.isDirectory) return;
-    changePath(file.path);
-  }
-
-  async function startEdit(file: FileEntry) {
-    if (!canEditFile(file)) return;
-    const generation = editGenerationRef.current + 1;
-    editGenerationRef.current = generation;
-    setLoadingEdit(true);
-    setEditError('');
-    setEditPath(file.path);
-    setContent('');
-    try {
-      const res = await api<{ content: string }>(
-        `/api/instances/${instanceId}/files/content?path=${encodeURIComponent(file.path)}`,
-      );
-      // 期间可能已关闭编辑器或打开其他文件，过期响应必须丢弃，否则会把 A 内容存进 B 文件。
-      if (generation !== editGenerationRef.current) return;
-      setContent(res.content);
-    } catch (err) {
-      if (generation !== editGenerationRef.current) return;
-      setEditError(err instanceof Error ? err.message : String(err));
-    } finally {
-      if (generation === editGenerationRef.current) setLoadingEdit(false);
-    }
-  }
-
-  async function saveFile() {
-    if (!editPath) return;
-    setSaving(true);
-    try {
-      await api(`/api/instances/${instanceId}/files/content`, {
-        method: 'PUT',
-        json: { path: editPath, content },
-      });
-      setEditError('');
-      setError('');
-      closeEditor();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-      await load();
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function requestRemove(file: FileEntry) {
-    setDeleteTarget(file);
-    setDeleteError('');
-  }
-
-  async function confirmRemove() {
-    if (!deleteTarget || deleting) return;
-    setDeleting(true);
-    setDeleteError('');
-    try {
-      await api(`/api/instances/${instanceId}/files?path=${encodeURIComponent(deleteTarget.path)}`, {
-        method: 'DELETE',
-      });
-      if (editPath === deleteTarget.path) closeEditor();
-      await load();
-      closeDelete();
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeleting(false);
-    }
-  }
-
-  async function download(file: FileEntry) {
-    if (file.isDirectory) return;
-    const generation = downloadGenerationRef.current;
-    const controller = new AbortController();
-    downloadControllersRef.current.add(controller);
-    setBusyPath(file.path);
-    setError('');
-    try {
-      await downloadAuthenticated(instanceId, file.path, controller.signal);
-    } catch (err) {
-      if (controller.signal.aborted || isAbortError(err)) return;
-      if (err instanceof ApiError && err.status === 429) {
-        setError('下载繁忙，请稍后重试');
-      } else {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      downloadControllersRef.current.delete(controller);
-      if (generation === downloadGenerationRef.current) {
-        setBusyPath((current) => (current === file.path ? null : current));
-      }
-    }
-  }
-
-  function startRename(file: FileEntry) {
-    setRenameTarget(file);
-    setRenameName(file.name);
-    setRenameError('');
-  }
-
-  async function confirmRename() {
-    if (!renameTarget) return;
-    const validation = isValidRenameName(renameName);
-    if (validation) {
-      setRenameError(validation);
-      return;
-    }
-    const newName = renameName.trim();
-    if (newName === renameTarget.name) {
-      setRenameError('新名称与旧名称相同');
-      return;
-    }
-    const parentPath = parentOf(renameTarget.path);
-    const to = parentPath ? `${parentPath}/${newName}` : newName;
-    setRenaming(true);
-    setRenameError('');
-    try {
-      await api(`/api/instances/${instanceId}/files/rename`, {
-        method: 'POST',
-        json: { from: renameTarget.path, to },
-      });
-      if (editPath === renameTarget.path) closeEditor();
-      closeRename();
-      setError('');
-      await load();
-    } catch (err) {
-      setRenameError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setRenaming(false);
-    }
-  }
-
-  async function upload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const form = new FormData();
-    form.append('file', file);
-    try {
-      await apiForm(
-        `/api/instances/${instanceId}/files/upload?path=${encodeURIComponent(path)}`,
-        form,
-      );
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      e.target.value = '';
-    }
-  }
-
-  async function createDir() {
-    if (!newDir.trim()) return;
-    const target = path ? `${path}/${newDir.trim()}` : newDir.trim();
-    try {
-      await api(`/api/instances/${instanceId}/files/mkdir`, {
-        method: 'POST',
-        json: { path: target },
-      });
-      setNewDir('');
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  function goUp() {
-    if (!path) return;
-    const parts = path.split('/').filter(Boolean);
-    parts.pop();
-    changePath(parts.join('/'));
-  }
-
-  return (
-    <div className="files-workspace panel">
-      <div className="files-toolbar">
-        <div className="btn-row">
-          <button className="btn btn-ghost" type="button" onClick={goUp} disabled={!path}>
-            上级
-          </button>
-          <label className="btn btn-ghost" style={{ cursor: 'pointer' }}>
-            上传
-            <input type="file" hidden onChange={(e) => void upload(e)} />
-          </label>
-        </div>
-        <p className="muted files-path">当前路径：/{path || ''}</p>
-        {error && (
-          <div role="alert">
-            <p className="error">
-              {error}{loaded ? ' 当前继续显示上次成功读取的文件列表。' : ''}
-            </p>
-            <button className="btn btn-ghost" type="button" disabled={loading} onClick={() => void load()}>
-              {loading ? '正在重试…' : '重新读取'}
-            </button>
-          </div>
-        )}
-        {saved && <p className="muted">已保存</p>}
-        {!loaded && loading && (
-          <p className="muted" role="status" aria-live="polite">
-            正在读取文件列表…
-          </p>
-        )}
-        {loaded && loading && (
-          <p className="muted" role="status" aria-live="polite">
-            正在刷新文件列表，继续显示上次结果。
-          </p>
-        )}
-      </div>
-
-      {!loaded ? null : files.length === 0 ? (
-        <p className="muted" role="status">当前目录为空。</p>
-      ) : (
-        <ul className="file-list">
-          {files.map((f) => (
-            <li key={f.path}>
-              {f.isDirectory ? (
-                <button className="linkish" type="button" onClick={() => void openDirectory(f)}>
-                  <span className="file-kind dir" aria-hidden="true" />
-                  {f.name}
-                </button>
-              ) : (
-                <span className="file-name">
-                  <span className="file-kind file" aria-hidden="true" />
-                  {f.name}
-                </span>
-              )}
-              <div className="file-actions">
-                {!f.isDirectory && (
-                  <button
-                    className="btn btn-ghost"
-                    type="button"
-                    disabled={busyPath === f.path || deleting}
-                    onClick={() => void download(f)}
-                  >
-                    {busyPath === f.path ? '下载中…' : '下载'}
-                  </button>
-                )}
-                <button
-                  className="btn btn-ghost"
-                  type="button"
-                  disabled={busyPath === f.path || renaming || deleting}
-                  onClick={() => startRename(f)}
-                >
-                  重命名
-                </button>
-                {canEditFile(f) && (
-                  <button
-                    className="btn btn-ghost"
-                    type="button"
-                    disabled={deleting}
-                    onClick={() => void startEdit(f)}
-                  >
-                    编辑
-                  </button>
-                )}
-                <button
-                  className="btn btn-ghost"
-                  type="button"
-                  disabled={deleting}
-                  onClick={() => requestRemove(f)}
-                >
-                  删除
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div className="files-footer field">
-        <label>新建文件夹</label>
-        <div className="btn-row">
-          <input value={newDir} onChange={(e) => setNewDir(e.target.value)} placeholder="目录名" />
-          <button className="btn btn-ghost" type="button" onClick={() => void createDir()}>
-            创建
-          </button>
-        </div>
-      </div>
-
-      <dialog
-        ref={editDialogRef}
-        className="file-edit-dialog"
-        aria-labelledby="file-edit-dialog-title"
-        onClose={closeEditor}
-        onCancel={(event) => {
-          event.preventDefault();
-          closeEditor();
-        }}
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) closeEditor();
-        }}
-      >
-        <div className="file-edit-dialog-panel">
-          <header className="file-edit-dialog-header">
-            <div>
-              <h2 id="file-edit-dialog-title">编辑文件</h2>
-              <p className="file-edit-dialog-path">{editPath}</p>
-            </div>
-            <button className="btn btn-ghost" type="button" aria-label="关闭编辑" onClick={closeEditor}>
-              关闭
-            </button>
-          </header>
-          {editError && <p className="error file-edit-dialog-error">{editError}</p>}
-          {loadingEdit ? (
-            <p className="muted file-edit-dialog-loading">加载中…</p>
-          ) : (
-            <textarea
-              className="file-edit-dialog-textarea"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              spellCheck={false}
-            />
-          )}
-          <footer className="file-edit-dialog-footer">
-            <button className="btn btn-ghost" type="button" onClick={closeEditor}>
-              取消
-            </button>
-            <button
-              className="btn"
-              type="button"
-              disabled={saving || loadingEdit || !editPath}
-              onClick={() => void saveFile()}
-            >
-              {saving ? '保存中…' : '保存'}
-            </button>
-          </footer>
-        </div>
-      </dialog>
-
-      <dialog
-        ref={renameDialogRef}
-        className="confirm-dialog"
-        aria-labelledby="file-rename-dialog-title"
-        onClose={closeRename}
-        onCancel={(event) => {
-          event.preventDefault();
-          closeRename();
-        }}
-        onMouseDown={(event) => {
-          if (event.target === event.currentTarget) closeRename();
-        }}
-      >
-        <div className="confirm-dialog-panel">
-          <h2 id="file-rename-dialog-title" className="confirm-dialog-title">
-            重命名
-          </h2>
-          <div className="confirm-dialog-body">
-            <p className="muted" style={{ marginTop: 0 }}>
-              仅同目录改名，不可包含路径分隔符。
-            </p>
-            <div className="field">
-              <label htmlFor="file-rename-input">新名称</label>
-              <input
-                id="file-rename-input"
-                value={renameName}
-                onChange={(e) => setRenameName(e.target.value)}
-                autoComplete="off"
-                autoFocus
-                disabled={renaming}
-              />
-            </div>
-            {renameError && <p className="error">{renameError}</p>}
-          </div>
-          <footer className="confirm-dialog-footer">
-            <button className="btn btn-ghost" type="button" disabled={renaming} onClick={closeRename}>
-              取消
-            </button>
-            <button
-              className="btn"
-              type="button"
-              disabled={renaming || !renameTarget}
-              onClick={() => void confirmRename()}
-            >
-              {renaming ? '重命名中…' : '确认'}
-            </button>
-          </footer>
-        </div>
-      </dialog>
-
-      <ConfirmDialog
-        open={Boolean(deleteTarget)}
-        title={deleteTarget?.isDirectory ? `删除文件夹「${deleteTarget.name}」？` : `删除文件「${deleteTarget?.name ?? ''}」？`}
-        description={
-          deleteTarget?.isDirectory ? (
-            <>
-              <p>将递归删除目录「/{deleteTarget.path}」及其中所有文件，且无法恢复。</p>
-              {deleting && <p role="status" aria-live="polite">正在删除文件夹…</p>}
-              {deleteError && <p className="error">{deleteError}</p>}
-            </>
-          ) : (
-            <>
-              <p>将删除文件「/{deleteTarget?.path ?? ''}」，且无法恢复。</p>
-              {deleting && <p role="status" aria-live="polite">正在删除文件…</p>}
-              {deleteError && <p className="error">{deleteError}</p>}
-            </>
-          )
-        }
-        confirmLabel="确认删除"
-        danger
-        busy={deleting}
-        onConfirm={() => void confirmRemove()}
-        onCancel={closeDelete}
-      />
-    </div>
-  );
 }
 
 type SettingsDraft = Pick<InstanceInfo, 'name' | 'jarFile' | 'jvmArgs' | 'acceptEula' | 'javaRuntimeId'>;
@@ -659,46 +94,16 @@ function SettingsTab({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const draft = useMemo<SettingsDraft>(
-    () => ({ name, jarFile, jvmArgs, acceptEula, javaRuntimeId }),
-    [acceptEula, jarFile, javaRuntimeId, jvmArgs, name],
-  );
+  const draft: SettingsDraft = { name, jarFile, jvmArgs, acceptEula, javaRuntimeId };
   const dirty = !isSameSettings(draft, originalSettings);
-  const blocker = useBlocker(dirty || saving);
-
-  useEffect(() => {
-    // 用户在保存过程中触发导航时，保存成功后直接继续原导航。
-    if (blocker.state === 'blocked' && !dirty && !saving) blocker.proceed();
-  }, [blocker, dirty, saving]);
-
-  useEffect(() => {
-    if (!dirty) return;
-    function preventUnload(event: BeforeUnloadEvent) {
-      event.preventDefault();
-      event.returnValue = true;
-    }
-    window.addEventListener('beforeunload', preventUnload);
-    return () => window.removeEventListener('beforeunload', preventUnload);
-  }, [dirty]);
-
-  useEffect(() => {
-    const next = settingsFromInstance(instance);
-    setName(next.name);
-    setJarFile(next.jarFile);
-    setJvmArgs(next.jvmArgs);
-    setAcceptEula(next.acceptEula);
-    setJavaRuntimeId(next.javaRuntimeId);
-    setOriginalSettings(next);
-    setError('');
-    setSaved(false);
-  }, [instance.id]);
+  const blocker = useUnsavedGuard(dirty, saving);
 
   async function save() {
     if (!dirty || saving || !jvmValid) return;
     setSaving(true);
     setSaved(false);
     try {
-      await api(`/api/instances/${instance.id}`, {
+      await api(instanceApi(instance.id), {
         method: 'PATCH',
         json: draft,
       });
@@ -707,7 +112,7 @@ function SettingsTab({
       setSaved(true);
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -774,42 +179,23 @@ function SettingsTab({
         disabled={saving}
         onValidityChange={setJvmValid}
       />
-      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '1rem' }}>
-        <input
-          id="instance-settings-accept-eula"
-          type="checkbox"
-          checked={acceptEula}
-          disabled={saving}
-          onChange={(e) => {
-            setAcceptEula(e.target.checked);
-            setSaved(false);
-          }}
-        />
-        <label htmlFor="instance-settings-accept-eula">
-          我已阅读并同意 <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Minecraft EULA</a>（启动时自动写入同意标记）
-        </label>
-      </div>
+      <EulaCheckbox
+        checked={acceptEula}
+        disabled={saving}
+        onChange={(checked) => {
+          setAcceptEula(checked);
+          setSaved(false);
+        }}
+      />
       <button className="btn" type="button" disabled={!dirty || saving || !jvmValid} onClick={() => void save()}>
         {saving ? '保存中…' : '保存设置'}
       </button>
 
-      <ConfirmDialog
-        open={blocker.state === 'blocked'}
-        title={saving ? '正在保存设置…' : '放弃未保存的设置修改？'}
-        description={
-          saving
-            ? '保存完成后会自动继续离开；保存期间无法放弃或取消。'
-            : '离开设置页会丢失尚未保存的实例设置。'
-        }
-        confirmLabel="放弃修改并离开"
-        danger={!saving}
-        busy={saving}
-        onConfirm={() => {
-          if (!saving && blocker.state === 'blocked') blocker.proceed();
-        }}
-        onCancel={() => {
-          if (!saving && blocker.state === 'blocked') blocker.reset();
-        }}
+      <UnsavedChangesDialog
+        blocker={blocker}
+        saving={saving}
+        subject="设置"
+        description="离开设置页会丢失尚未保存的实例设置。"
       />
     </div>
   );
@@ -818,45 +204,26 @@ function SettingsTab({
 export function InstancePage() {
   const { id = '' } = useParams();
   const [instance, setInstance] = useState<InstanceInfo | null>(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [confirmForceStop, setConfirmForceStop] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      setInstance(await api<InstanceInfo>(`/api/instances/${id}`));
-      setError('');
+      setInstance(await api<InstanceInfo>(instanceApi(id)));
+      setLoadError('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setLoadError(errorMessage(err));
     }
   }, [id]);
+  usePolling(load);
 
-  useEffect(() => {
-    void load();
-    const timer = setInterval(() => void load(), 4000);
-    return () => clearInterval(timer);
-  }, [load]);
+  const { busyId, error: actionError, run } = useInstanceAction(load);
+  const busy = busyId !== null;
+  const error = actionError || loadError;
 
-  async function act(action: 'start' | 'stop' | 'restart', options?: { force?: boolean }) {
-    setBusy(true);
-    try {
-      const query = action === 'stop' && options?.force ? '?force=1' : '';
-      const result = await api<InstanceInfo | import('@mystry/shared').InstanceStopPendingResult>(
-        `/api/instances/${id}/${action}${query}`,
-        { method: 'POST' },
-      );
-      if (isInstanceStopPendingResult(result)) {
-        setError(result.error || '服务仍在保存，请等待或选择强制停止');
-      } else {
-        setError('');
-      }
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+  function act(action: InstanceAction, options?: { force?: boolean }) {
+    void run(id, () => controlInstance(id, action, options));
   }
 
   if (!instance) {
@@ -875,7 +242,7 @@ export function InstancePage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <h2 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>{instance.name}</h2>
                 <span className={`status-badge ${instance.requiresMigration ? 'starting' : instance.status}`}>
-                  {instance.requiresMigration ? '待迁移' : `● ${statusLabel[instance.status] || instance.status}`}
+                  {instance.requiresMigration ? '待迁移' : `● ${instanceStatusLabel[instance.status] || instance.status}`}
                 </span>
               </div>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -890,7 +257,7 @@ export function InstancePage() {
                 className="btn btn-ok"
                 type="button"
                 disabled={busy || instance.requiresMigration}
-                onClick={() => void act('start')}
+                onClick={() => act('start')}
               >
                 <Play size={14} />
                 启动
@@ -901,7 +268,7 @@ export function InstancePage() {
                 className="btn btn-danger"
                 type="button"
                 disabled={busy || instance.requiresMigration}
-                onClick={() => void act('stop')}
+                onClick={() => act('stop')}
               >
                 <Power size={14} />
                 停止
@@ -919,7 +286,7 @@ export function InstancePage() {
             <button
               className="btn btn-ghost"
               type="button"
-              disabled={busy || instance.requiresMigration || !canForceStop(instance.status)}
+              disabled={busy || instance.requiresMigration || !isProcessAlive(instance.status)}
               onClick={() => setConfirmForceStop(true)}
             >
               强制停止
@@ -964,7 +331,7 @@ export function InstancePage() {
         )}
       </div>
 
-      <div className="instance-body">
+      <div className="instance-body" key={instance.id}>
         {instance.requiresMigration ? (
           <MigrationPanel instance={instance} onAdopt={load} />
         ) : (
@@ -985,7 +352,7 @@ export function InstancePage() {
         busy={busy}
         onConfirm={() => {
           setConfirmRestart(false);
-          void act('restart');
+          act('restart');
         }}
         onCancel={() => setConfirmRestart(false)}
       />
@@ -998,7 +365,7 @@ export function InstancePage() {
         busy={busy}
         onConfirm={() => {
           setConfirmForceStop(false);
-          void act('stop', { force: true });
+          act('stop', { force: true });
         }}
         onCancel={() => setConfirmForceStop(false)}
       />

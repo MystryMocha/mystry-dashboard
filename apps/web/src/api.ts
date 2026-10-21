@@ -6,13 +6,16 @@ import type {
   JavaRuntimeListResult,
   JavaDetectResult,
   ImportPreviewInfo,
+  InstanceInfo,
+  InstanceStopPendingResult,
   NodeInfo,
   TaskInfo,
   TaskListResult,
 } from '@mystry/shared';
+import { isInstanceStopPendingResult } from '@mystry/shared';
+import { isAbortError } from './errors';
 
 const TOKEN_KEY = 'mystry_token';
-
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -81,21 +84,33 @@ export async function api<T>(
   return data as T;
 }
 
-export async function apiForm<T>(
-  path: string,
-  form: FormData,
-  options?: { signal?: AbortSignal },
-): Promise<T> {
-  const headers = new Headers();
-  const token = getToken();
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-  const res = await fetch(path, { method: 'POST', headers, body: form, signal: options?.signal });
-  const data = await res.json();
-  if (!res.ok) {
-    if (res.status === 401) handleUnauthorized(path);
-    throw new ApiError(res.status, data.error || `请求失败（${res.status}）`);
-  }
-  return data as T;
+/** 实例接口路径；实例 ID 统一编码后再拼进路径。 */
+export function instanceApi(instanceId: string, suffix = ''): string {
+  return `/api/instances/${encodeURIComponent(instanceId)}${suffix}`;
+}
+
+function abortError(): DOMException {
+  return new DOMException('操作已取消', 'AbortError');
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError();
+}
+
+/** 等待指定毫秒；signal 中止时立即以 AbortError 结束并清理定时器。 */
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(abortError());
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      window.clearTimeout(timer);
+      reject(abortError());
+    };
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }
 
 export function createConsoleTicket(
@@ -103,7 +118,7 @@ export function createConsoleTicket(
   signal?: AbortSignal,
 ): Promise<{ ticket: string; expiresIn: number }> {
   return api<{ ticket: string; expiresIn: number }>(
-    `/api/instances/${encodeURIComponent(instanceId)}/console-ticket`,
+    instanceApi(instanceId, '/console-ticket'),
     { method: 'POST', signal },
   );
 }
@@ -111,46 +126,10 @@ export function createConsoleTicket(
 const DOWNLOAD_STATUS_POLL_INTERVAL_MS = 3_000;
 const DOWNLOAD_STATUS_RATE_LIMIT_MAX_DELAY_MS = 15_000;
 
-function createDownloadAbortError(): DOMException {
-  return new DOMException('下载已取消', 'AbortError');
-}
-
-function throwIfDownloadAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) throw createDownloadAbortError();
-}
-
-function isDownloadAbortError(error: unknown): boolean {
-  return error !== null
-    && typeof error === 'object'
-    && 'name' in error
-    && error.name === 'AbortError';
-}
-
-function waitForDownloadStatusPoll(delayMs: number, signal?: AbortSignal): Promise<void> {
-  throwIfDownloadAborted(signal);
-  return new Promise((resolve, reject) => {
-    let timer: number | null = null;
-    const cleanup = () => {
-      if (timer !== null) window.clearTimeout(timer);
-      signal?.removeEventListener('abort', onAbort);
-    };
-    const onAbort = () => {
-      cleanup();
-      reject(createDownloadAbortError());
-    };
-    timer = window.setTimeout(() => {
-      cleanup();
-      resolve();
-    }, delayMs);
-    signal?.addEventListener('abort', onAbort, { once: true });
-    if (signal?.aborted) onAbort();
-  });
-}
-
 /** Abort 信号已经触发时，取消请求不能复用该信号，否则浏览器会在发出前直接终止请求。 */
 function cancelReservedDownloadTicket(instanceId: string, ticket: string): void {
   void api<unknown>(
-    `/api/instances/${encodeURIComponent(instanceId)}/files/download-ticket/${encodeURIComponent(ticket)}`,
+    instanceApi(instanceId, `/files/download-ticket/${encodeURIComponent(ticket)}`),
     { method: 'DELETE', keepalive: true },
   ).catch(() => undefined);
 }
@@ -182,35 +161,35 @@ export async function downloadAuthenticated(
   relativePath: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  throwIfDownloadAborted(signal);
+  throwIfAborted(signal);
   const popup = openDownloadPopup();
 
   let ticket: string | null = null;
   try {
     const issued = await api<FileDownloadTicketResult>(
-      `/api/instances/${encodeURIComponent(instanceId)}/files/download-ticket`,
+      instanceApi(instanceId, '/files/download-ticket'),
       { method: 'POST', json: { path: relativePath } },
     );
     ticket = issued.ticket;
-    throwIfDownloadAborted(signal);
+    throwIfAborted(signal);
 
     const url =
-      `/api/instances/${encodeURIComponent(instanceId)}/files/download`
+      instanceApi(instanceId, '/files/download')
       + `?path=${encodeURIComponent(relativePath)}`
       + `&ticket=${encodeURIComponent(ticket)}`;
     popup.location.href = url;
 
     let statusPollDelayMs = DOWNLOAD_STATUS_POLL_INTERVAL_MS;
     for (;;) {
-      await waitForDownloadStatusPoll(statusPollDelayMs, signal);
+      await delay(statusPollDelayMs, signal);
       let status: FileDownloadTicketStatusResult;
       try {
         status = await api<FileDownloadTicketStatusResult>(
-          `/api/instances/${encodeURIComponent(instanceId)}/files/download-ticket/${encodeURIComponent(ticket)}/status`,
+          instanceApi(instanceId, `/files/download-ticket/${encodeURIComponent(ticket)}/status`),
           { signal },
         );
       } catch (error) {
-        if (signal?.aborted || isDownloadAbortError(error)) throw error;
+        if (signal?.aborted || isAbortError(error)) throw error;
         // 票据被服务端清理（过期等）时返回 404：关闭空白下载窗并明确报错。
         if (error instanceof ApiError && error.status === 404) {
           throw new Error('下载票据已过期，请重试');
@@ -242,7 +221,7 @@ export async function downloadAuthenticated(
       }
     }
   } catch (error) {
-    if (ticket && (signal?.aborted || isDownloadAbortError(error))) {
+    if (ticket && (signal?.aborted || isAbortError(error))) {
       cancelReservedDownloadTicket(instanceId, ticket);
     }
     popup.close();
@@ -283,7 +262,7 @@ export async function listExistingServerSources() {
 export async function createImportPreview(file: File, signal?: AbortSignal) {
   const form = new FormData();
   form.append('file', file);
-  return apiForm<ImportPreviewInfo>('/api/import/previews', form, { signal });
+  return api<ImportPreviewInfo>('/api/import/previews', { method: 'POST', body: form, signal });
 }
 
 export async function getImportPreview(id: string, signal?: AbortSignal) {
@@ -309,73 +288,51 @@ export async function cancelImportPreview(id: string) {
   });
 }
 
+export type InstanceAction = 'start' | 'stop' | 'restart';
+
+/** 启动、停止或重启实例；服务端仍在保存时按错误提示用户等待或强制停止。 */
+export async function controlInstance(
+  instanceId: string,
+  action: InstanceAction,
+  options?: { force?: boolean },
+): Promise<void> {
+  const query = action === 'stop' && options?.force ? '?force=1' : '';
+  const result = await api<InstanceInfo | InstanceStopPendingResult>(
+    instanceApi(instanceId, `/${action}${query}`),
+    { method: 'POST' },
+  );
+  if (isInstanceStopPendingResult(result)) {
+    throw new Error(result.error || '服务仍在保存，请等待或选择强制停止');
+  }
+}
+
+const TASK_POLL_INTERVAL_MS = 2_000;
+const TASK_RATE_LIMIT_BACKOFF_MS = 5_000;
+
+/** 轮询任务直到完成或失败，返回任务结果；signal 中止时以 AbortError 结束。 */
 export async function pollTask(
   taskId: string,
-  onUpdate?: (task: {
-    status: string;
-    progress: number;
-    message: string;
-    error?: string;
-    result?: { instanceId?: string };
-  }) => void,
+  onUpdate?: (task: TaskInfo) => void,
   signal?: AbortSignal,
-): Promise<{ instanceId?: string }> {
-  const pollIntervalMs = 2_000;
-  const rateLimitBackoffMs = 5_000;
-  if (signal?.aborted) {
-    throw new DOMException('任务轮询已中止', 'AbortError');
-  }
-
-  // 等待与中止信号竞争，组件卸载/登出后可立即终止轮询。
-  const wait = (ms: number) =>
-    new Promise<void>((resolve) => {
-      const onAbort = () => {
-        clearTimeout(timer);
-        signal?.removeEventListener('abort', onAbort);
-        resolve();
-      };
-      const timer = setTimeout(() => {
-        signal?.removeEventListener('abort', onAbort);
-        resolve();
-      }, ms);
-      signal?.addEventListener('abort', onAbort, { once: true });
-    });
-  const throwIfAborted = () => {
-    if (signal?.aborted) throw new DOMException('任务轮询已中止', 'AbortError');
-  };
-
+): Promise<TaskInfo['result']> {
   for (;;) {
-    throwIfAborted();
-    let task: {
-      status: string;
-      progress: number;
-      message: string;
-      error?: string;
-      result?: { instanceId?: string };
-    };
-
+    throwIfAborted(signal);
+    let task: TaskInfo;
     try {
-      task = await api<{
-        status: string;
-        progress: number;
-        message: string;
-        error?: string;
-        result?: { instanceId?: string };
-      }>(`/api/tasks/${taskId}`, { signal });
+      task = await api<TaskInfo>(`/api/tasks/${encodeURIComponent(taskId)}`, { signal });
     } catch (error) {
-      // 任务可能仍在排队，服务端限流不代表任务失败。继续使用单一
-      // 的等待链轮询，避免每次重试都创建一个新的并发定时器。
+      // 任务可能仍在排队，服务端限流不代表任务失败，退避后继续轮询。
       if (error instanceof ApiError && error.status === 429) {
-        await wait(rateLimitBackoffMs);
+        await delay(TASK_RATE_LIMIT_BACKOFF_MS, signal);
         continue;
       }
       throw error;
     }
 
-    throwIfAborted();
+    throwIfAborted(signal);
     onUpdate?.(task);
-    if (task.status === 'completed') return task.result ?? {};
+    if (task.status === 'completed') return task.result;
     if (task.status === 'failed') throw new Error(task.error || '任务失败');
-    await wait(pollIntervalMs);
+    await delay(TASK_POLL_INTERVAL_MS, signal);
   }
 }

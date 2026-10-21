@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DashboardMetrics as Metrics, InstanceInfo } from '@mystry/shared';
 import { api } from '../api';
+import { usePolling } from '../hooks/usePolling';
 
 export function gib(bytes: number): string { return (bytes / 1024 ** 3).toFixed(1); }
 
@@ -19,7 +20,7 @@ export function useDashboardMetrics() {
   const pending = useRef(false);
   const mounted = useRef(false);
   const refresh = useCallback(async () => {
-    if (pending.current || document.hidden) return;
+    if (pending.current) return;
     pending.current = true; setBusy(true);
     try {
       const result = await api<Metrics>('/api/system/metrics');
@@ -34,12 +35,9 @@ export function useDashboardMetrics() {
   }, []);
   useEffect(() => {
     mounted.current = true;
-    void refresh();
-    const timer = setInterval(() => void refresh(), 5000);
-    const visible = () => { if (!document.hidden) void refresh(); };
-    document.addEventListener('visibilitychange', visible);
-    return () => { mounted.current = false; clearInterval(timer); document.removeEventListener('visibilitychange', visible); };
-  }, [refresh]);
+    return () => { mounted.current = false; };
+  }, []);
+  usePolling(refresh);
   return { metrics, error, busy, refresh };
 }
 

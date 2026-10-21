@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { FolderDown, LayoutGrid, LogOut, Menu, Rocket, Server, Terminal, X } from 'lucide-react';
 import { useAuth } from './auth';
@@ -24,6 +24,15 @@ const NodesPage = lazy(() =>
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+
+function pageTitleFor(pathname: string): string {
+  if (pathname === '/') return '实例总览';
+  if (pathname.startsWith('/instances')) return '实例工作台';
+  if (pathname.startsWith('/deploy')) return '一键部署';
+  if (pathname.startsWith('/import')) return '导入已有服务端';
+  if (pathname.startsWith('/nodes')) return '本机环境';
+  return '管理控制台';
+}
 
 function PageLoading() {
   return (
@@ -94,15 +103,6 @@ function Shell({ children }: { children: React.ReactNode }) {
     return () => desktop.removeEventListener('change', onResize);
   }, [closeSidebar]);
 
-  const pageTitle = useMemo(() => {
-    if (location.pathname === '/') return '实例总览';
-    if (location.pathname.startsWith('/instances')) return '实例工作台';
-    if (location.pathname.startsWith('/deploy')) return '一键部署';
-    if (location.pathname.startsWith('/import')) return '导入已有服务端';
-    if (location.pathname.startsWith('/nodes')) return '本机环境';
-    return '管理控制台';
-  }, [location.pathname]);
-
   return (
     <div className={`app-shell${sidebarOpen ? ' sidebar-open' : ''}`}>
       <aside
@@ -120,7 +120,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="brand-info">
             <div className="brand-title">Mystry Dashboard</div>
-            <div className="brand-subtitle">v0.2.0-preview · Minecraft</div>
+            <div className="brand-subtitle">v{__APP_VERSION__} · Minecraft</div>
           </div>
         </div>
 
@@ -200,7 +200,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             >
               {sidebarOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
             </button>
-            <h2 className="page-title" style={{ margin: 0, fontSize: '1.15rem' }}>{pageTitle}</h2>
+            <h2 className="page-title" style={{ margin: 0, fontSize: '1.15rem' }}>{pageTitleFor(location.pathname)}</h2>
             <span className="tag-badge">Minecraft Java 服务端</span>
           </div>
           <div className="topbar-right" ref={topbarToolsRef}>

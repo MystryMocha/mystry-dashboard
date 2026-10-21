@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 import { Copy, Eraser, Send } from 'lucide-react';
 import type { ConsoleMessage } from '@mystry/shared';
 import { createConsoleTicket } from '../api';
+import { errorMessage, isAbortError } from '../errors';
 import {
   colorizeConsoleLine,
   colorizeConsoleStream,
@@ -154,9 +155,9 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
           scheduleReconnect('控制台连接已断开');
         };
       } catch (err) {
-        if (disposed || (err instanceof Error && err.name === 'AbortError')) return;
+        if (disposed || isAbortError(err)) return;
         setConnected(false);
-        scheduleReconnect(err instanceof Error ? err.message : String(err));
+        scheduleReconnect(errorMessage(err));
       }
     };
 

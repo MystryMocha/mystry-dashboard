@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useBlocker } from 'react-router-dom';
-import { api } from '../api';
-import { ConfirmDialog } from './ConfirmDialog';
+import { useEffect, useState } from 'react';
+import { api, instanceApi } from '../api';
+import { errorMessage } from '../errors';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
+import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 
 /**
  * server.properties 引导化编辑器：
@@ -90,6 +91,9 @@ const GROUPS: GroupMeta[] = [
   },
 ];
 
+const KNOWN_KEYS = new Set(GROUPS.flatMap((group) => group.fields.map((field) => field.key)));
+
+/** 切换实例时由上层按实例 ID 重新挂载。 */
 export function ConfigTab({ instanceId }: { instanceId: string }) {
   const [props, setProps] = useState<Record<string, string>>({});
   const [originalProps, setOriginalProps] = useState<Record<string, string>>({});
@@ -100,11 +104,7 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    setProps({});
-    setError('');
-    setSaved(false);
-    setLoaded(false);
-    void api<Record<string, string>>(`/api/instances/${instanceId}/config/server.properties`, {
+    void api<Record<string, string>>(instanceApi(instanceId, '/config/server.properties'), {
       signal: controller.signal,
     })
       .then((nextProps) => {
@@ -115,35 +115,20 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorMessage(err));
       });
     return () => controller.abort();
   }, [instanceId]);
 
   const dirty = loaded && !arePropertiesEqual(props, originalProps);
-  const blocker = useBlocker(dirty || saving);
-
-  useEffect(() => {
-    // 用户在保存过程中触发导航时，保存成功后直接继续原导航。
-    if (blocker.state === 'blocked' && !dirty && !saving) blocker.proceed();
-  }, [blocker, dirty, saving]);
-
-  useEffect(() => {
-    if (!dirty) return;
-    function preventUnload(event: BeforeUnloadEvent) {
-      event.preventDefault();
-      event.returnValue = true;
-    }
-    window.addEventListener('beforeunload', preventUnload);
-    return () => window.removeEventListener('beforeunload', preventUnload);
-  }, [dirty]);
+  const blocker = useUnsavedGuard(dirty, saving);
 
   async function save() {
     if (!loaded || !dirty || saving) return;
     setSaving(true);
     setSaved(false);
     try {
-      await api(`/api/instances/${instanceId}/config/server.properties`, {
+      await api(instanceApi(instanceId, '/config/server.properties'), {
         method: 'PUT',
         json: props,
       });
@@ -151,17 +136,13 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
       setSaved(true);
       setError('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       setSaving(false);
     }
   }
 
-  const knownKeys = useMemo(
-    () => new Set(GROUPS.flatMap((group) => group.fields.map((field) => field.key))),
-    [],
-  );
-  const advancedKeys = Object.keys(props).filter((key) => !knownKeys.has(key)).sort();
+  const advancedKeys = Object.keys(props).filter((key) => !KNOWN_KEYS.has(key)).sort();
 
   function setValue(key: string, value: string) {
     setSaved(false);
@@ -266,23 +247,11 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
         </button>
       </div>
 
-      <ConfirmDialog
-        open={blocker.state === 'blocked'}
-        title={saving ? '正在保存配置…' : '放弃未保存的配置修改？'}
-        description={
-          saving
-            ? '保存完成后会自动继续离开；保存期间无法放弃或取消。'
-            : '离开配置页会丢失尚未保存的 server.properties 修改。'
-        }
-        confirmLabel="放弃修改并离开"
-        danger={!saving}
-        busy={saving}
-        onConfirm={() => {
-          if (!saving && blocker.state === 'blocked') blocker.proceed();
-        }}
-        onCancel={() => {
-          if (!saving && blocker.state === 'blocked') blocker.reset();
-        }}
+      <UnsavedChangesDialog
+        blocker={blocker}
+        saving={saving}
+        subject="配置"
+        description="离开配置页会丢失尚未保存的 server.properties 修改。"
       />
     </div>
   );

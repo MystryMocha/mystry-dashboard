@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import type { NodeInfo } from '@mystry/shared';
 import { api } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { errorMessage } from '../errors';
+import { usePolling } from '../hooks/usePolling';
 
 const statusLabel: Record<string, string> = {
   online: '在线',
@@ -37,16 +39,11 @@ export function NodesPage() {
       setLoadError('');
     } catch (err) {
       if (requestId !== latestLoadRequestRef.current) return;
-      setLoadError(err instanceof Error ? err.message : String(err));
+      setLoadError(errorMessage(err));
       setLoadState((current) => (current === 'loaded' ? 'loaded' : 'error'));
     }
   }, []);
-
-  useEffect(() => {
-    void load();
-    const timer = setInterval(() => void load(), 5000);
-    return () => clearInterval(timer);
-  }, [load]);
+  usePolling(load);
 
   function retryLoad(): void {
     setLoadError('');
@@ -65,11 +62,11 @@ export function NodesPage() {
     setBusyId(target.id);
     setDeleteError('');
     try {
-      await api(`/api/nodes/${target.id}`, { method: 'DELETE' });
+      await api(`/api/nodes/${encodeURIComponent(target.id)}`, { method: 'DELETE' });
       setDeleteTarget(null);
       await load();
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : String(err));
+      setDeleteError(errorMessage(err));
     } finally {
       setBusyId(null);
     }

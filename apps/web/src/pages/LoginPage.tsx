@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../auth';
+import { errorMessage } from '../errors';
 
 export function LoginPage() {
   const { needsSetup, statusError, login, setup, refresh } = useAuth();
@@ -21,7 +22,7 @@ export function LoginPage() {
       if (needsSetup) await setup(username, password, setupToken);
       else await login(username, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       submittingRef.current = false;
       setBusy(false);
