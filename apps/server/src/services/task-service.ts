@@ -15,7 +15,7 @@ export class TaskCapacityError extends Error {
   readonly code = 'TASK_CAPACITY';
 
   constructor() {
-    super('任务队列容量已满，请稍后重试');
+    super('排队的任务过多，请稍后重试');
     this.name = 'TaskCapacityError';
   }
 }
@@ -193,7 +193,7 @@ function tryCleanInterruptedStaging(row: TaskRow): { cleaned: boolean; cleanupEr
     token: result.stagingToken,
   };
   if (!stagingMarkerMatches(stagingPath, marker)) {
-    return { cleaned: false, cleanupError: 'staging marker 与任务记录不匹配，已跳过自动清理' };
+    return { cleaned: false, cleanupError: '临时目录中的任务标记与任务记录不匹配，已跳过自动清理' };
   }
   try {
     removeTaskStagingTree(row.id, result.instanceId, config.dataDir);
@@ -235,14 +235,14 @@ export function recoverInterruptedTasks(): InterruptedTaskRecovery {
     // 最终实例目录或数据库记录一律保留，即使任务未完成。
     if (instanceId && getInstanceRow(instanceId)) {
       const error = stagingCleanup.cleanupError
-        ? `面板重启，内存任务无法恢复；staging 清理异常：${stagingCleanup.cleanupError}`
+        ? `面板重启，未完成的任务无法恢复；临时目录清理失败：${stagingCleanup.cleanupError}`
         : '面板重启，内存任务无法恢复；已保留实例目录，请重新提交或手动检查任务状态';
       update.run(error, row.result_json, nowIso(), row.id);
       continue;
     }
 
     const error = stagingCleanup.cleanupError
-      ? `面板重启，内存任务无法恢复；staging 清理异常：${stagingCleanup.cleanupError}`
+      ? `面板重启，未完成的任务无法恢复；临时目录清理失败：${stagingCleanup.cleanupError}`
       : '面板重启，内存任务无法恢复，请重新提交';
     update.run(error, stagingCleanup.cleaned ? null : row.result_json, nowIso(), row.id);
   }

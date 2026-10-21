@@ -84,13 +84,13 @@ export async function deployCore(input: DeployCoreInput) {
 
           if (isUsableCoreCache(cachePath)) {
             throwIfAborted(signal);
-            report(20, '使用本地 installer 缓存…');
+            report(20, '使用本地缓存的安装器…');
             fs.copyFileSync(cachePath, installerDest);
           } else {
             throwIfAborted(signal);
-            report(15, '下载 installer…');
+            report(15, '下载安装器…');
             await ensureCoreCache(installerUrl, cachePath, (ratio) => {
-              report(15 + ratio * 40, `下载 installer ${(ratio * 100).toFixed(0)}%`);
+              report(15 + ratio * 40, `下载安装器 ${(ratio * 100).toFixed(0)}%`);
             }, signal);
             throwIfAborted(signal);
             fs.copyFileSync(cachePath, installerDest);
@@ -124,7 +124,7 @@ export async function deployCore(input: DeployCoreInput) {
           } else {
             const jar = detectJarFile(dir);
             if (!jar) {
-              throw new Error('安装完成但未找到可启动的 jar / args 文件');
+              throw new Error('安装已完成，但未找到可启动的服务端 jar 或启动参数文件');
             }
             jarFile = jar;
           }

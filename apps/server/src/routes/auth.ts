@@ -85,7 +85,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/auth/me', { preHandler: [app.authenticate] }, async (req, reply) => {
     const user = getUserById(req.user.id);
     if (!user) {
-      return reply.code(401).send({ error: '未登录' });
+      return reply.code(401).send({ error: '登录已失效，请重新登录' });
     }
     return { user };
   });
@@ -96,7 +96,7 @@ export function registerAuthHooks(app: FastifyInstance): void {
     try {
       await req.jwtVerify();
     } catch {
-      return reply.code(401).send({ error: '未授权' });
+      return reply.code(401).send({ error: '登录已失效，请重新登录' });
     }
   });
 }

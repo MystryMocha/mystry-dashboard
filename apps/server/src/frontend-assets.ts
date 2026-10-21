@@ -33,7 +33,7 @@ export async function registerFrontendAssets(
   });
   app.setNotFoundHandler((req, reply) => {
     if (req.url.startsWith('/api') || req.url.startsWith('/ws')) {
-      return reply.code(404).send({ error: 'Not Found' });
+      return reply.code(404).send({ error: '接口不存在' });
     }
     return reply.sendFile('index.html');
   });

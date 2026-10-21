@@ -38,22 +38,22 @@ function readAt(fd: number, position: number, length: number): Buffer {
 }
 
 function zipPathFromEntry(name: string): string {
-  if (!name || name.includes('\0')) throw new Error('ZIP entry 名称非法');
+  if (!name || name.includes('\0')) throw new Error('ZIP 条目名称非法');
   const normalized = name.replace(/\\/g, '/');
   if (normalized.startsWith('/') || /^[A-Za-z]:/.test(normalized)) {
-    throw new Error(`检测到不安全的 zip 路径：${name}`);
+    throw new Error(`检测到不安全的 ZIP 路径：${name}`);
   }
   const parts = normalized.split('/').filter(Boolean);
   if (parts.some((part) => part === '..')) {
-    throw new Error(`检测到不安全的 zip 路径：${name}`);
+    throw new Error(`检测到不安全的 ZIP 路径：${name}`);
   }
-  if (!parts.length) throw new Error('ZIP entry 名称为空');
+  if (!parts.length) throw new Error('ZIP 条目名称为空');
   return parts.join('/');
 }
 
 function readZipEntries(zipPath: string, signal: AbortSignal): ZipEntry[] {
   const fileSize = fs.statSync(zipPath).size;
-  if (fileSize > config.maxUploadBytes) throw new Error('ZIP 文件过大');
+  if (fileSize > config.maxUploadBytes) throw new Error('ZIP 文件超过大小限制');
   const tailLength = Math.min(fileSize, 65_557);
   const fd = fs.openSync(zipPath, 'r');
   try {
@@ -108,7 +108,7 @@ function readZipEntries(zipPath: string, signal: AbortSignal): ZipEntry[] {
       const externalAttributes = central.readUInt32LE(offset + 38);
       const localHeaderOffset = central.readUInt32LE(offset + 42);
       const end = offset + 46 + nameLength + extraLength + commentLength;
-      if (end > central.length) throw new Error('ZIP entry 元数据已损坏');
+      if (end > central.length) throw new Error('ZIP 条目元数据已损坏');
 
       const name = central.subarray(offset + 46, offset + 46 + nameLength).toString('utf8');
       const normalizedName = zipPathFromEntry(name);
@@ -117,9 +117,9 @@ function readZipEntries(zipPath: string, signal: AbortSignal): ZipEntry[] {
       if (fileType === 0xa000 || (unixMode !== 0 && fileType !== 0 && fileType !== 0x8000 && fileType !== 0x4000)) {
         throw new Error(`ZIP 中不允许链接或特殊文件：${name}`);
       }
-      if ((flags & 1) !== 0) throw new Error(`ZIP 加密 entry 不受支持：${name}`);
+      if ((flags & 1) !== 0) throw new Error(`ZIP 中含有加密条目，暂不支持：${name}`);
       if (compressedSize > config.maxUploadBytes || uncompressedSize > config.maxZipEntryBytes) {
-        throw new Error(`ZIP entry 超过单文件大小限制：${name}`);
+        throw new Error(`ZIP 条目超过单文件大小限制：${name}`);
       }
       totalUncompressed += uncompressedSize;
       if (totalUncompressed > config.maxZipUncompressedBytes) {
@@ -127,7 +127,7 @@ function readZipEntries(zipPath: string, signal: AbortSignal): ZipEntry[] {
       }
 
       const key = process.platform === 'win32' ? normalizedName.toLowerCase() : normalizedName;
-      if (seen.has(key)) throw new Error(`ZIP 存在重复 entry：${name}`);
+      if (seen.has(key)) throw new Error(`ZIP 中存在重复条目：${name}`);
       seen.add(key);
       entries.push({
         name,
@@ -157,12 +157,12 @@ function zipEntryDataStart(zipPath: string, entry: ZipEntry): number {
   const fd = fs.openSync(zipPath, 'r');
   try {
     const local = readAt(fd, entry.localHeaderOffset, 30);
-    if (local.readUInt32LE(0) !== 0x04034b50) throw new Error(`ZIP entry 头非法：${entry.name}`);
+    if (local.readUInt32LE(0) !== 0x04034b50) throw new Error(`ZIP 条目头非法：${entry.name}`);
     const localNameLength = local.readUInt16LE(26);
     const localExtraLength = local.readUInt16LE(28);
     const dataStart = entry.localHeaderOffset + 30 + localNameLength + localExtraLength;
     const fileSize = fs.statSync(zipPath).size;
-    if (dataStart + entry.compressedSize > fileSize) throw new Error(`ZIP entry 数据越界：${entry.name}`);
+    if (dataStart + entry.compressedSize > fileSize) throw new Error(`ZIP 条目数据越界：${entry.name}`);
     return dataStart;
   } finally {
     fs.closeSync(fd);
@@ -196,11 +196,11 @@ async function extractZipEntry(
     return;
   }
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
-  if (fs.existsSync(target)) throw new Error(`ZIP entry 覆盖了已有路径：${entry.name}`);
+  if (fs.existsSync(target)) throw new Error(`ZIP 条目会覆盖已有路径：${entry.name}`);
 
   // 必须在创建文件流前拒绝不支持的压缩方式，避免留下无人处理的异步错误。
   if (entry.compression !== 0 && entry.compression !== 8) {
-    throw new Error(`ZIP compression method 不受支持：${entry.name}`);
+    throw new Error(`ZIP 条目使用了不支持的压缩方式：${entry.name}`);
   }
 
   let written = 0;
@@ -228,7 +228,7 @@ async function extractZipEntry(
     } else {
       await pipeline(source, createInflateRaw(), counter, output, { signal });
     }
-    if (written !== entry.uncompressedSize) throw new Error(`ZIP entry 解压大小不匹配：${entry.name}`);
+    if (written !== entry.uncompressedSize) throw new Error(`ZIP 条目解压大小不匹配：${entry.name}`);
     success = true;
   } finally {
     if (fs.existsSync(target) && !success) {
@@ -247,7 +247,7 @@ async function readZipEntryText(
   }
   const dataStart = zipEntryDataStart(zipPath, entry);
   if (entry.compression !== 0 && entry.compression !== 8) {
-    throw new Error(`user_jvm_args.txt 使用了不受支持的 ZIP compression method：${entry.compression}`);
+    throw new Error(`user_jvm_args.txt 使用了不支持的压缩方式：${entry.compression}`);
   }
 
   const chunks: Buffer[] = [];

@@ -275,7 +275,7 @@ export function DeployPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div className="section-header">
         <div>
-          <h1 className="page-title" style={{ margin: 0 }}>一键部署全新 Minecraft 服务端</h1>
+          <h1 className="page-title" style={{ margin: 0 }}>部署 Minecraft 服务端</h1>
           <p className="page-desc" style={{ margin: '4px 0 0' }}>
             从官方源下载服务端核心，自动完成安装与启动配置
           </p>
@@ -383,7 +383,7 @@ export function DeployPage() {
           )}
           {(coreType === 'forge' || coreType === 'neoforge') && (
             <p className="muted" style={{ fontSize: '0.85rem' }}>
-              Forge / NeoForge 需要先下载官方安装器并完成安装，耗时可能较长，请耐心等待。
+              Forge / NeoForge 需要先下载官方安装器并完成安装，耗时会比其他核心长一些。
             </p>
           )}
           <JavaRuntimeSelect
@@ -413,7 +413,7 @@ export function DeployPage() {
               disabled={busy}
               onChange={(e) => setAcceptEula(e.target.checked)}
             />
-            我已阅读并同意 <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Minecraft 最终用户许可协议 (EULA)</a>
+            我已阅读并同意 <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Minecraft 最终用户许可协议（EULA）</a>
           </label>
           {!acceptEula && (
             <p className="muted field-help" style={{ margin: 0 }}>
@@ -441,7 +441,7 @@ export function DeployPage() {
           )}
           {busy && (
             <p className="muted" role="status" aria-live="polite" style={{ fontSize: '0.84rem' }}>
-              部署任务已进入后台队列，可随时离开此页，任务会在右上角「任务队列」中持续更新。
+              部署任务已提交，可以离开此页，进度会在右上角「任务中心」持续更新。
             </p>
           )}
           {error && (
@@ -530,7 +530,7 @@ export function DeployPage() {
               onClick={() => void deploy()}
               style={{ padding: '0 24px' }}
             >
-              {busy ? '部署任务运行中…' : '立即开始自动化部署'}
+              {busy ? '部署任务运行中…' : '开始部署'}
             </button>
           </div>
         </div>

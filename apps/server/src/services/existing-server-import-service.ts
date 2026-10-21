@@ -220,7 +220,7 @@ async function scanSourceDirectory(
       const source = resolveSafePath(sourceRoot, relative);
       const stat = await fs.promises.lstat(source);
       if (stat.isSymbolicLink()) {
-        throw new Error(`导入文件夹不能包含符号链接或目录联接（symlink/junction）：${relative}`);
+        throw new Error(`导入文件夹不能包含符号链接或目录联接：${relative}`);
       }
 
       scan.entries += 1;
@@ -289,7 +289,7 @@ async function copySourceDirectory(
       const target = resolveSafePath(instanceRoot, relative);
       const stat = await fs.promises.lstat(source);
       if (stat.isSymbolicLink()) {
-        throw new Error(`导入文件夹不能包含符号链接或目录联接（symlink/junction）：${relative}`);
+        throw new Error(`导入文件夹不能包含符号链接或目录联接：${relative}`);
       }
 
       copiedEntries += 1;

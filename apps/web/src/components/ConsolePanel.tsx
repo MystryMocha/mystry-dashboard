@@ -310,10 +310,10 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={onKeyDown}
             disabled={!inputEnabled}
-            placeholder={inputEnabled ? '输入控制台命令 (如: list, say Hello, op player) 按回车发送' : canSend ? '连接中…' : '实例已停止，启动后可发送指令'}
+            placeholder={inputEnabled ? '输入控制台命令（如 list、say Hello、op 玩家名），按回车发送' : canSend ? '连接中…' : '实例已停止，启动后可发送命令'}
             autoComplete="off"
             spellCheck={false}
-            aria-label="控制台指令"
+            aria-label="控制台命令"
           />
           <button className="btn btn-primary" type="submit" disabled={!inputEnabled || !command.trim()} style={{ height: 36 }}>
             <Send size={14} />
@@ -322,7 +322,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
         </form>
       </div>
 
-      {/* 快捷指令按钮栏 */}
+      {/* 快捷命令按钮栏 */}
       <div className="quick-cmd-bar">
         <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>常用命令快捷键：</span>
         {QUICK_COMMANDS.map((item) => (
@@ -335,7 +335,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
             onClick={() => sendCommand(item.cmd)}
             title={`向服务器发送 /${item.cmd}`}
           >
-            {item.label} ({item.desc})
+            {item.label}（{item.desc}）
           </button>
         ))}
       </div>

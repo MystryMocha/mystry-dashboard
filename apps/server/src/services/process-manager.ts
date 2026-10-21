@@ -233,24 +233,24 @@ export class ProcessManager extends EventEmitter {
   sendCommand(instanceId: string, command: string): void {
     const managed = this.processes.get(instanceId);
     if (!managed || managed.status === 'stopped' || !managed.child) {
-      throw new Error('实例未在运行，无法发送指令');
+      throw new Error('实例未在运行，无法发送命令');
     }
 
     if (typeof command !== 'string' || command.trim().length === 0) {
-      throw new Error('指令不能为空');
+      throw new Error('命令不能为空');
     }
     if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(command)) {
-      throw new Error('指令不能包含换行或控制字符');
+      throw new Error('命令不能包含换行或控制字符');
     }
     const commandBytes = Buffer.byteLength(command, 'utf8');
     if (commandBytes > maxCommandBytes) {
-      throw new Error(`指令超过大小限制（${maxCommandBytes} 字节）`);
+      throw new Error(`命令超过大小限制（${maxCommandBytes} 字节）`);
     }
 
     const line = `${command}\n`;
     const lineBytes = Buffer.byteLength(line, 'utf8');
     if (lineBytes > maxCommandBytes + 1) {
-      throw new Error(`指令超过大小限制（${maxCommandBytes} 字节）`);
+      throw new Error(`命令超过大小限制（${maxCommandBytes} 字节）`);
     }
     if (managed.stdinBackpressured) {
       throw new Error('控制台输入缓冲繁忙，请稍后重试');
@@ -270,7 +270,7 @@ export class ProcessManager extends EventEmitter {
     } catch {
       managed.stdinAvailable = false;
       managed.stdinBackpressured = true;
-      throw new Error('控制台指令写入失败，实例输入流不可用');
+      throw new Error('命令写入失败，实例输入流不可用');
     }
   }
 
@@ -344,7 +344,7 @@ export class ProcessManager extends EventEmitter {
       fs.writeFileSync(userJvm, `${serializeJvmArgFile(jvmArgs)}\n`, 'utf8');
       args = ['@user_jvm_args.txt', `@${safeArgsRel}`, 'nogui'];
     } else if (instance.jar_file === '@modloader') {
-      throw new Error('Forge/NeoForge 尚未完成安装，请重新部署，或在任务队列中查看安装失败原因');
+      throw new Error('Forge/NeoForge 尚未完成安装，请重新部署，或在任务中心查看安装失败原因');
     } else {
       const jarPath = resolveSafePath(cwd, instance.jar_file);
       if (!fs.existsSync(jarPath)) {
@@ -412,7 +412,7 @@ export class ProcessManager extends EventEmitter {
         const status = wasStopping ? 'stopped' : 'crashed';
         this.appendOutput(
           instance.id,
-          `\n[面板] 进程已退出 code=${code ?? 'null'} signal=${signal ?? 'null'}\n`,
+          `\n[面板] 进程已退出（退出码 ${code ?? '无'}，信号 ${signal ?? '无'}）\n`,
         );
         this.archiveProcess(instance.id, managed, status);
       });
@@ -448,7 +448,7 @@ export class ProcessManager extends EventEmitter {
     // 先确认输入流可用，再进入 stopping，避免校验失败时实例永久卡在 stopping。
     const stdin = child.stdin;
     if (!managed.stdinAvailable || stdin.writableEnded || stdin.destroyed || !stdin.writable) {
-      throw new Error('实例输入流不可用，无法发送停止指令');
+      throw new Error('实例输入流不可用，无法发送停止命令');
     }
 
     managed.status = 'stopping';
@@ -461,7 +461,7 @@ export class ProcessManager extends EventEmitter {
       managed.stdinBackpressured = true;
       managed.status = 'running';
       this.emitStatus(instanceId, 'running');
-      throw new Error('停止指令写入失败');
+      throw new Error('停止命令写入失败');
     }
 
     const outcome = await waitForChildExit(child, getStopGraceMs());

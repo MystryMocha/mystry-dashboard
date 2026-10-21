@@ -95,7 +95,7 @@ Java 状态响应准确结构为：
 | POST | `/api/instances/:id/start` | 启动 |
 | POST | `/api/instances/:id/stop` | 停止；`?force=1` 强杀 |
 | POST | `/api/instances/:id/restart` | 重启 |
-| POST | `/api/instances/:id/command` | Body：`{ command: string }`，发送控制台指令 |
+| POST | `/api/instances/:id/command` | Body：`{ command: string }`，发送控制台命令 |
 
 实例目录固定为最终数据根目录的 `instances/<id>`。最终数据根优先取 `MYSTRY_DATA_DIR`，否则取 `DATA_DIR`；创建、部署、导入和启动都不会接受另一个实例目录，`jarFile` 也只能表示实例根目录内的相对文件。
 
@@ -236,7 +236,7 @@ Content-Type: multipart/form-data
 file=<server.zip>
 ```
 
-服务端流式写入受控临时目录，验证 ZIP 中央目录、条目配额、ZIP64、链接/特殊文件和重复 entry；只额外解压根目录或单一顶层目录中的 `user_jvm_args.txt`，且最多 64 KiB。成功响应：
+服务端流式写入受控临时目录，验证 ZIP 中央目录、条目配额、ZIP64、链接/特殊文件和重复条目；只额外解压根目录或单一顶层目录中的 `user_jvm_args.txt`，且最多 64 KiB。成功响应：
 
 ```json
 {

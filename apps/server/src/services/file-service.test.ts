@@ -130,7 +130,7 @@ test('目录列表遇到 symlink/junction 条目时拒绝访问', async (t) => {
   fs.mkdirSync(path.join(root, 'plugins'));
   fs.symlinkSync(outside, path.join(root, 'plugins', 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
 
-  assert.throws(() => listFiles(inst.id, 'plugins'), /symlink\/junction/);
+  assert.throws(() => listFiles(inst.id, 'plugins'), /符号链接或目录联接/);
 });
 
 test('上传覆盖重命名失败时应恢复旧文件且清理临时文件', async (t) => {

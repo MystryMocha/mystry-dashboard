@@ -33,7 +33,7 @@ export async function nodeRoutes(app: FastifyInstance): Promise<void> {
     { attachValidation: true, schema: { body: createNodeBodySchema } },
     async (req, reply) => {
       if (!REMOTE_NODE_CREATION_ENABLED) {
-        return reply.code(403).send({ error: '当前版本暂不支持创建远程节点，敬请期待 Agent 接入后开放' });
+        return reply.code(403).send({ error: '当前版本不支持创建远程节点' });
       }
       if (req.validationError) {
         return reply.code(400).send({ error: '节点参数包含不支持的字段或格式不正确' });

@@ -13,7 +13,7 @@ class InstallerProcessError extends Error {
     readonly exitCode: number | null,
     readonly output: string,
   ) {
-    super(`Installer 退出码 ${exitCode ?? '未知'}\n${output}`);
+    super(`安装器退出码 ${exitCode ?? '未知'}\n${output}`);
     this.name = 'InstallerProcessError';
   }
 }
@@ -52,7 +52,7 @@ export function summarizeInstallerDownloadFailure(output: string, attempts: numb
     : '';
   const hostText = failedHost ? `${failedHost} ${reason}` : reason;
   const retryText = attempts > 1 ? `已自动重试 ${attempts - 1} 次，` : '';
-  return `Installer 下载依赖失败（${retryText}${hostText}）。${libraryText}请检查网络、代理或防火墙后重新部署。`;
+  return `安装器下载依赖失败（${retryText}${hostText}）。${libraryText}请检查网络、代理或防火墙后重新部署。`;
 }
 
 type InstallerProgressState = {
@@ -78,17 +78,17 @@ function reportInstallerLine(
   const downloadUrl = line.match(/Downloading (?:library )?from (https?:\/\/\S+)/i)?.[1];
   if (downloadUrl) {
     state.progress = Math.min(83, state.progress + 1);
-    report(state.progress, `Installer 正在下载 ${installerArtifactName(downloadUrl)}…`);
+    report(state.progress, `安装器正在下载 ${installerArtifactName(downloadUrl)}…`);
     return;
   }
   if (/Download completed:/i.test(line)) {
     state.completedDownloads += 1;
     state.progress = Math.min(84, Math.max(state.progress, 60 + state.completedDownloads));
-    report(state.progress, `Installer 已完成 ${state.completedDownloads} 个下载…`);
+    report(state.progress, `安装器已完成 ${state.completedDownloads} 个下载…`);
     return;
   }
   if (/Failed to establish connection to /i.test(line)) {
-    report(state.progress, 'Installer 下载遇到网络问题，正在继续处理…');
+    report(state.progress, '安装器下载遇到网络问题，正在继续处理…');
   }
 }
 
@@ -223,7 +223,7 @@ export async function runInstaller(
       if (retryable && attempt < INSTALLER_MAX_ATTEMPTS) {
         report?.(
           progressState.progress,
-          `Installer 下载不完整，正在自动重试（${attempt + 1}/${INSTALLER_MAX_ATTEMPTS}）…`,
+          `安装器下载不完整，正在自动重试（${attempt + 1}/${INSTALLER_MAX_ATTEMPTS}）…`,
         );
         continue;
       }

@@ -27,11 +27,11 @@ export function assertSafeInstanceRoot(instanceRoot: string): string {
   if (!fs.existsSync(root)) throw new Error('实例目录不存在');
   const stat = fs.lstatSync(root);
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
-    throw new Error('实例目录不能是 symlink/junction');
+    throw new Error('实例目录不能是符号链接或目录联接');
   }
   const realRoot = fs.realpathSync(root);
   if (!isWithin(root, realRoot)) {
-    throw new Error('实例目录检测到 symlink/junction 逃逸');
+    throw new Error('实例目录通过符号链接或目录联接指向了外部位置');
   }
   return root;
 }
@@ -69,11 +69,11 @@ function assertNoSymlinkTraversal(root: string, target: string): void {
       throw err;
     }
     if (stat.isSymbolicLink()) {
-      throw new Error('非法路径：不允许通过 symlink/junction 访问实例目录之外的文件');
+      throw new Error('非法路径：不允许通过符号链接或目录联接访问实例目录之外的文件');
     }
     const realCurrent = fs.realpathSync(current);
     if (!isWithin(current, realCurrent)) {
-      throw new Error('非法路径：检测到 symlink/junction 逃逸');
+      throw new Error('非法路径：路径通过符号链接或目录联接指向了实例目录之外');
     }
   }
 }
