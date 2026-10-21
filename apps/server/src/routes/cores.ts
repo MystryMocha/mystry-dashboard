@@ -1,12 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import type {
   ConfirmZipImportInput,
-  CoreType,
   DeployCoreInput,
   ImportExistingServerInput,
 } from '@mystry/shared';
 import {
-  CORE_TYPE_ENUM,
   DEPLOYABLE_CORE_TYPE_ENUM,
   deployCoreBodySchema,
   confirmZipImportBodySchema,
@@ -21,7 +19,6 @@ import {
   listNeoForgeLoaders,
   listPaperBuilds,
 } from '../services/core-metadata.js';
-import { importZipPackage } from '../services/import-service.js';
 import {
   importExistingServerDirectory,
   listExistingServerSources,
@@ -241,90 +238,6 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
       return { ok: true };
     } catch (error) {
       return sendRouteError(reply, error);
-    }
-  });
-
-  app.post('/api/import', async (req, reply) => {
-    const parts = req.parts();
-    let name = '';
-    let coreType: CoreType | undefined;
-    let mcVersion: string | undefined;
-    let jvmArgs = '-Xms1G -Xmx2G';
-    let acceptEula = false;
-    let javaRuntimeId: string | null | undefined;
-    let invalidCoreType = false;
-    let removedField: 'javaPath' | 'installPath' | null = null;
-    let zipPath: string | null = null;
-    let handedOff = false;
-
-    try {
-      for await (const part of parts) {
-        if (part.type === 'file') {
-          if (zipPath) {
-            // 仍然消费后续流，避免 multipart 连接被异常中断。
-            const discarded = await streamToUploadTemp(part.file, 'discard');
-            removeUploadTemp(discarded);
-            return reply.code(400).send({ error: '只能上传一个 ZIP 安装包' });
-          }
-          zipPath = await streamToUploadTemp(part.file, 'import');
-          if (part.file.truncated) {
-            removeUploadTemp(zipPath);
-            zipPath = null;
-            return reply.code(413).send({ error: '上传文件超过大小限制' });
-          }
-        } else {
-          const value = String(part.value);
-          if (part.fieldname === 'name') name = value;
-          if (part.fieldname === 'javaPath' || part.fieldname === 'installPath') {
-            removedField = part.fieldname;
-          }
-          if (part.fieldname === 'jvmArgs') jvmArgs = value || '-Xms1G -Xmx2G';
-          if (part.fieldname === 'acceptEula') acceptEula = value === 'true' || value === '1';
-          if (part.fieldname === 'coreType') {
-            if ((CORE_TYPE_ENUM as readonly string[]).includes(value)) coreType = value as CoreType;
-            else invalidCoreType = true;
-          }
-          if (part.fieldname === 'mcVersion') mcVersion = value.trim() || undefined;
-          if (part.fieldname === 'javaRuntimeId') javaRuntimeId = value.trim() || null;
-        }
-      }
-
-      if (removedField) {
-        return reply.code(400).send({ error: `不支持已移除的字段：${removedField}` });
-      }
-      if (invalidCoreType) return reply.code(400).send({ error: '核心类型不受支持' });
-      if (name.length > 128) return reply.code(400).send({ error: '实例名称过长' });
-      if (!name.trim()) return reply.code(400).send({ error: '名称不能为空' });
-      if (jvmArgs.length > 8192) return reply.code(400).send({ error: 'JVM 参数过长' });
-      if (mcVersion && mcVersion.length > 64) {
-        return reply.code(400).send({ error: 'MC 版本过长' });
-      }
-      if (javaRuntimeId && javaRuntimeId.length > 255) {
-        return reply.code(400).send({ error: 'Java 运行时 ID 过长' });
-      }
-      if (!zipPath) return reply.code(400).send({ error: '请上传 ZIP 安装包' });
-
-      const task = await importZipPackage({
-        name: name.trim(),
-        zipPath,
-        coreType,
-        mcVersion,
-        jvmArgs,
-        acceptEula,
-        javaRuntimeId,
-      });
-      handedOff = true;
-      return task;
-    } catch (err) {
-      return sendRouteError(reply, err);
-    } finally {
-      if (!handedOff && zipPath) {
-        try {
-          removeUploadTemp(zipPath);
-        } catch {
-          /* ignore cleanup errors */
-        }
-      }
     }
   });
 }
