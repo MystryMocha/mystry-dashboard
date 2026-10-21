@@ -15,7 +15,7 @@ function quotePowerShell(value) {
 
 function cleanEnvironment() {
   const environment = { ...process.env };
-  for (const name of ['JWT_SECRET', 'SETUP_TOKEN', 'LAUNCHER_TOKEN', 'DATA_DIR']) {
+  for (const name of ['JWT_SECRET', 'SETUP_TOKEN', 'LAUNCHER_TOKEN', 'DATA_DIR', 'MYSTRY_DATA_DIR', 'MYSTRY_CONFIG_PATH', 'PORT', 'HOST']) {
     delete environment[name];
   }
   return environment;
@@ -33,120 +33,55 @@ test('Invoke-Npm 不会把 npm 输出混入函数返回值', { skip: process.pla
   const result = runPowerShell(`
     $env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY = '1'
     . ${quotePowerShell(managerPath)}
-    $captured = @(Invoke-Npm -Arguments @('--version') -FailureMessageKey 'InstallFailed')
+    $captured = @(Invoke-Npm -Arguments @('--version') -FailureMessage 'npm 失败')
     if ($captured.Count -ne 0) { throw "Invoke-Npm 返回了 $($captured.Count) 个对象" }
   `);
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
-test('PanelManager 自动把三个重复密钥修复为不同值', { skip: process.platform !== 'win32' }, () => {
+test('PanelManager 把 .env 交给 mystryctl，数据目录按其中的 DATA_DIR', { skip: process.platform !== 'win32' }, () => {
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-test-'));
   try {
-    const envPath = path.join(testRoot, 'panel.env');
-    const envExamplePath = path.join(testRoot, 'panel.env.example');
-    const launcherDirectory = path.join(testRoot, 'launcher');
-    const duplicate = 'a'.repeat(64);
-    const content = [
-      `DATA_DIR=${path.join(testRoot, 'data')}`,
-      `JWT_SECRET=${duplicate}`,
-      `SETUP_TOKEN=${duplicate}`,
-      `LAUNCHER_TOKEN=${duplicate}`,
-      '',
-    ].join('\r\n');
-    fs.writeFileSync(envPath, content, 'utf8');
-    fs.writeFileSync(envExamplePath, content, 'utf8');
+    const envPath = path.join(testRoot, '.env');
+    const launcherDirectory = path.join(testRoot, 'data', 'launcher');
+    fs.mkdirSync(launcherDirectory, { recursive: true });
+    // 用一个必然不通的端口：状态里的 PID 仍存活但健康检查失败，mystryctl 会报出该 PID。
+    fs.writeFileSync(envPath, `PORT=1\r\nDATA_DIR=${path.join(testRoot, 'data')}\r\n`, 'utf8');
+    fs.writeFileSync(
+      path.join(launcherDirectory, 'state.json'),
+      JSON.stringify({ version: 1, pid: process.pid, fingerprint: 'test' }),
+      'utf8',
+    );
 
     const result = runPowerShell(`
       $env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY = '1'
       . ${quotePowerShell(managerPath)}
       $script:EnvPath = ${quotePowerShell(envPath)}
-      $script:EnvExamplePath = ${quotePowerShell(envExamplePath)}
-      $script:LauncherDir = ${quotePowerShell(launcherDirectory)}
-      $script:EnvBackupPath = $null
-      $configuration = Ensure-EnvironmentConfiguration
-      $values = @(
-        [string]$configuration.Environment.JWT_SECRET,
-        [string]$configuration.Environment.SETUP_TOKEN,
-        [string]$configuration.Environment.LAUNCHER_TOKEN
-      )
-      if (($values | Sort-Object -Unique).Count -ne 3) { throw '密钥仍然重复' }
-      foreach ($value in $values) {
-        if (-not (Test-ValidSecret $value)) { throw '密钥格式无效' }
-      }
+      Invoke-Controller 'status'
+      if ($script:ControllerExitCode -ne 0) { throw "mystryctl 退出码 $script:ControllerExitCode" }
+      if (Test-PanelRunning) { throw '不应判定为运行中' }
     `);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-    assert.equal(fs.existsSync(path.join(launcherDirectory, 'config-backups')), true);
+    assert.match(result.stdout, /状态：未运行/);
+    assert.match(result.stdout + result.stderr, new RegExp(`PID ${process.pid} 仍存在`));
   } finally {
     fs.rmSync(testRoot, { recursive: true, force: true });
   }
 });
 
-test('伪造健康响应时 Invoke-SafeShutdown 不得发送 LAUNCHER_TOKEN', { skip: process.platform !== 'win32' }, () => {
-  const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-shutdown-test-'));
-  try {
-    const statePath = path.join(testRoot, 'state.json');
-    const envPath = path.join(testRoot, 'panel.env');
-    const launcherToken = 'b'.repeat(64);
-    fs.writeFileSync(
-      envPath,
-      `JWT_SECRET=${'a'.repeat(64)}\r\nLAUNCHER_TOKEN=${launcherToken}\r\nPORT=3000\r\n`,
-      'utf8',
-    );
-    fs.writeFileSync(
-      statePath,
-      `${JSON.stringify({ pid: process.pid, fingerprint: 'expected-fingerprint' })}\n`,
-      'utf8',
-    );
+test('PanelManager 拒绝未知命令和多余参数', { skip: process.platform !== 'win32' }, () => {
+  const unknown = spawnSync(
+    'powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, 'bogus'],
+    { env: cleanEnvironment(), encoding: 'utf8' },
+  );
+  assert.equal(unknown.status, 1, `${unknown.stdout}\n${unknown.stderr}`);
+  assert.match(unknown.stdout, /未知命令：bogus/);
 
-    const result = runPowerShell(`
-      $env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY = '1'
-      . ${quotePowerShell(managerPath)}
-      $script:StatePath = ${quotePowerShell(statePath)}
-      $script:EnvPath = ${quotePowerShell(envPath)}
-      $script:LauncherDir = ${quotePowerShell(testRoot)}
-      $global:TokenSent = $false
-      function Invoke-RestMethod {
-        param(
-          [string]$Uri,
-          [hashtable]$Headers
-        )
-        if ($Headers -and $Headers['X-Launcher-Token']) {
-          $global:TokenSent = $true
-        }
-        return @{ runningInstances = 0; runningTasks = 0; queuedTasks = 0 }
-      }
-      function Test-ManagedPanelProcessAlive { param([int]$ProcessId) return $true }
-      function Get-PanelConnection {
-        return @{
-          ShutdownUrl = 'http://127.0.0.1:65535/shutdown'
-          Environment = @{ LAUNCHER_TOKEN = '${launcherToken}' }
-          Port = 3000
-          Url = 'http://127.0.0.1:3000'
-          HealthUrl = 'http://127.0.0.1:3000/api/health'
-        }
-      }
-      function Get-PanelHealth {
-        param([string]$ExpectedFingerprint)
-        $body = @{
-          ok = $true
-          service = 'mystry-dashboard'
-          processFingerprint = 'wrong-fingerprint'
-        }
-        if ($ExpectedFingerprint -and ([string]$body.processFingerprint -ne [string]$ExpectedFingerprint)) {
-          return $null
-        }
-        return $body
-      }
-      try {
-        Invoke-SafeShutdown
-        throw 'expected Invoke-SafeShutdown to fail'
-      } catch {
-        if ($global:TokenSent) { throw 'LAUNCHER_TOKEN was sent to shutdown endpoint' }
-      }
-      exit 0
-    `);
-    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
-  } finally {
-    fs.rmSync(testRoot, { recursive: true, force: true });
-  }
+  const extra = spawnSync(
+    'powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, 'status', 'extra'],
+    { env: cleanEnvironment(), encoding: 'utf8' },
+  );
+  assert.equal(extra.status, 2, `${extra.stdout}\n${extra.stderr}`);
 });

@@ -37,13 +37,12 @@ chmod +x mystryctl
 
 安装 Node.js 22 或更高版本后，双击仓库根目录的 `PanelManager.cmd`。它会自动完成：
 
-1. 检查 Node、npm 和 Java。
-2. 按 `package-lock.json` 安装依赖。
-3. 创建 `.env` 并生成互不相同的随机密钥。
-4. 构建 shared、server 和 web。
-5. 后台启动面板并打开浏览器。
+1. 检查 Node 和 npm。
+2. 按 `package-lock.json` 安装依赖，并构建 shared、server 和 web；源码和锁文件没变时跳过。
+3. 没有 `.env` 时从 `.env.example` 复制一份。
+4. 交给跨平台控制器 `mystryctl`：生成互不相同的随机密钥、检查 Java、后台启动面板并打开浏览器。
 
-中文 Windows 默认显示中文菜单，其他系统语言默认显示英文。菜单中按 `L` 可切换语言并保存到本机运行数据中。也可以直接使用：
+双击会显示菜单；也可以直接使用：
 
 ```powershell
 .\PanelManager.cmd start
@@ -55,15 +54,13 @@ chmod +x mystryctl
 .\PanelManager.cmd logs
 .\PanelManager.cmd open
 .\PanelManager.cmd help
-
-# 仅覆盖本次显示语言，不修改保存的偏好
-.\PanelManager.cmd status --lang en-US
-.\PanelManager.cmd status --lang zh-CN
 ```
+
+启动、停止、状态和日志与 Linux 的 `PanelManager.sh`、便携版的 `mystryctl` 是同一套实现，只是配置默认用仓库根目录的 `.env`（设置了 `MYSTRY_CONFIG_PATH` 时用它指定的文件），数据目录按其中的 `DATA_DIR`。日志在仓库根目录的 `logs/`。
 
 后台停止和重启会先取消部署/导入任务，再逐个安全停止正在运行的 Minecraft 实例；不要直接在任务管理器中强杀 Node 进程。
 
-若已有 `.env` 中的密钥不是 64 位十六进制字符串，PanelManager 会先将原文件备份到 `data/launcher/config-backups/`，再生成合规的新密钥。更换 `JWT_SECRET` 会使旧登录令牌失效，但不会删除管理员、实例或 Minecraft 存档。
+若已有 `.env` 中的密钥不是 64 位十六进制字符串，PanelManager 会先将原文件备份到数据目录下的 `launcher/config-backups/`，再生成合规的新密钥。更换 `JWT_SECRET` 会使旧登录令牌失效，但不会删除管理员、实例或 Minecraft 存档。
 
 ## Linux / WSL 源码一键管理
 
