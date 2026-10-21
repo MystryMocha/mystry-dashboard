@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
+import http from 'node:http';
 import path from 'node:path';
 import test from 'node:test';
 import { spawn, spawnSync } from 'node:child_process';
@@ -100,6 +101,65 @@ test('双击启动时菜单命令出错也先显示错误并等待回车', async
   assert.equal(controller.child.exitCode, null, '未按回车前不应退出');
   controller.send('');
   assert.equal(await controller.exited, 1);
+});
+
+/** 异步运行控制器：测试进程里的伪造面板要在它运行期间响应请求，不能用 spawnSync。 */
+function runController(command, env) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), command], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '';
+    child.stdout.on('data', (chunk) => { output += chunk; });
+    child.stderr.on('data', (chunk) => { output += chunk; });
+    child.on('exit', (code) => resolve({ code, output }));
+  });
+}
+
+test('按配置文件中的 DATA_DIR 找运行状态；指纹不匹配时不发送 LAUNCHER_TOKEN', async (t) => {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-fingerprint-'));
+  let fingerprint = 'expected-fingerprint';
+  let shutdownRequested = false;
+  const server = http.createServer((request, response) => {
+    if (request.url === '/api/launcher/shutdown') shutdownRequested = true;
+    response.setHeader('Content-Type', 'application/json');
+    response.end(JSON.stringify({ ok: true, service: 'mystry-dashboard', processFingerprint: fingerprint }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    await fsp.rm(home, { recursive: true, force: true });
+  });
+
+  const configPath = path.join(home, 'config', 'panel.env');
+  await fsp.mkdir(path.dirname(configPath), { recursive: true });
+  // 值带引号、数据目录写在配置文件里，与服务端的 dotenv 读法保持一致。
+  await fsp.writeFile(configPath, [
+    `PORT="${server.address().port}"`,
+    'DATA_DIR=custom-data',
+    `LAUNCHER_TOKEN=${'b'.repeat(64)}`,
+    '',
+  ].join('\n'), 'utf8');
+  const launcherDir = path.join(home, 'custom-data', 'launcher');
+  await fsp.mkdir(launcherDir, { recursive: true });
+  await fsp.writeFile(
+    path.join(launcherDir, 'state.json'),
+    JSON.stringify({ version: 1, pid: process.pid, fingerprint: 'expected-fingerprint' }),
+    'utf8',
+  );
+  const env = { ...process.env, MYSTRY_HOME: home, MYSTRY_CONFIG_PATH: configPath };
+  for (const name of ['MYSTRY_DATA_DIR', 'DATA_DIR', 'PORT', 'HOST']) delete env[name];
+
+  const status = await runController('status', env);
+  assert.match(status.output, /状态：运行中/);
+  assert.match(status.output, new RegExp(`PID：${process.pid}`));
+
+  fingerprint = 'other-fingerprint';
+  const stop = await runController('stop', env);
+  assert.equal(stop.code, 1, stop.output);
+  assert.match(stop.output, /拒绝停止未知进程/);
+  assert.equal(shutdownRequested, false, '指纹不匹配时不应请求安全关闭接口');
 });
 
 test('校验和脚本稳定排序并排除自身', async () => {

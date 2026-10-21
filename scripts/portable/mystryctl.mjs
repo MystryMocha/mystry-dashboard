@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url';
 const SERVICE_NAME = 'mystry-dashboard';
 const SECRET_PATTERN = /^[0-9a-f]{64}$/i;
 const INTERNAL_FINALIZE_SETUP = '__finalize-setup';
+// 供源码启动器判断面板是否在运行：运行中退出码 0，否则 1。
+const INTERNAL_IS_RUNNING = '__is-running';
 const scriptPath = fileURLToPath(import.meta.url);
 const scriptDir = path.dirname(scriptPath);
 
@@ -34,7 +36,10 @@ const configPath = resolveFromHome(
   process.env.MYSTRY_CONFIG_PATH?.trim() || path.join('config', 'panel.env'),
   homeDir,
 );
-const dataDir = resolveFromHome(process.env.MYSTRY_DATA_DIR?.trim() || 'data', homeDir);
+// 与服务端 config.ts 相同：MYSTRY_DATA_DIR 优先于 DATA_DIR，进程环境变量优先于配置文件。
+const fileValues = fs.existsSync(configPath) ? parseEnv(fs.readFileSync(configPath, 'utf8')) : new Map();
+const configValue = (name) => process.env[name]?.trim() || fileValues.get(name);
+const dataDir = resolveFromHome(configValue('MYSTRY_DATA_DIR') || configValue('DATA_DIR') || 'data', homeDir);
 const logDir = path.join(homeDir, 'logs');
 const launcherDir = path.join(dataDir, 'launcher');
 const statePath = path.join(launcherDir, 'state.json');
@@ -46,7 +51,8 @@ const repositoryServerEntry = path.join(homeDir, 'apps', 'server', 'dist', 'inde
 const portableMode = fs.existsSync(portableServerEntry);
 const serverEntry = portableMode ? portableServerEntry : repositoryServerEntry;
 const managerLabel = portableMode ? '便携版' : '源码版';
-const managerCommand = portableMode ? 'mystryctl' : 'PanelManager.sh';
+const sourceManagerCommand = process.platform === 'win32' ? 'PanelManager.cmd' : 'PanelManager.sh';
+const managerCommand = portableMode ? 'mystryctl' : sourceManagerCommand;
 const bundledNode = process.platform === 'win32'
   ? path.join(homeDir, 'runtime', 'node.exe')
   : path.join(homeDir, 'runtime', 'bin', 'node');
@@ -64,7 +70,9 @@ function parseEnv(text) {
     const separator = line.indexOf('=');
     if (separator <= 0) continue;
     const key = line.slice(0, separator).trim();
-    result.set(key, line.slice(separator + 1).trim());
+    const value = line.slice(separator + 1).trim();
+    const quoted = value.length >= 2 && (value[0] === '"' || value[0] === "'") && value.at(-1) === value[0];
+    result.set(key, quoted ? value.slice(1, -1) : value);
   }
   return result;
 }
@@ -135,7 +143,7 @@ async function databaseNeedsSetup() {
 
 async function backupConfiguration() {
   if (!fs.existsSync(configPath)) return null;
-  const backupDir = path.join(path.dirname(configPath), 'backups');
+  const backupDir = path.join(launcherDir, 'config-backups');
   await fsp.mkdir(backupDir, { recursive: true, mode: 0o700 });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = path.join(backupDir, `panel-${stamp}.env.bak`);
@@ -730,6 +738,7 @@ function printHelp() {
     '  foreground  前台启动面板',
     '  stop        安全停止面板及实例',
     '  restart     安全重启面板',
+    ...(portableMode ? [] : ['  rebuild     重新安装依赖并构建，然后重启面板']),
     '  status      查看状态',
     '  logs        查看最近日志',
     '  open        打开管理页面',
@@ -826,6 +835,11 @@ async function runCommand(command) {
 async function main() {
   if (process.argv[2] === INTERNAL_FINALIZE_SETUP) {
     await finalizeSetup();
+    return;
+  }
+  if (process.argv[2] === INTERNAL_IS_RUNNING) {
+    const running = await isManagedPanelRunning(await loadConfiguration(), await readState());
+    process.exitCode = running ? 0 : 1;
     return;
   }
   const command = process.argv[2];

@@ -23,7 +23,7 @@
 - 实例 start/stop/restart/delete/adopt 互斥：启停、删除与接管走同一把实例操作锁；start 在首个异步步骤前占位 `starting`；普通 stop 只写 `stop\n`，超时返回仍在停止中且**不**隐式 `SIGKILL`；`force=1` 为唯一强杀路径（UI 二次确认）。面板关闭先标记 `shuttingDown` 并等待未完成的实例操作；`start` 在 spawn 前若已关闭则取消，避免留下无主 Java。
 - `server.properties` 读写、Java 状态检测、本机节点列表。
 - 响应式布局：`<=1024px` 显示导航菜单按钮并将部署网格改为单列；`<=768px` 实例卡片为单列、内容边距 16px，顶栏换行并隐藏次要标识，控制台高度随视口调整。总览保留「一键部署 / 导入已有服务端」入口；实例卡片通过名称链接或「进入管理」导航，启动/停止与更多操作独立；「更多操作」面板挂到 body 并以 fixed 定位在按钮下方右对齐展开（下方空间不足时翻到上方），不受卡片 `overflow` 裁剪，支持方向键、Home/End、Escape 与 Tab 关闭并恢复焦点。断点实现以 CSS 为准，真实宽度与六种主题的视觉验收需另行运行，不能由构建或 DOM 测试推定。
-- `PanelManager.cmd`（Windows）与 `PanelManager.sh`（Linux / WSL 源码）均复用本机 `POST /api/launcher/shutdown` 安全关闭通道。
+- `PanelManager.cmd`（Windows）与 `PanelManager.sh`（Linux / WSL 源码）只负责检查 Node、安装依赖和构建，启停、状态、日志都转调 `scripts/portable/mystryctl.mjs`，经本机 `POST /api/launcher/shutdown` 安全关闭。Windows 默认配置为仓库根 `.env`。
 - 跨平台 `mystryctl`：自动随机配置、后台 PID 指纹、健康检查、安全停止、状态和日志；便携包使用包内 Node，Linux 源码入口在依赖/构建预检后复用同一控制器。无参数且 stdin 为终端时显示交互菜单（通常是双击启动），菜单命令执行完或出错后等待回车再退出，避免窗口一闪而过；带参数调用与非终端 stdin 不暂停（`portable:test` 覆盖）。
 - 目标平台原生便携组装与最终压缩包冒烟脚本；发布包物理复制 `@mystry/shared`，并生成文件级 manifest。
 - GitHub Preview Release 流水线：标签/main/版本门禁、Windows x64 与 Linux x64 矩阵、生产依赖审计、校验和签名、SBOM 和自动 Release Notes。

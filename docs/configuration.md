@@ -5,7 +5,7 @@
 | 启动入口 | 默认配置文件 | 首次配置 |
 |---|---|---|
 | 手动运行 `npm run dev:server` / `npm start` | 仓库根 `.env` | 复制 `.env.example` 并填写随机密钥 |
-| Windows 源码 `PanelManager.cmd` | 仓库根 `.env` | 管理器自动创建或检查密钥 |
+| Windows 源码 `PanelManager.cmd` | 仓库根 `.env`（可用 `MYSTRY_CONFIG_PATH` 改） | 管理器从 `.env.example` 创建，密钥由 mystryctl 生成或修复 |
 | Linux / WSL 源码 `PanelManager.sh` | 仓库根 `config/panel.env` | 跨平台控制器自动生成 |
 | 便携版 `mystryctl` | 包根 `config/panel.env` | 跨平台控制器自动生成 |
 

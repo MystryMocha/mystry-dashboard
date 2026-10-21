@@ -20,7 +20,8 @@ test('Linux 源码启动器复用带指纹的跨平台控制器', async () => {
   assert.match(source, /npm ci/);
   assert.match(source, /npm run build/);
   assert.match(source, /rebuild\).*run_controller restart/s);
-  assert.match(controller, /const managerCommand = portableMode \? 'mystryctl' : 'PanelManager\.sh';/);
+  assert.match(controller, /const sourceManagerCommand = process\.platform === 'win32' \? 'PanelManager\.cmd' : 'PanelManager\.sh';/);
+  assert.match(controller, /const managerCommand = portableMode \? 'mystryctl' : sourceManagerCommand;/);
   assert.match(controller, /const repositoryServerEntry = path\.join\(homeDir, 'apps', 'server', 'dist', 'index\.js'\);/);
 });
 
