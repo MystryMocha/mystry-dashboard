@@ -44,6 +44,9 @@ export type ParsedJvmConfig = {
   issues: JvmValidationIssue[];
 };
 
+// Java 25 已用 Temurin 25.0.4.1 实测：两套 GC 预设参数均可正常启动
+const GC_PRESET_JAVA_MAJORS = [8, 17, 21, 25] as const;
+
 const G1_BALANCED_ARGS = [
   '-XX:+UseG1GC',
   '-XX:+ParallelRefProcEnabled',
@@ -91,9 +94,9 @@ export const JVM_PRESETS: readonly JvmPresetDefinition[] = [
     description: '使用保守的 G1 暂停目标，适合常规服务端。',
     version: '1',
     supportedCoreTypes: null,
-    supportedJavaMajors: [8, 17, 21],
+    supportedJavaMajors: GC_PRESET_JAVA_MAJORS,
     sourceUrl: 'https://docs.oracle.com/en/java/javase/22/gctuning/hotspot-virtual-machine-garbage-collection-tuning-guide.pdf',
-    reviewedAt: '2026-08-11',
+    reviewedAt: '2026-10-21',
     args: G1_BALANCED_ARGS,
   },
   {
@@ -102,9 +105,9 @@ export const JVM_PRESETS: readonly JvmPresetDefinition[] = [
     description: 'PaperMC 官方 Aikar 参数；建议至少分配 6 GiB。',
     version: 'papermc-2026-08-11',
     supportedCoreTypes: ['paper'],
-    supportedJavaMajors: [8, 17, 21],
+    supportedJavaMajors: GC_PRESET_JAVA_MAJORS,
     sourceUrl: 'https://docs.papermc.io/paper/aikars-flags/',
-    reviewedAt: '2026-08-11',
+    reviewedAt: '2026-10-21',
     args: PAPER_AIKAR_ARGS,
   },
 ] as const;

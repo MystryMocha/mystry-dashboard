@@ -396,9 +396,9 @@ function checkJava() {
   const major = versionMatch ? Number(versionMatch[1]) : null;
   if (major === null) {
     console.warn('警告：无法识别默认 PATH Java 主版本，请在启动 Minecraft 实例前确认兼容性。');
-  } else if (![8, 17, 21].includes(major)) {
+  } else if (![8, 17, 21, 25].includes(major)) {
     console.warn(
-      `警告：检测到 Java ${major}；当前常见 Minecraft 服务端通常需要 Java 8、17 或 21，`
+      `警告：检测到 Java ${major}；当前常见 Minecraft 服务端通常需要 Java 8、17、21 或 25，`
         + '请按服务端版本确认兼容性；已绑定实例以所选运行时为准。',
     );
   }

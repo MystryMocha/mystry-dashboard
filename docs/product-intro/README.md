@@ -511,7 +511,7 @@ Forge / NeoForge 会下载官方 Installer 并执行 `--installServer`，耗时�
 | 控件 | 说明 |
 |------|------|
 | 最大内存（MiB） | 推荐约为本机内存 25%，按 512 MiB 取整，通常 2–8 GiB，并为系统留至少 2 GiB |
-| 优化方案 | **兼容优先**：只要内存，Xms 自动取 `min(1 GiB, Xmx)`。**G1 均衡**：需已识别 Java 8/17/21。**Paper Aikar**：仅 Paper + 上述 Java，且强制 Xms=Xmx；低于 6 GiB 会警告。**自定义**：不附加预设 |
+| 优化方案 | **兼容优先**：只要内存，Xms 自动取 `min(1 GiB, Xmx)`。**G1 均衡**：需已识别 Java 8/17/21/25。**Paper Aikar**：仅 Paper + 上述 Java，且强制 Xms=Xmx；低于 6 GiB 会警告。**自定义**：不附加预设 |
 | 官方来源链接 | Paper Aikar 等预设显示冻结版本、复核日期和来源 |
 | **高级 JVM 参数** | 展开手动 Xms 和附加参数 |
 | 手动设置初始内存 Xms | 勾选后才能改初始内存 |

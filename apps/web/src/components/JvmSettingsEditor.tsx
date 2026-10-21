@@ -205,7 +205,8 @@ export function JvmSettingsEditor({
   };
 
   const fieldsDisabled = disabled || needsDetectedChoice;
-  const g1Available = javaMajor !== null && [8, 17, 21].includes(javaMajor);
+  const g1JavaMajors = JVM_PRESETS.find((preset) => preset.id === 'g1-balanced')?.supportedJavaMajors;
+  const g1Available = javaMajor !== null && (g1JavaMajors?.includes(javaMajor) ?? false);
   const paperAvailable = coreType === 'paper' && g1Available;
 
   return (
