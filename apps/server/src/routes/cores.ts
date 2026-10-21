@@ -26,29 +26,15 @@ import {
   importExistingServerDirectory,
   listExistingServerSources,
 } from '../services/existing-server-import-service.js';
+import { getTask, listTasks } from '../services/task-service.js';
+import { removeUploadTemp, streamToUploadTemp } from '../services/upload-service.js';
 import {
-  getTask,
-  isTaskCapacityError,
-  isTaskShuttingDownError,
-  listTasks,
-} from '../services/task-service.js';
-import {
-  isUploadCapacityError,
-  isUploadTooLargeError,
-  removeUploadTemp,
-  streamToUploadTemp,
-} from '../services/upload-service.js';
-import {
-  ImportPreviewHttpError,
   cancelImportPreview,
   confirmImportPreview,
   createImportPreview,
   getImportPreview,
 } from '../services/import-preview-service.js';
-
-function isCapacityError(error: unknown): boolean {
-  return isTaskCapacityError(error) || isUploadCapacityError(error);
-}
+import { sendRouteError } from '../http-errors.js';
 
 export async function coreRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
@@ -74,7 +60,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
         const versions = await listCoreVersions(req.params.type);
         return { versions };
       } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err, 502);
       }
     },
   );
@@ -83,7 +69,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     try {
       return { builds: await listPaperBuilds(req.params.version) };
     } catch (err) {
-      return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err, 502);
     }
   });
 
@@ -96,7 +82,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
           installers: await listFabricInstallers(),
         };
       } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err, 502);
       }
     },
   );
@@ -107,7 +93,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
       try {
         return { loaders: await listForgeLoaders(req.params.version) };
       } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err, 502);
       }
     },
   );
@@ -118,7 +104,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
       try {
         return { loaders: await listNeoForgeLoaders(req.params.version) };
       } catch (err) {
-        return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err, 502);
       }
     },
   );
@@ -129,21 +115,14 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     if (req.validationError) {
       return reply.code(400).send({ error: '部署参数包含不支持的字段或格式不正确' });
     }
-    const body = req.body;
-    if (!body?.name?.trim() || !body.coreType || !body.mcVersion) {
+    // schema 已保证字段齐全，这里只拦截纯空白名称和空版本号。
+    if (!req.body.name.trim() || !req.body.mcVersion) {
       return reply.code(400).send({ error: '缺少必要参数' });
     }
     try {
-      const task = await deployCore(body);
-      return task;
+      return await deployCore(req.body);
     } catch (err) {
-      if (isTaskShuttingDownError(err)) {
-        return reply.code(503).send({ error: err.message });
-      }
-      if (isCapacityError(err)) {
-        return reply.code(429).send({ error: err instanceof Error ? err.message : String(err) });
-      }
-      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err);
     }
   });
 
@@ -159,7 +138,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     try {
       return { sources: await listExistingServerSources() };
     } catch (err) {
-      return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err, 500);
     }
   });
 
@@ -172,8 +151,8 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
       if (req.validationError) {
         return reply.code(400).send({ error: '已有服务端导入参数包含不支持的字段或格式不正确' });
       }
-      if (!req.body?.name?.trim() || !req.body.sourceId) {
-        return reply.code(400).send({ error: '实例名称和导入文件夹不能为空' });
+      if (!req.body.name.trim()) {
+        return reply.code(400).send({ error: '实例名称不能为空' });
       }
       try {
         return await importExistingServerDirectory({
@@ -181,13 +160,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
           name: req.body.name.trim(),
         });
       } catch (err) {
-        if (isTaskShuttingDownError(err)) {
-          return reply.code(503).send({ error: err.message });
-        }
-        if (isCapacityError(err)) {
-          return reply.code(429).send({ error: err instanceof Error ? err.message : String(err) });
-        }
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -224,14 +197,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
       handedOff = true;
       return preview;
     } catch (error) {
-      if (error instanceof ImportPreviewHttpError) {
-        return reply.code(error.statusCode).send({ error: error.message });
-      }
-      if (isUploadTooLargeError(error)) return reply.code(413).send({ error: error.message });
-      if (isCapacityError(error)) {
-        return reply.code(429).send({ error: error instanceof Error ? error.message : String(error) });
-      }
-      return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) });
+      return sendRouteError(reply, error);
     } finally {
       if (!handedOff && zipPath) {
         try {
@@ -247,10 +213,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     try {
       return getImportPreview(req.params.id, req.user.id);
     } catch (error) {
-      if (error instanceof ImportPreviewHttpError) {
-        return reply.code(error.statusCode).send({ error: error.message });
-      }
-      return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) });
+      return sendRouteError(reply, error);
     }
   });
 
@@ -258,7 +221,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     '/api/import/previews/:id/confirm',
     { attachValidation: true, schema: { body: confirmZipImportBodySchema } },
     async (req, reply) => {
-      if (req.validationError || !req.body?.name?.trim()) {
+      if (req.validationError || !req.body.name.trim()) {
         return reply.code(400).send({ error: 'ZIP 导入确认参数包含不支持的字段或格式不正确' });
       }
       try {
@@ -267,16 +230,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
           name: req.body.name.trim(),
         });
       } catch (error) {
-        if (error instanceof ImportPreviewHttpError) {
-          return reply.code(error.statusCode).send({ error: error.message });
-        }
-        if (isTaskShuttingDownError(error)) {
-          return reply.code(503).send({ error: error.message });
-        }
-        if (isCapacityError(error)) {
-          return reply.code(429).send({ error: error instanceof Error ? error.message : String(error) });
-        }
-        return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) });
+        return sendRouteError(reply, error);
       }
     },
   );
@@ -286,10 +240,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
       cancelImportPreview(req.params.id, req.user.id);
       return { ok: true };
     } catch (error) {
-      if (error instanceof ImportPreviewHttpError) {
-        return reply.code(error.statusCode).send({ error: error.message });
-      }
-      return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) });
+      return sendRouteError(reply, error);
     }
   });
 
@@ -365,16 +316,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
       handedOff = true;
       return task;
     } catch (err) {
-      if (isUploadTooLargeError(err)) {
-        return reply.code(413).send({ error: err.message });
-      }
-      if (isTaskShuttingDownError(err)) {
-        return reply.code(503).send({ error: err.message });
-      }
-      if (isCapacityError(err)) {
-        return reply.code(429).send({ error: err instanceof Error ? err.message : String(err) });
-      }
-      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err);
     } finally {
       if (!handedOff && zipPath) {
         try {

@@ -51,7 +51,8 @@ test('重命名冲突应对外映射为 HTTP 409', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
-  const { renamePath, fileServiceErrorHttpStatus, FileRenameConflictError } = await import('./file-service.js');
+  const { renamePath, FileRenameConflictError } = await import('./file-service.js');
+  const { routeErrorStatus } = await import('../http-errors.js');
   const { defaultInstanceDir } = await import('../utils/path.js');
 
   initDb();
@@ -65,7 +66,7 @@ test('重命名冲突应对外映射为 HTTP 409', async (t) => {
     assert.fail('应抛出重命名冲突');
   } catch (err) {
     assert.ok(err instanceof FileRenameConflictError);
-    assert.equal(fileServiceErrorHttpStatus(err), 409);
+    assert.equal(routeErrorStatus(err), 409);
   }
 });
 
@@ -115,7 +116,7 @@ test('目录列表不展示实例根目录的所有权标记，子目录同名�
   assert.deepEqual(listFiles(inst.id, 'backup').map((entry) => entry.path), [`backup/${OWNERSHIP_MARKER_FILE}`]);
 });
 
-test('目录列表遇到 symlink/junction 条目时拒绝访问', async (t) => {
+test('目录列表遇到符号链接或目录联接时拒绝访问', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');

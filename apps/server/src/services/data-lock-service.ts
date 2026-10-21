@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { nanoid } from 'nanoid';
 import { config } from '../config.js';
+import { writeFileAtomic } from '../utils/atomic-write.js';
+import { hasErrorCode } from '../utils/errors.js';
 
 const require = createRequire(import.meta.url);
 const panelVersion: string = (require('../../package.json') as { version: string }).version;
@@ -54,21 +56,13 @@ export function isProcessAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error) {
-      if (error.code === 'ESRCH') return false;
-      // Windows 等平台上对存活进程可能返回 EPERM
-      if (error.code === 'EPERM') return true;
-    }
-    return true;
+    // 只有 ESRCH 能确认进程不存在；EPERM（Windows 等平台上对存活进程可能返回）等其他错误都按存活处理。
+    return !hasErrorCode(error, 'ESRCH');
   }
 }
 
 function writeOwner(lockDir: string, owner: PanelLockOwner): void {
-  fs.mkdirSync(lockDir, { recursive: true, mode: 0o700 });
-  const ownerPath = path.join(lockDir, OWNER_FILE);
-  const tempPath = `${ownerPath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tempPath, `${JSON.stringify(owner)}\n`, { encoding: 'utf8', mode: 0o600 });
-  fs.renameSync(tempPath, ownerPath);
+  writeFileAtomic(path.join(lockDir, OWNER_FILE), `${JSON.stringify(owner)}\n`);
 }
 
 /** 清理超过 7 天的 quarantine 锁目录，防止面板反复异常退出后累积垃圾目录。 */
@@ -119,7 +113,7 @@ function tryAcquireOnce(dataDir: string): PanelDataLock | 'exists' {
   try {
     fs.mkdirSync(lockDir, { mode: 0o700 });
   } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'EEXIST') {
+    if (hasErrorCode(error, 'EEXIST')) {
       return 'exists';
     }
     throw error;

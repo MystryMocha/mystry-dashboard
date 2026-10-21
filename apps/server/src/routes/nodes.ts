@@ -12,6 +12,7 @@ import {
   resetNodeSecret,
   updateNode,
 } from '../services/node-service.js';
+import { sendRouteError } from '../http-errors.js';
 
 /**
  * 节点管理 API。面板启动时会创建或保留内置本机节点 `local`；
@@ -41,7 +42,7 @@ export async function nodeRoutes(app: FastifyInstance): Promise<void> {
       try {
         return createNode(req.body);
       } catch (err) {
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -56,7 +57,7 @@ export async function nodeRoutes(app: FastifyInstance): Promise<void> {
       try {
         return updateNode(req.params.id, req.body);
       } catch (err) {
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -69,7 +70,7 @@ export async function nodeRoutes(app: FastifyInstance): Promise<void> {
       deleteNode(req.params.id);
       return { ok: true };
     } catch (err) {
-      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err);
     }
   });
 
@@ -80,7 +81,7 @@ export async function nodeRoutes(app: FastifyInstance): Promise<void> {
     try {
       return resetNodeSecret(req.params.id);
     } catch (err) {
-      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err);
     }
   });
 }

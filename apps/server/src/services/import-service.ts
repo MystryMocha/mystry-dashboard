@@ -3,10 +3,7 @@ import path from 'node:path';
 import { nanoid } from 'nanoid';
 import type { CoreType } from '@mystry/shared';
 import { config } from '../config.js';
-import {
-  registerPromotedInstance,
-  updateInstanceMeta,
-} from './instance-service.js';
+import { registerPromotedInstance } from './instance-service.js';
 import { detectServerLaunchTarget } from './server-launch-detect.js';
 import {
   assertSafeInstanceRoot,
@@ -24,17 +21,7 @@ import {
 import { assertUploadPath, removeUploadTemp } from './upload-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { safeExtract } from './zip-service.js';
-
-function abortError(signal: AbortSignal): Error {
-  if (signal.reason instanceof Error && ['任务执行超时', '任务已取消'].includes(signal.reason.message)) {
-    return signal.reason;
-  }
-  return new Error('任务已取消');
-}
-
-function throwIfAborted(signal: AbortSignal): void {
-  if (signal.aborted) throw abortError(signal);
-}
+import { throwIfAborted } from '../utils/errors.js';
 
 /** 若解压后只有一层目录，则上移内容到实例根目录。 */
 function flattenSingleRoot(
@@ -135,13 +122,6 @@ export async function importZipPackage(options: {
         if (options.acceptEula) {
           fs.writeFileSync(resolveSafePath(dir, 'eula.txt'), 'eula=true\n', 'utf8');
         }
-
-        updateInstanceMeta(instanceId, {
-          core_type: options.coreType ?? launchTarget.coreType,
-          mc_version: options.mcVersion?.trim() || null,
-          jar_file: launchTarget.value,
-          accept_eula: options.acceptEula ? 1 : 0,
-        });
 
         report(100, '导入完成');
         return { instanceId };

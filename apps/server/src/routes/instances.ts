@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { CreateInstanceInput, UpdateInstanceInput } from '@mystry/shared';
 import { createInstanceBodySchema, updateInstanceBodySchema } from '@mystry/shared';
 import { config } from '../config.js';
@@ -16,6 +16,7 @@ import {
   isInstanceStopPendingError,
   processManager,
 } from '../services/process-manager.js';
+import { sendRouteError } from '../http-errors.js';
 
 const commandBodySchema = {
   type: 'object',
@@ -26,10 +27,7 @@ const commandBodySchema = {
   },
 } as const;
 
-function replyProcessManagerError(
-  reply: { code: (status: number) => { send: (body: unknown) => unknown } },
-  err: unknown,
-) {
+function replyProcessManagerError(reply: FastifyReply, err: unknown) {
   if (isInstanceStopPendingError(err)) {
     return reply.code(202).send({
       code: 'INSTANCE_STOP_PENDING',
@@ -44,7 +42,7 @@ function replyProcessManagerError(
       error: err.message,
     });
   }
-  return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+  return sendRouteError(reply, err);
 }
 
 export async function instanceRoutes(app: FastifyInstance): Promise<void> {
@@ -70,7 +68,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     try {
       return createInstance({ ...req.body, name: req.body.name.trim() });
     } catch (err) {
-      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err);
     }
   });
 
@@ -87,7 +85,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     try {
       return updateInstance(req.params.id, req.body);
     } catch (err) {
-      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err);
     }
   });
 
@@ -97,7 +95,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
       try {
         return await adoptManagedDirectory(req.params.id);
       } catch (err) {
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -107,7 +105,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
       await deleteInstance(req.params.id);
       return { ok: true };
     } catch (err) {
-      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err);
     }
   });
 
@@ -159,7 +157,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
         processManager.sendCommand(req.params.id, req.body.command);
         return { ok: true };
       } catch (err) {
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );

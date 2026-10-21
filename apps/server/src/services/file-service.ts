@@ -6,9 +6,9 @@ import type { FileEntry } from '@mystry/shared';
 import { config } from '../config.js';
 import { getInstanceDir, OWNERSHIP_MARKER_FILE, resolveSafePath } from '../utils/path.js';
 import { streamToUploadTemp, removeUploadTemp } from './upload-service.js';
+import { hasErrorCode } from '../utils/errors.js';
 
-type ResourceLimits = { maxTextFileBytes: number };
-const maxTextFileBytes = (config as typeof config & Partial<ResourceLimits>).maxTextFileBytes ?? 1_048_576;
+const { maxTextFileBytes } = config;
 
 export class FileDownloadCapacityError extends Error {
   readonly code = 'FILE_DOWNLOAD_CAPACITY';
@@ -21,10 +21,7 @@ export class FileDownloadCapacityError extends Error {
 
 export function isFileDownloadCapacityError(error: unknown): error is FileDownloadCapacityError {
   return error instanceof FileDownloadCapacityError
-    || (error !== null
-      && typeof error === 'object'
-      && 'code' in error
-      && error.code === 'FILE_DOWNLOAD_CAPACITY');
+    || hasErrorCode(error, 'FILE_DOWNLOAD_CAPACITY');
 }
 
 export class FileRenameConflictError extends Error {
@@ -39,11 +36,6 @@ export class FileRenameConflictError extends Error {
 
 export function isFileRenameConflictError(error: unknown): error is FileRenameConflictError {
   return error instanceof FileRenameConflictError;
-}
-
-export function fileServiceErrorHttpStatus(error: unknown): number {
-  if (isFileRenameConflictError(error)) return 409;
-  return 400;
 }
 
 let activeFileDownloads = 0;

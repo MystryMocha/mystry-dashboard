@@ -101,6 +101,8 @@ mystry-dashboard/
 | `nodes.ts` | `/api/nodes/*` | 本机/远程节点列表与管理（阶段一） |
 | `launcher.ts` | `/api/launcher/shutdown` | PanelManager 本机令牌关闭通道 |
 
+路由的错误响应统一经 `src/http-errors.ts` 的 `sendRouteError`：服务层已知错误（排队任务过多、面板正在关闭、上传超限、预览失效、重命名冲突）映射为对应状态码，其余用路由给定的默认状态码。
+
 除 `auth/status`、`auth/setup`、`auth/login`、健康检查与本机 launcher 关闭通道外，业务路由经 `authenticate` 校验 JWT。`auth/setup` 另需 `X-Setup-Token`，且只在用户表为空时有效；launcher 关闭通道只接受回环地址与有效 `X-Launcher-Token`。
 
 ### 服务层 `apps/server/src/services/`
@@ -116,7 +118,7 @@ mystry-dashboard/
 | `core-metadata` | 有界元数据请求、版本列表、下载地址解析与不可变版本缓存文件名 |
 | `core-download` | 流式下载、独立 part 文件、按缓存路径合并并发请求和等待者取消 |
 | `core-installer` | Forge / NeoForge Installer 进程、输出与进度、网络失败重试、取消和退出收尾，以及 JVM argfile 写入 |
-| `core-utils` | 核心服务内部共用的取消原因处理与请求 User-Agent |
+| `core-utils` | 核心下载与元数据请求共用的超时中止器和请求 User-Agent |
 | `zip-service` | ZIP 中央目录校验、受限 JVM 参数预览和流式解压；预览与解压共用条目数据范围校验 |
 | `import-service` | 调度 ZIP 导入任务，整理 staging 单层目录、探测启动目标、落地注册及清理临时文件 |
 | `import-preview-service` | 管理按用户隔离、限时限量且不持久化的 ZIP 待确认预览 |

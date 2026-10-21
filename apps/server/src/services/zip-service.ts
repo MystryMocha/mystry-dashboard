@@ -2,11 +2,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createInflateRaw } from 'node:zlib';
 import { pipeline } from 'node:stream/promises';
-import { Readable, Transform, Writable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 import { inspectJvmArgFile, type DetectedJvmConfig } from '@mystry/shared';
 import { config } from '../config.js';
 import { assertSafeInstanceRoot, resolveSafePath } from '../utils/path.js';
 import { MAX_DETECTED_JVM_ARGS_BYTES } from './jvm-detection-service.js';
+import { createByteCounter } from '../utils/byte-counter.js';
+import { abortError, errorMessage, throwIfAborted } from '../utils/errors.js';
 
 type ZipEntry = {
   name: string;
@@ -18,17 +20,6 @@ type ZipEntry = {
   localHeaderOffset: number;
   directory: boolean;
 };
-
-function abortError(signal: AbortSignal): Error {
-  if (signal.reason instanceof Error && ['任务执行超时', '任务已取消'].includes(signal.reason.message)) {
-    return signal.reason;
-  }
-  return new Error('任务已取消');
-}
-
-function throwIfAborted(signal: AbortSignal): void {
-  if (signal.aborted) throw abortError(signal);
-}
 
 function readAt(fd: number, position: number, length: number): Buffer {
   const buffer = Buffer.alloc(length);
@@ -204,20 +195,14 @@ async function extractZipEntry(
   }
 
   let written = 0;
-  const counter = new Transform({
-    transform(chunk: Buffer, _encoding, callback) {
-      if (signal.aborted) {
-        callback(abortError(signal));
-        return;
-      }
-      written += chunk.length;
-      totalWritten.value += chunk.length;
-      if (written > config.maxZipEntryBytes || totalWritten.value > config.maxZipUncompressedBytes) {
-        callback(new Error('ZIP 解压数据超过限制'));
-        return;
-      }
-      callback(null, chunk);
-    },
+  const counter = createByteCounter((chunkBytes) => {
+    if (signal.aborted) return abortError(signal);
+    written += chunkBytes;
+    totalWritten.value += chunkBytes;
+    if (written > config.maxZipEntryBytes || totalWritten.value > config.maxZipUncompressedBytes) {
+      return new Error('ZIP 解压数据超过限制');
+    }
+    return undefined;
   });
   const source = createZipEntrySource(zipPath, entry, dataStart);
   const output = fs.createWriteStream(target, { flags: 'wx', mode: 0o600 });
@@ -307,7 +292,7 @@ export async function inspectZipJvmConfig(
     const raw = await readZipEntryText(zipPath, candidates[0]!, signal);
     return inspectJvmArgFile(raw);
   } catch (error) {
-    return invalidDetectedJvmConfig(error instanceof Error ? error.message : String(error));
+    return invalidDetectedJvmConfig(errorMessage(error));
   }
 }
 

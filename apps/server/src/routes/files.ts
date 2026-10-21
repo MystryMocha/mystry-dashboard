@@ -8,7 +8,6 @@ import {
   acquireFileDownloadSlot,
   assertTextFileWithinLimit,
   deletePath,
-  fileServiceErrorHttpStatus,
   getAbsoluteFilePath,
   isFileDownloadCapacityError,
   listFiles,
@@ -32,10 +31,9 @@ import {
   writeServerProperties,
   readServerProperties,
 } from '../services/config-service.js';
-import { isUploadCapacityError, isUploadTooLargeError } from '../services/upload-service.js';
+import { sendRouteError } from '../http-errors.js';
 
-type ResourceLimits = { maxTextFileBytes: number };
-const maxTextFileBytes = (config as typeof config & Partial<ResourceLimits>).maxTextFileBytes ?? 1_048_576;
+const { maxTextFileBytes } = config;
 const maxPathLength = 1_024;
 const maxPropertyKeys = 256;
 const maxPropertyKeyLength = 256;
@@ -169,7 +167,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       try {
         return listFiles(req.params.id, req.query.path || '');
       } catch (err) {
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -184,7 +182,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         const content = readTextFile(req.params.id, req.query.path);
         return { path: req.query.path, content };
       } catch (err) {
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -199,7 +197,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         writeTextFile(req.params.id, req.body.path, req.body.content);
         return { ok: true };
       } catch (err) {
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -213,7 +211,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         deletePath(req.params.id, req.query.path);
         return { ok: true };
       } catch (err) {
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -227,7 +225,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         mkdirPath(req.params.id, req.body.path);
         return { ok: true };
       } catch (err) {
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -241,9 +239,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         renamePath(req.params.id, req.body.from, req.body.to);
         return { ok: true };
       } catch (err) {
-        return reply.code(fileServiceErrorHttpStatus(err)).send({
-          error: err instanceof Error ? err.message : String(err),
-        });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -418,13 +414,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         );
         return { path: saved };
       } catch (err) {
-        if (isUploadTooLargeError(err)) {
-          return reply.code(413).send({ error: err.message });
-        }
-        if (isUploadCapacityError(err)) {
-          return reply.code(429).send({ error: err instanceof Error ? err.message : String(err) });
-        }
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );
@@ -435,7 +425,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       assertTextFileWithinLimit(req.params.id, 'server.properties');
       return readServerProperties(req.params.id);
     } catch (err) {
-      return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err);
     }
   });
 
@@ -454,7 +444,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         writeServerProperties(req.params.id, req.body);
         return { ok: true };
       } catch (err) {
-        return reply.code(400).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err);
       }
     },
   );

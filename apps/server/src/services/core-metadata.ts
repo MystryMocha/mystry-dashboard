@@ -1,7 +1,8 @@
 import { Readable } from 'node:stream';
 import type { CoreType } from '@mystry/shared';
 import { config } from '../config.js';
-import { abortError, USER_AGENT } from './core-utils.js';
+import { throwIfAborted } from '../utils/errors.js';
+import { createTimeoutAbort, USER_AGENT } from './core-utils.js';
 
 type DeployableCore = Exclude<CoreType, 'custom'>;
 
@@ -34,23 +35,13 @@ async function readBoundedResponseText(response: Response): Promise<string> {
 }
 
 async function fetchMetadataText(url: string, signal?: AbortSignal): Promise<string> {
-  if (signal?.aborted) throw abortError(signal);
-  const controller = new AbortController();
-  let timedOut = false;
-  const abortFromParent = () => controller.abort(signal?.reason);
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    controller.abort(new Error('核心元数据请求超时'));
-  }, config.coreMetadataTimeoutMs);
-  if (signal) {
-    signal.addEventListener('abort', abortFromParent, { once: true });
-    if (signal.aborted) abortFromParent();
-  }
+  throwIfAborted(signal);
+  const timeout = createTimeoutAbort(signal, config.coreMetadataTimeoutMs, '核心元数据请求超时');
 
   try {
     const response = await fetch(url, {
       headers: { 'User-Agent': USER_AGENT },
-      signal: controller.signal,
+      signal: timeout.signal,
     });
     if (!response.ok) {
       try {
@@ -62,13 +53,9 @@ async function fetchMetadataText(url: string, signal?: AbortSignal): Promise<str
     }
     return await readBoundedResponseText(response);
   } catch (error) {
-    if (signal?.aborted) throw abortError(signal);
-    if (timedOut) throw new Error('核心元数据请求超时');
-    if (controller.signal.aborted) throw abortError(controller.signal);
-    throw error;
+    throw timeout.errorFor(error);
   } finally {
-    clearTimeout(timeout);
-    signal?.removeEventListener('abort', abortFromParent);
+    timeout.dispose();
   }
 }
 
