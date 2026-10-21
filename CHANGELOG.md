@@ -14,9 +14,13 @@
 - 统一界面与错误信息的叫法，术语表写入 `CONTRIBUTING.md`：「任务队列」「后台异步任务中心」统一为「任务中心」，「指令」统一为「命令」，所有 401 统一提示「登录已失效，请重新登录」；ZIP、链接、凭证、临时目录相关的错误信息不再夹带 entry、symlink/junction、ticket、staging marker 等英文术语。部署按钮改为「开始部署」，去掉「请耐心等待」「敬请期待」等措辞；标点、引号统一为全角与「」，内存单位统一为 MiB / GiB。
 - Windows 源码启动器 `PanelManager.cmd` 改为只负责检查 Node、安装依赖和构建，启停、状态、日志交给 `mystryctl`，与 Linux 的 `PanelManager.sh` 一致（脚本从约 1200 行减到约 340 行）。配置仍是仓库根目录的 `.env`，不用迁移；日志从 `data/launcher/logs/` 改到仓库根目录的 `logs/`。升级前请先停止正在运行的面板。三个入口的命令清单按同一顺序列出，Windows 补上 `open` 和 `help`。菜单和日志输出去掉 `=====` 分隔线，`logs` 的分节标题改为「最近的错误输出」「最近的标准输出」。
 
+### Added
+
+- `PanelManager.cmd`、`PanelManager.sh` 和 `mystryctl` 的菜单与提示按系统语言显示：中文系统显示中文，其他系统显示英文；可用环境变量 `MYSTRY_LANG=zh-CN` / `en-US` 固定。此前 Linux 源码版和便携版只有中文。
+
 ### Removed
 
-- Windows 源码启动器不再提供英文界面和 `--lang` 参数，菜单中的 `L` 切换语言一并去掉；启停输出来自 `mystryctl`，只有中文。
+- Windows 源码启动器去掉 `--lang` 参数和菜单中按 `L` 切换语言；改为自动跟随系统语言，需要固定时设置 `MYSTRY_LANG`。
 - 删除旧的一阶段 ZIP 导入接口 `POST /api/import`。Web 早已改用「上传预检 → 确认配置」的 `/api/import/previews` 流程；直接调用旧接口的脚本需要改走预览流程，否则会收到 404。
 
 ### Fixed

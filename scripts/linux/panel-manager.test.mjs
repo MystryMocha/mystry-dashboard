@@ -29,7 +29,7 @@ test('Linux 上的启动器可直接转发帮助命令', { skip: process.platfor
   const result = spawnSync('bash', [launcherPath, 'help'], {
     cwd: projectRoot,
     encoding: 'utf8',
-    env: { ...process.env, MYSTRY_NO_BROWSER: '1' },
+    env: { ...process.env, MYSTRY_NO_BROWSER: '1', MYSTRY_LANG: 'zh-CN' },
   });
 
   assert.equal(result.status, 0, result.stderr);
