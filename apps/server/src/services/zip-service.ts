@@ -142,7 +142,7 @@ function readZipEntries(zipPath: string, signal: AbortSignal): ZipEntry[] {
       offset = end;
     }
     if (offset !== central.length) {
-      // 中央目录后允许 ZIP 注释，但不允许 entry 数量与目录内容不一致。
+      // 条目解析完后中央目录仍有剩余字节，说明 EOCD 记录的条目数与目录内容不符。
       const remaining = central.length - offset;
       if (remaining > 0) throw new Error('ZIP 中央目录条目数量不一致');
     }

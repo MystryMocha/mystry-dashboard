@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 import { config } from '../config.js';
 import { resolveSafePath } from '../utils/path.js';
-import { parseJvmArgs, serializeJvmArgFile } from '../utils/jvm-args.js';
+import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
 import { abortError } from './core-utils.js';
 
@@ -235,9 +235,7 @@ export async function runInstaller(
   }
 }
 
-/**
- * 写入 user_jvm_args.txt（Forge/NeoForge 启动用）。
- */
+/** Forge/NeoForge 的启动脚本从 user_jvm_args.txt 读取 JVM 参数。 */
 export function writeUserJvmArgs(dir: string, jvmArgs: string): void {
   const file = resolveSafePath(dir, 'user_jvm_args.txt');
   const lines = serializeJvmArgFile(parseJvmArgs(jvmArgs));

@@ -1,5 +1,5 @@
 /**
- * R0-01 数据目录生命周期锁回归骨架（批次 B 实现 data-lock-service）。
+ * 数据目录生命周期锁回归。
  * 必须使用随机临时 DATA_DIR，禁止触碰仓库 data/。
  */
 import assert from 'node:assert/strict';
@@ -18,7 +18,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
   return dataRoot;
 }
 
-test('R0-01: 第二个面板进程不得在进入 initDb 前写入数据库', async (t) => {
+test('第二个面板进程不得在进入 initDb 前写入数据库', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   const { acquirePanelDataLock } = await import('./data-lock-service.js');
   const first = acquirePanelDataLock(dataRoot);
@@ -32,7 +32,7 @@ test('R0-01: 第二个面板进程不得在进入 initDb 前写入数据库', as
   second.release();
 });
 
-test('R0-01: 锁目录应为 0700、owner.json 应为 0600', { skip: process.platform === 'win32' }, async (t) => {
+test('锁目录应为 0700、owner.json 应为 0600', { skip: process.platform === 'win32' }, async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   const { acquirePanelDataLock } = await import('./data-lock-service.js');
   const lock = acquirePanelDataLock(dataRoot);
@@ -42,7 +42,7 @@ test('R0-01: 锁目录应为 0700、owner.json 应为 0600', { skip: process.pla
   assert.equal(fs.statSync(path.join(lockDir, 'owner.json')).mode & 0o777, 0o600);
 });
 
-test('R0-01: 陈旧锁仅在原 PID 不存在时可 quarantine 并接管', async (t) => {
+test('陈旧锁仅在原 PID 不存在时可 quarantine 并接管', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   const lockDir = path.join(dataRoot, '.mystry-panel-lock');
   fs.mkdirSync(lockDir, { recursive: true });

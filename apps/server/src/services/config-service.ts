@@ -111,7 +111,7 @@ function parseEntryLine(raw: string): PropertyEntryLine | null {
   return { kind: 'entry', raw, key, separator, value };
 }
 
-/** 将 logical 行（已处理续行）解析为文档行 */
+/** 将已合并续行的逻辑行解析为文档行 */
 function parseLogicalLines(logicalLines: string[]): PropertyLine[] {
   const lines: PropertyLine[] = [];
   for (const raw of logicalLines) {
@@ -331,10 +331,4 @@ export function writeServerProperties(instanceId: string, patch: PropertiesMap):
     : parsePropertiesDocument(stringifyProperties({ ...DEFAULT_PROPERTIES }));
   const nextContent = stringifyPropertiesDocument(applyPropertiesPatch(baseDocument, patch));
   writeFileAtomic(file, nextContent);
-}
-
-export function ensureEula(instanceId: string, accept: boolean): void {
-  if (!accept) return;
-  const root = getInstanceDir(instanceId);
-  fs.writeFileSync(resolveSafePath(root, 'eula.txt'), 'eula=true\n', 'utf8');
 }

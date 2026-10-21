@@ -103,7 +103,6 @@ type PaperBuild = {
   };
 };
 
-/** 列出各核心可用游戏版本 */
 export async function listCoreVersions(coreType: DeployableCore, signal?: AbortSignal): Promise<string[]> {
   if (coreType === 'paper') {
     const data = await fetchJson<{ versions: Record<string, string[]> }>(

@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { Copy, Eraser, Send } from 'lucide-react';
+import type { ConsoleMessage } from '@mystry/shared';
 import { createConsoleTicket } from '../api';
 import {
   colorizeConsoleLine,
@@ -14,7 +15,6 @@ import {
 type Props = {
   instanceId: string;
   canSend?: boolean;
-  onStatus?: (status: string) => void;
 };
 
 const QUICK_COMMANDS = [
@@ -25,7 +25,7 @@ const QUICK_COMMANDS = [
   { label: 'help', desc: '命令帮助', cmd: 'help' },
 ];
 
-export function ConsolePanel({ instanceId, canSend = true, onStatus }: Props) {
+export function ConsolePanel({ instanceId, canSend = true }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -134,11 +134,7 @@ export function ConsolePanel({ instanceId, canSend = true, onStatus }: Props) {
         ws.onmessage = (ev) => {
           if (disposed) return;
           try {
-            const msg = JSON.parse(String(ev.data)) as {
-              type: string;
-              data: string;
-              status?: string;
-            };
+            const msg = JSON.parse(String(ev.data)) as ConsoleMessage;
             if (msg.type === 'history') {
               writeColored(msg.data, true);
             } else if (msg.type === 'output') {
@@ -147,7 +143,6 @@ export function ConsolePanel({ instanceId, canSend = true, onStatus }: Props) {
             if (msg.type === 'error') {
               writeSystemLine(`[错误] ${msg.data}`);
             }
-            if (msg.status && onStatus) onStatus(msg.status);
           } catch {
             writeColored(String(ev.data));
           }
@@ -182,7 +177,7 @@ export function ConsolePanel({ instanceId, canSend = true, onStatus }: Props) {
       wsRef.current = null;
       setConnected(false);
     };
-  }, [instanceId, onStatus]);
+  }, [instanceId]);
 
   const inputEnabled = canSend && connected;
 

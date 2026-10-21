@@ -14,10 +14,8 @@ import {
 } from '../services/node-service.js';
 
 /**
- * 节点管理 API（阶段一）：
- * - 面板启动时会自动创建/保留一个内置本机节点（id='local'），代表当前的本机 spawn 执行能力；
- * - 远程节点创建由 REMOTE_NODE_CREATION_ENABLED 控制；当前关闭，避免暗示多机已可用；
- * - 远程节点的真实 Agent 反向连接、指令转发将在阶段二/三接入。
+ * 节点管理 API。面板启动时会创建或保留内置本机节点 `local`；
+ * 远程 Agent 尚未实现，REMOTE_NODE_CREATION_ENABLED 为 false 时拒绝创建远程节点。
  */
 export async function nodeRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);

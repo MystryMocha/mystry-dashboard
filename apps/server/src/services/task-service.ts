@@ -6,7 +6,6 @@ import { getDb, type TaskRow } from '../db.js';
 import { nowIso } from '../utils/path.js';
 import { getInstanceRow } from './instance-service.js';
 import {
-  readTaskStagingMarker,
   removeTaskStagingTree,
   stagingMarkerMatches,
   taskStagingDir,
@@ -251,11 +250,6 @@ export function recoverInterruptedTasks(): InterruptedTaskRecovery {
   return { interrupted: rows.length, cleanedStaging, stagingCleanupFailures };
 }
 
-function abortError(signal: AbortSignal): Error {
-  if (signal.reason instanceof Error && signal.reason.message) return signal.reason;
-  return new Error('任务已取消');
-}
-
 function drainTaskQueue(): void {
   while (!shuttingDown && runningTasks < config.maxConcurrentTasks && taskQueue.length > 0) {
     const item = taskQueue.shift()!;
@@ -382,4 +376,3 @@ export function resetTaskRuntimeForTests(): void {
   runningExecutions.clear();
 }
 
-export { readTaskStagingMarker };

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Server, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import type { NodeInfo } from '@mystry/shared';
 import { api } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -102,7 +102,6 @@ export function NodesPage() {
         <div className="form-card"><p>暂无节点。</p><button className="btn" type="button" onClick={retryLoad}>刷新节点</button></div>
       )}
 
-      {/* 本机节点高保真卡片展示 */}
       {localNode && (
         <div className="form-card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '14px', flexWrap: 'wrap', gap: 10 }}>

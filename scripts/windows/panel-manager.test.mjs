@@ -81,7 +81,7 @@ test('PanelManager 自动把三个重复密钥修复为不同值', { skip: proce
   }
 });
 
-test('R1-03: 伪造健康响应时 Invoke-SafeShutdown 不得发送 LAUNCHER_TOKEN', { skip: process.platform !== 'win32' }, () => {
+test('伪造健康响应时 Invoke-SafeShutdown 不得发送 LAUNCHER_TOKEN', { skip: process.platform !== 'win32' }, () => {
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-shutdown-test-'));
   try {
     const statePath = path.join(testRoot, 'state.json');

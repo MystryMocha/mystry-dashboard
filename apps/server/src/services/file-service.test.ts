@@ -1,5 +1,5 @@
 /**
- * R0-05 文件重命名与路径安全回归骨架（批次 C 实现无覆盖 rename）。
+ * 文件重命名与路径安全回归。
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -25,7 +25,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
   return dataRoot;
 }
 
-test('R0-05: 目标已存在时同目录重命名应拒绝且不覆盖内容', async (t) => {
+test('目标已存在时同目录重命名应拒绝且不覆盖内容', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -41,13 +41,13 @@ test('R0-05: 目标已存在时同目录重命名应拒绝且不覆盖内容', a
   assert.throws(
     () => renamePath(inst.id, 'a.txt', 'b.txt'),
     (err: unknown) => err instanceof Error && /已存在|冲突|目标/.test(err.message),
-    'R0-05 待批次 C：renamePath 不得静默覆盖已有 b.txt',
+    'renamePath 不得静默覆盖已有 b.txt',
   );
   assert.equal(fs.readFileSync(path.join(root, 'b.txt'), 'utf8'), 'keep-b');
   assert.equal(fs.readFileSync(path.join(root, 'a.txt'), 'utf8'), 'source-a');
 });
 
-test('R0-05: 重命名冲突应对外映射为 HTTP 409', async (t) => {
+test('重命名冲突应对外映射为 HTTP 409', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');

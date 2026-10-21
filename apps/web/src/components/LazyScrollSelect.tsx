@@ -82,7 +82,6 @@ export function LazyScrollSelect<T extends string | number>({
     );
   }, []);
 
-  // 选项变化时重置可见数量
   useEffect(() => {
     const index = value === '' ? -1 : options.indexOf(value as T);
     setVisibleCount(countForSelectedIndex(index, options.length));

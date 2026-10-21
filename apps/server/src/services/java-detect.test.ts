@@ -1,5 +1,5 @@
 /**
- * R1-01 Java 探测子进程环境脱敏回归。
+ * Java 探测子进程环境脱敏回归。
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -20,7 +20,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
   return dataRoot;
 }
 
-test('R1-01: getMinecraftChildEnv 不得暴露面板密钥', async (t) => {
+test('getMinecraftChildEnv 不得暴露面板密钥', async (t) => {
   prepareTempDataRoot(t);
   const { getMinecraftChildEnv } = await import('../utils/child-env.js');
   const env = getMinecraftChildEnv();
@@ -31,7 +31,7 @@ test('R1-01: getMinecraftChildEnv 不得暴露面板密钥', async (t) => {
   assert.equal(env.MYSTRY_HOME, undefined);
 });
 
-test('R1-01: detectJava 应对 java -version 使用脱敏环境', async (t) => {
+test('detectJava 应对 java -version 使用脱敏环境', async (t) => {
   prepareTempDataRoot(t);
   const { detectJava } = await import('./java-detect.js');
   let capturedEnv: NodeJS.ProcessEnv | undefined;

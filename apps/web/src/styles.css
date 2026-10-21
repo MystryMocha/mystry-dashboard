@@ -2072,9 +2072,7 @@ button {
 .import-preview-card span { overflow-wrap: anywhere; color: var(--text-muted); font-size: 0.82rem; }
 .import-preview-card .btn { justify-self: start; }
 
-/* ==================== 原型设计系统核心扩展组件 ==================== */
-
-/* 统计指标卡片组 (Metric Cards) */
+/* ===== 总览统计指标卡片 ===== */
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -2155,7 +2153,7 @@ button {
   transition: width 0.3s ease;
 }
 
-/* 实例卡片网格 (Instance Grid) */
+/* ===== 实例卡片网格 ===== */
 .section-header {
   display: flex;
   align-items: center;
@@ -2304,7 +2302,7 @@ button {
   padding-top: 14px;
 }
 
-/* 实例工作台二级 Tab 与工作台头部 (Instance Hub) */
+/* ===== 实例工作台头部与二级 Tab ===== */
 .instance-hub-header {
   background: var(--bg-panel);
   border: 1px solid var(--border);
@@ -2353,7 +2351,7 @@ button {
   font-weight: 600;
 }
 
-/* 控制台容器扩展 (Console View) */
+/* ===== 控制台容器 ===== */
 .console-box-wrapper {
   background: var(--console-bg);
   border: 1px solid var(--border);
@@ -2383,7 +2381,7 @@ button {
   padding: 8px 0;
 }
 
-/* 一键部署视图 (Deploy Grid) */
+/* ===== 一键部署页 ===== */
 .deploy-grid {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -2473,7 +2471,7 @@ button {
   font-size: 0.9rem;
 }
 
-/* 任务中心抽屉 (Task Center Drawer) */
+/* ===== 任务中心抽屉 ===== */
 .task-drawer::backdrop {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(3px);

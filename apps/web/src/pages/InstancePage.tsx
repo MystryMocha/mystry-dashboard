@@ -72,7 +72,7 @@ function isAbortError(error: unknown): boolean {
     && error.name === 'AbortError';
 }
 
-function ConsoleTab({ instance }: { instance: InstanceInfo; onChange: () => void }) {
+function ConsoleTab({ instance }: { instance: InstanceInfo }) {
   return (
     <div>
       <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} />
@@ -969,7 +969,7 @@ export function InstancePage() {
           <MigrationPanel instance={instance} onAdopt={load} />
         ) : (
           <Routes>
-            <Route index element={<ConsoleTab instance={instance} onChange={load} />} />
+            <Route index element={<ConsoleTab instance={instance} />} />
             <Route path="files" element={<FilesTab instanceId={instance.id} />} />
             <Route path="config" element={<ConfigTab instanceId={instance.id} />} />
             <Route path="settings" element={<SettingsTab instance={instance} onSaved={load} />} />

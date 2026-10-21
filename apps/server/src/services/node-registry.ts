@@ -9,9 +9,7 @@ import { LOCAL_NODE_ID } from '@mystry/shared';
  * 设计与 ProcessManager 保持一致：数据库只存节点的静态元数据（名称、密钥哈希），
  * 在线状态/心跳/主机信息属于运行期信息，不写库。
  *
- * 阶段一：仅本机节点会被标记为 online（面板自身即本机执行能力）；
- * 远程节点的真实上线状态将在阶段二/三接入 Agent WebSocket 反向连接后由
- * markOnline/markOffline 驱动。
+ * 目前只有本机节点，它代表面板自身，始终在线。
  */
 class NodeRegistry extends EventEmitter {
   private online = new Map<string, { lastSeenAt: string; hostInfo: NodeHostInfo | null }>();
@@ -49,10 +47,6 @@ class NodeRegistry extends EventEmitter {
     if (nodeId === LOCAL_NODE_ID) return; // 本机节点不可下线
     this.online.delete(nodeId);
     this.emit('status', nodeId, 'offline' satisfies NodeStatus);
-  }
-
-  isOnline(nodeId: string): boolean {
-    return this.getStatus(nodeId) === 'online';
   }
 }
 

@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { AuthUser } from '@mystry/shared';
+import type { AuthSetupStatus, AuthUser } from '@mystry/shared';
 import { api, ApiError, getToken, setToken, UNAUTHORIZED_EVENT } from './api';
 
 type AuthState = {
@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setStatusError(null);
     try {
-      const status = await api<{ needsSetup: boolean }>('/api/auth/status');
+      const status = await api<AuthSetupStatus>('/api/auth/status');
       setNeedsSetup(status.needsSetup);
       if (status.needsSetup) {
         setUser(null);

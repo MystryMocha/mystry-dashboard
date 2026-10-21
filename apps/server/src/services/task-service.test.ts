@@ -1,5 +1,5 @@
 /**
- * R0-04 任务 staging 与保守恢复回归骨架（批次 B 实现 staging + 迁移）。
+ * 任务 staging 与保守恢复回归。
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -24,7 +24,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
   return dataRoot;
 }
 
-test('R0-04: recoverInterruptedTasks 不得因 result.instanceId 删除最终实例', async (t) => {
+test('recoverInterruptedTasks 不得因 result.instanceId 删除最终实例', async (t) => {
   prepareTempDataRoot(t);
   const { initDb, getDb } = await import('../db.js');
   const { createInstance, getInstanceRow } = await import('./instance-service.js');
@@ -47,7 +47,7 @@ test('R0-04: recoverInterruptedTasks 不得因 result.instanceId 删除最终实
   );
 });
 
-test('R0-04: 仅清理 .mystry-staging 内 marker 匹配且任务未完成的半成品', async (t) => {
+test('仅清理 .mystry-staging 内 marker 匹配且任务未完成的半成品', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createTask, recordTaskStaging, recoverInterruptedTasks } = await import('./task-service.js');

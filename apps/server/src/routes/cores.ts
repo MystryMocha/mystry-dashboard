@@ -12,15 +12,15 @@ import {
   confirmZipImportBodySchema,
   importExistingServerBodySchema,
 } from '@mystry/shared';
+import { deployCore } from '../services/core-depot.js';
 import {
-  deployCore,
   listCoreVersions,
   listFabricInstallers,
   listFabricLoaders,
   listForgeLoaders,
   listNeoForgeLoaders,
   listPaperBuilds,
-} from '../services/core-depot.js';
+} from '../services/core-metadata.js';
 import { importZipPackage } from '../services/import-service.js';
 import {
   importExistingServerDirectory,

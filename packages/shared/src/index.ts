@@ -14,14 +14,7 @@ export interface DashboardMetrics {
   }>;
 }
 
-/** 实例运行状态 */
 export type InstanceStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'crashed';
-
-/** 实例生命周期操作冲突（HTTP 409） */
-export interface InstanceOperationConflictResult {
-  code: 'INSTANCE_OPERATION_CONFLICT';
-  error: string;
-}
 
 /** 普通停止宽限期过后进程仍在退出（HTTP 202） */
 export interface InstanceStopPendingResult {
@@ -38,16 +31,12 @@ export function isInstanceStopPendingResult(value: unknown): value is InstanceSt
     && (value as InstanceStopPendingResult).stillStopping === true;
 }
 
-/** 服务端核心类型 */
 export type CoreType = 'vanilla' | 'paper' | 'fabric' | 'forge' | 'neoforge' | 'custom';
 
 /** 内置本机节点 ID（面板自身，始终存在） */
 export const LOCAL_NODE_ID = 'local';
 
-/**
- * 是否开放「创建远程节点」。
- * 阶段一仅本机执行；Agent 接入（阶段二/三）后再改为 true。
- */
+/** 远程 Agent 尚未实现，创建远程节点的入口保持关闭。 */
 export const REMOTE_NODE_CREATION_ENABLED = false;
 
 /** 节点在线状态（运行期，非持久化） */
@@ -62,7 +51,6 @@ export interface NodeHostInfo {
   agentVersion?: string;
 }
 
-/** 节点元数据（前后端共享） */
 export interface NodeInfo {
   id: string;
   name: string;
@@ -85,13 +73,12 @@ export interface UpdateNodeInput {
   name?: string;
 }
 
-/** 创建节点 / 重置密钥的返回：secret 仅在此刻返回一次，请立即抄录到 Agent 配置中 */
+/** secret 只在创建节点或重置密钥时返回这一次，服务端只保存摘要。 */
 export interface NodeSecretResult {
   node: NodeInfo;
   secret: string;
 }
 
-/** 实例元数据（前后端共享） */
 export interface InstanceInfo {
   id: string;
   name: string;
@@ -100,7 +87,7 @@ export interface InstanceInfo {
   jarFile: string;
   javaPath: string;
   jvmArgs: string;
-  /** 实际安装目录（自定义绝对路径或默认 data/instances/<id>） */
+  /** 通常是 DATA_DIR/instances/<id>；旧实例仍绑定外部目录时为该目录，且 requiresMigration 为 true */
   installPath: string | null;
   requiresMigration: boolean;
   status: InstanceStatus;
@@ -143,20 +130,12 @@ export interface FileEntry {
   modifiedAt: string;
 }
 
-/** POST /api/instances/:id/files/download-ticket 请求体 */
-export interface FileDownloadTicketInput {
-  path: string;
-}
-
 /** 一次性文件下载 ticket；随后用 query 参数访问 GET .../files/download */
 export interface FileDownloadTicketResult {
   ticket: string;
   expiresIn: number;
 }
 
-/**
- * 下载 ticket 生命周期状态（R1-06 状态查询 API）。
- */
 export type FileDownloadTicketStatus =
   | 'reserved'
   | 'streaming'
@@ -169,11 +148,6 @@ export interface FileDownloadTicketStatusResult {
   status: FileDownloadTicketStatus;
   /** 占槽或开流失败时的中文说明 */
   error?: string;
-}
-
-export interface CoreVersionInfo {
-  version: string;
-  builds?: number[];
 }
 
 export interface DeployCoreInput {

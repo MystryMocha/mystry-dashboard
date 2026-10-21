@@ -6,11 +6,11 @@
 const RESET = '\x1b[0m';
 
 const ANSI = {
-  info: '\x1b[92m', // bright green
-  warn: '\x1b[93m', // bright yellow
-  error: '\x1b[91m', // bright red
-  debug: '\x1b[96m', // bright cyan
-  fatal: '\x1b[95m', // bright magenta
+  info: '\x1b[92m', // 亮绿
+  warn: '\x1b[93m', // 亮黄
+  error: '\x1b[91m', // 亮红
+  debug: '\x1b[96m', // 亮青
+  fatal: '\x1b[95m', // 亮品红
 } as const;
 
 const HAS_ANSI = /\x1b\[/;

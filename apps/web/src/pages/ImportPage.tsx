@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Archive, FolderDown, FolderUp, RefreshCw } from 'lucide-react';
+import { FolderUp, RefreshCw } from 'lucide-react';
 import type { CoreType, ExistingServerSourceInfo, ImportPreviewInfo, TaskInfo } from '@mystry/shared';
 import {
   ApiError,

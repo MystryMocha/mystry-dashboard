@@ -204,7 +204,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             <span className="tag-badge">Minecraft Java 服务端</span>
           </div>
           <div className="topbar-right" ref={topbarToolsRef}>
-            <TaskCenter placement="topbar" />
+            <TaskCenter />
             <ThemeToggle placement="topbar" />
           </div>
         </header>

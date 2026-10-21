@@ -33,11 +33,8 @@ function formatTime(iso: string | null): string {
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-/**
- * 任务中心抽屉式组件：
- * 采用原型的高保真设计，从右侧滑出显示异步任务队列与进度条。
- */
-export function TaskCenter({ placement = 'topbar' }: { placement?: 'sidebar' | 'topbar' }) {
+/** 顶栏的任务中心按钮，点击后从右侧滑出任务列表与进度。 */
+export function TaskCenter() {
   const { tasks, error, loading, activeCount, lastSuccessAt, retry } = useTaskCenter();
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
@@ -64,7 +61,7 @@ export function TaskCenter({ placement = 'topbar' }: { placement?: 'sidebar' | '
       <button
         ref={toggleRef}
         type="button"
-        className={`btn ${placement === 'sidebar' ? 'btn-icon' : ''}`}
+        className="btn"
         aria-label={open ? '关闭任务中心' : `打开任务中心，${activeCount} 个任务进行中`}
         aria-expanded={open}
         aria-controls={drawerId}
@@ -72,7 +69,7 @@ export function TaskCenter({ placement = 'topbar' }: { placement?: 'sidebar' | '
         title="后台任务中心"
       >
         <Clock size={16} aria-hidden="true" />
-        {placement !== 'sidebar' && <span>任务队列</span>}
+        <span>任务队列</span>
         {activeCount > 0 ? (
           <span
             style={{
