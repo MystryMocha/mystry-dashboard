@@ -271,10 +271,14 @@ export interface JavaRuntimeListResult {
 
 /**
  * 按 Minecraft 版本推荐 Java 主版本号；无法识别版本格式时返回 null。
+ * 26.1+（年份版本号，含 26.1.2、26.3-rc-3 等）→ 25；
  * 1.20.5+ → 21；1.17–1.20.4 → 17；1.16.5 及更早 → 8。
  */
 export function recommendedJavaMajor(mcVersion: string | null | undefined): number | null {
   if (!mcVersion) return null;
+  // Mojang 自 26.1 起改用「年份.序号」版本号，最低要求 Java 25
+  const yearMatch = mcVersion.match(/^(\d{2,})\.(\d+)/);
+  if (yearMatch && Number(yearMatch[1]) >= 26) return 25;
   const match = mcVersion.match(/^1\.(\d+)(?:\.(\d+))?/);
   if (!match) return null;
   const minor = Number(match[1]);
