@@ -5,13 +5,41 @@ set -euo pipefail
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 CONTROLLER="$PROJECT_ROOT/scripts/portable/mystryctl.mjs"
 
+# 界面语言：MYSTRY_LANG 优先，其次 LC_ALL / LC_MESSAGES / LANG；中文环境用中文，其余一律英文。
+# C / POSIX 表示没有设置语言，继续看下一项。结果写回 MYSTRY_LANG，让 mystryctl 用同一种语言。
+detect_chinese() {
+  for value in "${MYSTRY_LANG:-}" "${LC_ALL:-}" "${LC_MESSAGES:-}" "${LANG:-}"; do
+    case "$value" in
+      ''|C|C.*|C@*|POSIX|POSIX.*) continue ;;
+      zh*) return 0 ;;
+      *) return 1 ;;
+    esac
+  done
+  return 1
+}
+
+if detect_chinese; then
+  chinese=1
+  export MYSTRY_LANG=zh-CN
+else
+  chinese=0
+  export MYSTRY_LANG=en-US
+fi
+
+# 按界面语言二选一。
+text() {
+  if [ "$chinese" = 1 ]; then printf '%s' "$1"; else printf '%s' "$2"; fi
+}
+
 fail() {
-  printf '错误：%s\n' "$*" >&2
+  printf '%s%s\n' "$(text '错误：' 'Error: ')" "$*" >&2
   exit 1
 }
 
+commands_hint="$(text '可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。' 'Available commands: start, foreground, stop, restart, rebuild, status, logs, open, help.')"
+
 if [ "$(uname -s)" != 'Linux' ]; then
-  fail 'PanelManager.sh 仅支持 Linux / WSL；Windows 请使用 PanelManager.cmd。'
+  fail "$(text 'PanelManager.sh 仅支持 Linux / WSL；Windows 请使用 PanelManager.cmd。' 'PanelManager.sh supports Linux / WSL only. On Windows, use PanelManager.cmd.')"
 fi
 
 # WSL 可能继承 Windows 临时目录；优先使用具有 Unix 权限语义的 /tmp。
@@ -20,36 +48,36 @@ if [ -z "${TMPDIR:-}" ] || [[ "$TMPDIR" == /mnt/* ]]; then
 fi
 
 if ! command -v node >/dev/null 2>&1; then
-  fail '未找到 Node.js。请先安装 Node.js 22 或更高版本。'
+  fail "$(text '未找到 Node.js。请先安装 Node.js 22 或更高版本。' 'Node.js was not found. Install Node.js 22 or later.')"
 fi
 
 if ! node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)"; then
-  fail '无法读取 Node.js 版本。'
+  fail "$(text '无法读取 Node.js 版本。' 'Could not read the Node.js version.')"
 fi
 case "$node_major" in
-  ''|*[!0-9]*) fail "无法识别 Node.js 主版本：$node_major" ;;
+  ''|*[!0-9]*) fail "$(text '无法识别 Node.js 主版本：' 'Unrecognized Node.js major version: ')$node_major" ;;
 esac
 if [ "$node_major" -lt 22 ]; then
-  fail "Node.js 版本过低：$(node --version)。本项目要求 22 或更高版本。"
+  fail "$(text "Node.js 版本过低：$(node --version)。本项目要求 22 或更高版本。" "Node.js $(node --version) is too old. This project needs 22 or later.")"
 fi
 
 if [ ! -f "$CONTROLLER" ]; then
-  fail "找不到生命周期控制器：$CONTROLLER"
+  fail "$(text '找不到生命周期控制器：' 'Lifecycle controller not found: ')$CONTROLLER"
 fi
 
 if [ "$#" -gt 1 ]; then
-  fail '每次只能指定一个命令；可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。'
+  fail "$(text '每次只能指定一个命令；' 'Specify one command at a time. ')$commands_hint"
 fi
 
 ensure_dependencies() {
   if ! command -v npm >/dev/null 2>&1; then
-    fail '未找到 npm。请修复 Node.js 22 或更高版本的安装。'
+    fail "$(text '未找到 npm。请修复 Node.js 22 或更高版本的安装。' 'npm was not found. Repair your Node.js 22+ installation.')"
   fi
 
   if [ ! -d "$PROJECT_ROOT/node_modules" ] \
     || [ ! -f "$PROJECT_ROOT/node_modules/.package-lock.json" ] \
     || [ "$PROJECT_ROOT/package-lock.json" -nt "$PROJECT_ROOT/node_modules/.package-lock.json" ]; then
-    printf '正在根据 package-lock.json 安装依赖…\n'
+    printf '%s\n' "$(text '正在根据 package-lock.json 安装依赖…' 'Installing dependencies from package-lock.json…')"
     (
       cd "$PROJECT_ROOT"
       npm ci
@@ -58,7 +86,7 @@ ensure_dependencies() {
 }
 
 build_sources() {
-  printf '正在构建 shared、server 和 web…\n'
+  printf '%s\n' "$(text '正在构建 shared、server 和 web…' 'Building shared, server and web…')"
   (
     cd "$PROJECT_ROOT"
     npm run build
@@ -86,6 +114,6 @@ case "$command" in
     run_controller "$command"
     ;;
   *)
-    fail "未知命令：$command。可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。"
+    fail "$(text "未知命令：$command。" "Unknown command: $command. ")$commands_hint"
     ;;
 esac

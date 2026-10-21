@@ -31,6 +31,21 @@ function Normalize-ProcessPath {
 
 Normalize-ProcessPath
 
+# 界面语言：MYSTRY_LANG 优先，其次 Windows 显示语言；中文系统用中文，其余一律英文。
+# 结果写回 MYSTRY_LANG，让 mystryctl 和实时日志窗口用同一种语言。
+$script:Chinese = if ($env:MYSTRY_LANG) {
+  $env:MYSTRY_LANG -match '^zh'
+} else {
+  [Globalization.CultureInfo]::CurrentUICulture.Name -match '^zh'
+}
+$env:MYSTRY_LANG = if ($script:Chinese) { 'zh-CN' } else { 'en-US' }
+
+function T {
+  param([string]$Zh, [string]$En)
+  if ($script:Chinese) { return $Zh }
+  return $En
+}
+
 $script:ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 # 已设置 MYSTRY_CONFIG_PATH 时沿用（相对路径按仓库根目录解析），与 mystryctl 一致。
 $script:EnvPath = if ([IO.Path]::IsPathRooted([string]$env:MYSTRY_CONFIG_PATH)) {
@@ -116,12 +131,12 @@ function Get-SourceFingerprint {
 
 function Assert-Node {
   if (-not (Get-Command node.exe -ErrorAction SilentlyContinue)) {
-    throw '未找到 Node.js。请先安装 Node.js 22 或更高版本：https://nodejs.org/'
+    throw (T '未找到 Node.js。请先安装 Node.js 22 或更高版本：https://nodejs.org/' 'Node.js was not found. Install Node.js 22 or later: https://nodejs.org/')
   }
   $versionText = ([string](& node.exe --version)).Trim()
-  if ($LASTEXITCODE -ne 0) { throw '无法读取 Node.js 版本。' }
+  if ($LASTEXITCODE -ne 0) { throw (T '无法读取 Node.js 版本。' 'Could not read the Node.js version.') }
   if (([version]$versionText.TrimStart('v')).Major -lt 22) {
-    throw "Node.js 版本过低：$versionText。本项目要求 22 或更高版本。"
+    throw (T "Node.js 版本过低：$versionText。本项目要求 22 或更高版本。" "Node.js $versionText is too old. This project needs 22 or later.")
   }
 }
 
@@ -148,26 +163,26 @@ function Invoke-Npm {
 function Update-Project {
   param([switch]$Force)
   if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
-    throw '未找到 npm.cmd，请修复 Node.js 安装。'
+    throw (T '未找到 npm.cmd，请修复 Node.js 安装。' 'npm.cmd was not found. Repair your Node.js installation.')
   }
   $state = Read-JsonMap $script:BuildStatePath
   $lockPath = Join-Path $script:ProjectRoot 'package-lock.json'
   $dependencyHash = (Get-FileHash -LiteralPath $lockPath -Algorithm SHA256).Hash.ToLowerInvariant()
   $dependencyChanged = -not $state.ContainsKey('dependencyHash') -or [string]$state.dependencyHash -ne $dependencyHash
   if ($Force -or $dependencyChanged -or -not (Test-Path -LiteralPath (Join-Path $script:ProjectRoot 'node_modules'))) {
-    Write-Host '正在根据 package-lock.json 安装依赖，可能需要几分钟…'
-    Invoke-Npm -Arguments @('ci') -FailureMessage '依赖安装失败，请检查上方 npm 输出和网络连接。'
+    Write-Host (T '正在根据 package-lock.json 安装依赖，可能需要几分钟…' 'Installing dependencies from package-lock.json. This may take a few minutes…')
+    Invoke-Npm -Arguments @('ci') -FailureMessage (T '依赖安装失败，请检查上方 npm 输出和网络连接。' 'Installing dependencies failed. Check the npm output above and your network connection.')
     $state = @{ dependencyHash = $dependencyHash }
   }
 
   $sourceHash = Get-SourceFingerprint
   $sourceChanged = -not $state.ContainsKey('sourceHash') -or [string]$state.sourceHash -ne $sourceHash
   if ($Force -or $sourceChanged -or -not (Test-BuildOutput)) {
-    Write-Host '正在构建 shared、server 和 web…'
-    Invoke-Npm -Arguments @('run', 'build') -FailureMessage '构建失败，不会启动旧的构建产物。'
+    Write-Host (T '正在构建 shared、server 和 web…' 'Building shared, server and web…')
+    Invoke-Npm -Arguments @('run', 'build') -FailureMessage (T '构建失败，不会启动旧的构建产物。' 'The build failed. The old build will not be started.')
     $state['sourceHash'] = $sourceHash
   } else {
-    Write-Host '源码没有变化，跳过构建。'
+    Write-Host (T '源码没有变化，跳过构建。' 'Sources have not changed; skipping the build.')
   }
   Write-JsonMap -Path $script:BuildStatePath -Value $state
 }
@@ -180,11 +195,11 @@ function Prepare-Project {
   $acquired = $false
   try {
     $acquired = $mutex.WaitOne(0)
-    if (-not $acquired) { throw '另一个 PanelManager 正在安装或构建，请稍后再试。' }
+    if (-not $acquired) { throw (T '另一个 PanelManager 正在安装或构建，请稍后再试。' 'Another PanelManager is installing or building. Try again later.') }
     if (-not (Test-Path -LiteralPath $script:EnvPath)) {
       [IO.Directory]::CreateDirectory((Split-Path -Parent $script:EnvPath)) | Out-Null
       Copy-Item -LiteralPath $script:EnvExamplePath -Destination $script:EnvPath
-      Write-Host "已从 .env.example 创建配置：$($script:EnvPath)"
+      Write-Host (T "已从 .env.example 创建配置：$($script:EnvPath)" "Created configuration from .env.example: $($script:EnvPath)")
     }
     Update-Project -Force:$Force
   } finally {
@@ -212,23 +227,23 @@ function Test-PanelRunning {
 
 function Open-LiveLogs {
   if (-not (Test-Path -LiteralPath $script:StdoutLog) -and -not (Test-Path -LiteralPath $script:StderrLog)) {
-    Write-Host '暂无日志。'
+    Write-Host (T '暂无日志。' 'No logs yet.')
     return
   }
-  Write-Host '已在新窗口打开实时日志。'
+  Write-Host (T '已在新窗口打开实时日志。' 'Opened live logs in a new window.')
   $quotedScript = '"' + $PSCommandPath.Replace('"', '\"') + '"'
   $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $quotedScript, '__tail')
   Start-Process powershell.exe -ArgumentList $arguments | Out-Null
 }
 
 function Invoke-TailLogs {
-  Write-Host '实时日志：按 Ctrl+C 或关闭窗口即可退出，不会停止面板。'
+  Write-Host (T '实时日志：按 Ctrl+C 或关闭窗口即可退出，不会停止面板。' 'Live logs: press Ctrl+C or close this window to exit. The panel keeps running.')
   if (Test-Path -LiteralPath $script:StderrLog) {
-    Write-Host '--- 最近的错误输出 ---'
+    Write-Host (T '--- 最近的错误输出 ---' '--- Recent stderr ---')
     Get-Content -LiteralPath $script:StderrLog -Tail 40
   }
   if (Test-Path -LiteralPath $script:StdoutLog) {
-    Write-Host '--- 最近的标准输出 ---'
+    Write-Host (T '--- 最近的标准输出 ---' '--- Recent stdout ---')
     Get-Content -LiteralPath $script:StdoutLog -Tail 100 -Wait
   } elseif (Test-Path -LiteralPath $script:StderrLog) {
     Get-Content -LiteralPath $script:StderrLog -Tail 0 -Wait
@@ -255,44 +270,44 @@ function Invoke-Command {
       Invoke-Controller 'help'
     }
     default {
-      throw "未知命令：$Command。可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。"
+      throw (T "未知命令：$Command。可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。" "Unknown command: $Command. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, help.")
     }
   }
 }
 
 # 菜单项：[按键, 命令, 说明]。直接回车等同于 1；live-logs 是菜单专用的「新窗口看实时日志」。
 $script:RunningMenu = @(
-  @('1', 'open', '打开管理页面（直接回车）'),
-  @('2', 'live-logs', '查看实时日志'),
-  @('3', 'restart', '重启面板'),
-  @('4', 'stop', '安全停止面板'),
-  @('5', 'rebuild', '重新安装依赖、构建并重启')
+  @('1', 'open', (T '打开管理页面（直接回车）' 'Open the dashboard (Enter)')),
+  @('2', 'live-logs', (T '查看实时日志' 'View live logs')),
+  @('3', 'restart', (T '重启面板' 'Restart the panel')),
+  @('4', 'stop', (T '安全停止面板' 'Stop the panel safely')),
+  @('5', 'rebuild', (T '重新安装依赖、构建并重启' 'Reinstall dependencies, build and restart'))
 )
 $script:StoppedMenu = @(
-  @('1', 'start', '后台启动面板（直接回车）'),
-  @('2', 'foreground', '前台启动并查看日志'),
-  @('3', 'rebuild', '重新安装依赖、构建并启动'),
-  @('4', 'logs', '查看最近日志')
+  @('1', 'start', (T '后台启动面板（直接回车）' 'Start the panel in the background (Enter)')),
+  @('2', 'foreground', (T '前台启动并查看日志' 'Start in the foreground and view logs')),
+  @('3', 'rebuild', (T '重新安装依赖、构建并启动' 'Reinstall dependencies, build and start')),
+  @('4', 'logs', (T '查看最近日志' 'View recent logs'))
 )
 
 # 只返回选中的命令，不在这里执行：函数返回值会吞掉其中 node 的输出。
 function Read-MenuChoice {
   while ($true) {
     Clear-Host
-    Write-Host 'Mystry Dashboard 源码版'
+    Write-Host (T 'Mystry Dashboard 源码版' 'Mystry Dashboard (Source)')
     $running = Test-PanelRunning
-    Write-Host $(if ($running) { '状态：运行中' } else { '状态：未运行' })
+    Write-Host $(if ($running) { T '状态：运行中' 'Status: running' } else { T '状态：未运行' 'Status: stopped' })
     Write-Host ''
     $menu = if ($running) { $script:RunningMenu } else { $script:StoppedMenu }
     foreach ($item in $menu) { Write-Host "[$($item[0])] $($item[2])" }
-    Write-Host '[0] 退出'
+    Write-Host (T '[0] 退出' '[0] Exit')
     Write-Host ''
-    $selection = (Read-Host '请选择').Trim()
+    $selection = (Read-Host (T '请选择' 'Choose')).Trim()
     if ($selection -eq '') { $selection = '1' }
     if ($selection -eq '0') { return '' }
     $item = $menu | Where-Object { $_[0] -eq $selection } | Select-Object -First 1
     if ($null -eq $item) {
-      Write-Host '无法识别该选项。' -ForegroundColor Yellow
+      Write-Host (T '无法识别该选项。' 'That option is not recognized.') -ForegroundColor Yellow
       Start-Sleep -Seconds 1
       continue
     }
@@ -305,7 +320,7 @@ if ($env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY -eq '1') {
 }
 
 if ($args.Count -gt 1) {
-  Write-Host '每次只能指定一个命令；可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。' -ForegroundColor Red
+  Write-Host (T '每次只能指定一个命令；可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。' 'Specify one command at a time. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, help.') -ForegroundColor Red
   exit 2
 }
 $command = if ($args.Count -eq 1) { ([string]$args[0]).ToLowerInvariant() } else { '' }
@@ -325,7 +340,7 @@ try {
   if ($choice) {
     if ($choice -eq 'live-logs') { Open-LiveLogs } else { Invoke-Command $choice }
     Write-Host ''
-    [void](Read-Host '按回车键关闭窗口')
+    [void](Read-Host (T '按回车键关闭窗口' 'Press Enter to close this window'))
   }
   exit $script:ControllerExitCode
 } catch {
@@ -334,7 +349,7 @@ try {
   Write-Host $_.Exception.Message -ForegroundColor Red
   if (-not $command) {
     Write-Host ''
-    [void](Read-Host '按回车键关闭窗口')
+    [void](Read-Host (T '按回车键关闭窗口' 'Press Enter to close this window'))
   }
   exit 1
 }

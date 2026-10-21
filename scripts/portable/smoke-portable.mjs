@@ -148,6 +148,8 @@ async function main() {
       MYSTRY_CONFIG_PATH: path.join(portableRoot, 'config', 'panel.env'),
       MYSTRY_DATA_DIR: path.join(portableRoot, 'data'),
       MYSTRY_NO_BROWSER: '1',
+      // 下面按中文输出判断结果，不随 CI 的系统语言变化。
+      MYSTRY_LANG: 'zh-CN',
       PORT: String(port),
     };
     controlEnv = env;

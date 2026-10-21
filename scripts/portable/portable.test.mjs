@@ -50,6 +50,7 @@ async function startInteractiveController(t) {
         MYSTRY_HOME: home,
         MYSTRY_CONFIG_PATH: path.join(home, 'config', 'panel.env'),
         MYSTRY_DATA_DIR: path.join(home, 'data'),
+        MYSTRY_LANG: 'zh-CN',
       },
       stdio: ['pipe', 'pipe', 'pipe'],
     },
@@ -148,7 +149,7 @@ test('按配置文件中的 DATA_DIR 找运行状态；指纹不匹配时不发�
     JSON.stringify({ version: 1, pid: process.pid, fingerprint: 'expected-fingerprint' }),
     'utf8',
   );
-  const env = { ...process.env, MYSTRY_HOME: home, MYSTRY_CONFIG_PATH: configPath };
+  const env = { ...process.env, MYSTRY_HOME: home, MYSTRY_CONFIG_PATH: configPath, MYSTRY_LANG: 'zh-CN' };
   for (const name of ['MYSTRY_DATA_DIR', 'DATA_DIR', 'PORT', 'HOST']) delete env[name];
 
   const status = await runController('status', env);
@@ -160,6 +161,26 @@ test('按配置文件中的 DATA_DIR 找运行状态；指纹不匹配时不发�
   assert.equal(stop.code, 1, stop.output);
   assert.match(stop.output, /拒绝停止未知进程/);
   assert.equal(shutdownRequested, false, '指纹不匹配时不应请求安全关闭接口');
+});
+
+test('界面语言跟随 MYSTRY_LANG 和 LANG，非中文一律用英文', () => {
+  const help = (env) => {
+    const result = spawnSync(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'help'], {
+      env: { ...process.env, MYSTRY_LANG: '', LC_ALL: '', LC_MESSAGES: '', LANG: '', ...env },
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout;
+  };
+  assert.match(help({ MYSTRY_LANG: 'zh-CN' }), /用法：/);
+  assert.match(help({ MYSTRY_LANG: 'en-US' }), /Usage: .*\n[\s\S]*Commands:/);
+  assert.match(help({ MYSTRY_LANG: 'ja-JP' }), /Usage: /);
+  if (process.platform !== 'win32') {
+    // Windows 不看 LANG（常被终端写死），只在类 Unix 上验证。
+    assert.match(help({ LANG: 'zh_CN.UTF-8' }), /用法：/);
+    assert.match(help({ LANG: 'en_US.UTF-8' }), /Usage: /);
+    assert.match(help({ LC_ALL: 'C', LANG: 'zh_CN.UTF-8' }), /用法：/);
+  }
 });
 
 test('校验和脚本稳定排序并排除自身', async () => {

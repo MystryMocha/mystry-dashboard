@@ -18,6 +18,8 @@ function cleanEnvironment() {
   for (const name of ['JWT_SECRET', 'SETUP_TOKEN', 'LAUNCHER_TOKEN', 'DATA_DIR', 'MYSTRY_DATA_DIR', 'MYSTRY_CONFIG_PATH', 'PORT', 'HOST']) {
     delete environment[name];
   }
+  // 下面按中文输出断言，不随系统语言变化。
+  environment.MYSTRY_LANG = 'zh-CN';
   return environment;
 }
 
@@ -84,4 +86,15 @@ test('PanelManager 拒绝未知命令和多余参数', { skip: process.platform 
     { env: cleanEnvironment(), encoding: 'utf8' },
   );
   assert.equal(extra.status, 2, `${extra.stdout}\n${extra.stderr}`);
+});
+
+test('PanelManager 按 MYSTRY_LANG 切换语言，并传给 mystryctl', { skip: process.platform !== 'win32' }, () => {
+  const run = (language, ...args) => spawnSync(
+    'powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, ...args],
+    { env: { ...cleanEnvironment(), MYSTRY_LANG: language }, encoding: 'utf8' },
+  );
+  assert.match(run('en-US', 'bogus').stdout, /Unknown command: bogus/);
+  assert.match(run('en-US', 'help').stdout, /Usage: PanelManager\.cmd/);
+  assert.match(run('zh-CN', 'help').stdout, /用法：PanelManager\.cmd/);
 });

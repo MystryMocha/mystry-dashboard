@@ -15,6 +15,27 @@ const SECRET_PATTERN = /^[0-9a-f]{64}$/i;
 const INTERNAL_FINALIZE_SETUP = '__finalize-setup';
 // 供源码启动器判断面板是否在运行：运行中退出码 0，否则 1。
 const INTERNAL_IS_RUNNING = '__is-running';
+
+/**
+ * 启动器界面语言：MYSTRY_LANG 优先，其次系统语言；系统语言是中文时用中文，其余一律英文。
+ * Windows 上 LANG 常由 Git Bash 等终端写死，不代表系统语言，所以只看 Intl 给出的系统区域。
+ */
+function detectLanguage() {
+  const candidates = [process.env.MYSTRY_LANG];
+  if (process.platform !== 'win32') {
+    candidates.push(process.env.LC_ALL, process.env.LC_MESSAGES, process.env.LANG);
+  }
+  for (const value of candidates) {
+    const trimmed = value?.trim();
+    // C / POSIX 表示没有设置语言，继续看下一项。
+    if (trimmed && !/^(C|POSIX)([.@]|$)/i.test(trimmed)) return /^zh/i.test(trimmed) ? 'zh' : 'en';
+  }
+  return /^zh/i.test(Intl.DateTimeFormat().resolvedOptions().locale) ? 'zh' : 'en';
+}
+
+const chinese = detectLanguage() === 'zh';
+/** 按界面语言二选一，中英文写在同一处便于对照。 */
+const text = (zh, en) => (chinese ? zh : en);
 const scriptPath = fileURLToPath(import.meta.url);
 const scriptDir = path.dirname(scriptPath);
 
@@ -50,7 +71,7 @@ const portableServerEntry = path.join(homeDir, 'app', 'server', 'dist', 'index.j
 const repositoryServerEntry = path.join(homeDir, 'apps', 'server', 'dist', 'index.js');
 const portableMode = fs.existsSync(portableServerEntry);
 const serverEntry = portableMode ? portableServerEntry : repositoryServerEntry;
-const managerLabel = portableMode ? '便携版' : '源码版';
+const managerLabel = portableMode ? text('便携版', 'Portable') : text('源码版', 'Source');
 const sourceManagerCommand = process.platform === 'win32' ? 'PanelManager.cmd' : 'PanelManager.sh';
 const managerCommand = portableMode ? 'mystryctl' : sourceManagerCommand;
 const bundledNode = process.platform === 'win32'
@@ -130,15 +151,14 @@ async function databaseNeedsSetup() {
       const message = error instanceof Error ? error.message : String(error);
       // 面板重启收尾期间数据库可能短暂被写锁占用，等待后重试。
       if (!/database is locked|SQLITE_BUSY/.test(message)) {
-        throw new Error(`无法检查管理员初始化状态：${message}`);
+        throw new Error(text(`无法检查管理员初始化状态：${message}`, `Cannot check administrator setup status: ${message}`));
       }
       lastError = error;
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
-  throw new Error(
-    `无法检查管理员初始化状态：${lastError instanceof Error ? lastError.message : String(lastError)}`,
-  );
+  const message = lastError instanceof Error ? lastError.message : String(lastError);
+  throw new Error(text(`无法检查管理员初始化状态：${message}`, `Cannot check administrator setup status: ${message}`));
 }
 
 async function backupConfiguration() {
@@ -164,8 +184,8 @@ async function ensureConfiguration() {
   const original = existed
     ? await fsp.readFile(configPath, 'utf8')
     : [
-        '# Mystry Dashboard 配置',
-        '# 本文件包含密钥，不要上传、分享或放入版本控制。',
+        text('# Mystry Dashboard 配置', '# Mystry Dashboard configuration'),
+        text('# 本文件包含密钥，不要上传、分享或放入版本控制。', '# This file contains secrets. Do not upload, share or commit it.'),
         'HOST=127.0.0.1',
         'PORT=3000',
         'JWT_EXPIRES_IN=2h',
@@ -218,9 +238,14 @@ async function ensureConfiguration() {
     let content = lines.join('\n').replace(/\n+$/, '');
     content += '\n';
     await writeAtomic(configPath, content);
-    if (backup) console.log(`配置已备份：${backup}`);
-    if (!existed) console.log(`已创建${managerLabel}配置：${configPath}`);
-    if (repaired) console.warn('检测到缺失或无效密钥，已备份配置并生成新的随机密钥。');
+    if (backup) console.log(text(`配置已备份：${backup}`, `Configuration backed up: ${backup}`));
+    if (!existed) console.log(text(`已创建${managerLabel}配置：${configPath}`, `Created configuration: ${configPath}`));
+    if (repaired) {
+      console.warn(text(
+        '检测到缺失或无效密钥，已备份配置并生成新的随机密钥。',
+        'Missing or invalid secrets were found; the configuration was backed up and new random secrets were generated.',
+      ));
+    }
   }
 
   values = parseEnv(await fsp.readFile(configPath, 'utf8'));
@@ -240,7 +265,7 @@ function parsePort(values) {
   const raw = process.env.PORT?.trim() || values?.get('PORT') || '3000';
   const port = Number(raw);
   if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
-    throw new Error(`PORT 必须是 1 到 65535 的整数：${raw}`);
+    throw new Error(text(`PORT 必须是 1 到 65535 的整数：${raw}`, `PORT must be an integer from 1 to 65535: ${raw}`));
   }
   return port;
 }
@@ -365,11 +390,13 @@ async function acquireManagerLock() {
       if (!isErrorCode(error, 'EEXIST')) throw error;
       const ownerText = await fsp.readFile(lockPath, 'utf8').catch(() => '');
       const owner = Number(ownerText.trim());
-      if (isProcessAlive(owner)) throw new Error(`另一个 ${managerCommand} 正在运行，请稍后再试。`);
+      if (isProcessAlive(owner)) {
+        throw new Error(text(`另一个 ${managerCommand} 正在运行，请稍后再试。`, `Another ${managerCommand} is running. Try again later.`));
+      }
       await fsp.unlink(lockPath).catch(() => {});
     }
   }
-  throw new Error('无法获取 mystryctl 运行锁。');
+  throw new Error(text('无法获取 mystryctl 运行锁。', 'Could not acquire the mystryctl lock.'));
 }
 
 async function releaseCurrentManagerLock() {
@@ -395,20 +422,28 @@ function checkJava() {
     timeout: 10_000,
   });
   if (result.error || result.status !== 0) {
-    console.warn('警告：PATH 中未找到可用 Java。面板可以启动；默认实例无法启动，但可在面板中探测并选择其他已安装运行时。');
+    console.warn(text(
+      '警告：PATH 中未找到可用 Java。面板可以启动；默认实例无法启动，但可在面板中探测并选择其他已安装运行时。',
+      'Warning: no usable Java was found in PATH. The panel can start, but instances that use the default Java cannot; you can detect and select another installed runtime in the panel.',
+    ));
     return;
   }
   const line = `${result.stderr || result.stdout}`.split(/\r?\n/).find(Boolean)?.trim();
-  console.log(`Java：${line || '已检测到'}`);
+  console.log(text(`Java：${line || '已检测到'}`, `Java: ${line || 'detected'}`));
   const versionMatch = `${result.stderr || result.stdout}`.match(/\bversion\s+"(?:1\.)?(\d+)/i);
   const major = versionMatch ? Number(versionMatch[1]) : null;
   if (major === null) {
-    console.warn('警告：无法识别默认 PATH Java 主版本，请在启动 Minecraft 实例前确认兼容性。');
+    console.warn(text(
+      '警告：无法识别默认 PATH Java 主版本，请在启动 Minecraft 实例前确认兼容性。',
+      'Warning: could not tell the major version of the default Java in PATH. Check compatibility before starting a Minecraft instance.',
+    ));
   } else if (![8, 17, 21, 25].includes(major)) {
-    console.warn(
+    console.warn(text(
       `警告：检测到 Java ${major}；当前常见 Minecraft 服务端通常需要 Java 8、17、21 或 25，`
         + '请按服务端版本确认兼容性；已绑定实例以所选运行时为准。',
-    );
+      `Warning: found Java ${major}. Common Minecraft servers need Java 8, 17, 21 or 25; `
+        + 'check what your server version requires. Instances bound to a runtime use that runtime.',
+    ));
   }
 }
 
@@ -434,7 +469,7 @@ const LINUX_CLIPBOARD_COMMANDS = [['wl-copy', []], ['xclip', ['-selection', 'cli
 
 async function openBrowser(values) {
   const url = getConnection(values).url;
-  console.log(`面板地址：${url}`);
+  console.log(text(`面板地址：${url}`, `Panel URL: ${url}`));
   if (process.env.MYSTRY_NO_BROWSER === '1') return;
   const command = OPEN_URL_COMMANDS[process.platform] ?? 'xdg-open';
   try {
@@ -445,7 +480,7 @@ async function openBrowser(values) {
     });
     child.unref();
   } catch {
-    console.warn('无法自动打开浏览器，请手动访问上面的地址。');
+    console.warn(text('无法自动打开浏览器，请手动访问上面的地址。', 'Could not open a browser. Open the address above manually.'));
   }
 }
 
@@ -466,10 +501,13 @@ function copySetupToken(token) {
 function showSetupToken(token) {
   if (!token) return;
   if (copySetupToken(token)) {
-    console.log('首次初始化令牌已复制到剪贴板，请粘贴到初始化页面。');
+    console.log(text(
+      '首次初始化令牌已复制到剪贴板，请粘贴到初始化页面。',
+      'The setup token has been copied to the clipboard. Paste it into the setup page.',
+    ));
   } else {
-    console.log(`首次初始化令牌：${token}`);
-    console.log(`令牌也保存在：${configPath}`);
+    console.log(text(`首次初始化令牌：${token}`, `Setup token: ${token}`));
+    console.log(text(`令牌也保存在：${configPath}`, `The token is also saved in: ${configPath}`));
   }
 }
 
@@ -530,20 +568,23 @@ async function rotateLogs() {
  */
 async function prepareStart() {
   if (!fs.existsSync(serverEntry)) {
-    throw new Error(`找不到服务端构建产物：${serverEntry}`);
+    throw new Error(text(`找不到服务端构建产物：${serverEntry}`, `Server build not found: ${serverEntry}`));
   }
   const configuration = await ensureConfiguration();
   if (await getHealth(configuration.values)) {
     if (await isManagedPanelRunning(configuration.values, await readState())) {
-      console.log('面板已经在运行。');
+      console.log(text('面板已经在运行。', 'The panel is already running.'));
       await openBrowser(configuration.values);
       return null;
     }
-    throw new Error('端口上已有无法由当前 mystryctl 指纹确认的面板，拒绝接管。');
+    throw new Error(text(
+      '端口上已有无法由当前 mystryctl 指纹确认的面板，拒绝接管。',
+      'A panel on this port does not match the fingerprint recorded by mystryctl; refusing to take it over.',
+    ));
   }
   const connection = getConnection(configuration.values);
   if (await isPortOpen(connection.port)) {
-    throw new Error(`端口 ${connection.port} 已被其他程序占用。`);
+    throw new Error(text(`端口 ${connection.port} 已被其他程序占用。`, `Port ${connection.port} is already in use by another program.`));
   }
   checkJava();
   return { configuration, connection };
@@ -558,7 +599,7 @@ function spawnServer(nonce, options) {
 }
 
 async function announceStarted({ configuration, connection }) {
-  console.log(`面板已启动：${connection.url}`);
+  console.log(text(`面板已启动：${connection.url}`, `Panel started: ${connection.url}`));
   await openBrowser(configuration.values);
   if (configuration.needsSetup) {
     showSetupToken(configuration.setupToken);
@@ -590,7 +631,7 @@ async function startBackground() {
     await clearState();
     const recent = await readRecentLogs(40);
     if (recent) console.error(recent);
-    throw new Error('面板未能在 60 秒内启动，请检查日志。');
+    throw new Error(text('面板未能在 60 秒内启动，请检查日志。', 'The panel did not start within 60 seconds. Check the logs.'));
   }
   await announceStarted(prepared);
 }
@@ -620,7 +661,7 @@ async function startForeground() {
     if (!(await waitForHealth(configuration.values, nonce))) {
       if (isProcessAlive(child.pid)) child.kill('SIGTERM');
       await exitPromise.catch(() => 1);
-      throw new Error('面板未能在 60 秒内启动，请检查前台输出。');
+      throw new Error(text('面板未能在 60 秒内启动，请检查前台输出。', 'The panel did not start within 60 seconds. Check the output above.'));
     }
     await releaseCurrentManagerLock();
     await announceStarted(prepared);
@@ -638,15 +679,18 @@ async function stopPanel() {
   const state = await readState();
   if (!(await isManagedPanelRunning(values, state))) {
     if (values && await getHealth(values)) {
-      throw new Error('检测到面板服务，但 PID 或进程指纹不匹配；拒绝停止未知进程。');
+      throw new Error(text(
+        '检测到面板服务，但 PID 或进程指纹不匹配；拒绝停止未知进程。',
+        'A panel is responding, but its PID or process fingerprint does not match; refusing to stop an unknown process.',
+      ));
     }
     if (!isProcessAlive(state?.pid)) await clearState();
-    console.log('面板未运行。');
+    console.log(text('面板未运行。', 'The panel is not running.'));
     return;
   }
   const launcherToken = values.get('LAUNCHER_TOKEN');
   if (!launcherToken || !SECRET_PATTERN.test(launcherToken)) {
-    throw new Error('LAUNCHER_TOKEN 缺失或格式无效，无法安全停止面板。');
+    throw new Error(text('LAUNCHER_TOKEN 缺失或格式无效，无法安全停止面板。', 'LAUNCHER_TOKEN is missing or invalid; cannot stop the panel safely.'));
   }
   const connection = getConnection(values);
   const response = await fetchWithTimeout(
@@ -663,12 +707,13 @@ async function stopPanel() {
   );
   const summary = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(summary?.error || `安全停止请求失败：HTTP ${response.status}`);
+    throw new Error(summary?.error || text(`安全停止请求失败：HTTP ${response.status}`, `Safe shutdown request failed: HTTP ${response.status}`));
   }
-  console.log(
-    `正在停止：${summary.runningInstances ?? 0} 个实例，`
-      + `${summary.runningTasks ?? 0} 个运行任务，${summary.queuedTasks ?? 0} 个排队任务。`,
-  );
+  const [instances, running, queued] = [summary.runningInstances ?? 0, summary.runningTasks ?? 0, summary.queuedTasks ?? 0];
+  console.log(text(
+    `正在停止：${instances} 个实例，${running} 个运行任务，${queued} 个排队任务。`,
+    `Stopping: ${instances} instance(s), ${running} running task(s), ${queued} queued task(s).`,
+  ));
 
   const timeoutMs = Math.min(
     30 * 60_000,
@@ -680,12 +725,15 @@ async function stopPanel() {
   while (Date.now() < deadline) {
     if (!(await getHealth(values, state.fingerprint))) {
       await clearState();
-      console.log('面板已停止。');
+      console.log(text('面板已停止。', 'The panel has stopped.'));
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error(`面板安全停止超时；为保护游戏数据，${managerCommand} 不会按 PID 强制结束进程。`);
+  throw new Error(text(
+    `面板安全停止超时；为保护游戏数据，${managerCommand} 不会按 PID 强制结束进程。`,
+    `Timed out waiting for the panel to stop. To protect game data, ${managerCommand} will not force-kill it by PID.`,
+  ));
 }
 
 async function showStatus() {
@@ -693,23 +741,33 @@ async function showStatus() {
   const state = await readState();
   if (await isManagedPanelRunning(values, state)) {
     const connection = getConnection(values);
-    console.log(`状态：运行中  ${connection.url}`);
-    if (state?.pid) console.log(`PID：${state.pid}`);
+    console.log(text(`状态：运行中  ${connection.url}`, `Status: running  ${connection.url}`));
+    if (state?.pid) console.log(text(`PID：${state.pid}`, `PID: ${state.pid}`));
     return;
   }
-  console.log('状态：未运行');
+  console.log(text('状态：未运行', 'Status: stopped'));
   if (values && await getHealth(values)) {
-    console.warn('配置端口存在面板服务，但 PID 或进程指纹不匹配；不会自动接管或停止。');
+    console.warn(text(
+      '配置端口存在面板服务，但 PID 或进程指纹不匹配；不会自动接管或停止。',
+      'A panel is responding on the configured port, but its PID or process fingerprint does not match; it will not be taken over or stopped.',
+    ));
     return;
   }
   if (isProcessAlive(state?.pid)) {
-    console.warn(`检测到 PID ${state.pid} 仍存在，但健康检查不匹配；不会自动结束该进程。`);
+    console.warn(text(
+      `检测到 PID ${state.pid} 仍存在，但健康检查不匹配；不会自动结束该进程。`,
+      `PID ${state.pid} still exists but does not pass the health check; it will not be ended automatically.`,
+    ));
   }
 }
 
 async function readRecentLogs(limit = 100) {
   const sections = [];
-  for (const [label, filePath] of [['最近的错误输出', stderrLog], ['最近的标准输出', stdoutLog]]) {
+  const sources = [
+    [text('最近的错误输出', 'Recent stderr'), stderrLog],
+    [text('最近的标准输出', 'Recent stdout'), stdoutLog],
+  ];
+  for (const [label, filePath] of sources) {
     if (!fs.existsSync(filePath)) continue;
     const content = await fsp.readFile(filePath, 'utf8');
     const lines = content.replace(/\r\n/g, '\n').split('\n');
@@ -721,57 +779,60 @@ async function readRecentLogs(limit = 100) {
 async function showLogs() {
   const content = await readRecentLogs();
   if (!content) {
-    console.log('暂无日志。');
+    console.log(text('暂无日志。', 'No logs yet.'));
     return;
   }
   console.log(content);
 }
 
 function printHelp() {
+  const commands = [
+    ['start', '后台启动面板', 'Start the panel in the background'],
+    ['foreground', '前台启动面板', 'Start the panel in the foreground'],
+    ['stop', '安全停止面板及实例', 'Safely stop the panel and its instances'],
+    ['restart', '安全重启面板', 'Safely restart the panel'],
+    ...(portableMode ? [] : [['rebuild', '重新安装依赖并构建，然后重启面板', 'Reinstall dependencies, build, then restart the panel']]),
+    ['status', '查看状态', 'Show status'],
+    ['logs', '查看最近日志', 'Show recent logs'],
+    ['open', '打开管理页面', 'Open the dashboard'],
+    ['help', '显示帮助', 'Show this help'],
+  ];
   console.log([
-    `Mystry Dashboard ${managerLabel}管理器`,
+    text(`Mystry Dashboard ${managerLabel}管理器`, `Mystry Dashboard ${managerLabel} Manager`),
     '',
-    `用法：${managerCommand} <command>`,
+    text(`用法：${managerCommand} <command>`, `Usage: ${managerCommand} <command>`),
     '',
-    '命令：',
-    '  start       后台启动面板',
-    '  foreground  前台启动面板',
-    '  stop        安全停止面板及实例',
-    '  restart     安全重启面板',
-    ...(portableMode ? [] : ['  rebuild     重新安装依赖并构建，然后重启面板']),
-    '  status      查看状态',
-    '  logs        查看最近日志',
-    '  open        打开管理页面',
-    '  help        显示帮助',
+    text('命令：', 'Commands:'),
+    ...commands.map(([name, zh, en]) => `  ${name.padEnd(12)}${text(zh, en)}`),
     '',
-    '启动器不会注册系统服务，也不会配置开机启动。',
+    text('启动器不会注册系统服务，也不会配置开机启动。', 'The launcher does not register a system service or start at boot.'),
   ].join('\n'));
 }
 
 // 菜单项：[按键, 命令, 说明]。直接回车等同于 1，无法识别的输入显示帮助。
 const RUNNING_MENU = [
-  ['1', 'open', '打开面板（直接回车）'],
-  ['2', 'logs', '查看日志'],
-  ['3', 'restart', '重启面板'],
-  ['4', 'stop', '停止面板'],
+  ['1', 'open', text('打开面板（直接回车）', 'Open the panel (Enter)')],
+  ['2', 'logs', text('查看日志', 'View logs')],
+  ['3', 'restart', text('重启面板', 'Restart the panel')],
+  ['4', 'stop', text('停止面板', 'Stop the panel')],
 ];
 const STOPPED_MENU = [
-  ['1', 'start', '后台启动面板（直接回车）'],
-  ['2', 'foreground', '前台启动并查看日志'],
-  ['3', 'logs', '查看最近日志'],
+  ['1', 'start', text('后台启动面板（直接回车）', 'Start the panel in the background (Enter)')],
+  ['2', 'foreground', text('前台启动并查看日志', 'Start in the foreground and view logs')],
+  ['3', 'logs', text('查看最近日志', 'View recent logs')],
 ];
 
 async function interactiveMenu() {
   const running = await isManagedPanelRunning(await loadConfiguration(), await readState());
   const menu = running ? RUNNING_MENU : STOPPED_MENU;
-  console.log(`Mystry Dashboard ${managerLabel}`);
-  console.log(running ? '状态：运行中' : '状态：未运行');
+  console.log(text(`Mystry Dashboard ${managerLabel}`, `Mystry Dashboard (${managerLabel})`));
+  console.log(running ? text('状态：运行中', 'Status: running') : text('状态：未运行', 'Status: stopped'));
   console.log('');
   for (const [key, , label] of menu) console.log(`[${key}] ${label}`);
-  console.log('[0] 退出');
+  console.log(text('[0] 退出', '[0] Exit'));
   const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
-    const answer = (await terminal.question('\n请选择：')).trim() || '1';
+    const answer = (await terminal.question(text('\n请选择：', '\nChoose: '))).trim() || '1';
     if (answer === '0') return null;
     return menu.find(([key]) => key === answer)?.[1] ?? 'help';
   } finally {
@@ -783,7 +844,7 @@ async function interactiveMenu() {
 async function waitForCloseKey() {
   const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
-    await terminal.question('\n按回车键关闭窗口…');
+    await terminal.question(text('\n按回车键关闭窗口…', '\nPress Enter to close this window…'));
   } finally {
     terminal.close();
   }
@@ -826,7 +887,7 @@ async function runCommand(command) {
       await startBackground();
       return;
     }
-    throw new Error(`未知命令：${command}`);
+    throw new Error(text(`未知命令：${command}`, `Unknown command: ${command}`));
   } finally {
     await releaseLock();
   }

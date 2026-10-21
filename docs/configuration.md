@@ -135,6 +135,14 @@ Web 的 ZIP 导入先把文件写入 `uploads/.tmp-import-preview-*` 并执行�
 | `MYSTRY_CONFIG_PATH` | 源码为 `.env`；便携版为 `config/panel.env` | 配置文件路径；相对值相对于 `MYSTRY_HOME` |
 | `MYSTRY_DATA_DIR` | 未设置时使用 `DATA_DIR` | 优先级高于 `DATA_DIR`；相对值相对于 `MYSTRY_HOME` |
 
+### 启动器语言
+
+`PanelManager.cmd`、`PanelManager.sh` 和 `mystryctl` 的菜单与提示跟随系统语言：系统语言是中文时显示中文，其他语言一律显示英文。Windows 看显示语言，Linux / macOS 依次看 `LC_ALL`、`LC_MESSAGES`、`LANG`。只影响启动器，不影响 Web 界面和面板日志。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `MYSTRY_LANG` | 跟随系统 | 设为 `zh-CN` 或 `en-US` 可固定启动器语言；以 `zh` 开头即中文，其余都按英文 |
+
 `DATA_DIR` 下的运行时结构为：
 
 | 路径 | 说明 |
