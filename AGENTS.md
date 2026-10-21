@@ -48,7 +48,7 @@ Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.2`）是
 - 同一 `DATA_DIR` 只允许一个面板进程在 `initDb` / 任务恢复前取得 `.mystry-panel-lock/`。
 - Minecraft 实例默认通过面板进程 `PATH` 中的 `java` 启动，也可按 `javaRuntimeId` 使用面板扫描、注册并在执行前复验的运行时；请求不得提交可执行路径。子进程环境必须走 `getMinecraftChildEnv()` 脱敏，不得把面板密钥或 `DATA_DIR` 传给 Java。
 - 四个实例入口（部署、ZIP 导入、已有服务端导入、实例设置）共用结构化 JVM 配置器；数据库只保存规范化 `jvmArgs` 字符串。旧实例非法文本保持原样，但修正前不能保存或启动。
-- ZIP 导入走二阶段预览：`/api/import/previews` 预检后再入队；旧 `/api/import` 仅兼容保留。Web 必须使用预览流程。
+- ZIP 导入只有二阶段预览：`/api/import/previews` 预检后再入队。旧的一阶段 `POST /api/import` 已删除。
 - 远程节点创建当前关闭（`REMOTE_NODE_CREATION_ENABLED = false`），不得宣称远程 Agent 已可用。当前只有内置本机节点 `local`。
 - 数据库没有通用迁移框架。任何 schema 变更必须同时设计现有 `panel.db` 的兼容或一次性迁移。
 - 任务元数据在 SQLite，队列和 worker 在内存。进程重启不会续跑，而是把遗留 `pending` / `running` 标为失败。部署/导入任务可能排队并保持 `pending`；前端必须持续显示到 `completed` 或 `failed`。

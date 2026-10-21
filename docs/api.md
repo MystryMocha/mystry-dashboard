@@ -175,7 +175,6 @@ Authorization: Bearer <token>
 | GET | `/api/import/previews/:id` | 恢复当前登录用户的待确认预览 |
 | POST | `/api/import/previews/:id/confirm` | Body：`ConfirmZipImportInput`，确认配置并返回 `TaskInfo` |
 | DELETE | `/api/import/previews/:id` | 取消预览并删除临时 ZIP |
-| POST | `/api/import` | 兼容的一阶段 multipart 导入；字段同旧版，Web 不再使用 |
 | GET | `/api/tasks/:id` | 查询任务进度 `TaskInfo` |
 | GET | `/api/tasks` | 任务中心列表，按创建时间倒序返回最近 50 条 `{ tasks: TaskInfo[] }` |
 
@@ -268,7 +267,7 @@ file=<server.zip>
 
 预览 ID 绑定登录用户：非所有者和不存在的 ID 返回 **404**，过期返回 **410**，正在确认或重复确认返回 **409**。每个用户最多一个预览，全局容量由 `MAX_IMPORT_PREVIEWS` 控制；新 ZIP 预检成功后才替换旧预览。只有后台任务成功入队才消费预览，任务队列满返回 **429** 且保留预览供重试。预览默认由 `IMPORT_PREVIEW_TTL_SECONDS=1800` 控制，取消、过期、面板关闭或重启都会删除临时 ZIP，不写入数据库也不跨重启恢复。
 
-兼容接口 `POST /api/import` 仍接受旧 multipart 字段并直接创建任务，但会执行相同的服务端 JVM 校验；新 Web 流程只使用预览接口。
+ZIP 导入只能走上面的预览流程；旧的一阶段 `POST /api/import` 已删除，调用会返回 **404**。
 
 ZIP 预览与解压由 `zip-service` 统一处理条目文件头和数据范围校验，任务入队与实例落地由 `import-service` 负责。普通文件支持存储和 Deflate 压缩；不支持的压缩方式在打开文件流前拒绝，JVM 参数预览返回结构化诊断，实际导入失败并清理半成品。此内部拆分不改变请求、响应或预览生命周期。
 
