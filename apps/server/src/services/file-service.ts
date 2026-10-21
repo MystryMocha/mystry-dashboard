@@ -103,7 +103,7 @@ export function listFiles(instanceId: string, relativePath = ''): FileEntry[] {
     .map((entry) => {
       const full = path.join(target, entry.name);
       const s = fs.lstatSync(full);
-      if (s.isSymbolicLink()) throw new Error('目录中存在 symlink/junction，已拒绝访问');
+      if (s.isSymbolicLink()) throw new Error('目录中存在符号链接或目录联接，已拒绝访问');
       const rel = path.relative(root, full).replace(/\\/g, '/');
       return {
         name: entry.name,

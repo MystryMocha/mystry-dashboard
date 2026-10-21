@@ -139,9 +139,9 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
   }
 
   const corruptions: Array<{ name: string; mutate: (zip: Buffer) => void; error: RegExp }> = [
-    { name: '本地文件头损坏', mutate: (zip) => { zip.writeUInt32LE(0, 0); }, error: /ZIP entry 头非法/ },
-    { name: '条目数据越界', mutate: (zip) => { zip.writeUInt16LE(0xffff, 28); }, error: /ZIP entry 数据越界/ },
-    { name: '压缩方式不支持', mutate: (zip) => { zip.writeUInt16LE(99, centralOffset(zip) + 10); }, error: /ZIP compression method/ },
+    { name: '本地文件头损坏', mutate: (zip) => { zip.writeUInt32LE(0, 0); }, error: /ZIP 条目头非法/ },
+    { name: '条目数据越界', mutate: (zip) => { zip.writeUInt16LE(0xffff, 28); }, error: /ZIP 条目数据越界/ },
+    { name: '压缩方式不支持', mutate: (zip) => { zip.writeUInt16LE(99, centralOffset(zip) + 10); }, error: /不支持的压缩方式/ },
     { name: '解压大小不匹配', mutate: (zip) => { zip.writeUInt32LE(Buffer.byteLength(jvmArgs) + 1, centralOffset(zip) + 24); }, error: /解压大小不匹配/ },
   ];
   for (const { name, mutate, error } of corruptions) {

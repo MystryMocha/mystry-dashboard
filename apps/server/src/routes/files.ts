@@ -306,7 +306,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       let activeTicket: string | null = hasTicket ? ticketParam : null;
       if (hasTicket) {
         const began = beginDownloadStream(ticketParam, req.params.id, req.query.path);
-        if (!began) return reply.code(401).send({ error: '未授权' });
+        if (!began) return reply.code(401).send({ error: '下载链接无效或已过期，请重新下载' });
       }
       let releaseDownload: (() => void) | null = null;
       try {

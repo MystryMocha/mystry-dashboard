@@ -61,7 +61,7 @@ export function getNodeRow(id: string): NodeRow | null {
 /** 创建远程节点，返回节点信息与仅展示一次的密钥（供部署 Agent 时填入配置） */
 export function createNode(input: CreateNodeInput): NodeSecretResult {
   if (!REMOTE_NODE_CREATION_ENABLED) {
-    throw new Error('当前版本暂不支持创建远程节点，敬请期待 Agent 接入后开放');
+    throw new Error('当前版本不支持创建远程节点');
   }
   if (!input.name?.trim()) {
     throw new Error('节点名称不能为空');

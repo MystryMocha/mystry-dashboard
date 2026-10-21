@@ -264,7 +264,7 @@ async function main(): Promise<void> {
     assert.equal(spawnedArgs.includes('-Dconfig=C:\\Minecraft Server\\config.json'), true);
     assert.equal(isolatedProcessManager.getStatus(crashedInstance.id), 'crashed');
     assert.match(isolatedProcessManager.getHistory(crashedInstance.id), /模拟崩溃输出/);
-    assert.match(isolatedProcessManager.getHistory(crashedInstance.id), /code=1/);
+    assert.match(isolatedProcessManager.getHistory(crashedInstance.id), /退出码 1/);
     assert.equal(isolatedProcessManager.getRunningCount(), 0);
     await deleteInstance(crashedInstance.id);
 
@@ -702,7 +702,7 @@ async function main(): Promise<void> {
     const badZipPath = path.join(testRoot, 'bad.zip');
     fs.writeFileSync(badZipPath, makeStoredZip('../escape.txt', Buffer.from('nope')));
     const badExtracted = path.join(testRoot, 'bad-extracted');
-    await assert.rejects(() => safeExtract(badZipPath, badExtracted), /不安全的 zip 路径/);
+    await assert.rejects(() => safeExtract(badZipPath, badExtracted), /不安全的 ZIP 路径/);
     assert.equal(fs.existsSync(path.join(testRoot, 'escape.txt')), false);
 
     const missingLauncherToken = await app.inject({

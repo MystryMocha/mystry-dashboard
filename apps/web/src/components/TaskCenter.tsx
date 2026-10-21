@@ -66,10 +66,10 @@ export function TaskCenter() {
         aria-expanded={open}
         aria-controls={drawerId}
         onClick={() => setOpen((value) => !value)}
-        title="后台任务中心"
+        title="任务中心"
       >
         <Clock size={16} aria-hidden="true" />
-        <span>任务队列</span>
+        <span>任务中心</span>
         {activeCount > 0 ? (
           <span
             style={{
@@ -116,13 +116,13 @@ export function TaskCenter() {
           const rect = event.currentTarget.getBoundingClientRect();
           if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDrawer();
         }}
-        aria-label="后台异步任务中心"
+        aria-label="任务中心"
         tabIndex={-1}
       >
         <div className="drawer-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Clock size={18} style={{ color: 'var(--accent)' }} />
-            <span style={{ fontWeight: 700, fontSize: '1rem' }}>后台异步任务中心</span>
+            <span style={{ fontWeight: 700, fontSize: '1rem' }}>任务中心</span>
             {activeCount > 0 && (
               <span className="tag-badge" style={{ fontSize: '0.72rem', height: '22px' }}>
                 {activeCount} 进行中
@@ -182,7 +182,7 @@ export function TaskCenter() {
                 fontSize: '0.88rem',
               }}
             >
-              暂无后台任务。发起一键部署或导入后，进度会实时显示在这里。
+              暂无任务。开始部署或导入后，进度会显示在这里。
             </div>
           )}
 

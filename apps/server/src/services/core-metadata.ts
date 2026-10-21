@@ -58,7 +58,7 @@ async function fetchMetadataText(url: string, signal?: AbortSignal): Promise<str
       } catch {
         /* 忽略错误响应正文清理失败 */
       }
-      throw new Error(`请求失败 ${response.status}: ${url}`);
+      throw new Error(`请求失败（HTTP ${response.status}）：${url}`);
     }
     return await readBoundedResponseText(response);
   } catch (error) {
@@ -275,7 +275,7 @@ export async function resolveFabricJarUrl(
   const loaders = loaderVersion ? [loaderVersion] : await listFabricLoaders(gameVersion, signal);
   const installers = installerVersion ? [installerVersion] : await listFabricInstallers(signal);
   if (!loaders.length || !installers.length) {
-    throw new Error(`Fabric ${gameVersion} 没有可用 loader/installer`);
+    throw new Error(`Fabric ${gameVersion} 没有可用的 Loader 或 Installer 版本`);
   }
   const loader = loaders[0]!;
   const installer = installers[0]!;

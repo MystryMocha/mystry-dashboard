@@ -205,17 +205,17 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
         if (zipPath) {
           const discarded = await streamToUploadTemp(part.file, 'discard');
           removeUploadTemp(discarded);
-          return reply.code(400).send({ error: '只能上传一个 zip 安装包' });
+          return reply.code(400).send({ error: '只能上传一个 ZIP 安装包' });
         }
         fileName = part.filename || fileName;
         zipPath = await streamToUploadTemp(part.file, 'import-preview');
         if (part.file.truncated) {
           removeUploadTemp(zipPath);
           zipPath = null;
-          return reply.code(413).send({ error: '文件过大' });
+          return reply.code(413).send({ error: '上传文件超过大小限制' });
         }
       }
-      if (!zipPath) return reply.code(400).send({ error: '请上传 zip 安装包' });
+      if (!zipPath) return reply.code(400).send({ error: '请上传 ZIP 安装包' });
       const preview = await createImportPreview({
         userId: req.user.id,
         fileName,
@@ -313,13 +313,13 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
             // 仍然消费后续流，避免 multipart 连接被异常中断。
             const discarded = await streamToUploadTemp(part.file, 'discard');
             removeUploadTemp(discarded);
-            return reply.code(400).send({ error: '只能上传一个 zip 安装包' });
+            return reply.code(400).send({ error: '只能上传一个 ZIP 安装包' });
           }
           zipPath = await streamToUploadTemp(part.file, 'import');
           if (part.file.truncated) {
             removeUploadTemp(zipPath);
             zipPath = null;
-            return reply.code(413).send({ error: '文件过大' });
+            return reply.code(413).send({ error: '上传文件超过大小限制' });
           }
         } else {
           const value = String(part.value);
@@ -351,7 +351,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
       if (javaRuntimeId && javaRuntimeId.length > 255) {
         return reply.code(400).send({ error: 'Java 运行时 ID 过长' });
       }
-      if (!zipPath) return reply.code(400).send({ error: '请上传 zip 安装包' });
+      if (!zipPath) return reply.code(400).send({ error: '请上传 ZIP 安装包' });
 
       const task = await importZipPackage({
         name: name.trim(),

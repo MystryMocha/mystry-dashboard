@@ -74,7 +74,7 @@ export async function api<T>(
     const message =
       typeof data === 'object' && data && 'error' in data
         ? String((data as { error: string }).error)
-        : `请求失败 (${res.status})`;
+        : `请求失败（${res.status}）`;
     throw new ApiError(res.status, message);
   }
 
@@ -93,7 +93,7 @@ export async function apiForm<T>(
   const data = await res.json();
   if (!res.ok) {
     if (res.status === 401) handleUnauthorized(path);
-    throw new ApiError(res.status, data.error || `请求失败 (${res.status})`);
+    throw new ApiError(res.status, data.error || `请求失败（${res.status}）`);
   }
   return data as T;
 }

@@ -79,7 +79,7 @@ export function JavaRuntimeSelect({
             ? `系统默认 Java 可用${defaultJava.version ? ` · ${defaultJava.version}` : ''}`
             : '未找到系统默认 Java，请先安装 Java 后点「重新探测」'}
       </div>
-      <p className="muted field-help">默认使用系统 Java；电脑上装了多个 Java 时，可以在下面选择要用的版本。</p>
+      <p className="muted field-help">不选择时使用系统默认 Java；电脑上装了多个 Java 时，可以在下面选择要用的版本。</p>
       <div className="btn-row" style={{ alignItems: 'stretch' }}>
         <select
           id={selectId}

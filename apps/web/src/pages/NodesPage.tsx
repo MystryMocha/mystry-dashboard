@@ -135,7 +135,7 @@ export function NodesPage() {
               <span className="inst-stat-label">物理内存总量</span>
               <span className="inst-stat-val">
                 {localNode.hostInfo?.totalMemMb
-                  ? `${(localNode.hostInfo.totalMemMb / 1024).toFixed(1)} GB`
+                  ? `${(localNode.hostInfo.totalMemMb / 1024).toFixed(1)} GiB`
                   : '未知'}
               </span>
             </div>

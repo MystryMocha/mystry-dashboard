@@ -84,10 +84,10 @@ export async function findModLoaderArgsFile(
   const checkBudget = (): void => {
     throwIfAborted(budget.signal);
     if (Date.now() - startedAt > budget.deadlineMs) {
-      throw new ModLoaderScanLimitError('ModLoader 启动文件扫描超时');
+      throw new ModLoaderScanLimitError('Forge/NeoForge 启动文件扫描超时');
     }
     if (visited >= budget.maxEntries) {
-      throw new ModLoaderScanLimitError('ModLoader 启动文件扫描条目超限');
+      throw new ModLoaderScanLimitError('Forge/NeoForge 启动文件扫描条目过多');
     }
   };
 
@@ -95,7 +95,7 @@ export async function findModLoaderArgsFile(
     checkBudget();
     const currentItem = queue.pop()!;
     if (currentItem.depth > budget.maxDepth) {
-      throw new ModLoaderScanLimitError('ModLoader 启动文件扫描深度超限');
+      throw new ModLoaderScanLimitError('Forge/NeoForge 启动文件扫描层级过深');
     }
 
     const current = resolveSafePath(dir, currentItem.relative);
@@ -108,7 +108,7 @@ export async function findModLoaderArgsFile(
       const full = resolveSafePath(dir, relative);
       const stat = await fs.promises.lstat(full);
       if (stat.isSymbolicLink()) {
-        throw new Error('启动文件目录不能包含 symlink/junction');
+        throw new Error('启动文件目录不能包含符号链接或目录联接');
       }
       if (stat.isDirectory()) {
         assertSafeInstanceRoot(full);

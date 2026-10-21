@@ -107,7 +107,7 @@ test('ZIP 检测支持单一顶层目录并拒绝危险中央目录', async (t) 
     { name: 'user_jvm_args.txt', contents: '-Xms1G' },
     { name: 'user_jvm_args.txt', contents: '-Xmx2G' },
   ]);
-  await assert.rejects(() => inspectZipJvmConfig(duplicate), /重复 entry/);
+  await assert.rejects(() => inspectZipJvmConfig(duplicate), /重复条目/);
 
   const symlinkMode = ((0xa000 | 0o777) << 16) >>> 0;
   const linked = writeZip('link.zip', [

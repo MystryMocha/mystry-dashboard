@@ -153,7 +153,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     { attachValidation: true, schema: { body: commandBodySchema } },
     async (req, reply) => {
       if (req.validationError) {
-        return reply.code(400).send({ error: '指令过长、为空或包含不支持的字段' });
+        return reply.code(400).send({ error: '命令过长、为空或包含不支持的字段' });
       }
       try {
         processManager.sendCommand(req.params.id, req.body.command);

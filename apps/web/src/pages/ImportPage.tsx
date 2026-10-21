@@ -362,7 +362,7 @@ export function ImportPage() {
             ) : null}
 
             <div className="field">
-              <label htmlFor="existing-server-zip">服务端压缩包 (.zip)</label>
+              <label htmlFor="existing-server-zip">服务端压缩包（.zip）</label>
               <div
                 style={{
                   border: `2px dashed ${isDragging ? 'var(--accent)' : 'var(--border)'}`,
@@ -396,7 +396,7 @@ export function ImportPage() {
                 </div>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                   {file
-                    ? `文件大小: ${(file.size / 1024 / 1024).toFixed(1)} MB`
+                    ? `文件大小：${(file.size / 1024 / 1024).toFixed(1)} MiB`
                     : '上传大小与解压限制由面板配置决定'}
                 </span>
                 <button className="btn" type="button" disabled={busy || restoringPreview}

@@ -142,19 +142,19 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
       try {
         const ticket = req.query.ticket;
         if (!ticket) {
-          sendSocketMessage(socket, { type: 'error', data: '缺少 console ticket' });
+          sendSocketMessage(socket, { type: 'error', data: '缺少控制台连接凭证，请刷新页面后重试' });
           closeSocket(socket);
           terminateSocketLater(socket);
           return;
         }
         if (!consumeConsoleTicket(ticket, req.params.id)) {
-          sendSocketMessage(socket, { type: 'error', data: 'console ticket 无效或已过期' });
+          sendSocketMessage(socket, { type: 'error', data: '控制台连接凭证无效或已过期，请刷新页面后重试' });
           closeSocket(socket);
           terminateSocketLater(socket);
           return;
         }
       } catch {
-        sendSocketMessage(socket, { type: 'error', data: '未授权' });
+        sendSocketMessage(socket, { type: 'error', data: '登录已失效，请重新登录' });
         closeSocket(socket);
         terminateSocketLater(socket);
         return;
@@ -225,8 +225,8 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
             commandCount = 0;
           }
           if (commandCount >= config.maxConsoleCommandsPerWindow) {
-            sendSocketMessage(socket, { type: 'error', data: '控制台指令频率超过限制，请稍后重试' });
-            closeSocket(socket, 1008, '控制台指令频率超过限制');
+            sendSocketMessage(socket, { type: 'error', data: '发送命令过于频繁，请稍后重试' });
+            closeSocket(socket, 1008, '发送命令过于频繁');
             return;
           }
           commandCount += 1;

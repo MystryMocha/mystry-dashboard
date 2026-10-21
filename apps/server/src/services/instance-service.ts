@@ -105,7 +105,7 @@ export function createInstance(input: CreateInstanceInput): InstanceInfo {
     throw new Error('所选节点不存在');
   }
   if (nodeId !== LOCAL_NODE_ID) {
-    throw new Error('远程节点暂不支持创建实例，敬请期待后续版本');
+    throw new Error('当前版本不支持在远程节点上创建实例');
   }
   const dir = defaultInstanceDir(id);
   const ownershipMarker = nanoid(32);
@@ -179,7 +179,7 @@ export function registerPromotedInstance(id: string, input: CreateInstanceInput)
     throw new Error('所选节点不存在');
   }
   if (nodeId !== LOCAL_NODE_ID) {
-    throw new Error('远程节点暂不支持创建实例，敬请期待后续版本');
+    throw new Error('当前版本不支持在远程节点上创建实例');
   }
   assertValidJavaRuntime(input.javaRuntimeId);
   const jvmArgs = normalizeAndAssertJvmArgs(input.jvmArgs ?? DEFAULT_JVM_ARGS, {

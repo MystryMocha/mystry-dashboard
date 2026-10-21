@@ -110,7 +110,7 @@ export async function importZipPackage(options: {
           signal,
         });
         if (!launchTarget) {
-          throw new Error('安装包中未找到可用的服务端 jar 或 ModLoader args 文件');
+          throw new Error('安装包中未找到可用的服务端 jar 或 Forge/NeoForge 启动参数文件');
         }
 
         throwIfAborted(signal);

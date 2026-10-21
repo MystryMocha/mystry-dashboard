@@ -226,7 +226,7 @@ test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build �
   expect(requests.filter((url) => url === '/api/cores/paper/versions')).toHaveLength(1);
   expect(screen.getByRole('button', { name: 'Paper Build' }).textContent).toContain('自动使用最新构建');
 
-  const submit = screen.getByRole('button', { name: '立即开始自动化部署' }) as HTMLButtonElement;
+  const submit = screen.getByRole('button', { name: '开始部署' }) as HTMLButtonElement;
   const eula = screen.getByRole('checkbox', { name: /我已阅读并同意/ }) as HTMLInputElement;
   expect(eula.checked).toBe(false);
   expect(submit.disabled).toBe(true);

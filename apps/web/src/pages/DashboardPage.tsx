@@ -252,12 +252,12 @@ export function DashboardPage() {
           <Layers size={40} style={{ color: 'var(--text-muted)', marginBottom: '12px' }} />
           <h3 style={{ fontSize: '1.1rem', margin: '0 0 8px' }}>暂无 Minecraft 实例</h3>
           <p className="muted" style={{ margin: '0 0 20px' }}>
-            您可以从「一键部署」下载官方核心，或从同机目录及 ZIP 包导入已有服务端。
+            你可以从「一键部署」下载官方核心，或从同机目录及 ZIP 包导入已有服务端。
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
             <Link to="/deploy" className="btn btn-primary">
               <Plus size={15} />
-              立即部署第一台服务端
+              部署第一个服务端
             </Link>
             <Link to="/import" className="btn">
               <FolderDown size={15} />

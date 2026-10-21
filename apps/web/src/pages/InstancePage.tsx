@@ -91,7 +91,7 @@ function MigrationPanel({ instance, onAdopt }: { instance: InstanceInfo; onAdopt
   }
   return <div className="migration-panel"><span className="badge migration">需要迁移</span><h2>接管托管目录</h2>
     <p>请使用系统文件管理器，将旧实例文件复制到面板数据目录下的实例文件夹：</p><code>面板数据目录/instances/{instance.id}</code>
-    <p className="muted">面板不会读取或删除旧目录。复制完成后点击“接管托管目录”，成功后将恢复实例操作。</p>{error && <p className="error">{error}</p>}
+    <p className="muted">面板不会读取或删除旧目录。复制完成后点击「接管托管目录」，成功后将恢复实例操作。</p>{error && <p className="error">{error}</p>}
     <button className="btn" type="button" disabled={busy} onClick={() => void adopt()}>{busy ? '检查中…' : '接管托管目录'}</button>
   </div>;
 }
@@ -879,7 +879,7 @@ export function InstancePage() {
                 </span>
               </div>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                核心: {instance.coreType.toUpperCase()} {instance.mcVersion ? `· 版本 ${instance.mcVersion}` : ''}
+                核心：{instance.coreType.toUpperCase()} {instance.mcVersion ? `· 版本 ${instance.mcVersion}` : ''}
               </span>
             </div>
           </div>
