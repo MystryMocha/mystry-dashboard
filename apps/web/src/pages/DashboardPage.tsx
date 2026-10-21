@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -13,40 +13,25 @@ import {
   Zap,
 } from 'lucide-react';
 import type { InstanceInfo } from '@mystry/shared';
-import { isInstanceStopPendingResult } from '@mystry/shared';
-import { api } from '../api';
+import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
 import { HostMetricCards, processMetric, useDashboardMetrics } from '../components/DashboardMetrics';
 import { ActionMenu } from '../components/ActionMenu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { EulaCheckbox } from '../components/EulaCheckbox';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
-import { MINECRAFT_EULA_URL } from '../eula';
-
-const statusLabel: Record<string, string> = {
-  stopped: '已停止',
-  starting: '启动中',
-  running: '运行中',
-  stopping: '停止中',
-  crashed: '已崩溃',
-};
+import { errorMessage } from '../errors';
+import { useInstanceAction } from '../hooks/useInstanceAction';
+import { usePolling } from '../hooks/usePolling';
+import {
+  canStartInstance,
+  canStopInstance,
+  instanceStatusLabel,
+  isLifecycleBusy,
+  isProcessAlive,
+} from '../instance-status';
 
 type LoadState = 'loading' | 'loaded' | 'error';
-
-function canStartInstance(status: InstanceInfo['status']): boolean {
-  return status === 'stopped' || status === 'crashed';
-}
-
-function canStopInstance(status: InstanceInfo['status']): boolean {
-  return status === 'running';
-}
-
-function isLifecycleBusy(status: InstanceInfo['status']): boolean {
-  return status === 'starting' || status === 'stopping';
-}
-
-function isAlive(status: InstanceInfo['status']): boolean {
-  return status === 'running' || status === 'starting' || status === 'stopping';
-}
 
 function extractXmx(jvmArgs: string): string {
   const match = jvmArgs.match(/-Xmx(\w+)/i);
@@ -60,9 +45,7 @@ export function DashboardPage() {
   const [instances, setInstances] = useState<InstanceInfo[]>([]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [loadError, setLoadError] = useState('');
-  const [actionError, setActionError] = useState('');
   const latestLoadRequestRef = useRef(0);
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [restartTarget, setRestartTarget] = useState<InstanceInfo | null>(null);
   const [forceStopTarget, setForceStopTarget] = useState<InstanceInfo | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InstanceInfo | null>(null);
@@ -86,16 +69,13 @@ export function DashboardPage() {
       setLoadError('');
     } catch (err) {
       if (requestId !== latestLoadRequestRef.current) return;
-      setLoadError(err instanceof Error ? err.message : String(err));
+      setLoadError(errorMessage(err));
       setLoadState((current) => (current === 'loaded' ? 'loaded' : 'error'));
     }
   }, []);
+  usePolling(load);
 
-  useEffect(() => {
-    void load();
-    const timer = setInterval(() => void load(), 3000);
-    return () => clearInterval(timer);
-  }, [load]);
+  const { busyId, error: actionError, setError: setActionError, run } = useInstanceAction(load);
 
   function retryLoad(): void {
     setLoadError('');
@@ -103,26 +83,8 @@ export function DashboardPage() {
     void load();
   }
 
-  async function act(id: string, action: 'start' | 'stop' | 'restart', options?: { force?: boolean }) {
-    setBusyId(id);
-    setActionError('');
-    try {
-      const query = action === 'stop' && options?.force ? '?force=1' : '';
-      const result = await api<InstanceInfo | import('@mystry/shared').InstanceStopPendingResult>(
-        `/api/instances/${id}/${action}${query}`,
-        { method: 'POST' },
-      );
-      if (isInstanceStopPendingResult(result)) {
-        setActionError(result.error || '服务仍在保存，请等待或选择强制停止');
-      } else {
-        setActionError('');
-      }
-      await load();
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusyId(null);
-    }
+  function act(id: string, action: InstanceAction, options?: { force?: boolean }) {
+    return run(id, () => controlInstance(id, action, options));
   }
 
   async function confirmRestart() {
@@ -143,16 +105,7 @@ export function DashboardPage() {
     if (!deleteTarget) return;
     const target = deleteTarget;
     setDeleteTarget(null);
-    setBusyId(target.id);
-    setActionError('');
-    try {
-      await api(`/api/instances/${target.id}`, { method: 'DELETE' });
-      await load();
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusyId(null);
-    }
+    await run(target.id, () => api(instanceApi(target.id), { method: 'DELETE' }));
   }
 
   async function confirmCreateEmpty() {
@@ -172,15 +125,15 @@ export function DashboardPage() {
       setEmptyOpen(false);
       navigate(`/instances/${inst.id}/files`);
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : String(err));
+      setActionError(errorMessage(err));
     } finally {
       setEmptyBusy(false);
     }
   }
 
-  const runningCount = useMemo(() => instances.filter((i) => i.status === 'running').length, [instances]);
-  const stoppedCount = useMemo(() => instances.filter((i) => i.status === 'stopped').length, [instances]);
-  const abnormalCount = useMemo(() => instances.filter((i) => i.status === 'crashed' || i.requiresMigration).length, [instances]);
+  const runningCount = instances.filter((i) => i.status === 'running').length;
+  const stoppedCount = instances.filter((i) => i.status === 'stopped').length;
+  const abnormalCount = instances.filter((i) => i.status === 'crashed' || i.requiresMigration).length;
   const runningRatio = instances.length > 0 ? (runningCount / instances.length) * 100 : 0;
 
   return (
@@ -294,7 +247,7 @@ export function DashboardPage() {
                   </div>
                 </div>
                 <span className={`status-badge ${inst.requiresMigration ? 'starting' : inst.status}`}>
-                  {inst.requiresMigration ? '▲ 待迁移' : `● ${statusLabel[inst.status] || inst.status}`}
+                  {inst.requiresMigration ? '▲ 待迁移' : `● ${instanceStatusLabel[inst.status] || inst.status}`}
                 </span>
               </div>
 
@@ -357,7 +310,7 @@ export function DashboardPage() {
                       key: 'force-stop',
                       label: '强制停止',
                       icon: <Power size={13} />,
-                      disabled: busyId === inst.id || inst.requiresMigration || !isAlive(inst.status),
+                      disabled: busyId === inst.id || inst.requiresMigration || !isProcessAlive(inst.status),
                       onSelect: () => setForceStopTarget(inst),
                     },
                     {
@@ -365,9 +318,9 @@ export function DashboardPage() {
                       label: '删除实例',
                       icon: <Trash2 size={13} />,
                       danger: true,
-                      disabled: busyId === inst.id || (!inst.requiresMigration && isAlive(inst.status)),
+                      disabled: busyId === inst.id || (!inst.requiresMigration && isProcessAlive(inst.status)),
                       title:
-                        !inst.requiresMigration && isAlive(inst.status)
+                        !inst.requiresMigration && isProcessAlive(inst.status)
                           ? '实例仍在运行，请先停止后再删除'
                           : undefined,
                       onSelect: () => setDeleteTarget(inst),
@@ -412,18 +365,7 @@ export function DashboardPage() {
               useRecommendedDefault
               onValidityChange={setEmptyJvmValid}
             />
-            <label htmlFor="empty-instance-eula" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <input
-                id="empty-instance-eula"
-                type="checkbox"
-                checked={emptyEula}
-                disabled={emptyBusy}
-                onChange={(e) => setEmptyEula(e.target.checked)}
-              />
-              <span>
-                我已阅读并同意 <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Minecraft EULA</a>（启动时自动写入同意标记）
-              </span>
-            </label>
+            <EulaCheckbox checked={emptyEula} disabled={emptyBusy} onChange={setEmptyEula} />
           </>
         }
         confirmLabel="创建并前往文件页"

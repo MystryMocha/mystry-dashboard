@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import type { TaskInfo } from '@mystry/shared';
 import { ApiError, listTasks } from './api';
+import { errorMessage } from './errors';
+import { POLL_INTERVAL_MS } from './hooks/usePolling';
 
 /**
  * 任务中心的模块级共享状态，所有订阅者共用一个轮询循环。
  * 订阅数为 0 时停止轮询（如退出登录后），避免无意义的 401 请求。
  */
 
-const POLL_INTERVAL_MS = 4_000;
 const RATE_LIMIT_BACKOFF_MS = 10_000;
 
 let tasks: TaskInfo[] = [];
@@ -40,7 +41,7 @@ async function runTick(generation: number): Promise<void> {
   } catch (error) {
     if (!isActive(generation)) return;
     // 429 说明服务端限流，退避后继续；401 等错误交给全局处理，这里仅记录。
-    loadError = error instanceof Error ? error.message : String(error);
+    loadError = errorMessage(error);
     hasLoaded = true;
     schedule(
       error instanceof ApiError && error.status === 429 ? RATE_LIMIT_BACKOFF_MS : POLL_INTERVAL_MS,

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Clock, RefreshCw, X } from 'lucide-react';
 import type { TaskInfo } from '@mystry/shared';
 import { useTaskCenter } from '../task-center-store';
+import { clampProgress } from './TaskProgress';
 
 const typeLabel: Record<TaskInfo['type'], string> = {
   download: '下载核心',
@@ -134,19 +135,21 @@ export function TaskCenter() {
               className="btn btn-icon"
               type="button"
               title="刷新任务"
+              aria-label="刷新任务"
               onClick={() => retry()}
               style={{ width: 32, height: 32 }}
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={14} aria-hidden="true" />
             </button>
             <button
               className="btn btn-icon"
               type="button"
               title="关闭"
+              aria-label="关闭任务中心"
               onClick={closeDrawer}
               style={{ width: 32, height: 32 }}
             >
-              <X size={16} />
+              <X size={16} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -206,11 +209,11 @@ export function TaskCenter() {
               </div>
 
               {(task.status === 'pending' || task.status === 'running') && (
-                <div className="metric-bar" style={{ height: 4 }} role="progressbar" aria-label={`${typeLabel[task.type]}进度`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100, Math.max(0, task.progress))}>
+                <div className="metric-bar" style={{ height: 4 }} role="progressbar" aria-label={`${typeLabel[task.type]}进度`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clampProgress(task.progress)}>
                   <div
                     className="metric-bar-fill"
                     style={{
-                      width: `${Math.min(100, Math.max(0, task.progress))}%`,
+                      width: `${clampProgress(task.progress)}%`,
                     }}
                   />
                 </div>

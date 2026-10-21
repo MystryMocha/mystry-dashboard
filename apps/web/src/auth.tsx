@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { AuthSetupStatus, AuthUser } from '@mystry/shared';
 import { api, ApiError, getToken, setToken, UNAUTHORIZED_EVENT } from './api';
+import { errorMessage } from './errors';
 
 type AuthState = {
   user: AuthUser | null;
@@ -53,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       setUser(null);
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       setStatusError(`无法连接面板服务：${message}`);
     } finally {
       setLoading(false);

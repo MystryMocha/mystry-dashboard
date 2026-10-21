@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { recommendedJavaMajor, type JavaDetectResult, type JavaRuntimeInfo } from '@mystry/shared';
 import { detectDefaultJava, listJavaRuntimes } from '../api';
+import { errorMessage } from '../errors';
 
 /**
  * Java 运行时选择器：
@@ -44,7 +45,7 @@ export function JavaRuntimeSelect({
       setError('');
     } catch (err) {
       if (generation !== loadGenerationRef.current) return;
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       if (generation === loadGenerationRef.current) {
         setLoading(false);

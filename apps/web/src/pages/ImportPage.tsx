@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FolderUp, RefreshCw } from 'lucide-react';
 import type { CoreType, ExistingServerSourceInfo, ImportPreviewInfo, TaskInfo } from '@mystry/shared';
@@ -12,9 +12,11 @@ import {
   listExistingServerSources,
   pollTask,
 } from '../api';
+import { EulaCheckbox } from '../components/EulaCheckbox';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor, type DetectedJvmChoice } from '../components/JvmSettingsEditor';
-import { MINECRAFT_EULA_URL } from '../eula';
+import { TaskProgress } from '../components/TaskProgress';
+import { errorMessage, isAbortError } from '../errors';
 
 type ImportMode = 'directory' | 'zip';
 
@@ -77,10 +79,10 @@ export function ImportPage() {
         setMode('zip');
       })
       .catch((err) => {
-        if (err instanceof Error && err.name === 'AbortError') return;
+        if (isAbortError(err)) return;
         clearStoredPreview();
         if (!(err instanceof ApiError && [404, 410].includes(err.status))) {
-          setError(err instanceof Error ? err.message : String(err));
+          setError(errorMessage(err));
         }
       })
       .finally(() => setRestoringPreview(false));
@@ -98,7 +100,7 @@ export function ImportPage() {
       });
       setSourcesError('');
     } catch (err) {
-      setSourcesError(err instanceof Error ? err.message : String(err));
+      setSourcesError(errorMessage(err));
     } finally {
       setSourcesLoading(false);
     }
@@ -108,16 +110,10 @@ export function ImportPage() {
     void loadSources();
   }, [loadSources]);
 
-  const selectedSource = useMemo(
-    () => sources.find((source) => source.id === sourceId) ?? null,
-    [sourceId, sources],
-  );
+  const selectedSource = sources.find((source) => source.id === sourceId) ?? null;
   const detectedJvmConfig = mode === 'directory'
     ? selectedSource?.detectedJvmConfig
     : preview?.detectedJvmConfig;
-  const progressValue = progress
-    ? Math.min(100, Math.max(0, Number.isFinite(progress.progress) ? progress.progress : 0))
-    : 0;
   function selectZip(selected: File | null) {
     if (busy || restoringPreview || !selected) return;
     if (!selected.name.toLowerCase().endsWith('.zip')) {
@@ -160,7 +156,7 @@ export function ImportPage() {
         setFile(null);
         return;
       }
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -228,15 +224,15 @@ export function ImportPage() {
 
       if (controller.signal.aborted) return;
       setProgress(task);
-      const result = await pollTask(task.id, (next) => setProgress(next as TaskInfo), controller.signal);
-      if (result.instanceId) navigate(`/instances/${result.instanceId}`);
+      const result = await pollTask(task.id, setProgress, controller.signal);
+      if (result?.instanceId) navigate(`/instances/${result.instanceId}`);
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
+      if (isAbortError(err)) return;
       if (mode === 'zip' && err instanceof ApiError && [404, 410].includes(err.status)) {
         clearStoredPreview();
         setPreview(null);
       }
-      setError(err instanceof Error ? err.message : String(err));
+      setError(errorMessage(err));
     } finally {
       if (pollAbortRef.current === controller) pollAbortRef.current = null;
       setBusy(false);
@@ -479,38 +475,12 @@ export function ImportPage() {
               onDetectedChoiceChange={setDetectedChoice}
               onValidityChange={setJvmValid}
             />
-            <label className="checkbox-field">
-              <input
-                type="checkbox"
-                checked={acceptEula}
-                disabled={busy}
-                onChange={(e) => setAcceptEula(e.target.checked)}
-              />
-              <span>
-                我已阅读并同意 <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Minecraft EULA</a>（启动时自动写入同意标记）
-              </span>
-            </label>
+            <EulaCheckbox checked={acceptEula} disabled={busy} onChange={setAcceptEula} />
           </>
         ) : null}
 
         {error ? <p className="error">{error}</p> : null}
-        {progress ? (
-          <div className="import-progress" aria-live="polite">
-            <div className="muted">
-              {progress.message}（{Math.round(progressValue)}%）
-            </div>
-            <div
-              className="progress"
-              role="progressbar"
-              aria-label="导入进度"
-              aria-valuenow={progressValue}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            >
-              <span style={{ width: `${progressValue}%` }} />
-            </div>
-          </div>
-        ) : null}
+        {progress ? <TaskProgress task={progress} label="导入进度" /> : null}
         {busy ? (
           <p className="muted" role="status" aria-live="polite">
             {mode === 'zip' && file ? '正在上传并检查 ZIP，请保持此页打开。' : '导入已进入后台，可离开此页并在任务中心查看。'}

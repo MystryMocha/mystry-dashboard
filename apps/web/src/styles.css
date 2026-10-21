@@ -1217,7 +1217,9 @@ button {
   line-height: 1.5;
 }
 .checkbox-field input { margin-top: 0.2rem; }
-.import-progress { margin-bottom: 1rem; }
+.task-progress { margin: 0.6rem 0 1rem; }
+.task-progress .muted { font-size: 0.85rem; margin-bottom: 0.25rem; }
+.task-progress .metric-bar { height: 6px; }
 .environment-status { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
 .environment-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--ok); }
 .environment-status.is-missing { border-color: rgba(224, 168, 74, 0.5); }
@@ -1555,20 +1557,6 @@ button {
   flex-shrink: 0;
   padding: 0.35rem 0.75rem;
   font-size: 0.85rem;
-}
-
-.progress {
-  height: 8px;
-  background: var(--bg);
-  border-radius: 999px;
-  overflow: hidden;
-  margin-top: 0.5rem;
-}
-
-.progress > span {
-  display: block;
-  height: 100%;
-  background: var(--accent);
 }
 
 .modal-backdrop {
