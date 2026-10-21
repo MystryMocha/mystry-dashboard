@@ -16,7 +16,7 @@ process.env.SETUP_TOKEN = randomBytes(32).toString('hex');
 process.env.LAUNCHER_TOKEN = randomBytes(32).toString('hex');
 
 test('Paper 缓存键使用解析后的 build，旧 latest 键不会命中', async () => {
-  const { buildResolvedCoreCacheBasename } = await import('./core-depot.js');
+  const { buildResolvedCoreCacheBasename } = await import('./core-metadata.js');
   const resolved = buildResolvedCoreCacheBasename('paper', '1.21.1', { build: 42 });
   const legacy = 'paper-1.21.1-latest-.jar'.replace(/[^\w.-]+/g, '_');
   const current = resolved.replace(/[^\w.-]+/g, '_');
@@ -25,7 +25,7 @@ test('Paper 缓存键使用解析后的 build，旧 latest 键不会命中', asy
 });
 
 test('Fabric 缓存键包含解析后的 loader 与 installer', async () => {
-  const { buildResolvedCoreCacheBasename } = await import('./core-depot.js');
+  const { buildResolvedCoreCacheBasename } = await import('./core-metadata.js');
   const resolved = buildResolvedCoreCacheBasename('fabric', '1.21.1', {
     loader: '0.16.9',
     installer: '1.0.1',
@@ -36,7 +36,7 @@ test('Fabric 缓存键包含解析后的 loader 与 installer', async () => {
 test('Forge 和 NeoForge JVM 参数文件可由 Java argfile 规则往返解析', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-user-jvm-args-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  const { writeUserJvmArgs } = await import('./core-depot.js');
+  const { writeUserJvmArgs } = await import('./core-installer.js');
   const { parseJvmArgFile } = await import('@mystry/shared');
   writeUserJvmArgs(dir, String.raw`-Xms1G -Xmx2G "-Dfolder=C:\Minecraft Server"`);
   assert.deepEqual(

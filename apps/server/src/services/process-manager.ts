@@ -8,7 +8,7 @@ import type { InstanceRow } from '../db.js';
 import { config } from '../config.js';
 import { assertSafeInstanceRoot, resolveDirFromRow, resolveSafePath } from '../utils/path.js';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
-import { parseJvmArgs, serializeJvmArgFile } from '../utils/jvm-args.js';
+import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
 import { ensureServerPropertiesDefaults } from './config-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';

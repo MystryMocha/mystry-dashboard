@@ -101,9 +101,6 @@ export function defaultInstanceDir(instanceId: string): string {
   return path.join(config.instancesDir, instanceId);
 }
 
-/**
- * 根据实例 ID 解析面板托管目录。
- */
 export function getInstanceDir(instanceId: string): string {
   const row = getDb()
     .prepare('SELECT install_path FROM instances WHERE id = ?')

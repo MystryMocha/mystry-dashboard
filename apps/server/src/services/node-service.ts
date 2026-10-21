@@ -1,8 +1,7 @@
 import crypto from 'node:crypto';
-import { timingSafeEqual } from 'node:crypto';
 import { nanoid } from 'nanoid';
 import type { CreateNodeInput, NodeInfo, NodeSecretResult, UpdateNodeInput } from '@mystry/shared';
-import { LOCAL_NODE_ID, REMOTE_NODE_CREATION_ENABLED } from '@mystry/shared';
+import { REMOTE_NODE_CREATION_ENABLED } from '@mystry/shared';
 import { getDb, type NodeRow } from '../db.js';
 import { nowIso } from '../utils/path.js';
 import { nodeRegistry } from './node-registry.js';
@@ -121,20 +120,6 @@ export function resetNodeSecret(id: string): NodeSecretResult {
   return { node: getNode(id)!, secret };
 }
 
-/**
- * 校验节点密钥是否正确（供阶段二 Agent 反向连接鉴权使用）。
- */
-export function verifyNodeSecret(id: string, secret: string): boolean {
-  const row = getNodeRow(id);
-  if (!row || row.is_local) return false;
-  // 恒定时间比较摘要，避免通过响应时间猜测密钥。
-  const expected = Buffer.from(row.secret_hash, 'utf8');
-  const actual = Buffer.from(hashSecret(secret), 'utf8');
-  return expected.length === actual.length && timingSafeEqual(actual, expected);
-}
-
 export function nodeExists(id: string): boolean {
   return Boolean(getNodeRow(id));
 }
-
-export { LOCAL_NODE_ID };

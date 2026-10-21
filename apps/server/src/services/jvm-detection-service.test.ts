@@ -77,7 +77,7 @@ test('目录检测只读取根目录普通 user_jvm_args.txt', async (t) => {
 test('ZIP 检测支持单一顶层目录并拒绝危险中央目录', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-jvm-zip-detect-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const { inspectZipJvmConfig } = await import('./import-service.js');
+  const { inspectZipJvmConfig } = await import('./zip-service.js');
   const writeZip = (name: string, entries: readonly StoredZipEntry[]) => {
     const target = path.join(root, name);
     fs.writeFileSync(target, createStoredZip(entries));

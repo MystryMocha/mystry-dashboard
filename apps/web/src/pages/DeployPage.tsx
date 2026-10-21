@@ -44,7 +44,6 @@ export function DeployPage() {
   const [loadersLoadedFor, setLoadersLoadedFor] = useState('');
   const [loaderVersion, setLoaderVersion] = useState('');
   const [installers, setInstallers] = useState<string[]>([]);
-  const [installersLoading, setInstallersLoading] = useState(false);
   const [installersLoadedFor, setInstallersLoadedFor] = useState('');
   const [installerVersion, setInstallerVersion] = useState('');
   const [name, setName] = useState('我的服务器');
@@ -64,7 +63,6 @@ export function DeployPage() {
   /** 组件卸载时中止进行中的任务轮询，避免登出/离开页面后仍持续请求或跳转。 */
   const pollAbortRef = useRef<AbortController | null>(null);
   const nameFieldId = useId();
-  const coreTypeFieldId = useId();
   const eulaFieldId = useId();
   const errorPreview = useMemo(() => createErrorPreview(error), [error]);
   const hasErrorDetails = error.includes('\n') || error.length > ERROR_PREVIEW_MAX_LENGTH;
@@ -376,7 +374,7 @@ export function DeployPage() {
                 options={installers}
                 onChange={setInstallerVersion}
                 onOpen={() => void loadInstallers()}
-                loading={installersLoading || loadersLoading}
+                loading={loadersLoading}
                 disabled={busy || !mcVersion}
                 placeholder="自动使用最新稳定版"
                 emptyText="暂无版本"

@@ -1,5 +1,5 @@
 /**
- * R0-02 / R0-03 进程互斥与停止语义回归骨架（批次 C 实现）。
+ * 进程互斥与停止语义回归。
  */
 import assert from 'node:assert/strict';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -49,7 +49,7 @@ function fakeChild(options?: { onKill?: (signal?: NodeJS.Signals) => void }): Ch
   return child;
 }
 
-test('R0-02: 并发 start 只应 spawn 一个受管 Minecraft 进程', async (t) => {
+test('并发 start 只应 spawn 一个受管 Minecraft 进程', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -113,7 +113,7 @@ test('首次启动写入普通难度，已有 server.properties 不覆盖', asyn
   );
 });
 
-test('R0-03: 普通 stop 超时不得隐式 SIGKILL', async (t) => {
+test('普通 stop 超时不得隐式 SIGKILL', async (t) => {
   prepareTempDataRoot(t);
   process.env.MYSTRY_TEST_STOP_GRACE_MS = '40';
   t.after(() => {

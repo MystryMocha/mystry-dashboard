@@ -25,9 +25,6 @@ import { assertUploadPath, removeUploadTemp } from './upload-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { safeExtract } from './zip-service.js';
 
-// 保留原服务的导出入口，现有调用方可继续使用。
-export { safeExtract, inspectZipJvmConfig } from './zip-service.js';
-
 function abortError(signal: AbortSignal): Error {
   if (signal.reason instanceof Error && ['任务执行超时', '任务已取消'].includes(signal.reason.message)) {
     return signal.reason;

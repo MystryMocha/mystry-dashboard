@@ -26,7 +26,6 @@ function prepareTempDataRoot(t: test.TestContext): string {
 test('保留注释、空行、重复键与分隔符，引导补丁只改最后定义', async () => {
   const {
     applyPropertiesPatch,
-    parseProperties,
     parsePropertiesDocument,
     propertiesMapFromDocument,
     stringifyPropertiesDocument,
@@ -79,7 +78,7 @@ test('首次写入不存在的 server.properties：值含换行不产生额外�
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
-  const { writeServerProperties, readServerProperties } = await import('./config-service.js');
+  const { writeServerProperties } = await import('./config-service.js');
 
   initDb();
   const inst = createInstance({ name: 'props-newline' });

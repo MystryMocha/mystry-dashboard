@@ -178,7 +178,6 @@ export function DashboardPage() {
     }
   }
 
-  // 统计指标
   const runningCount = useMemo(() => instances.filter((i) => i.status === 'running').length, [instances]);
   const stoppedCount = useMemo(() => instances.filter((i) => i.status === 'stopped').length, [instances]);
   const abnormalCount = useMemo(() => instances.filter((i) => i.status === 'crashed' || i.requiresMigration).length, [instances]);
@@ -186,7 +185,6 @@ export function DashboardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* 顶部指标卡片组 (Metric Grid) */}
       <div className="metric-grid dashboard-metrics">
         <div className="metric-card">
           <div className="metric-header">
@@ -217,7 +215,6 @@ export function DashboardPage() {
         </p>
       )}
 
-      {/* 实例网格与头部操作栏 */}
       <div className="section-header">
         <div className="section-title">
           <span>Minecraft 实例列表</span>

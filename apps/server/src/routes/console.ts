@@ -1,17 +1,16 @@
 import type { FastifyInstance } from 'fastify';
+import type { ConsoleMessage, InstanceStatus } from '@mystry/shared';
 import { config } from '../config.js';
 import { processManager } from '../services/process-manager.js';
 import { getInstance } from '../services/instance-service.js';
 import { issueConsoleTicket, consumeConsoleTicket } from '../services/console-ticket-service.js';
 
 type ResourceLimits = {
-  maxCommandBytes: number;
   maxConsoleBufferBytes: number;
   maxConsoleChunkBytes: number;
   maxConsoleIncomingBytes: number;
 };
 const resourceLimits = config as typeof config & Partial<ResourceLimits>;
-const maxCommandBytes = resourceLimits.maxCommandBytes ?? 4_096;
 const maxConsoleBufferBytes = resourceLimits.maxConsoleBufferBytes ?? 1_048_576;
 const maxConsoleChunkBytes = resourceLimits.maxConsoleChunkBytes ?? 65_536;
 const maxIncomingMessageBytes = resourceLimits.maxConsoleIncomingBytes ?? 4_352;
@@ -66,7 +65,7 @@ function sendSocketMessage(
     send: (data: string) => void;
     close: (code?: number, reason?: string) => void;
   },
-  payload: unknown,
+  payload: ConsoleMessage,
 ): boolean {
   if (socket.readyState !== 1) return false;
   const message = JSON.stringify(payload);
@@ -197,7 +196,7 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
         }
         sendSocketMessage(socket, { type: 'output', data: text });
       };
-      const onStatus = (id: string, status: string) => {
+      const onStatus = (id: string, status: InstanceStatus) => {
         if (id !== instanceId) return;
         sendSocketMessage(socket, { type: 'status', data: '', status });
       };

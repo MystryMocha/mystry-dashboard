@@ -115,7 +115,7 @@ test('ZIP 单一外层目录在 staging marker 存在时仍应被扁平化并导
 test('ZIP 预览与解压保留条目读取、大小校验及取消边界', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-zip-boundaries-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const { inspectZipJvmConfig, safeExtract } = await import('./import-service.js');
+  const { inspectZipJvmConfig, safeExtract } = await import('./zip-service.js');
   const jvmArgs = '-Xms1G\n-Xmx2G\n';
   let sequence = 0;
   const fixture = (zip: Buffer) => {

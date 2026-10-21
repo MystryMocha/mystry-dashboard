@@ -24,18 +24,6 @@ import {
   resolveVanillaServerUrl,
 } from './core-metadata.js';
 
-// 保留原有模块入口，路由与既有调用方无需随内部拆分迁移。
-export {
-  buildResolvedCoreCacheBasename, fetchJson, fetchText, listCoreVersions,
-  listFabricInstallers, listFabricLoaders, listForgeLoaders, listNeoForgeLoaders,
-  listPaperBuilds, neoForgeVersionToMc,
-} from './core-metadata.js';
-export { downloadToFile, isUsableCoreCache } from './core-download.js';
-export { isRetryableInstallerFailure, summarizeInstallerDownloadFailure, writeUserJvmArgs } from './core-installer.js';
-
-/**
- * 创建实例并后台下载核心。
- */
 export async function deployCore(input: DeployCoreInput) {
   input = {
     ...input,
@@ -116,7 +104,6 @@ export async function deployCore(input: DeployCoreInput) {
             report(progress, message);
           });
 
-          // 安装结束后移除临时 installer。
           try {
             fs.unlinkSync(installerDest);
           } catch {

@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { loginBodySchema, setupBodySchema } from '@mystry/shared';
+import { loginBodySchema, setupBodySchema, type LoginInput, type SetupInput } from '@mystry/shared';
 import { needsSetup, setupAdmin, verifyLogin, getUserById } from '../services/auth-service.js';
 import { config } from '../config.js';
 import { createLoginFailureLimiter, createRateLimitHook } from '../services/security-service.js';
@@ -35,7 +35,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/auth/status', async () => ({ needsSetup: needsSetup() }));
 
-  app.post<{ Body: { username: string; password: string } }>(
+  app.post<{ Body: SetupInput }>(
     '/api/auth/setup',
     {
       attachValidation: true,
@@ -60,7 +60,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  app.post<{ Body: { username: string; password: string } }>(
+  app.post<{ Body: LoginInput }>(
     '/api/auth/login',
     {
       attachValidation: true,

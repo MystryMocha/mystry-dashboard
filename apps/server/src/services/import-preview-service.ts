@@ -184,8 +184,3 @@ export async function confirmImportPreview(
     throw error;
   }
 }
-
-/** 测试和健康诊断只返回计数，不暴露临时路径或用户标识。 */
-export function getImportPreviewActivity(): { active: number } {
-  return { active: previews.size };
-}

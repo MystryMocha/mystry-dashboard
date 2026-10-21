@@ -3,7 +3,7 @@ import type { TaskInfo } from '@mystry/shared';
 import { ApiError, listTasks } from './api';
 
 /**
- * 任务中心共享状态：桌面侧边栏和移动顶栏各有一个入口，但只允许一个轮询循环。
+ * 任务中心的模块级共享状态，所有订阅者共用一个轮询循环。
  * 订阅数为 0 时停止轮询（如退出登录后），避免无意义的 401 请求。
  */
 

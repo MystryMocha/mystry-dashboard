@@ -72,7 +72,7 @@ async function main(): Promise<void> {
   const { getDb } = await import('./db.js');
   const { buildApp } = await import('./index.js');
   const { consumeConsoleTicket, issueConsoleTicket } = await import('./services/console-ticket-service.js');
-  const { safeExtract } = await import('./services/import-service.js');
+  const { safeExtract } = await import('./services/zip-service.js');
   const {
     removeUploadTemp,
     streamToUploadTemp,
@@ -96,11 +96,11 @@ async function main(): Promise<void> {
     recoverInterruptedTasks,
     updateTask,
   } = await import('./services/task-service.js');
-  const { parseJvmArgs, serializeJvmArgFile } = await import('./utils/jvm-args.js');
+  const { parseJvmArgs, serializeJvmArgFile } = await import('@mystry/shared');
   const {
     isRetryableInstallerFailure,
     summarizeInstallerDownloadFailure,
-  } = await import('./services/core-depot.js');
+  } = await import('./services/core-installer.js');
   const { defaultInstanceDir, readOwnershipMarker, resolveSafePath } = await import('./utils/path.js');
 
   let launcherShutdownStarted = false;

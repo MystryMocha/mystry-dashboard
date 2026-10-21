@@ -105,7 +105,6 @@ export function createInstance(input: CreateInstanceInput): InstanceInfo {
     throw new Error('所选节点不存在');
   }
   if (nodeId !== LOCAL_NODE_ID) {
-    // 阶段一仅打通节点注册闭环，远程节点尚不支持实际部署/执行（阶段二/三接入 Agent 后开放）
     throw new Error('远程节点暂不支持创建实例，敬请期待后续版本');
   }
   const dir = defaultInstanceDir(id);
@@ -130,7 +129,6 @@ export function createInstance(input: CreateInstanceInput): InstanceInfo {
     }
     writeOwnershipMarker(id, dir, ownershipMarker);
     markerWritten = true;
-    // 简单可写探测
     fs.accessSync(dir, fs.constants.W_OK);
   } catch (err) {
     cleanupCreatedDirectory(id, dir, ownershipMarker, markerWritten, directoryCreatedByCall);

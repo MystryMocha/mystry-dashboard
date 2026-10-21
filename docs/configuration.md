@@ -148,7 +148,7 @@ Web 的 ZIP 导入先把文件写入 `uploads/.tmp-import-preview-*` 并执行�
 
 无论最终数据目录来自 `MYSTRY_DATA_DIR` 还是 `DATA_DIR`，实例始终只能位于该目录的 `instances/<id>`。部署、导入、创建和启动都使用这一目录；不支持自定义实例安装目录，也不提供从整台机器选择目录的功能。实例文件 API 的路径只是相对于该实例根目录的逻辑路径。
 
-**权限（R1-02）**：在 Linux/macOS 上，面板启动时会创建并校验数据根及 `instances`、`imports`、`uploads`、`.mystry-staging`、`.mystry-panel-lock` 等目录为 `0700`，`panel.db` 及其 WAL/SHM 为 `0600`。若已有目录对 group/other 可访问，默认拒绝启动；设置 `MYSTRY_REPAIR_DATA_PERMISSIONS=1` 可在启动时自动收紧权限。Windows 无法由 Node 可靠验证 ACL，首次启动会输出阻断级警告——请确保 `DATA_DIR` 仅当前运行面板的用户可读写（便携版由 `mystryctl`/PanelManager 创建用户专属目录）。
+**权限**：在 Linux/macOS 上，面板启动时会创建并校验数据根及 `instances`、`imports`、`uploads`、`.mystry-staging`、`.mystry-panel-lock` 等目录为 `0700`，`panel.db` 及其 WAL/SHM 为 `0600`。若已有目录对 group/other 可访问，默认拒绝启动；设置 `MYSTRY_REPAIR_DATA_PERMISSIONS=1` 可在启动时自动收紧权限。Windows 无法由 Node 可靠验证 ACL，首次启动会输出阻断级警告——请确保 `DATA_DIR` 仅当前运行面板的用户可读写（便携版由 `mystryctl`/PanelManager 创建用户专属目录）。
 
 `MYSTRY_HOME` 和 `MYSTRY_CONFIG_PATH` 用于确定配置文件位置，因此不能依赖该配置文件自己改变其加载位置；应由 `mystryctl`、shell 或进程环境在启动前设置。便携用户通常不需要手动设置这些变量。
 

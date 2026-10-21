@@ -1,7 +1,4 @@
-/**
- * 前后端共用的 JSON Schema（Fastify AJV 校验）。
- * 与 index.ts 中的 TypeScript 类型保持同步，避免路由内手工双写漂移。
- */
+/** Fastify AJV 使用的请求 JSON Schema；字段改动时同步 index.ts 中对应的类型。 */
 
 /** 核心类型枚举（含 custom） */
 export const CORE_TYPE_ENUM = [
