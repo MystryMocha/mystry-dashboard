@@ -93,10 +93,13 @@ export function listFiles(instanceId: string, relativePath = ''): FileEntry[] {
 
   // 按运行环境区域设置排序（Windows 资源管理器风格：目录优先 + 自然序）
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  const markerPath = path.join(root, OWNERSHIP_MARKER_FILE);
   // target 已由 resolveSafePath 逐段校验；readdir 返回的条目名不含路径分隔符，
   // 每个条目只需一次 lstat 拒绝 symlink/junction，避免逐项 realpath 整条路径阻塞事件循环。
   return fs
     .readdirSync(target, { withFileTypes: true })
+    // 实例根目录的所有权标记由面板维护，不展示给用户；改写类接口本就拒绝操作它。
+    .filter((entry) => !samePath(path.join(target, entry.name), markerPath))
     .map((entry) => {
       const full = path.join(target, entry.name);
       const s = fs.lstatSync(full);

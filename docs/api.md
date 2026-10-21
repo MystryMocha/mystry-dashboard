@@ -137,7 +137,7 @@ Authorization: Bearer <token>
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/files?path=` | 列出实例根目录内的目录 `FileEntry[]` |
+| GET | `/files?path=` | 列出实例根目录内的目录 `FileEntry[]`；实例根目录的面板所有权标记 `.mystry-instance.json` 不出现在列表中 |
 | GET | `/files/content?path=` | 读文本 `{ path, content }` |
 | PUT | `/files/content` | Body：`{ path, content }` |
 | DELETE | `/files?path=` | 删除实例根目录内的文件或目录 |
