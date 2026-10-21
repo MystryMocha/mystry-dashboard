@@ -1,9 +1,9 @@
-import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { loginBodySchema, setupBodySchema, type LoginInput, type SetupInput } from '@mystry/shared';
 import { needsSetup, setupAdmin, verifyLogin, getUserById } from '../services/auth-service.js';
 import { config } from '../config.js';
-import { createLoginFailureLimiter, createRateLimitHook } from '../services/security-service.js';
+import { errorMessage } from '../utils/errors.js';
+import { createLoginFailureLimiter, createRateLimitHook, tokenMatches } from '../services/security-service.js';
 
 export type JwtUser = { id: string; username: string };
 
@@ -12,13 +12,6 @@ declare module '@fastify/jwt' {
     payload: JwtUser;
     user: JwtUser;
   }
-}
-
-function isValidSetupToken(value: string | string[] | undefined): boolean {
-  if (config.setupToken === null || typeof value !== 'string') return false;
-  const expected = Buffer.from(config.setupToken, 'utf8');
-  const actual = Buffer.from(value, 'utf8');
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
@@ -43,7 +36,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       preHandler: [strictAuthLimit],
     },
     async (req, reply) => {
-      if (!isValidSetupToken(req.headers['x-setup-token'])) {
+      if (!tokenMatches(req.headers['x-setup-token'], config.setupToken)) {
         return reply.code(401).send({ error: '初始化令牌无效' });
       }
       if (req.validationError) {
@@ -54,7 +47,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         const token = await reply.jwtSign(user, { expiresIn: config.jwtExpiresIn });
         return { token, user };
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = errorMessage(err);
         return reply.code(message === '管理员已初始化' ? 409 : 400).send({ error: message });
       }
     },

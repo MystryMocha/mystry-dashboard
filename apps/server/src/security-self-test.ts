@@ -528,30 +528,30 @@ async function main(): Promise<void> {
     assert.equal(consumeConsoleTicket(ticket.ticket, 'instance'), null);
 
     const {
-      claimDownloadTicket,
-      consumeDownloadTicket,
-      issueDownloadTicket,
-      restoreDownloadTicket,
+      beginDownloadStream,
+      completeDownloadStream,
+      failDownloadStream,
+      getDownloadTicketStatus,
+      reserveDownloadTicket,
     } = await import('./services/download-ticket-service.js');
-    const downloadTicket = issueDownloadTicket('user', 'instance', 'logs/latest.log');
+    const noRelease = () => {};
+    const downloadTicket = reserveDownloadTicket('user', 'instance', 'logs/latest.log', noRelease);
     assert.equal(
-      consumeDownloadTicket(downloadTicket.ticket, 'instance', 'logs/latest.log')?.userId,
+      beginDownloadStream(downloadTicket.ticket, 'instance', 'logs/latest.log')?.userId,
       'user',
     );
-    assert.equal(consumeDownloadTicket(downloadTicket.ticket, 'instance', 'logs/latest.log'), null);
-    const mismatched = issueDownloadTicket('user', 'instance', 'server.properties');
-    assert.equal(consumeDownloadTicket(mismatched.ticket, 'instance', 'eula.txt'), null);
-    // 领取后占槽/开流失败应能归还，供客户端重试
-    const restorable = issueDownloadTicket('user', 'instance', 'ops.txt');
-    const claimed = claimDownloadTicket(restorable.ticket, 'instance', 'ops.txt');
-    assert.ok(claimed);
-    assert.equal(claimed.userId, 'user');
-    assert.equal(claimDownloadTicket(restorable.ticket, 'instance', 'ops.txt'), null);
-    restoreDownloadTicket(claimed);
-    assert.equal(
-      consumeDownloadTicket(restorable.ticket, 'instance', 'ops.txt')?.userId,
-      'user',
-    );
+    assert.equal(beginDownloadStream(downloadTicket.ticket, 'instance', 'logs/latest.log'), null);
+    completeDownloadStream(downloadTicket.ticket);
+    assert.equal(beginDownloadStream(downloadTicket.ticket, 'instance', 'logs/latest.log'), null);
+    const mismatched = reserveDownloadTicket('user', 'instance', 'server.properties', noRelease);
+    assert.equal(beginDownloadStream(mismatched.ticket, 'instance', 'eula.txt'), null);
+    assert.equal(beginDownloadStream(mismatched.ticket, 'other-instance', 'server.properties'), null);
+    // 开流失败后票据作废，浏览器轮询能拿到失败原因
+    const failing = reserveDownloadTicket('user', 'instance', 'ops.txt', noRelease);
+    assert.ok(beginDownloadStream(failing.ticket, 'instance', 'ops.txt'));
+    failDownloadStream(failing.ticket, '文件打开失败');
+    assert.equal(beginDownloadStream(failing.ticket, 'instance', 'ops.txt'), null);
+    assert.deepEqual(getDownloadTicketStatus(failing.ticket, 'user'), { status: 'failed', error: '文件打开失败' });
 
     const uploaded = await streamToUploadTemp(Readable.from([Buffer.from('streamed')]), 'test');
     assert.equal(fs.readFileSync(uploaded, 'utf8'), 'streamed');

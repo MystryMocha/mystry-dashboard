@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 type RateLimitOptions = {
@@ -16,6 +17,14 @@ export type LoginFailureLimiter = {
   recordFailure: (request: FastifyRequest, reply: FastifyReply, username: string) => void;
   reset: (request: FastifyRequest, username: string) => void;
 };
+
+/** 按恒定时间比较请求头里的令牌，避免比较耗时的差异泄露令牌内容。未配置令牌时一律拒绝。 */
+export function tokenMatches(value: string | string[] | undefined, expected: string | null): boolean {
+  if (expected === null || typeof value !== 'string') return false;
+  const expectedBytes = Buffer.from(expected, 'utf8');
+  const actualBytes = Buffer.from(value, 'utf8');
+  return actualBytes.length === expectedBytes.length && timingSafeEqual(actualBytes, expectedBytes);
+}
 
 /**
  * 轻量内存限流器。面板是单进程服务，使用 Fastify hook 可以避免引入与 Fastify 版本耦合的插件。

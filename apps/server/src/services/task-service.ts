@@ -10,6 +10,7 @@ import {
   stagingMarkerMatches,
   taskStagingDir,
 } from './task-staging-service.js';
+import { errorMessage, hasErrorCode } from '../utils/errors.js';
 
 export class TaskCapacityError extends Error {
   readonly code = 'TASK_CAPACITY';
@@ -31,18 +32,12 @@ export class TaskShuttingDownError extends Error {
 
 export function isTaskCapacityError(error: unknown): error is TaskCapacityError {
   return error instanceof TaskCapacityError
-    || (error !== null
-      && typeof error === 'object'
-      && 'code' in error
-      && error.code === 'TASK_CAPACITY');
+    || hasErrorCode(error, 'TASK_CAPACITY');
 }
 
 export function isTaskShuttingDownError(error: unknown): error is TaskShuttingDownError {
   return error instanceof TaskShuttingDownError
-    || (error !== null
-      && typeof error === 'object'
-      && 'code' in error
-      && error.code === 'TASK_SHUTTING_DOWN');
+    || hasErrorCode(error, 'TASK_SHUTTING_DOWN');
 }
 
 type TaskWorker = (
@@ -201,7 +196,7 @@ function tryCleanInterruptedStaging(row: TaskRow): { cleaned: boolean; cleanupEr
   } catch (error) {
     return {
       cleaned: false,
-      cleanupError: error instanceof Error ? error.message : String(error),
+      cleanupError: errorMessage(error),
     };
   }
 }

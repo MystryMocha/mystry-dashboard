@@ -3,14 +3,14 @@ import path from 'node:path';
 import type { DeployCoreInput } from '@mystry/shared';
 import { nanoid } from 'nanoid';
 import { config } from '../config.js';
-import { registerPromotedInstance, updateInstanceMeta } from './instance-service.js';
+import { registerPromotedInstance } from './instance-service.js';
 import { detectJarFile, findModLoaderArgsFile } from './server-launch-detect.js';
 import { resolveSafePath } from '../utils/path.js';
 import { recordTaskStaging, runBackgroundTask } from './task-service.js';
 import { prepareTaskStaging, promoteTaskStagingToInstance, removeTaskStagingTree } from './task-staging-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
-import { throwIfAborted } from './core-utils.js';
+import { throwIfAborted } from '../utils/errors.js';
 import { ensureCoreCache, isUsableCoreCache } from './core-download.js';
 import { runInstaller, writeUserJvmArgs } from './core-installer.js';
 import {
@@ -196,12 +196,6 @@ export async function deployCore(input: DeployCoreInput) {
           javaRuntimeId: input.javaRuntimeId ?? null,
         });
         completed = true;
-        updateInstanceMeta(instanceId, {
-          core_type: input.coreType,
-          mc_version: input.mcVersion,
-          jar_file: jarFile,
-          accept_eula: input.acceptEula ? 1 : 0,
-        });
         if (usesInstaller) report(100, '部署完成');
         return { instanceId };
       } finally {

@@ -22,6 +22,7 @@ import { processManager } from './process-manager.js';
 import { nodeExists } from './node-service.js';
 import { getJavaRuntime } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
+import { errorMessage } from '../utils/errors.js';
 
 const DEFAULT_JVM_ARGS = '-Xms1G -Xmx2G';
 
@@ -97,9 +98,10 @@ export function getInstanceRow(id: string): InstanceRow | null {
   return row ?? null;
 }
 
-export function createInstance(input: CreateInstanceInput): InstanceInfo {
-  const id = nanoid(12);
-  const now = nowIso();
+type PreparedInstanceInput = { nodeId: string; jvmArgs: string };
+
+/** 新建和注册实例共用的输入校验：节点、Java 运行时和 JVM 参数。 */
+function prepareInstanceInput(input: CreateInstanceInput): PreparedInstanceInput {
   const nodeId = input.nodeId?.trim() || LOCAL_NODE_ID;
   if (!nodeExists(nodeId)) {
     throw new Error('所选节点不存在');
@@ -107,16 +109,55 @@ export function createInstance(input: CreateInstanceInput): InstanceInfo {
   if (nodeId !== LOCAL_NODE_ID) {
     throw new Error('当前版本不支持在远程节点上创建实例');
   }
-  const dir = defaultInstanceDir(id);
-  const ownershipMarker = nanoid(32);
-  let markerWritten = false;
-  let directoryCreatedByCall = false;
-
   assertValidJavaRuntime(input.javaRuntimeId);
   const jvmArgs = normalizeAndAssertJvmArgs(input.jvmArgs ?? DEFAULT_JVM_ARGS, {
     coreType: input.coreType ?? 'custom',
     javaRuntimeId: input.javaRuntimeId,
   });
+  return { nodeId, jvmArgs };
+}
+
+function insertInstanceRow(
+  id: string,
+  input: CreateInstanceInput,
+  prepared: PreparedInstanceInput,
+  ownershipMarker: string,
+): void {
+  const now = nowIso();
+  const result = getDb()
+    .prepare(
+      `INSERT INTO instances
+      (id, name, core_type, mc_version, jar_file, java_path, jvm_args, accept_eula, install_path, ownership_marker, node_id, java_runtime_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      id,
+      input.name,
+      input.coreType ?? 'custom',
+      input.mcVersion ?? null,
+      input.jarFile ?? 'server.jar',
+      'java',
+      prepared.jvmArgs,
+      input.acceptEula ? 1 : 0,
+      null,
+      ownershipMarker,
+      prepared.nodeId,
+      input.javaRuntimeId ?? null,
+      now,
+      now,
+    );
+  if (Number(result.changes) !== 1) {
+    throw new Error('创建实例失败：数据库未写入实例记录');
+  }
+}
+
+export function createInstance(input: CreateInstanceInput): InstanceInfo {
+  const id = nanoid(12);
+  const prepared = prepareInstanceInput(input);
+  const dir = defaultInstanceDir(id);
+  const ownershipMarker = nanoid(32);
+  let markerWritten = false;
+  let directoryCreatedByCall = false;
 
   try {
     const existedBefore = fs.existsSync(dir);
@@ -133,36 +174,12 @@ export function createInstance(input: CreateInstanceInput): InstanceInfo {
   } catch (err) {
     cleanupCreatedDirectory(id, dir, ownershipMarker, markerWritten, directoryCreatedByCall);
     throw new Error(
-      `无法创建或写入安装目录：${dir}（${err instanceof Error ? err.message : String(err)}）`,
+      `无法创建或写入安装目录：${dir}（${errorMessage(err)}）`,
     );
   }
 
   try {
-    const result = getDb()
-      .prepare(
-        `INSERT INTO instances
-        (id, name, core_type, mc_version, jar_file, java_path, jvm_args, accept_eula, install_path, ownership_marker, node_id, java_runtime_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        id,
-        input.name,
-        input.coreType ?? 'custom',
-        input.mcVersion ?? null,
-        input.jarFile ?? 'server.jar',
-        'java',
-        jvmArgs,
-        input.acceptEula ? 1 : 0,
-        null,
-        ownershipMarker,
-        nodeId,
-        input.javaRuntimeId ?? null,
-        now,
-        now,
-      );
-    if (Number(result.changes) !== 1) {
-      throw new Error('创建实例失败：数据库未写入实例记录');
-    }
+    insertInstanceRow(id, input, prepared, ownershipMarker);
   } catch (err) {
     cleanupCreatedDirectory(id, dir, ownershipMarker, markerWritten, directoryCreatedByCall);
     throw err;
@@ -173,20 +190,7 @@ export function createInstance(input: CreateInstanceInput): InstanceInfo {
 
 /** 将已 promote 到 instances/<id> 的目录注册进数据库（部署/导入任务完成时调用）。 */
 export function registerPromotedInstance(id: string, input: CreateInstanceInput): InstanceInfo {
-  const now = nowIso();
-  const nodeId = input.nodeId?.trim() || LOCAL_NODE_ID;
-  if (!nodeExists(nodeId)) {
-    throw new Error('所选节点不存在');
-  }
-  if (nodeId !== LOCAL_NODE_ID) {
-    throw new Error('当前版本不支持在远程节点上创建实例');
-  }
-  assertValidJavaRuntime(input.javaRuntimeId);
-  const jvmArgs = normalizeAndAssertJvmArgs(input.jvmArgs ?? DEFAULT_JVM_ARGS, {
-    coreType: input.coreType ?? 'custom',
-    javaRuntimeId: input.javaRuntimeId,
-  });
-
+  const prepared = prepareInstanceInput(input);
   const dir = defaultInstanceDir(id);
   if (!fs.existsSync(dir)) {
     throw new Error('实例目录不存在，无法注册实例');
@@ -202,31 +206,7 @@ export function registerPromotedInstance(id: string, input: CreateInstanceInput)
   fs.accessSync(dir, fs.constants.W_OK);
 
   try {
-    const result = getDb()
-      .prepare(
-        `INSERT INTO instances
-        (id, name, core_type, mc_version, jar_file, java_path, jvm_args, accept_eula, install_path, ownership_marker, node_id, java_runtime_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        id,
-        input.name,
-        input.coreType ?? 'custom',
-        input.mcVersion ?? null,
-        input.jarFile ?? 'server.jar',
-        'java',
-        jvmArgs,
-        input.acceptEula ? 1 : 0,
-        null,
-        ownershipMarker,
-        nodeId,
-        input.javaRuntimeId ?? null,
-        now,
-        now,
-      );
-    if (Number(result.changes) !== 1) {
-      throw new Error('创建实例失败：数据库未写入实例记录');
-    }
+    insertInstanceRow(id, input, prepared, ownershipMarker);
   } catch (err) {
     removeOwnershipMarker(id, dir, ownershipMarker);
     throw err;
@@ -326,7 +306,7 @@ function adoptManagedDirectoryWithinLock(id: string): InstanceInfo {
     }
   } catch (err) {
     throw new Error(
-      `无法接管面板托管目录：${err instanceof Error ? err.message : String(err)}`,
+      `无法接管面板托管目录：${errorMessage(err)}`,
     );
   }
 
@@ -366,32 +346,4 @@ function adoptManagedDirectoryWithinLock(id: string): InstanceInfo {
   }
 
   return getInstance(id)!;
-}
-
-export function updateInstanceMeta(
-  id: string,
-  patch: Partial<Pick<InstanceRow, 'core_type' | 'mc_version' | 'jar_file' | 'accept_eula'>>,
-): void {
-  const existing = getInstanceRow(id);
-  if (!existing) throw new Error('实例不存在');
-  getDb()
-    .prepare(
-      `UPDATE instances SET
-        core_type = ?,
-        mc_version = ?,
-        jar_file = ?,
-        java_path = ?,
-        accept_eula = ?,
-        updated_at = ?
-      WHERE id = ?`,
-    )
-    .run(
-      patch.core_type ?? existing.core_type,
-      patch.mc_version !== undefined ? patch.mc_version : existing.mc_version,
-      patch.jar_file ?? existing.jar_file,
-      'java',
-      patch.accept_eula !== undefined ? patch.accept_eula : existing.accept_eula,
-      nowIso(),
-      id,
-    );
 }

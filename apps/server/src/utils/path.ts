@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { config } from '../config.js';
 import { getDb } from '../db.js';
+import { hasErrorCode } from './errors.js';
 
 export const OWNERSHIP_MARKER_FILE = '.mystry-instance.json';
 
@@ -45,7 +46,7 @@ export function assertSafeDirectoryPath(targetPath: string): void {
       assertSafeInstanceRoot(probe);
       return;
     } catch (err) {
-      if (!(err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT')) throw err;
+      if (!hasErrorCode(err, 'ENOENT')) throw err;
       const parent = path.dirname(probe);
       if (parent === probe) throw new Error('找不到安全的目录父路径');
       probe = parent;
@@ -65,7 +66,7 @@ function assertNoSymlinkTraversal(root: string, target: string): void {
     try {
       stat = fs.lstatSync(current);
     } catch (err) {
-      if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') break;
+      if (hasErrorCode(err, 'ENOENT')) break;
       throw err;
     }
     if (stat.isSymbolicLink()) {
@@ -155,7 +156,7 @@ export function inspectOwnershipMarker(
   try {
     stat = fs.lstatSync(markerPath);
   } catch (err) {
-    if (err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT') {
+    if (hasErrorCode(err, 'ENOENT')) {
       return { exists: false, marker: null };
     }
     throw err;

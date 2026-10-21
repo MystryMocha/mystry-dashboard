@@ -4,6 +4,7 @@ import { scanJavaRuntimes } from '../services/java-runtime-service.js';
 import { MetricsService } from '../services/metrics-service.js';
 import { processManager } from '../services/process-manager.js';
 import { config } from '../config.js';
+import { sendRouteError } from '../http-errors.js';
 
 export async function systemRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
@@ -14,7 +15,7 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     try {
       return await detectJava();
     } catch (err) {
-      return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });
+      return sendRouteError(reply, err, 500);
     }
   });
 
@@ -25,7 +26,7 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
         const runtimes = await scanJavaRuntimes(req.query.refresh === '1');
         return { runtimes };
       } catch (err) {
-        return reply.code(500).send({ error: err instanceof Error ? err.message : String(err) });
+        return sendRouteError(reply, err, 500);
       }
     },
   );

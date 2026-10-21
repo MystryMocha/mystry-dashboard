@@ -2,9 +2,11 @@ import fs, { createWriteStream } from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
-import { Readable, Transform } from 'node:stream';
+import { Readable } from 'node:stream';
 import { config } from '../config.js';
-import { abortError, USER_AGENT } from './core-utils.js';
+import { createByteCounter } from '../utils/byte-counter.js';
+import { abortError } from '../utils/errors.js';
+import { createTimeoutAbort, USER_AGENT } from './core-utils.js';
 
 export function isUsableCoreCache(filePath: string): boolean {
   try {
@@ -21,18 +23,8 @@ export async function downloadToFile(
   onProgress?: (ratio: number) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const controller = new AbortController();
-  let timedOut = false;
-  const abortFromParent = () => controller.abort(signal?.reason);
-  if (signal) {
-    if (signal.aborted) throw abortError(signal);
-    signal.addEventListener('abort', abortFromParent, { once: true });
-    if (signal.aborted) abortFromParent();
-  }
-  const timeout = setTimeout(() => {
-    timedOut = true;
-    controller.abort(new Error('核心下载超时'));
-  }, config.coreDownloadTimeoutMs);
+  if (signal?.aborted) throw abortError(signal);
+  const timeout = createTimeoutAbort(signal, config.coreDownloadTimeoutMs, '核心下载超时');
   const part = path.join(
     path.dirname(dest),
     `.part-${path.basename(dest)}-${Date.now()}-${randomBytes(12).toString('hex')}`,
@@ -41,7 +33,7 @@ export async function downloadToFile(
 
   try {
     fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
-    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: controller.signal });
+    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: timeout.signal });
     if (!res.ok || !res.body) {
       throw new Error(`下载失败（HTTP ${res.status}）：${url}`);
     }
@@ -50,24 +42,19 @@ export async function downloadToFile(
     if (total > config.maxCoreDownloadBytes) throw new Error('核心下载文件超过大小限制');
     let downloaded = 0;
     const nodeStream = Readable.fromWeb(res.body as import('stream/web').ReadableStream);
-    const counter = new Transform({
-      transform(chunk: Buffer, _encoding, callback) {
-        downloaded += chunk.length;
-        if (downloaded > config.maxCoreDownloadBytes) {
-          callback(new Error('核心下载文件超过大小限制'));
-          return;
-        }
-        if (total > 0 && onProgress) onProgress(downloaded / total);
-        callback(null, chunk);
-      },
+    const counter = createByteCounter((chunkBytes) => {
+      downloaded += chunkBytes;
+      if (downloaded > config.maxCoreDownloadBytes) return new Error('核心下载文件超过大小限制');
+      if (total > 0 && onProgress) onProgress(downloaded / total);
+      return undefined;
     });
     await pipeline(
       nodeStream,
       counter,
       createWriteStream(part, { flags: 'wx', mode: 0o600 }),
-      { signal: controller.signal },
+      { signal: timeout.signal },
     );
-    if (controller.signal.aborted) throw abortError(controller.signal);
+    if (timeout.signal.aborted) throw abortError(timeout.signal);
 
     // 只把完整 part 文件提升为最终缓存文件；最终路径不会被用作下载中的暂存区。
     if (isUsableCoreCache(dest)) {
@@ -84,13 +71,9 @@ export async function downloadToFile(
     } catch {
       /* 清理失败不覆盖原始错误 */
     }
-    if (signal?.aborted) throw abortError(signal);
-    if (timedOut) throw new Error('核心下载超时');
-    if (controller.signal.aborted) throw abortError(controller.signal);
-    throw error;
+    throw timeout.errorFor(error);
   } finally {
-    clearTimeout(timeout);
-    signal?.removeEventListener('abort', abortFromParent);
+    timeout.dispose();
   }
 }
 

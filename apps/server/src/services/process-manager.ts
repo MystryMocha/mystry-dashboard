@@ -12,18 +12,9 @@ import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
 import { ensureServerPropertiesDefaults } from './config-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
+import { errorMessage } from '../utils/errors.js';
 
-type ResourceLimits = {
-  maxCommandBytes: number;
-  maxConsoleBufferBytes: number;
-  maxConsoleChunkBytes: number;
-  maxConsoleStdinBytes: number;
-};
-const resourceLimits = config as typeof config & Partial<ResourceLimits>;
-const maxCommandBytes = resourceLimits.maxCommandBytes ?? 4_096;
-const maxConsoleBufferBytes = resourceLimits.maxConsoleBufferBytes ?? 1_048_576;
-const maxConsoleChunkBytes = resourceLimits.maxConsoleChunkBytes ?? 65_536;
-const maxConsoleStdinBytes = resourceLimits.maxConsoleStdinBytes ?? 65_536;
+const { maxCommandBytes, maxConsoleBufferBytes, maxConsoleChunkBytes, maxConsoleStdinBytes } = config;
 
 const defaultStopGraceMs = 15_000;
 
@@ -224,7 +215,7 @@ export class ProcessManager extends EventEmitter {
           stillStopping.push(instanceId);
           continue;
         }
-        errors.push(`${instanceId}: ${error instanceof Error ? error.message : String(error)}`);
+        errors.push(`${instanceId}: ${errorMessage(error)}`);
       }
     }
     return { attempted: instanceIds.length, errors, stillStopping };

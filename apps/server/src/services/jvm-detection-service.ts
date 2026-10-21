@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import { inspectJvmArgFile, type CoreType, type DetectedJvmConfig } from '@mystry/shared';
 import { resolveSafePath } from '../utils/path.js';
+import { errorMessage } from '../utils/errors.js';
 
 export const MAX_DETECTED_JVM_ARGS_BYTES = 64 * 1024;
 
@@ -34,7 +35,7 @@ export function detectJvmConfigFile(
   try {
     stat = fs.lstatSync(file);
   } catch (error) {
-    return detectionError(`无法读取 user_jvm_args.txt：${error instanceof Error ? error.message : String(error)}`);
+    return detectionError(`无法读取 user_jvm_args.txt：${errorMessage(error)}`);
   }
   if (!stat.isFile() || stat.isSymbolicLink()) {
     return detectionError('user_jvm_args.txt 必须是普通文件，不能是链接或特殊文件');
@@ -45,6 +46,6 @@ export function detectJvmConfigFile(
   try {
     return inspectJvmArgFile(fs.readFileSync(file, 'utf8'), { coreType });
   } catch (error) {
-    return detectionError(`无法读取 user_jvm_args.txt：${error instanceof Error ? error.message : String(error)}`);
+    return detectionError(`无法读取 user_jvm_args.txt：${errorMessage(error)}`);
   }
 }

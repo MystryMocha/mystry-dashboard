@@ -1,7 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
-import { createRateLimitHook } from '../services/security-service.js';
+import { createRateLimitHook, tokenMatches } from '../services/security-service.js';
 
 export type ShutdownSummary = {
   runningInstances: number;
@@ -22,13 +21,6 @@ function isLoopbackAddress(address: string): boolean {
     || normalized === '::ffff:127.0.0.1';
 }
 
-function isValidLauncherToken(value: string | string[] | undefined): boolean {
-  if (config.launcherToken === null || typeof value !== 'string') return false;
-  const expected = Buffer.from(config.launcherToken, 'utf8');
-  const actual = Buffer.from(value, 'utf8');
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
-}
-
 /** 仅供本机 PanelManager 调用的安全关闭通道。 */
 export async function launcherRoutes(
   app: FastifyInstance,
@@ -47,7 +39,7 @@ export async function launcherRoutes(
       if (!isLoopbackAddress(req.ip)) {
         return reply.code(403).send({ error: '关闭接口仅允许本机访问' });
       }
-      if (!isValidLauncherToken(req.headers['x-launcher-token'])) {
+      if (!tokenMatches(req.headers['x-launcher-token'], config.launcherToken)) {
         return reply.code(401).send({ error: '启动器令牌无效' });
       }
       if (!options.prepareShutdown || !options.startShutdown) {

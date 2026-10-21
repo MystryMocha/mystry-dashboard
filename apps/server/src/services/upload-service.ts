@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { Transform, type Readable } from 'node:stream';
+import type { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { config } from '../config.js';
 import { resolveSafePath } from '../utils/path.js';
+import { createByteCounter } from '../utils/byte-counter.js';
+import { hasErrorCode } from '../utils/errors.js';
 
 export class UploadCapacityError extends Error {
   readonly code = 'UPLOAD_CAPACITY';
@@ -26,18 +28,12 @@ export class UploadTooLargeError extends Error {
 
 export function isUploadCapacityError(error: unknown): error is UploadCapacityError {
   return error instanceof UploadCapacityError
-    || (error !== null
-      && typeof error === 'object'
-      && 'code' in error
-      && error.code === 'UPLOAD_CAPACITY');
+    || hasErrorCode(error, 'UPLOAD_CAPACITY');
 }
 
 export function isUploadTooLargeError(error: unknown): error is UploadTooLargeError {
   return error instanceof UploadTooLargeError
-    || (error !== null
-      && typeof error === 'object'
-      && 'code' in error
-      && error.code === 'UPLOAD_TOO_LARGE');
+    || hasErrorCode(error, 'UPLOAD_TOO_LARGE');
 }
 
 let activeUploads = 0;
@@ -77,16 +73,10 @@ export async function streamToUploadTemp(input: Readable, prefix: string): Promi
     fs.mkdirSync(config.uploadDir, { recursive: true, mode: 0o700 });
     target = tempPath(prefix);
     let bytes = 0;
-    const counter = new Transform({
-      transform(chunk: Buffer, _encoding, callback) {
-        armIdleTimer();
-        bytes += chunk.length;
-        if (bytes > config.maxUploadBytes) {
-          callback(new UploadTooLargeError());
-          return;
-        }
-        callback(null, chunk);
-      },
+    const counter = createByteCounter((chunkBytes) => {
+      armIdleTimer();
+      bytes += chunkBytes;
+      return bytes > config.maxUploadBytes ? new UploadTooLargeError() : undefined;
     });
 
     armIdleTimer();

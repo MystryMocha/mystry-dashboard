@@ -1,7 +1,6 @@
 import fs from 'node:fs';
-import path from 'node:path';
-import { randomBytes } from 'node:crypto';
 import { assertTextFileWithinLimit } from './file-service.js';
+import { writeFileAtomic } from '../utils/atomic-write.js';
 import { getInstanceDir, resolveSafePath } from '../utils/path.js';
 
 export type PropertiesMap = Record<string, string>;
@@ -83,30 +82,31 @@ function unescapePropertyValue(value: string): string {
   return result;
 }
 
-function parseEntryLine(raw: string): PropertyEntryLine | null {
-  const trimmedStart = raw.trimStart();
-  if (!trimmedStart || trimmedStart.startsWith('#') || trimmedStart.startsWith('!')) {
-    return null;
-  }
-
-  let keyEnd = -1;
-  let separator: '=' | ':' | null = null;
+/** 找到第一个未被反斜杠转义的 = 或 :，key 中的 \= 不算分隔符。 */
+function findSeparatorIndex(raw: string): number {
   for (let index = 0; index < raw.length; index += 1) {
     const char = raw[index]!;
     if (char === '\\') {
       index += 1;
       continue;
     }
-    if ((char === '=' || char === ':') && keyEnd === -1) {
-      keyEnd = index;
-      separator = char;
-      break;
-    }
+    if (char === '=' || char === ':') return index;
   }
-  if (keyEnd === -1 || !separator) return null;
+  return -1;
+}
+
+function parseEntryLine(raw: string): PropertyEntryLine | null {
+  const trimmedStart = raw.trimStart();
+  if (!trimmedStart || trimmedStart.startsWith('#') || trimmedStart.startsWith('!')) {
+    return null;
+  }
+
+  const keyEnd = findSeparatorIndex(raw);
+  if (keyEnd === -1) return null;
 
   const key = raw.slice(0, keyEnd).trim();
   if (!key) return null;
+  const separator = raw[keyEnd] as '=' | ':';
   const value = unescapePropertyValue(raw.slice(keyEnd + 1).trimStart());
   return { kind: 'entry', raw, key, separator, value };
 }
@@ -163,25 +163,13 @@ export function propertiesMapFromDocument(document: PropertiesDocument): Propert
   return result;
 }
 
-/** 兼容旧接口：解析为有效键值映射 */
+/** 解析为有效键值映射（重复键取最后一次定义） */
 export function parseProperties(content: string): PropertiesMap {
   return propertiesMapFromDocument(parsePropertiesDocument(content));
 }
 
 function replaceEntryValue(line: PropertyEntryLine, value: string): PropertyEntryLine {
-  // 与 parseEntryLine 相同的扫描方式定位分隔符，跳过 key 中反斜杠转义的 \=。
-  let separatorIndex = -1;
-  for (let index = 0; index < line.raw.length; index += 1) {
-    const char = line.raw[index]!;
-    if (char === '\\') {
-      index += 1;
-      continue;
-    }
-    if (char === line.separator) {
-      separatorIndex = index;
-      break;
-    }
-  }
+  const separatorIndex = findSeparatorIndex(line.raw);
   const prefix = separatorIndex === -1 ? line.raw : line.raw.slice(0, separatorIndex + 1);
   return {
     ...line,
@@ -262,34 +250,6 @@ function assertMutablePropertiesFile(instanceId: string, file: string): void {
   }
 }
 
-function writeFileAtomic(target: string, content: string): void {
-  const dir = path.dirname(target);
-  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const temp = path.join(
-    dir,
-    `.${path.basename(target)}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`,
-  );
-  const fd = fs.openSync(temp, 'wx', 0o600);
-  try {
-    fs.writeSync(fd, Buffer.from(content, 'utf8'));
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
-  }
-  try {
-    // 直接 rename 覆盖：POSIX 原子替换，Windows 上 libuv 使用
-    // MOVEFILE_REPLACE_EXISTING。不再先删除原文件，rename 失败时原文件仍保留。
-    fs.renameSync(temp, target);
-  } catch (error) {
-    try {
-      fs.rmSync(temp, { force: true });
-    } catch {
-      /* 忽略清理失败 */
-    }
-    throw error;
-  }
-}
-
 export function readServerProperties(instanceId: string): PropertiesMap {
   const root = getInstanceDir(instanceId);
   const file = resolveSafePath(root, 'server.properties');
@@ -323,12 +283,5 @@ export function writeServerProperties(instanceId: string, patch: PropertiesMap):
   const root = getInstanceDir(instanceId);
   const file = resolveSafePath(root, 'server.properties');
   assertMutablePropertiesFile(instanceId, file);
-
-  // 默认文档不混入 patch：先解析纯默认值，再统一经 applyPropertiesPatch 转义应用，
-  // 避免未转义值（换行、尾随反斜杠）在解析阶段被拆成额外属性或吞并下一行。
-  const baseDocument = fs.existsSync(file)
-    ? parsePropertiesDocument(fs.readFileSync(file, 'utf8'))
-    : parsePropertiesDocument(stringifyProperties({ ...DEFAULT_PROPERTIES }));
-  const nextContent = stringifyPropertiesDocument(applyPropertiesPatch(baseDocument, patch));
-  writeFileAtomic(file, nextContent);
+  writeFileAtomic(file, previewServerPropertiesWrite(instanceId, patch));
 }

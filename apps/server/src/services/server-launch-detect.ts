@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { CoreType } from '@mystry/shared';
 import { assertSafeInstanceRoot, resolveSafePath } from '../utils/path.js';
+import { throwIfAborted } from '../utils/errors.js';
 
 export type ServerLaunchTarget = {
   value: string;
@@ -20,11 +21,6 @@ class ModLoaderScanLimitError extends Error {
     super(message);
     this.name = 'ModLoaderScanLimitError';
   }
-}
-
-function throwIfAborted(signal?: AbortSignal): void {
-  if (!signal?.aborted) return;
-  throw signal.reason instanceof Error ? signal.reason : new Error('扫描已取消');
 }
 
 function isRegularFile(root: string, relativePath: string): boolean {

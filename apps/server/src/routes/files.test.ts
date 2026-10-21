@@ -12,15 +12,23 @@ process.env.LAUNCHER_TOKEN = 'c'.repeat(64);
 test('ticket 一次性消费与重放拒绝（内存服务）', async () => {
   const {
     resetDownloadTicketsForTests,
-    issueDownloadTicket,
-    consumeDownloadTicket,
+    reserveDownloadTicket,
     beginDownloadStream,
+    completeDownloadStream,
+    getDownloadTicketStatus,
   } = await import('../services/download-ticket-service.js');
   resetDownloadTicketsForTests();
-  const issued = issueDownloadTicket('user-1', 'inst-1', 'logs/latest.log');
-  assert.equal(consumeDownloadTicket(issued.ticket, 'inst-1', 'logs/latest.log')?.userId, 'user-1');
-  assert.equal(consumeDownloadTicket(issued.ticket, 'inst-1', 'logs/latest.log'), null);
+  let released = 0;
+  const issued = reserveDownloadTicket('user-1', 'inst-1', 'logs/latest.log', () => {
+    released += 1;
+  });
+  assert.equal(beginDownloadStream(issued.ticket, 'inst-1', 'logs/latest.log')?.userId, 'user-1');
   assert.equal(beginDownloadStream(issued.ticket, 'inst-1', 'logs/latest.log'), null);
+  completeDownloadStream(issued.ticket);
+  assert.equal(released, 1);
+  assert.equal(beginDownloadStream(issued.ticket, 'inst-1', 'logs/latest.log'), null);
+  assert.deepEqual(getDownloadTicketStatus(issued.ticket, 'user-1'), { status: 'consumed' });
+  assert.equal(getDownloadTicketStatus(issued.ticket, 'user-2'), null);
 });
 
 test('POST 签发时应预占并发下载槽', async () => {

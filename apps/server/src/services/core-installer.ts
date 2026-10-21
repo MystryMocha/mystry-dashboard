@@ -4,7 +4,7 @@ import { config } from '../config.js';
 import { resolveSafePath } from '../utils/path.js';
 import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
-import { abortError } from './core-utils.js';
+import { abortError } from '../utils/errors.js';
 
 const INSTALLER_MAX_ATTEMPTS = 2;
 

@@ -1,19 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ConsoleMessage, InstanceStatus } from '@mystry/shared';
 import { config } from '../config.js';
+import { errorMessage } from '../utils/errors.js';
 import { processManager } from '../services/process-manager.js';
 import { getInstance } from '../services/instance-service.js';
 import { issueConsoleTicket, consumeConsoleTicket } from '../services/console-ticket-service.js';
 
-type ResourceLimits = {
-  maxConsoleBufferBytes: number;
-  maxConsoleChunkBytes: number;
-  maxConsoleIncomingBytes: number;
-};
-const resourceLimits = config as typeof config & Partial<ResourceLimits>;
-const maxConsoleBufferBytes = resourceLimits.maxConsoleBufferBytes ?? 1_048_576;
-const maxConsoleChunkBytes = resourceLimits.maxConsoleChunkBytes ?? 65_536;
-const maxIncomingMessageBytes = resourceLimits.maxConsoleIncomingBytes ?? 4_352;
+const { maxConsoleBufferBytes, maxConsoleChunkBytes } = config;
+const maxIncomingMessageBytes = config.maxConsoleIncomingBytes;
 const maxOutgoingMessageBytes = maxConsoleBufferBytes + maxConsoleChunkBytes;
 const maxSocketBufferedBytes = maxConsoleBufferBytes + maxConsoleChunkBytes;
 
@@ -234,7 +228,7 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
         } catch (err) {
           sendSocketMessage(socket, {
             type: 'error',
-            data: err instanceof Error ? err.message : String(err),
+            data: errorMessage(err),
           });
         }
       });

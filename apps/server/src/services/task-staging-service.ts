@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
+import { writeFileAtomic } from '../utils/atomic-write.js';
 import { defaultInstanceDir } from '../utils/path.js';
 
 export const STAGING_ROOT_DIR = '.mystry-staging';
@@ -18,10 +19,7 @@ export function taskStagingDir(taskId: string, instanceId: string, dataDir = con
 }
 
 export function writeTaskStagingMarker(dir: string, marker: TaskStagingMarker): void {
-  const markerPath = path.join(dir, STAGING_MARKER_FILE);
-  const tempPath = `${markerPath}.${process.pid}.tmp`;
-  fs.writeFileSync(tempPath, `${JSON.stringify(marker)}\n`, 'utf8');
-  fs.renameSync(tempPath, markerPath);
+  writeFileAtomic(path.join(dir, STAGING_MARKER_FILE), `${JSON.stringify(marker)}\n`);
 }
 
 export function readTaskStagingMarker(dir: string): TaskStagingMarker | null {

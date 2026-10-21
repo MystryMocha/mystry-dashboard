@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type {
   ExistingServerSourceInfo,
@@ -13,7 +12,7 @@ import {
   assertSafeInstanceRoot,
   resolveSafePath,
 } from '../utils/path.js';
-import { registerPromotedInstance, updateInstanceMeta } from './instance-service.js';
+import { registerPromotedInstance } from './instance-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { detectJvmConfigFile, jvmConfigFileFingerprint } from './jvm-detection-service.js';
 import { detectJarFile, detectServerLaunchTarget, isModLoaderScanLimitError, type ModLoaderScanBudget } from './server-launch-detect.js';
@@ -23,6 +22,8 @@ import {
   promoteTaskStagingToInstance,
   removeTaskStagingTree,
 } from './task-staging-service.js';
+import { createByteCounter } from '../utils/byte-counter.js';
+import { errorMessage, throwIfAborted } from '../utils/errors.js';
 
 type SourceScan = {
   entries: number;
@@ -52,11 +53,6 @@ function modLoaderFullScanBudget(signal: AbortSignal): ModLoaderScanBudget {
     deadlineMs: config.modLoaderScanTimeoutMs,
     signal,
   };
-}
-
-function throwIfAborted(signal: AbortSignal): void {
-  if (!signal.aborted) return;
-  throw signal.reason instanceof Error ? signal.reason : new Error('任务已取消');
 }
 
 function assertSourceId(sourceId: string): void {
@@ -167,7 +163,7 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
       coreType: 'custom',
       modifiedAt: new Date(0).toISOString(),
       ready: false,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage(error),
     };
   }
 }
@@ -310,15 +306,11 @@ async function copySourceDirectory(
       }
 
       let fileBytes = 0;
-      const meter = new Transform({
-        transform(chunk: Buffer, _encoding, callback) {
-          fileBytes += chunk.length;
-          if (copiedBytes + fileBytes > config.maxExistingImportBytes) {
-            callback(new Error(`已有服务端总大小超过上限 ${config.maxExistingImportBytes} 字节`));
-            return;
-          }
-          callback(null, chunk);
-        },
+      const meter = createByteCounter((chunkBytes) => {
+        fileBytes += chunkBytes;
+        return copiedBytes + fileBytes > config.maxExistingImportBytes
+          ? new Error(`已有服务端总大小超过上限 ${config.maxExistingImportBytes} 字节`)
+          : undefined;
       });
       // 先打开源文件 fd 再 fstat 校验，消除 lstat 与读流之间文件被替换的 TOCTOU 窗口。
       const sourceFd = await fs.promises.open(source, 'r');
@@ -405,12 +397,6 @@ export async function importExistingServerDirectory(input: ImportExistingServerI
         javaRuntimeId: input.javaRuntimeId ?? null,
       });
       completed = true;
-      updateInstanceMeta(instanceId, {
-        core_type: input.coreType ?? copiedLaunchTarget.coreType,
-        mc_version: input.mcVersion?.trim() || null,
-        jar_file: copiedLaunchTarget.value,
-        accept_eula: input.acceptEula ? 1 : 0,
-      });
       if (input.acceptEula) {
         const instanceRoot = path.join(config.instancesDir, instanceId);
         fs.writeFileSync(resolveSafePath(instanceRoot, 'eula.txt'), 'eula=true\n', 'utf8');
