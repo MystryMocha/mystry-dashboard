@@ -32,7 +32,7 @@ Minecraft 服务端需要 Java，面板不会自动安装。按你要开的游�
 ### 2. 启动面板并创建管理员
 
 1. 启动面板：
-   - **便携版（推荐）**：解压后，Windows 双击 `mystryctl.cmd`，在菜单里直接按回车；Linux 在解压目录运行 `./mystryctl start`。不需要安装 Node.js。
+   - **便携版（推荐）**：解压后，Windows 双击 `mystryctl.cmd`，在菜单里直接按回车；启动完成后窗口会停住，看完提示再按回车关闭。Linux 在解压目录运行 `./mystryctl start`。不需要安装 Node.js。
    - **源码版**：先安装 Node.js 22 或更高版本。Windows 双击仓库根目录的 `PanelManager.cmd`；Linux / WSL 运行 `./PanelManager.sh start`。第一次会自动安装依赖并构建，需要几分钟。
 2. 启动器会自动生成配置并打开浏览器；没有自动打开时，手动访问 `http://127.0.0.1:3000`。
 3. 页面显示「初始化管理员」：

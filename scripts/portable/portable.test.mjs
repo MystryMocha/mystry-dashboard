@@ -5,8 +5,8 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { spawn, spawnSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createChecksums } from './create-checksums.mjs';
 import { createReleaseMetadata } from './package-release.mjs';
 
@@ -30,6 +30,76 @@ test('便携入口只调用包内 Node 运行时', async () => {
   assert.doesNotMatch(windows, /\bnpm(?:\.cmd)?\b/i);
   assert.match(unix, /runtime\/bin\/node/);
   assert.doesNotMatch(unix, /\bnpm\b/i);
+});
+
+/**
+ * 以「双击启动」方式运行控制器：stdin 被标记为终端，菜单选项通过管道逐步输入。
+ * 返回读取输出、写入一行与等待退出的辅助函数。
+ */
+async function startInteractiveController(t) {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-interactive-'));
+  const preload = path.join(home, 'force-tty.mjs');
+  await fsp.writeFile(preload, "Object.defineProperty(process.stdin, 'isTTY', { value: true });\n", 'utf8');
+  const child = spawn(
+    process.execPath,
+    ['--import', pathToFileURL(preload).href, path.join(scriptDir, 'mystryctl.mjs')],
+    {
+      env: {
+        ...process.env,
+        MYSTRY_HOME: home,
+        MYSTRY_CONFIG_PATH: path.join(home, 'config', 'panel.env'),
+        MYSTRY_DATA_DIR: path.join(home, 'data'),
+      },
+      stdio: ['pipe', 'pipe', 'pipe'],
+    },
+  );
+  let output = '';
+  child.stdout.on('data', (chunk) => { output += chunk; });
+  child.stderr.on('data', (chunk) => { output += chunk; });
+  const exited = new Promise((resolve) => child.on('exit', (code) => resolve(code)));
+  t.after(async () => {
+    if (child.exitCode === null) child.kill();
+    await exited;
+    await fsp.rm(home, { recursive: true, force: true });
+  });
+  const waitForOutput = async (text) => {
+    const deadline = Date.now() + 10_000;
+    while (!output.includes(text)) {
+      if (Date.now() > deadline) assert.fail(`等待输出「${text}」超时：\n${output}`);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  };
+  return {
+    child,
+    exited,
+    output: () => output,
+    waitForOutput,
+    send: (line) => child.stdin.write(`${line}\n`),
+  };
+}
+
+test('双击启动执行完菜单命令后等待回车再关闭窗口', async (t) => {
+  const controller = await startInteractiveController(t);
+  await controller.waitForOutput('请选择');
+  controller.send('3');
+  await controller.waitForOutput('按回车键关闭窗口');
+  assert.match(controller.output(), /暂无日志/);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(controller.child.exitCode, null, '未按回车前不应退出');
+  controller.send('');
+  assert.equal(await controller.exited, 0);
+});
+
+test('双击启动时菜单命令出错也先显示错误并等待回车', async (t) => {
+  const controller = await startInteractiveController(t);
+  await controller.waitForOutput('请选择');
+  // 临时目录没有服务端构建产物，前台启动会失败。
+  controller.send('2');
+  await controller.waitForOutput('按回车键关闭窗口');
+  assert.match(controller.output(), /找不到服务端构建产物/);
+  assert.equal(controller.child.exitCode, null, '未按回车前不应退出');
+  controller.send('');
+  assert.equal(await controller.exited, 1);
 });
 
 test('校验和脚本稳定排序并排除自身', async () => {

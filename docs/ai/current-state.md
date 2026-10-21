@@ -24,7 +24,7 @@
 - `server.properties` 读写、Java 状态检测、本机节点列表。
 - 响应式布局：`<=1024px` 显示导航菜单按钮并将部署网格改为单列；`<=768px` 实例卡片为单列、内容边距 16px，顶栏换行并隐藏次要标识，控制台高度随视口调整。总览保留「一键部署 / 导入已有服务端」入口；实例卡片通过名称链接或「进入管理」导航，启动/停止与更多操作独立；「更多操作」面板挂到 body 并以 fixed 定位在按钮下方右对齐展开（下方空间不足时翻到上方），不受卡片 `overflow` 裁剪，支持方向键、Home/End、Escape 与 Tab 关闭并恢复焦点。断点实现以 CSS 为准，真实宽度与六种主题的视觉验收需另行运行，不能由构建或 DOM 测试推定。
 - `PanelManager.cmd`（Windows）与 `PanelManager.sh`（Linux / WSL 源码）均复用本机 `POST /api/launcher/shutdown` 安全关闭通道。
-- 跨平台 `mystryctl`：自动随机配置、后台 PID 指纹、健康检查、安全停止、状态和日志；便携包使用包内 Node，Linux 源码入口在依赖/构建预检后复用同一控制器。
+- 跨平台 `mystryctl`：自动随机配置、后台 PID 指纹、健康检查、安全停止、状态和日志；便携包使用包内 Node，Linux 源码入口在依赖/构建预检后复用同一控制器。无参数且 stdin 为终端时显示交互菜单（通常是双击启动），菜单命令执行完或出错后等待回车再退出，避免窗口一闪而过；带参数调用与非终端 stdin 不暂停（`portable:test` 覆盖）。
 - 目标平台原生便携组装与最终压缩包冒烟脚本；发布包物理复制 `@mystry/shared`，并生成文件级 manifest。
 - GitHub Preview Release 流水线：标签/main/版本门禁、Windows x64 与 Linux x64 矩阵、生产依赖审计、校验和签名、SBOM 和自动 Release Notes。
 - 上传、下载、任务、元数据、控制台和 ZIP 解压均有大小、并发或超时边界。
@@ -47,7 +47,7 @@
 - 三套主题各含暗/亮：`dark` / `light`（Mystry 粉紫）、`codex` / `codex-light`（暖灰青绿）、`grok` / `grok-light`（近黑或白底高对比）。CSS 变量按 `[data-theme]` 拆分，硬编码强调色已改为 `color-mix` 跟随 `--accent`；主按钮、实例页当前标签与任务徽标文字使用各主题的 `--on-accent`，危险按钮悬停使用 `--on-danger`。index.html 内联脚本在渲染前定主题（未保存时仅在 Mystry 暗/亮之间跟随 `prefers-color-scheme`），选择持久化 `mystry_theme`；选择器按套分组，入口在顶栏与登录页，控制台终端区域保持暗色。
 - 字体统一使用 `:root` 中的系统字体栈（`--font` / `--mono`，含中文系统字体回落），各主题不再单独指定字体；页面不加载任何外部字体或第三方样式，离线与国内网络下首屏不依赖外网。
 - 前端静态资源：`@mystry/web` 构建在 `vite build` 后运行 `scripts/precompress-dist.mjs`，为 dist 中 ≥1 KiB 的文本资源生成 `.br` / `.gz`；服务端 `@fastify/static` 开启 `preCompressed` 按 `Accept-Encoding` 发送并带 `Vary`，缺失时回落原文件。`/assets/*`（Vite 带 hash 产物）返回 `public, max-age=31536000, immutable`，`index.html` 与 SPA 回落页返回 `no-cache`（见 `frontend-assets.ts` 与 `test:static`）。
-- 文件列表 `listFiles` 只对目标目录调用一次 `resolveSafePath` 逐段校验，条目逐个 `lstat` 拒绝 symlink/junction，不再对每个条目重复 realpath 整条路径（大目录不会长时间阻塞事件循环）。
+- 文件列表 `listFiles` 只对目标目录调用一次 `resolveSafePath` 逐段校验，条目逐个 `lstat` 拒绝 symlink/junction，不再对每个条目重复 realpath 整条路径（大目录不会长时间阻塞事件循环）。实例根目录的所有权标记 `.mystry-instance.json` 不出现在列表中（子目录同名文件照常列出）；改写类接口仍由 `assertMutableTarget` 拒绝操作它。
 - 一键部署默认选中 Paper，选定核心后自动拉取版本列表并默认选中最新正式版；Paper Build、Fabric Loader/Installer、Forge/NeoForge 版本均为可选，留空时由服务端解析为最新（Paper 优先稳定构建）。部署、ZIP/目录导入、创建空实例三处的 EULA 同意默认不勾选；部署页必须勾选后才能提交，导入和空实例可不勾选（不勾选时启动不改写已有 `eula.txt`）。部署页右侧为新手指引（选核心与进服步骤），不再展示内部实现说明。
 - 面向用户的文案避免内部术语：侧栏「本机环境」（`/nodes`，页面不再展示远程集群锁定卡）、「从本机文件夹导入」（`DATA_DIR/imports`）、「系统默认 Java」（PATH 中的 `java`）、「最大内存」（`-Xmx`）；导入与部分启动、落地错误改为「导入文件夹」「部署临时文件」「Forge/NeoForge 启动参数文件」等说法。
 

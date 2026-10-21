@@ -96,6 +96,25 @@ test('目录列表目录优先并按自然序排序，大目录不逐项重复�
   assert.ok(realpath.mock.callCount() < 10, `realpathSync 调用 ${realpath.mock.callCount()} 次`);
 });
 
+test('目录列表不展示实例根目录的所有权标记，子目录同名文件照常列出', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { listFiles } = await import('./file-service.js');
+  const { defaultInstanceDir, OWNERSHIP_MARKER_FILE } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'hide-marker' });
+  const root = defaultInstanceDir(inst.id);
+  assert.ok(fs.existsSync(path.join(root, OWNERSHIP_MARKER_FILE)), '创建实例应写入所有权标记');
+  fs.writeFileSync(path.join(root, 'server.properties'), 'motd=test\n');
+  fs.mkdirSync(path.join(root, 'backup'));
+  fs.writeFileSync(path.join(root, 'backup', OWNERSHIP_MARKER_FILE), '{}');
+
+  assert.deepEqual(listFiles(inst.id).map((entry) => entry.name), ['backup', 'server.properties']);
+  assert.deepEqual(listFiles(inst.id, 'backup').map((entry) => entry.path), [`backup/${OWNERSHIP_MARKER_FILE}`]);
+});
+
 test('目录列表遇到 symlink/junction 条目时拒绝访问', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');

@@ -829,6 +829,16 @@ async function interactiveMenu() {
   }
 }
 
+/** 双击启动时控制台窗口会随进程退出立即关闭，先等待回车，让结果、令牌提示与错误留在屏幕上。 */
+async function waitForCloseKey() {
+  const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    await terminal.question('\n按回车键关闭窗口…');
+  } finally {
+    terminal.close();
+  }
+}
+
 async function runCommand(command) {
   if (command === 'help' || command === '--help' || command === '-h') {
     printHelp();
@@ -877,16 +887,25 @@ async function main() {
     await finalizeSetup();
     return;
   }
-  let command = process.argv[2];
-  if (!command) {
-    if (!process.stdin.isTTY) {
-      printHelp();
-      return;
-    }
-    command = await interactiveMenu();
-    if (!command) return;
+  const command = process.argv[2];
+  if (command) {
+    await runCommand(command);
+    return;
   }
-  await runCommand(command);
+  if (!process.stdin.isTTY) {
+    printHelp();
+    return;
+  }
+  // 无参数且有终端：通常是双击启动，菜单命令执行完（含出错）后暂停；带参数的命令行与脚本调用不受影响。
+  const selected = await interactiveMenu();
+  if (!selected) return;
+  try {
+    await runCommand(selected);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
+  await waitForCloseKey();
 }
 
 main().catch((error) => {
