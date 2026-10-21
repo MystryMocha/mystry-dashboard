@@ -8,6 +8,7 @@ import {
   inspectJvmArgs,
   parseJvmArgFile,
   parseJvmArgs,
+  recommendedJavaMajor,
   recommendedMaxMemoryMiB,
   serializeJvmArgFile,
   serializeJvmArgs,
@@ -158,4 +159,26 @@ test('服务端在实例保存和任务入队前拒绝非法参数', async (t) =
     /由面板管理/,
   );
   assert.deepEqual(getTaskActivity(), activityBefore);
+});
+
+test('recommendedJavaMajor 按 MC 版本推荐 Java，年份版本号 26.x 需要 Java 25', () => {
+  // 年份版本号（26.1 起）
+  assert.equal(recommendedJavaMajor('26.1'), 25);
+  assert.equal(recommendedJavaMajor('26.1.2'), 25);
+  assert.equal(recommendedJavaMajor('26.3'), 25);
+  assert.equal(recommendedJavaMajor('26.3-rc-3'), 25);
+  assert.equal(recommendedJavaMajor('27.1'), 25);
+  // 旧 1.x 版本号保持原有分段
+  assert.equal(recommendedJavaMajor('1.21.11'), 21);
+  assert.equal(recommendedJavaMajor('1.21.11-rc3'), 21);
+  assert.equal(recommendedJavaMajor('1.20.5'), 21);
+  assert.equal(recommendedJavaMajor('1.20.4'), 17);
+  assert.equal(recommendedJavaMajor('1.17'), 17);
+  assert.equal(recommendedJavaMajor('1.16.5'), 8);
+  // 无法识别的格式不给推荐，避免误报
+  assert.equal(recommendedJavaMajor('25w14a'), null);
+  assert.equal(recommendedJavaMajor('snapshot'), null);
+  assert.equal(recommendedJavaMajor(''), null);
+  assert.equal(recommendedJavaMajor(null), null);
+  assert.equal(recommendedJavaMajor(undefined), null);
 });
