@@ -75,6 +75,9 @@ test('三个 JVM 预设可生成并反向识别', () => {
   assert.equal(inspectJvmArgs(g1).presetId, 'g1-balanced');
   assert.equal(inspectJvmArgs(paper, { coreType: 'paper', javaMajor: 21 }).presetId, 'paper-aikar');
   assert.equal(validateJvmArgs(paper, { coreType: 'paper', javaMajor: 21 }).length, 0);
+  // MC 26.x 推荐 Java 25，G1 与 Aikar 预设不能因此报版本不匹配
+  assert.equal(validateJvmArgs(g1, { javaMajor: 25 }).length, 0);
+  assert.equal(validateJvmArgs(paper, { coreType: 'paper', javaMajor: 25 }).length, 0);
 });
 
 test('冲突内存、GC 和面板负责的启动参数会阻止保存', () => {
