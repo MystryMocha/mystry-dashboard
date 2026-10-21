@@ -77,7 +77,7 @@ export function TaskCenter({ placement = 'topbar' }: { placement?: 'sidebar' | '
           <span
             style={{
               background: 'var(--accent)',
-              color: '#fff',
+              color: 'var(--on-accent)',
               fontSize: '0.72rem',
               padding: '2px 6px',
               borderRadius: '8px',
@@ -185,7 +185,7 @@ export function TaskCenter({ placement = 'topbar' }: { placement?: 'sidebar' | '
                 fontSize: '0.88rem',
               }}
             >
-              暂无后台任务。在发起一键部署或导入实例后，进度将实时流式更新在此处。
+              暂无后台任务。发起一键部署或导入后，进度会实时显示在这里。
             </div>
           )}
 

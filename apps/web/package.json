@@ -6,7 +6,7 @@
   "scripts": {
     "test:interaction": "vitest run tests/interactions.test.tsx",
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/precompress-dist.mjs",
     "typecheck": "tsc -b --pretty false",
     "preview": "vite preview"
   },

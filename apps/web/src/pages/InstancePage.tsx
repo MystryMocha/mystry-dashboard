@@ -18,6 +18,7 @@ import { ConfigTab } from '../components/ConfigTab';
 import { ConsolePanel } from '../components/ConsolePanel';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
+import { MINECRAFT_EULA_URL } from '../eula';
 
 const statusLabel: Record<string, string> = {
   stopped: '已停止',
@@ -89,7 +90,7 @@ function MigrationPanel({ instance, onAdopt }: { instance: InstanceInfo; onAdopt
     finally { setBusy(false); }
   }
   return <div className="migration-panel"><span className="badge migration">需要迁移</span><h2>接管托管目录</h2>
-    <p>请使用系统工具，将旧实例文件复制到配置的 DATA_DIR/instances/{instance.id}：</p><code>配置的 DATA_DIR/instances/{instance.id}</code>
+    <p>请使用系统文件管理器，将旧实例文件复制到面板数据目录下的实例文件夹：</p><code>面板数据目录/instances/{instance.id}</code>
     <p className="muted">面板不会读取或删除旧目录。复制完成后点击“接管托管目录”，成功后将恢复实例操作。</p>{error && <p className="error">{error}</p>}
     <button className="btn" type="button" disabled={busy} onClick={() => void adopt()}>{busy ? '检查中…' : '接管托管目录'}</button>
   </div>;
@@ -745,7 +746,7 @@ function SettingsTab({
         <label htmlFor="instance-settings-install-path">安装路径</label>
         <input
           id="instance-settings-install-path"
-          value={instance.installPath ?? `配置的 DATA_DIR/instances/${instance.id}`}
+          value={instance.installPath ?? `面板数据目录/instances/${instance.id}`}
           readOnly
         />
         <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.8rem' }}>
@@ -784,7 +785,9 @@ function SettingsTab({
             setSaved(false);
           }}
         />
-        <label htmlFor="instance-settings-accept-eula">启动时自动写入 eula=true</label>
+        <label htmlFor="instance-settings-accept-eula">
+          我已阅读并同意 <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Minecraft EULA</a>（启动时自动写入同意标记）
+        </label>
       </div>
       <button className="btn" type="button" disabled={!dirty || saving || !jvmValid} onClick={() => void save()}>
         {saving ? '保存中…' : '保存设置'}
@@ -876,7 +879,7 @@ export function InstancePage() {
                 </span>
               </div>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                核心: {instance.coreType.toUpperCase()} {instance.mcVersion ? `· 版本 ${instance.mcVersion}` : ''} · 节点 {instance.nodeId || 'local'}
+                核心: {instance.coreType.toUpperCase()} {instance.mcVersion ? `· 版本 ${instance.mcVersion}` : ''}
               </span>
             </div>
           </div>

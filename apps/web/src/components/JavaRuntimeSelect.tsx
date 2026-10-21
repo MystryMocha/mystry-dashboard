@@ -74,12 +74,12 @@ export function JavaRuntimeSelect({
       <div className={`environment-status ${defaultJava?.available === false ? 'is-missing' : ''}`}>
         <span className="environment-dot" />
         {loading && defaultJava === null
-          ? '正在检查 PATH 中的 Java…'
+          ? '正在检查系统默认 Java…'
           : defaultJava?.available
-            ? `PATH 中的 Java 可用${defaultJava.version ? ` · ${defaultJava.version}` : ''}`
-            : 'PATH 中未找到可用的 Java'}
+            ? `系统默认 Java 可用${defaultJava.version ? ` · ${defaultJava.version}` : ''}`
+            : '未找到系统默认 Java，请先安装 Java 后点「重新探测」'}
       </div>
-      <p className="muted field-help">默认使用 PATH 中的 java，也可以选择面板探测并验证过的运行时。</p>
+      <p className="muted field-help">默认使用系统 Java；电脑上装了多个 Java 时，可以在下面选择要用的版本。</p>
       <div className="btn-row" style={{ alignItems: 'stretch' }}>
         <select
           id={selectId}
@@ -88,7 +88,7 @@ export function JavaRuntimeSelect({
           disabled={disabled || loading}
           onChange={(e) => onChange(e.target.value || null)}
         >
-          <option value="">默认（PATH 中的 java）</option>
+          <option value="">系统默认 Java</option>
           {runtimes.map((runtime) => (
             <option key={runtime.id} value={runtime.id} disabled={!runtime.available}>
               {`Java ${runtime.majorVersion ?? runtime.version ?? '未知版本'} · ${runtime.path}${runtime.available ? '' : '（不可用）'}`}
@@ -110,15 +110,15 @@ export function JavaRuntimeSelect({
       )}
       {mismatch && (
         <p className="field-warn" role="alert">
-          {value ? '所选运行时' : 'PATH 中的 Java'}为 Java {resolvedMajor}，与推荐版本 Java {recommended} 不匹配，实例可能无法启动。
+          {value ? '所选 Java' : '系统默认 Java'} 是 Java {resolvedMajor}，推荐使用 Java {recommended}；版本不符时服务器可能无法启动。
         </p>
       )}
       {value && !loading && (!selected || !selected.available) && (
         <p className="field-warn" role="alert">
-          实例绑定的运行时已不可用，保存前请重新探测并选择其他运行时。
+          之前选择的 Java 已不可用，保存前请点「重新探测」并重新选择。
         </p>
       )}
-      {error && <p className="error">无法读取 Java 运行时：{error}</p>}
+      {error && <p className="error">无法读取本机 Java 列表：{error}</p>}
     </div>
   );
 }

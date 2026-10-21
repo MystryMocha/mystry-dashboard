@@ -69,7 +69,7 @@ function assertSourceId(sourceId: string): void {
     || sourceId.includes('\\')
     || /[\u0000-\u001f]/.test(sourceId)
   ) {
-    throw new Error('交接目录标识无效');
+    throw new Error('导入文件夹名称无效');
   }
 }
 
@@ -80,7 +80,7 @@ export function resolveExistingServerSource(sourceId: string): string {
   const sourceDir = path.resolve(importRoot, sourceId);
   const relative = path.relative(importRoot, sourceDir);
   if (relative !== sourceId || path.isAbsolute(relative)) {
-    throw new Error('交接目录必须位于 DATA_DIR/imports 下');
+    throw new Error('导入文件夹必须位于面板数据目录的 imports 文件夹下');
   }
   return assertSafeInstanceRoot(sourceDir);
 }
@@ -103,7 +103,7 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
     };
 
     if (fs.existsSync(resolveSafePath(sourceDir, OWNERSHIP_MARKER_FILE))) {
-      throw new Error('目录包含面板实例标记，不能作为交接源');
+      throw new Error('该文件夹包含面板实例标记，不能作为导入来源');
     }
 
     const jarFile = detectJarFile(sourceDir);
@@ -157,7 +157,7 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
       coreType: 'custom',
       modifiedAt: stat.mtime.toISOString(),
       ready: false,
-      error: '未找到服务端 jar 或 ModLoader args 文件',
+      error: '未找到服务端 jar 或 Forge/NeoForge 启动参数文件',
     };
     return completeInfo(info);
   } catch (error) {
@@ -213,14 +213,14 @@ async function scanSourceDirectory(
     for (const entry of entries) {
       throwIfAborted(signal);
       if (!relativeDirectory && entry.name === OWNERSHIP_MARKER_FILE) {
-        throw new Error('交接目录包含面板实例标记，拒绝复制');
+        throw new Error('导入文件夹包含面板实例标记，拒绝复制');
       }
 
       const relative = path.join(relativeDirectory, entry.name);
       const source = resolveSafePath(sourceRoot, relative);
       const stat = await fs.promises.lstat(source);
       if (stat.isSymbolicLink()) {
-        throw new Error(`交接目录不能包含 symlink/junction：${relative}`);
+        throw new Error(`导入文件夹不能包含符号链接或目录联接（symlink/junction）：${relative}`);
       }
 
       scan.entries += 1;
@@ -231,7 +231,7 @@ async function scanSourceDirectory(
         continue;
       }
       if (!stat.isFile()) {
-        throw new Error(`交接目录包含不支持的特殊文件：${relative}`);
+        throw new Error(`导入文件夹包含不支持的特殊文件：${relative}`);
       }
       scan.bytes += stat.size;
       checkScanLimits(scan);
@@ -281,7 +281,7 @@ async function copySourceDirectory(
     for (const entry of entries) {
       throwIfAborted(signal);
       if (!relativeDirectory && entry.name === OWNERSHIP_MARKER_FILE) {
-        throw new Error('交接目录包含面板实例标记，拒绝复制');
+        throw new Error('导入文件夹包含面板实例标记，拒绝复制');
       }
 
       const relative = path.join(relativeDirectory, entry.name);
@@ -289,7 +289,7 @@ async function copySourceDirectory(
       const target = resolveSafePath(instanceRoot, relative);
       const stat = await fs.promises.lstat(source);
       if (stat.isSymbolicLink()) {
-        throw new Error(`交接目录不能包含 symlink/junction：${relative}`);
+        throw new Error(`导入文件夹不能包含符号链接或目录联接（symlink/junction）：${relative}`);
       }
 
       copiedEntries += 1;
@@ -306,7 +306,7 @@ async function copySourceDirectory(
         continue;
       }
       if (!stat.isFile()) {
-        throw new Error(`交接目录包含不支持的特殊文件：${relative}`);
+        throw new Error(`导入文件夹包含不支持的特殊文件：${relative}`);
       }
 
       let fileBytes = 0;
@@ -325,7 +325,7 @@ async function copySourceDirectory(
       try {
         const fdStat = await sourceFd.stat();
         if (!fdStat.isFile()) {
-          throw new Error(`交接目录包含不支持的特殊文件：${relative}`);
+          throw new Error(`导入文件夹包含不支持的特殊文件：${relative}`);
         }
         await pipeline(
           sourceFd.createReadStream(),
@@ -369,7 +369,7 @@ export async function importExistingServerDirectory(input: ImportExistingServerI
         modLoaderFullScanBudget(signal),
       );
       if (!sourceLaunchTarget) {
-        throw new Error('交接目录中未找到可用的服务端 jar 或 ModLoader args 文件');
+        throw new Error('导入文件夹中未找到可用的服务端 jar 或 Forge/NeoForge 启动参数文件');
       }
 
       throwIfAborted(signal);

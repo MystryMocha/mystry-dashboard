@@ -24,8 +24,11 @@
   --editor-bg: #0b080c;
   --editor-border: #3a2634;
   --quick-gradient: linear-gradient(135deg, rgba(240, 98, 166, 0.24), rgba(67, 28, 53, 0.88));
-  --font: 'IBM Plex Sans', 'Segoe UI', sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* 系统字体栈：不依赖外部字体服务，离线或国内网络下首屏不被阻塞；中文回落到系统中文字体。 */
+  --font: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Noto Sans CJK SC', 'Noto Sans SC', sans-serif;
+  --mono: ui-monospace, 'Cascadia Mono', 'Cascadia Code', Consolas, 'SF Mono', Menlo, 'DejaVu Sans Mono',
+    monospace;
   --radius: 10px;
   --radius-sm: 8px;
   --header-height: 64px;
@@ -116,7 +119,6 @@
     color-mix(in srgb, var(--accent) 22%, transparent),
     color-mix(in srgb, var(--bg-elevated) 86%, #0d2a22)
   );
-  --font: 'Source Sans 3', 'Segoe UI', sans-serif;
   --radius: 12px;
   --console-bg: #101210;
   --console-bar: rgba(16, 18, 16, 0.96);
@@ -150,7 +152,6 @@
   --editor-bg: #000000;
   --editor-border: #2a2a2a;
   --quick-gradient: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(20, 20, 20, 0.94));
-  --font: 'Space Grotesk', 'Segoe UI', sans-serif;
   --radius: 8px;
   --console-bg: #000000;
   --console-bar: rgba(8, 8, 8, 0.96);
@@ -188,7 +189,6 @@
     color-mix(in srgb, var(--accent) 14%, transparent),
     rgba(255, 255, 255, 0.92)
   );
-  --font: 'Source Sans 3', 'Segoe UI', sans-serif;
   --radius: 12px;
   --console-bg: #101210;
   --console-bar: rgba(16, 18, 16, 0.96);
@@ -222,7 +222,6 @@
   --editor-bg: #ffffff;
   --editor-border: #d6d6d6;
   --quick-gradient: linear-gradient(135deg, rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.96));
-  --font: 'Space Grotesk', 'Segoe UI', sans-serif;
   --radius: 8px;
   --console-bg: #000000;
   --console-bar: rgba(8, 8, 8, 0.96);
@@ -678,17 +677,18 @@ button {
   background: var(--accent-subtle);
 }
 
+/* 主按钮文字跟随各主题的 --on-accent，避免浅色强调色（如 Grok 暗色）上白字不可读。 */
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
 .btn-primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .btn:not(:disabled):active {
@@ -719,7 +719,7 @@ button {
 
 .btn-danger:hover {
   background: var(--danger);
-  color: #fff;
+  color: var(--on-danger);
   border-color: var(--danger);
 }
 
@@ -2349,7 +2349,7 @@ button {
 }
 .hub-tab.active {
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
@@ -2397,6 +2397,37 @@ button {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+/* 部署页右侧新手指引 */
+.deploy-guide {
+  gap: 10px;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+.deploy-guide h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.deploy-guide h3:not(:first-child) {
+  margin-top: 8px;
+}
+.deploy-guide ul,
+.deploy-guide ol {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.deploy-guide strong {
+  color: var(--text);
+}
+.deploy-guide code {
+  color: var(--accent);
+  font-family: var(--mono);
 }
 .core-select-grid {
   display: grid;

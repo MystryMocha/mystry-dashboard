@@ -103,7 +103,7 @@ export function promoteTaskStagingToInstance(
   const staging = taskStagingDir(taskId, instanceId, dataDir);
   const instanceDir = defaultInstanceDir(instanceId);
   if (!fs.existsSync(staging)) {
-    throw new Error('任务 staging 目录不存在，无法完成实例落地');
+    throw new Error('部署临时文件已丢失，无法完成实例创建，请重新部署');
   }
   if (fs.existsSync(instanceDir)) {
     throw new Error('实例目录已存在，拒绝覆盖已有数据');

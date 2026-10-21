@@ -14,6 +14,7 @@ import {
 } from '../api';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor, type DetectedJvmChoice } from '../components/JvmSettingsEditor';
+import { MINECRAFT_EULA_URL } from '../eula';
 
 type ImportMode = 'directory' | 'zip';
 
@@ -50,7 +51,8 @@ export function ImportPage() {
   const [javaMajor, setJavaMajor] = useState<number | null>(null);
   const [detectedChoice, setDetectedChoice] = useState<DetectedJvmChoice>(null);
   const [jvmValid, setJvmValid] = useState(true);
-  const [acceptEula, setAcceptEula] = useState(true);
+  // EULA 必须由用户主动勾选同意；已有服务端若自带 eula.txt 同意记录，可保持不勾选。
+  const [acceptEula, setAcceptEula] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<TaskInfo | null>(null);
   const [busy, setBusy] = useState(false);
@@ -167,7 +169,7 @@ export function ImportPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (mode === 'directory' && !selectedSource?.ready) {
-      setError('请选择一个可用的交接目录');
+      setError('请选择一个可导入的文件夹');
       return;
     }
     if (mode === 'zip' && !file && !preview) {
@@ -255,7 +257,7 @@ export function ImportPage() {
         <div>
           <h1 className="page-title" style={{ margin: 0 }}>导入已有 Minecraft 服务端</h1>
           <p className="page-desc" style={{ margin: '4px 0 0' }}>
-            支持 ZIP 服务端安装包解压预检，或同机目录只读交接，原目录不会被破坏或删除。
+            从本机文件夹复制已有的服务端，或上传服务端 ZIP 压缩包；原文件不会被修改或删除。
           </p>
         </div>
       </div>
@@ -268,7 +270,7 @@ export function ImportPage() {
           disabled={busy}
           onClick={() => setMode('directory')}
         >
-          同机目录直接交接
+          从本机文件夹导入
         </button>
         <button
           type="button"
@@ -277,7 +279,7 @@ export function ImportPage() {
           disabled={busy}
           onClick={() => setMode('zip')}
         >
-          ZIP 服务端整合包导入
+          上传 ZIP 压缩包
         </button>
       </div>
 
@@ -286,16 +288,19 @@ export function ImportPage() {
         {mode === 'directory' ? (
           <>
             <div className="managed-note import-handoff-note">
-              <strong>安全交接步骤</strong>
+              <strong>导入步骤</strong>
               <ol>
                 <li>先正常停止原服务器，确保世界数据已保存。</li>
-                <li>把完整服务端目录复制到 <code>DATA_DIR/imports/&lt;目录名&gt;</code>。</li>
-                <li>在下方刷新并选择目录；面板会再次复制到新的托管实例。</li>
+                <li>
+                  把整个服务端文件夹复制到面板数据目录下的 <code>imports</code> 文件夹（默认是面板所在文件夹里的{' '}
+                  <code>data/imports</code>）。
+                </li>
+                <li>在下方点「刷新目录」并选择它，面板会复制出一个新的实例。</li>
               </ol>
-              <span>交接区只列出直接子目录，不支持输入或浏览任意系统路径。</span>
+              <span>这里只显示 imports 中的第一层文件夹。</span>
             </div>
             <div className="field">
-              <label htmlFor="existing-server-source">选择检测到的交接目录</label>
+              <label htmlFor="existing-server-source">选择要导入的文件夹</label>
               <div className="btn-row import-source-row">
                 <select
                   id="existing-server-source"
@@ -303,7 +308,7 @@ export function ImportPage() {
                   disabled={busy || sourcesLoading}
                   onChange={(e) => setSourceId(e.target.value)}
                 >
-                  <option value="">{sourcesLoading ? '正在读取…' : '请选择交接目录'}</option>
+                  <option value="">{sourcesLoading ? '正在读取…' : '请选择文件夹'}</option>
                   {sources.map((source) => (
                     <option key={source.id} value={source.id} disabled={!source.ready}>
                       {source.ready
@@ -323,7 +328,7 @@ export function ImportPage() {
                 </button>
               </div>
               {!sourcesLoading && sources.length === 0 ? (
-                <p className="muted field-help">交接区暂无目录，请完成上面的复制步骤后刷新。</p>
+                <p className="muted field-help">imports 文件夹里还没有服务端，复制完成后点「刷新目录」。</p>
               ) : null}
               {selectedSource?.ready && selectedSource.launchTarget ? (
                 <p className="muted field-help">
@@ -333,14 +338,14 @@ export function ImportPage() {
               {selectedSource?.ready && selectedSource.error ? (
                 <p className="muted field-help">{selectedSource.error}</p>
               ) : null}
-              {sourcesError ? <p className="error">无法读取交接目录：{sourcesError}</p> : null}
+              {sourcesError ? <p className="error">无法读取导入文件夹：{sourcesError}</p> : null}
             </div>
           </>
         ) : (
           <>
             <div className="managed-note">
-              <strong>ZIP 二阶段安全导入</strong>
-              <span>先上传并执行目录探测与 JVM 识别预检，再确认实例配置并入队复制，安全可靠。</span>
+              <strong>ZIP 导入分两步</strong>
+              <span>先上传并检查压缩包内容，确认设置后再创建实例。</span>
             </div>
             {restoringPreview ? <p className="muted" role="status">正在恢复待确认的 ZIP…</p> : null}
             {preview ? (
@@ -481,7 +486,9 @@ export function ImportPage() {
                 disabled={busy}
                 onChange={(e) => setAcceptEula(e.target.checked)}
               />
-              启动时自动写入 eula=true（请先确认接受 Mojang EULA）
+              <span>
+                我已阅读并同意 <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Minecraft EULA</a>（启动时自动写入同意标记）
+              </span>
             </label>
           </>
         ) : null}

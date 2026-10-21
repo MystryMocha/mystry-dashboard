@@ -338,7 +338,7 @@ function adoptManagedDirectoryWithinLock(id: string): InstanceInfo {
     const marker = inspectOwnershipMarker(id, dir);
     if (marker.exists) {
       if (marker.marker === null) {
-        throw new Error('无法接管面板托管目录：ownership marker 无效或属于其他实例');
+        throw new Error('无法接管实例目录：目录中的面板标记文件无效或属于其他实例');
       }
       ownershipMarker = marker.marker;
     } else {

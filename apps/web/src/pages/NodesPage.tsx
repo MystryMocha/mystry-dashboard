@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Server, ShieldCheck } from 'lucide-react';
 import type { NodeInfo } from '@mystry/shared';
-import { REMOTE_NODE_CREATION_ENABLED } from '@mystry/shared';
 import { api } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 
 const statusLabel: Record<string, string> = {
   online: '在线',
   offline: '离线',
+};
+
+/** Node.js 平台标识转成用户看得懂的系统名。 */
+const platformLabel: Record<string, string> = {
+  win32: 'Windows',
+  linux: 'Linux',
+  darwin: 'macOS',
 };
 
 type LoadState = 'loading' | 'loaded' | 'error';
@@ -76,9 +82,9 @@ export function NodesPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div className="section-header">
         <div>
-          <h1 className="page-title" style={{ margin: 0 }}>节点监控与运行环境</h1>
+          <h1 className="page-title" style={{ margin: 0 }}>本机运行环境</h1>
           <p className="page-desc" style={{ margin: '4px 0 0' }}>
-            内置本机节点提供单机 Minecraft 服务端进程控制与运行环境信息。
+            运行面板和 Minecraft 服务器的这台电脑的基本信息。
           </p>
         </div>
       </div>
@@ -102,7 +108,7 @@ export function NodesPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '14px', flexWrap: 'wrap', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 12, height: 12, flexShrink: 0, borderRadius: '50%', background: loadError ? 'var(--warn)' : localNode.status === 'online' ? 'var(--ok)' : 'var(--text-muted)' }} />
-              <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{localNode.name} (本机内置主控节点)</span>
+              <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>{localNode.name}</span>
             </div>
             <span className={`status-badge ${loadError ? 'starting' : localNode.status === 'online' ? 'running' : 'stopped'}`}>
               <ShieldCheck size={14} />
@@ -112,8 +118,12 @@ export function NodesPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '6px' }}>
             <div className="inst-stat-item">
-              <span className="inst-stat-label">宿主操作系统平台</span>
-              <span className="inst-stat-val">{localNode.hostInfo?.platform || '本机宿主环境'}</span>
+              <span className="inst-stat-label">操作系统</span>
+              <span className="inst-stat-val">
+                {localNode.hostInfo?.platform
+                  ? platformLabel[localNode.hostInfo.platform] ?? localNode.hostInfo.platform
+                  : '未知'}
+              </span>
             </div>
             <div className="inst-stat-item">
               <span className="inst-stat-label">CPU 架构 / 核心</span>
@@ -127,19 +137,13 @@ export function NodesPage() {
               <span className="inst-stat-val">
                 {localNode.hostInfo?.totalMemMb
                   ? `${(localNode.hostInfo.totalMemMb / 1024).toFixed(1)} GB`
-                  : '受系统管理'}
+                  : '未知'}
               </span>
             </div>
             <div className="inst-stat-item">
-              <span className="inst-stat-label">已挂载实例数</span>
+              <span className="inst-stat-label">实例数量</span>
               <span className="inst-stat-val" style={{ color: 'var(--accent)' }}>
                 {localNode.instanceCount} 个服务实例
-              </span>
-            </div>
-            <div className="inst-stat-item">
-              <span className="inst-stat-label">数据根路径保护</span>
-              <span className="inst-stat-val" style={{ fontSize: '0.78rem', color: 'var(--accent)' }}>
-                实例文件限制在面板配置的数据根目录内
               </span>
             </div>
           </div>
@@ -188,15 +192,6 @@ export function NodesPage() {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {!REMOTE_NODE_CREATION_ENABLED && (
-        <div className="form-card" style={{ maxWidth: 640 }}>
-          <h3 style={{ margin: '0 0 0.5rem', fontSize: '1rem', fontWeight: 600 }}>远程多机分布式集群</h3>
-          <p className="muted" style={{ margin: 0, fontSize: '0.84rem', lineHeight: 1.6 }}>
-            当前版本仅启用内置本机节点运行。多机分布式 Agent 连接与跨节点实例部署功能当前处于锁定状态（安全策略生效中）。后续开放 Agent 协议后，可在此一键注册并纳管远程主机。
-          </p>
         </div>
       )}
 

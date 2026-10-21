@@ -83,7 +83,9 @@ export function LoginPage() {
                 maxLength={64}
                 required
               />
-              <p className="muted field-help">请输入服务器配置 SETUP_TOKEN 的完整 64 位令牌。</p>
+              <p className="muted field-help">
+                用启动器打开面板时，令牌已自动复制到剪贴板，按 Ctrl+V 粘贴即可。剪贴板里没有时，请打开面板配置文件（便携版和 Linux 为 config/panel.env，Windows 源码版为 .env），复制 SETUP_TOKEN 的值。
+              </p>
             </div>
           )}
           <div className="field">
@@ -97,6 +99,7 @@ export function LoginPage() {
               required
               minLength={needsSetup ? 12 : 1}
             />
+            {needsSetup && <p className="muted field-help">至少 12 个字符，请牢记，面板暂不支持找回密码。</p>}
           </div>
           {error && <p className="error">{error}</p>}
           <button className="btn" type="submit" disabled={busy}>

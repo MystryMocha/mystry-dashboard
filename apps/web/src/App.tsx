@@ -99,7 +99,7 @@ function Shell({ children }: { children: React.ReactNode }) {
     if (location.pathname.startsWith('/instances')) return '实例工作台';
     if (location.pathname.startsWith('/deploy')) return '一键部署';
     if (location.pathname.startsWith('/import')) return '导入已有服务端';
-    if (location.pathname.startsWith('/nodes')) return '节点监控';
+    if (location.pathname.startsWith('/nodes')) return '本机环境';
     return '管理控制台';
   }, [location.pathname]);
 
@@ -125,7 +125,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="nav-section" onClick={closeSidebar}>
-          <div className="nav-header">主控集群</div>
+          <div className="nav-header">服务器</div>
           <NavLink
             ref={firstNavRef}
             to="/"
@@ -165,7 +165,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
           >
             <Server size={18} />
-            <span>节点监控</span>
+            <span>本机环境</span>
           </NavLink>
         </nav>
 
@@ -174,10 +174,10 @@ function Shell({ children }: { children: React.ReactNode }) {
             <div className="user-avatar">{user?.username ? user.username.slice(0, 1).toUpperCase() : 'A'}</div>
             <div className="user-meta">
               <span className="user-name">{user?.username ?? 'admin'}</span>
-              <span className="user-role">● 本机主控权限</span>
+              <span className="user-role">● 管理员</span>
             </div>
           </div>
-          <button className="btn btn-icon" type="button" title="登出系统" onClick={logout}>
+          <button className="btn btn-icon" type="button" title="退出登录" aria-label="退出登录" onClick={logout}>
             <LogOut size={16} />
           </button>
         </div>
