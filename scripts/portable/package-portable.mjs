@@ -222,7 +222,6 @@ function getGitSha() {
 
 async function createPortableReadme(destination, version) {
   const content = `Mystry Dashboard ${version} 便携预览版
-============================================================
 
 Windows：
   双击 mystryctl.cmd，或运行 mystryctl.cmd start
@@ -232,7 +231,7 @@ Linux / macOS：
   ./mystryctl start
 
 支持命令：
-  start, foreground, stop, restart, status, logs, open
+  start, foreground, stop, restart, status, logs, open, help
 
 重要说明：
 1. 本包自带 Node.js，不需要安装 Node 或运行 npm install。

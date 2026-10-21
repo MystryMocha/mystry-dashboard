@@ -116,7 +116,7 @@ $script:Resources = @{
     LanguageSaved = '语言已切换为简体中文。'
     StatusPid = '进程 PID：{0}'
     UnknownCommand = '未知命令：{0}'
-    SupportedCommands = '支持：start, foreground, stop, restart, logs, rebuild, status'
+    SupportedCommands = '支持：start, foreground, stop, restart, rebuild, status, logs, open, help'
     PressEnter = '按回车返回…'
     PressAnyKeyExit = '按任意键关闭窗口…'
   }
@@ -190,7 +190,7 @@ $script:Resources = @{
     LanguageSaved = 'Language switched to English.'
     StatusPid = 'Process PID: {0}'
     UnknownCommand = 'Unknown command: {0}'
-    SupportedCommands = 'Supported: start, foreground, stop, restart, logs, rebuild, status'
+    SupportedCommands = 'Supported: start, foreground, stop, restart, rebuild, status, logs, open, help'
     PressEnter = 'Press Enter to return…'
     PressAnyKeyExit = 'Press any key to close this window…'
   }
@@ -1093,6 +1093,13 @@ function Invoke-Command {
     'status' {
       Show-Status
     }
+    'open' {
+      Open-PanelBrowser
+    }
+    { $_ -in @('help', '-h', '--help') } {
+      Write-Manager 'Title'
+      Write-Manager 'SupportedCommands'
+    }
     default {
       throw (Get-Message 'UnknownCommand' $Command) + "`n" + (Get-Message 'SupportedCommands')
     }
@@ -1102,9 +1109,7 @@ function Invoke-Command {
 function Show-InteractiveMenu {
   while ($true) {
     Clear-Host
-    Write-Host '============================================================'
     Write-Host (Get-Message 'Title')
-    Write-Host '============================================================'
     $running = Test-ManagedPanelRunning
     $connection = Get-PanelConnection
     if ($running) {

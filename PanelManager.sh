@@ -38,7 +38,7 @@ if [ ! -f "$CONTROLLER" ]; then
 fi
 
 if [ "$#" -gt 1 ]; then
-  fail '每次只能指定一个命令；可用命令：start、foreground、stop、restart、logs、rebuild、status、open、help。'
+  fail '每次只能指定一个命令；可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。'
 fi
 
 ensure_dependencies() {
@@ -82,10 +82,10 @@ case "$command" in
     build_sources
     run_controller restart
     ;;
-  stop|restart|logs|status|open|help|-h|--help)
+  stop|restart|status|logs|open|help|-h|--help)
     run_controller "$command"
     ;;
   *)
-    fail "未知命令：$command。可用命令：start、foreground、stop、restart、logs、rebuild、status、open、help。"
+    fail "未知命令：$command。可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。"
     ;;
 esac
