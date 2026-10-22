@@ -158,6 +158,41 @@ function formatBody(body) {
   return redact(text ?? '').slice(0, 200);
 }
 
+/** 轮询健康检查直到命中本次启动的面板（指纹一致）；进程提前退出或超时直接失败。 */
+async function waitForPanelHealth(child, baseUrl, fingerprint, getStartupError, getLogs) {
+  const deadline = Date.now() + START_TIMEOUT_MS;
+  let lastFailure = '尚未收到响应';
+  while (Date.now() < deadline) {
+    const startupError = getStartupError();
+    if (startupError) {
+      throw new Error(`面板进程启动失败：${startupError.message}\n${redact(getLogs())}`);
+    }
+    if (childHasExited(child)) {
+      throw new Error(`面板进程提前退出，code=${child.exitCode} signal=${child.signalCode}\n${redact(getLogs())}`);
+    }
+    try {
+      const result = await requestJson(`${baseUrl}/api/health`);
+      if (
+        result.status === 200
+        && result.body?.ok === true
+        && result.body?.service === 'mystry-dashboard'
+        && result.body?.processFingerprint === fingerprint
+      ) {
+        return result.body;
+      }
+      if (result.status === 200 && result.body?.processFingerprint && result.body.processFingerprint !== fingerprint) {
+        throw new Error('健康检查命中了其他面板进程');
+      }
+      lastFailure = `HTTP ${result.status} ${formatBody(result.body)}`;
+    } catch (error) {
+      if (error instanceof Error && error.message === '健康检查命中了其他面板进程') throw error;
+      lastFailure = error instanceof Error ? error.message : String(error);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  assert.fail(`健康检查超时：${lastFailure}\n${redact(getLogs())}`);
+}
+
 function assertUnauthorized(result, label) {
   assert.equal(result.status, 401, `${label} 应返回 401，实际 ${result.status} ${formatBody(result.body)}`);
   assert.equal(
@@ -240,38 +275,7 @@ test('隔离数据目录启动面板并拒绝未登录访问', { timeout: 90_000
   });
 
   const baseUrl = `http://127.0.0.1:${port}`;
-  const deadline = Date.now() + START_TIMEOUT_MS;
-  let health = null;
-  let lastFailure = '尚未收到响应';
-  while (Date.now() < deadline) {
-    if (startupError) {
-      throw new Error(`面板进程启动失败：${startupError.message}\n${redact(logs)}`);
-    }
-    if (childHasExited(child)) {
-      throw new Error(`面板进程提前退出，code=${child.exitCode} signal=${child.signalCode}\n${redact(logs)}`);
-    }
-    try {
-      const result = await requestJson(`${baseUrl}/api/health`);
-      if (
-        result.status === 200
-        && result.body?.ok === true
-        && result.body?.service === 'mystry-dashboard'
-        && result.body?.processFingerprint === fingerprint
-      ) {
-        health = result.body;
-        break;
-      }
-      if (result.status === 200 && result.body?.processFingerprint && result.body.processFingerprint !== fingerprint) {
-        throw new Error('健康检查命中了其他面板进程');
-      }
-      lastFailure = `HTTP ${result.status} ${formatBody(result.body)}`;
-    } catch (error) {
-      if (error instanceof Error && error.message === '健康检查命中了其他面板进程') throw error;
-      lastFailure = error instanceof Error ? error.message : String(error);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  assert.ok(health, `健康检查超时：${lastFailure}\n${redact(logs)}`);
+  await waitForPanelHealth(child, baseUrl, fingerprint, () => startupError, () => logs);
 
   const authStatus = await requestJson(`${baseUrl}/api/auth/status`);
   assert.equal(authStatus.status, 200, `认证状态接口异常：${formatBody(authStatus.body)}`);
@@ -332,4 +336,95 @@ test('隔离数据目录启动面板并拒绝未登录访问', { timeout: 90_000
     repoDataBefore,
     '面板关闭后仓库 data/ 的直接子项发生变化',
   );
+});
+
+// 终端里按 Ctrl+C 时面板会收到两次 SIGINT（进程组一次、前台控制器转发一次）。
+// Windows 上 kill('SIGINT') 是强制结束，模拟不了控制台 Ctrl+C，只在 POSIX 上验证。
+test('关闭过程中重复收到 SIGINT 仍完成安全关闭并释放数据目录锁', {
+  timeout: 90_000,
+  skip: process.platform === 'win32' ? 'Windows 无法用 kill 模拟控制台 Ctrl+C' : false,
+}, async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-panel-sigint-'));
+  let child = null;
+  t.after(async () => {
+    if (child && !childHasExited(child)) {
+      child.kill('SIGKILL');
+      await waitForExit(child, 5_000);
+    }
+    await removeTemp(tempRoot);
+  });
+
+  const dataDir = path.join(tempRoot, 'data');
+  const port = await reservePort();
+  const fingerprint = `sigint-${crypto.randomBytes(8).toString('hex')}`;
+  const [jwtSecret, setupToken, launcherToken] = distinctSecrets();
+  let logs = '';
+  let startupError = null;
+  child = spawn(process.execPath, [
+    '--experimental-sqlite',
+    '--import',
+    import.meta.resolve('tsx'),
+    path.join(repoRoot, 'apps', 'server', 'src', 'index.ts'),
+  ], {
+    cwd: tempRoot,
+    env: panelEnv({
+      MYSTRY_HOME: tempRoot,
+      MYSTRY_DATA_DIR: dataDir,
+      HOST: '127.0.0.1',
+      PORT: String(port),
+      JWT_SECRET: jwtSecret,
+      SETUP_TOKEN: setupToken,
+      LAUNCHER_TOKEN: launcherToken,
+      MYSTRY_PROCESS_FINGERPRINT: fingerprint,
+    }),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => { logs += chunk; });
+  child.stderr.on('data', (chunk) => { logs += chunk; });
+  child.once('error', (error) => { startupError = error; });
+
+  await waitForPanelHealth(child, `http://127.0.0.1:${port}`, fingerprint, () => startupError, () => logs);
+  const lockDir = path.join(dataDir, '.mystry-panel-lock');
+  await fs.access(lockDir);
+
+  // 空面板几毫秒就能关完，第二次信号很难落在关闭途中。先发一个请求体没传完的登录请求，
+  // app.close() 会等它结束，关闭流程就停在这里，直到测试主动断开连接。
+  const pending = net.connect(port, '127.0.0.1');
+  await new Promise((resolve, reject) => {
+    pending.once('connect', resolve);
+    pending.once('error', reject);
+  });
+  pending.on('error', () => {});
+  pending.write([
+    'POST /api/auth/login HTTP/1.1',
+    `Host: 127.0.0.1:${port}`,
+    'Content-Type: application/json',
+    'Content-Length: 100',
+    '',
+    '{"username":',
+  ].join('\r\n'));
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
+  const waitForLog = async (text) => {
+    const deadline = Date.now() + 5_000;
+    while (!logs.includes(text)) {
+      if (Date.now() > deadline || childHasExited(child)) return false;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    return true;
+  };
+  child.kill('SIGINT');
+  assert.ok(await waitForLog('正在安全关闭面板'), `第一次 SIGINT 未触发安全关闭\n${redact(logs)}`);
+  child.kill('SIGINT');
+  assert.ok(await waitForLog('已忽略重复的关闭信号'), `关闭途中的第二次 SIGINT 未被忽略\n${redact(logs)}`);
+  assert.equal(childHasExited(child), false, `第二次 SIGINT 直接结束了面板\n${redact(logs)}`);
+  await fs.access(lockDir);
+  pending.destroy();
+
+  const exitCode = await waitForExit(child, STOP_TIMEOUT_MS);
+  assert.equal(child.signalCode, null, `面板被信号直接杀死，没有安全关闭\n${redact(logs)}`);
+  assert.equal(exitCode, 0, `面板关闭退出码异常\n${redact(logs)}`);
+  await assert.rejects(fs.access(lockDir), { code: 'ENOENT' }, '安全关闭后应释放数据目录锁');
 });

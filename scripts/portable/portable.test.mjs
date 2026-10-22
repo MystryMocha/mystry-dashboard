@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 import http from 'node:http';
+import net from 'node:net';
 import path from 'node:path';
 import test from 'node:test';
 import { spawn, spawnSync } from 'node:child_process';
@@ -295,4 +296,105 @@ test('SBOM 只包含生产依赖并使用 CycloneDX 1.6', async () => {
   } finally {
     await fsp.rm(root, { recursive: true, force: true });
   }
+});
+
+// 伪造面板：响应健康检查；收到 SIGINT 后记录下来，稍等片刻（模拟安全关闭）再正常退出。
+const FAKE_PANEL_SOURCE = `
+import fs from 'node:fs';
+import http from 'node:http';
+const marker = process.env.FAKE_PANEL_MARKER;
+const fingerprint = process.env.MYSTRY_PROCESS_FINGERPRINT;
+const server = http.createServer((req, res) => {
+  res.setHeader('content-type', 'application/json');
+  if (req.url === '/api/health') {
+    res.end(JSON.stringify({ ok: true, service: 'mystry-dashboard', processFingerprint: fingerprint }));
+  } else if (req.url === '/api/auth/status') {
+    res.end(JSON.stringify({ needsSetup: false }));
+  } else {
+    res.statusCode = 404;
+    res.end('{}');
+  }
+});
+server.listen(Number(process.env.PORT), '127.0.0.1');
+let closing = false;
+process.on('SIGINT', () => {
+  fs.appendFileSync(marker, 'SIGINT;');
+  if (closing) return;
+  closing = true;
+  setTimeout(() => {
+    fs.appendFileSync(marker, 'closed;');
+    server.close();
+    process.exit(0);
+  }, 800);
+});
+`;
+
+function reservePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      server.close((error) => (error ? reject(error) : resolve(port)));
+    });
+  });
+}
+
+// 终端 Ctrl+C 会把 SIGINT 发给整个前台进程组，连按两次时控制器不能先被杀掉，
+// 必须等面板自己关完再按面板的退出码退出。Windows 无法用 kill 模拟控制台 Ctrl+C。
+test('前台模式下连按两次 Ctrl+C 仍等待面板安全关闭', {
+  timeout: 60_000,
+  skip: process.platform === 'win32' ? 'Windows 无法用 kill 模拟控制台 Ctrl+C' : false,
+}, async (t) => {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-foreground-'));
+  const fakeBin = path.join(home, 'bin');
+  const marker = path.join(home, 'panel-signals.log');
+  await fsp.mkdir(path.join(home, 'apps', 'server', 'dist'), { recursive: true });
+  await fsp.writeFile(path.join(home, 'apps', 'server', 'dist', 'index.js'), FAKE_PANEL_SOURCE, 'utf8');
+  await fsp.mkdir(fakeBin);
+  // 启动前检查需要 java；PATH 只放这个假 java，也避免把令牌写进开发机剪贴板。
+  await fsp.writeFile(path.join(fakeBin, 'java'), '#!/bin/sh\necho \'openjdk version "21"\' >&2\n', { mode: 0o755 });
+
+  const child = spawn(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'foreground'], {
+    env: {
+      PATH: fakeBin,
+      MYSTRY_HOME: home,
+      MYSTRY_CONFIG_PATH: path.join(home, 'config', 'panel.env'),
+      MYSTRY_DATA_DIR: path.join(home, 'data'),
+      MYSTRY_LANG: 'zh-CN',
+      MYSTRY_NO_BROWSER: '1',
+      PORT: String(await reservePort()),
+      FAKE_PANEL_MARKER: marker,
+    },
+    // 独立进程组，下面才能像终端一样把信号发给整个组。
+    detached: true,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => { output += chunk; });
+  child.stderr.on('data', (chunk) => { output += chunk; });
+  const exited = new Promise((resolve) => child.on('exit', (code, signal) => resolve({ code, signal })));
+  t.after(async () => {
+    if (child.exitCode === null && child.signalCode === null) {
+      try { process.kill(-child.pid, 'SIGKILL'); } catch { /* 进程组已退出 */ }
+      await exited;
+    }
+    await fsp.rm(home, { recursive: true, force: true });
+  });
+
+  const deadline = Date.now() + 20_000;
+  while (!output.includes('面板已启动')) {
+    if (Date.now() > deadline || child.exitCode !== null) assert.fail(`前台启动未完成：\n${output}`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  process.kill(-child.pid, 'SIGINT');
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  process.kill(-child.pid, 'SIGINT');
+
+  const result = await exited;
+  assert.deepEqual(result, { code: 0, signal: null }, `控制器没有等面板关完：\n${output}`);
+  const signals = await fsp.readFile(marker, 'utf8');
+  assert.match(signals, /closed/, '面板应完成安全关闭');
+  assert.equal(fs.existsSync(path.join(home, 'data', 'launcher', 'state.json')), false, '退出后应清除运行状态');
 });

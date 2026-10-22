@@ -649,14 +649,18 @@ async function startForeground() {
   });
   await writeState(child.pid, startedAt, nonce, connection.url);
 
+  // 用 on 而不是 once：再按一次 Ctrl+C 时控制器不能先被默认动作杀掉，要等面板自己关完。
+  // Windows 控制台的 Ctrl+C 本来就会送到同一控制台里的面板；而 Node 在 Windows 上的
+  // child.kill('SIGINT') 等于强制结束进程，转发反而会打断安全关闭，所以 Windows 不转发。
   const forwardInterrupt = () => {
+    if (process.platform === 'win32') return;
     if (isProcessAlive(child.pid)) child.kill('SIGINT');
   };
   const forwardTerminate = () => {
     if (isProcessAlive(child.pid)) child.kill('SIGTERM');
   };
-  process.once('SIGINT', forwardInterrupt);
-  process.once('SIGTERM', forwardTerminate);
+  process.on('SIGINT', forwardInterrupt);
+  process.on('SIGTERM', forwardTerminate);
   try {
     if (!(await waitForHealth(configuration.values, nonce))) {
       if (isProcessAlive(child.pid)) child.kill('SIGTERM');

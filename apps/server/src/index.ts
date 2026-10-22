@@ -191,7 +191,7 @@ async function main() {
   let app: Awaited<ReturnType<typeof buildApp>> | null = null;
   let shuttingDown = false;
   let shutdownPromise: Promise<void> | null = null;
-  let removeSignalHandlers = () => {};
+  let shutdownCompleted = false;
 
   const prepareShutdown = (): ShutdownSummary => {
     const alreadyShuttingDown = shuttingDown;
@@ -212,7 +212,6 @@ async function main() {
     if (!shuttingDown) prepareShutdown();
 
     shutdownPromise = (async () => {
-      removeSignalHandlers();
       app?.log.info({ reason }, '正在安全关闭面板');
       await shutdownTasks();
       const instanceResult = await processManager.stopAll();
@@ -234,6 +233,8 @@ async function main() {
     })().catch((error) => {
       process.exitCode = 1;
       console.error('安全关闭面板失败', error);
+    }).finally(() => {
+      shutdownCompleted = true;
     });
     return shutdownPromise;
   };
@@ -245,20 +246,23 @@ async function main() {
       void shutdown('launcher');
     },
   });
-  const handleSigint = () => {
+  // 终端 Ctrl+C 会把 SIGINT 同时发给整个进程组，前台控制器还会再转发一次。
+  // 信号处理器一直挂到进程退出：处理器一旦移除，重复信号会走默认动作直接杀掉进程，
+  // 跳过任务清理、实例停止和释放数据目录锁。关闭已完成但仍有句柄让进程挂着时，
+  // 再收到信号就按已有退出码直接退出，避免 Ctrl+C 完全无效。
+  const handleSignal = (signal: NodeJS.Signals) => {
+    if (shutdownCompleted) {
+      process.exit();
+    }
+    if (shutdownPromise) {
+      app?.log.info({ signal }, '面板正在安全关闭，已忽略重复的关闭信号');
+      return;
+    }
     prepareShutdown();
-    void shutdown('SIGINT');
+    void shutdown(signal);
   };
-  const handleSigterm = () => {
-    prepareShutdown();
-    void shutdown('SIGTERM');
-  };
-  removeSignalHandlers = () => {
-    process.off('SIGINT', handleSigint);
-    process.off('SIGTERM', handleSigterm);
-  };
-  process.once('SIGINT', handleSigint);
-  process.once('SIGTERM', handleSigterm);
+  process.on('SIGINT', handleSignal);
+  process.on('SIGTERM', handleSignal);
   try {
     await app.listen({ host: config.host, port: config.port });
     app.log.info(`面板已启动 http://${config.host}:${config.port}`);
