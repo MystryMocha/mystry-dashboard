@@ -45,3 +45,9 @@
 
 - 现象：`.slim/deepwork/**` 同时包含已修复发现、过程状态和旧计划。
 - 预防：该目录从常规 AI 搜索排除；引用任何历史结论前必须回到当前源码验证。
+
+## KF-009 Windows 批处理被统一成 LF 行尾
+
+- 现象：`.gitattributes` 曾对所有文本文件设置 `eol=lf`，`.cmd` 也以 LF 检出；cmd.exe 读 LF 批处理时，跳转标签和 `chcp 65001` 后的多字节字符可能错位，把半行内容当命令执行。
+- 当前处理：`*.cmd`、`*.bat` 单独设为 `eol=crlf`；`PanelManager.cmd` 只写 ASCII，说明放在 `scripts/windows/panel-manager.ps1`。
+- 预防：新增批处理沿用这两条规则；修改 `.gitattributes` 后用 `git ls-files --eol` 确认工作区行尾。

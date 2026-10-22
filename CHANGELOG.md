@@ -29,6 +29,7 @@
 
 ### Fixed
 
+- Windows 批处理（`PanelManager.cmd`、便携版 `mystryctl.cmd` 等）检出时改为 CRLF 行尾。此前所有文本文件统一为 LF，cmd.exe 读 LF 行尾的批处理时，跳转标签和多字节字符可能错位，把半行内容当命令执行。仓库里仍按 LF 存储，已有的本地仓库需要删掉这几个 `.cmd` 后重新检出（`git checkout -- <文件>`）才会生效。
 - 在 PowerShell 7 终端里运行 `PanelManager.cmd start` 不再报「Get-FileHash 无法识别」后退出。此前 Windows PowerShell 5.1 会沿用 PowerShell 7 的模块路径，加载到不兼容的模块；从资源管理器双击或在 cmd 里运行不受影响。
 - 一键部署 Paper 时指定的构建号不存在，现在任务会失败并提示「Paper <版本> 没有构建 #<号>」；此前会悄悄改装最新构建。
 - `mystryctl` 现在和服务端一样读取配置文件里的 `DATA_DIR` / `MYSTRY_DATA_DIR`；此前它总是把数据目录定为 `data`，配置文件里改了数据目录也会被覆盖。配置值两侧的引号也按 dotenv 的规则去掉。
