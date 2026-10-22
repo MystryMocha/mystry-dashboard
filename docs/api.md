@@ -6,6 +6,8 @@
 Authorization: Bearer <token>
 ```
 
+带请求体的接口使用 JSON，请求头为 `Content-Type: application/json`；启动、停止这类没有请求体的 POST 不要带 `Content-Type`，或者发送 `{}`。其他 `Content-Type` 会返回 **415**。
+
 错误响应通常为 JSON：`{ "error": "说明" }`。
 
 ## 总览性能监测
@@ -178,7 +180,7 @@ Authorization: Bearer <token>
 | GET | `/api/tasks/:id` | 查询任务进度 `TaskInfo` |
 | GET | `/api/tasks` | 任务中心列表，按创建时间倒序返回最近 50 条 `{ tasks: TaskInfo[] }` |
 
-部署和导入始终把内容写入新实例的 `DATA_DIR/instances/<id>`，不接收自定义目录或 Java 可执行文件路径。实例默认使用 PATH 中的 `java` 启动，可通过 `javaRuntimeId` 绑定注册表中当前可用的运行时；部署请求中的绑定同样用于 Forge/NeoForge Installer。
+部署和导入始终把内容写入新实例的 `DATA_DIR/instances/<id>`，不接收自定义目录或 Java 可执行文件路径。实例默认使用 PATH 中的 `java` 启动，可通过 `javaRuntimeId` 绑定注册表中当前可用的运行时；部署请求中的绑定同样用于 Forge/NeoForge Installer。Paper 的 `build`、Fabric / Forge / NeoForge 的 `loaderVersion` 等版本字段留空时取最新稳定版；填写了但不存在时任务失败，不会改用其他版本。
 
 ### 同机已有服务端交接
 
