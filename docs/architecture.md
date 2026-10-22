@@ -38,7 +38,7 @@ flowchart LR
   JavaStatus -->|exec java -version| Java
 ```
 
-核心边界是：实例唯一工作目录为 `DATA_DIR/instances/<id>`。`DATA_DIR` 可相对于项目根目录配置，也可使用绝对路径；实例服务、文件服务、部署和导入目标都只解析这个托管根目录。同机已有服务端只能先放到固定 `DATA_DIR/imports/<目录名>` 交接区，客户端只提交单层目录 ID，服务端只读扫描后复制到新托管实例。ZIP 预览只在 `uploads/.tmp-import-preview-*` 暂存，绑定登录用户且不跨重启，确认入队后由导入任务接管清理。不存在用户可指定的安装目录，也不存在面向整台机器的目录浏览能力。实例默认通过 PATH 中的 `java` 启动；也只能按 ID 使用面板扫描、注册并在执行前复验的运行时，客户端不能提交路径。
+核心边界是：实例唯一工作目录为 `DATA_DIR/instances/<id>`。`DATA_DIR` 可相对于项目根目录配置，也可使用绝对路径；实例服务、文件服务、部署和导入目标都只解析这个托管根目录。同机已有服务端的交接区见 [实例目录与安全边界](#实例目录与安全边界)，ZIP 预览的暂存见 [部署与导入流水线](#部署与导入流水线)。不存在用户可指定的安装目录，也不存在面向整台机器的目录浏览能力。实例默认通过 PATH 中的 `java` 启动；也只能按 ID 使用面板扫描、注册并在执行前复验的运行时，客户端不能提交路径。
 
 当前为多机扩展**阶段一**：内置本机节点 `local` 承担全部执行；远程节点创建与 Agent 连接尚未开放（由共享常量 `REMOTE_NODE_CREATION_ENABLED` 控制）。
 
@@ -132,6 +132,14 @@ mystry-dashboard/
 | `node-service` | 节点 CRUD、密钥哈希；远程创建受 `REMOTE_NODE_CREATION_ENABLED` 控制 |
 | `node-registry` | 节点在线态 / 心跳（内存；Agent 接入前本机恒为 online） |
 
+### 部署与导入流水线
+
+部署由 `core-metadata` 解析版本与地址，`core-download` 管理下载和缓存，`core-installer` 管理 Installer，`core-depot` 编排任务。核心文件先写入独立的 part 文件，完整完成后才原子发布到 `DATA_DIR/cache/cores/`，未完成的文件不会被当作缓存复用。相同缓存路径的并发任务共享一次下载；单个等待者取消不影响其他等待者，全部退出才中止下载并清理 part 文件。
+
+ZIP 预览与解压由 `zip-service` 统一做条目文件头和数据范围校验，不支持的压缩方式在打开文件流前拒绝；任务入队与实例落地由 `import-service` 负责。ZIP 预览只在 `uploads/.tmp-import-preview-*` 暂存，绑定登录用户且不跨重启，确认入队后由导入任务接管清理。
+
+所有部署和导入统一按「staging 原子落地 → 注册实例 → 更新实例元数据」收尾。目录落地后不再检查取消信号，必须继续注册，正常返回的 worker 仍记为成功。落地前失败只清理 staging，最终实例目录不参与该清理。
+
 ### 数据层 `apps/server/src/db.ts`
 
 SQLite 表：
@@ -165,7 +173,7 @@ DATA_DIR/
 
 ### 旧版外部实例接管
 
-历史记录可能保留旧版外部目录的迁移状态。面板不会读取、扫描、搬迁或删除该外部目录。用户必须先停止实例和面板服务，用系统工具将完整目录复制到 `DATA_DIR/instances/<id>`，再通过 `POST /api/instances/:id/adopt-managed-directory` 或界面 **接管**。接管只确认并登记面板托管副本；面板不会自动操作旧位置。
+历史记录可能保留旧版外部目录的迁移状态。面板不会读取、扫描、搬迁或删除该外部目录。用户必须先停止实例和面板服务，用系统工具将完整目录复制到 `DATA_DIR/instances/<id>`，再通过 `POST /api/instances/:id/adopt-managed-directory` 或实例页的 **接管托管目录**。接管只确认并登记面板托管副本；面板不会自动操作旧位置。
 
 ## 进程模型
 

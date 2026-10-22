@@ -40,7 +40,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | `JWT_SECRET` | 无；初次启动前必填 | 64 位十六进制 JWT 签名密钥，不要使用固定示例值 |
 | `SETUP_TOKEN` | 无；初次 setup 前必填 | 64 位十六进制初始化令牌；setup 完成后可移除 |
 | `LAUNCHER_TOKEN` | 无；使用 PanelManager / mystryctl 时自动生成 | 64 位十六进制本机关闭令牌；仅回环地址可使用 |
-| `JWT_EXPIRES_IN` | `2h` | JWT 有效期。纯数字按毫秒（内部转成 `Nms` 交给 `@fastify/jwt`，因其把 number 当作秒）；也可写 `2h` / `30m` / `7d` |
+| `JWT_EXPIRES_IN` | `2h` | JWT 有效期。纯数字按毫秒计；也可写 `2h` / `30m` / `7d` |
 | `CORS_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` | 精确 CORS 来源白名单，逗号分隔，不要填写 `*` |
 | `RATE_LIMIT_MAX` | `120` | 普通请求限流窗口内的最大次数 |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | 普通请求限流窗口，毫秒 |
@@ -72,7 +72,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | `IMPORT_PREVIEW_TTL_SECONDS` | `1800` | 待确认 ZIP 导入预览有效期，默认 30 分钟 |
 | `MAX_IMPORT_PREVIEWS` | `2` | 全局同时保留的待确认 ZIP 预览上限；每个登录用户最多一个 |
 
-部署和导入任务受并发数与队列数共同限制。达到 `MAX_CONCURRENT_TASKS` 后，新任务会进入 `pending` 排队；队列已满时请求返回 **429**。任务开始执行后，超过 `TASK_TIMEOUT_MS` 会失败并清理；前端应持续显示并轮询 `pending` / `running` 状态，不能把排队误判为失败。任务 worker 仍位于内存中，面板重启不会断点续跑；启动时会把遗留任务标记为失败，并尝试清理任务已创建的半成品实例。
+部署和导入任务受并发数与队列数共同限制。达到 `MAX_CONCURRENT_TASKS` 后，新任务排队等待；队列已满时请求返回 **429**。任务开始执行后超过 `TASK_TIMEOUT_MS` 会失败并清理。面板重启不会续跑未完成的任务，启动时会把它们标记为失败，并清理已创建的半成品实例。
 
 文件下载受 `MAX_CONCURRENT_FILE_DOWNLOADS` 限制；并发槽位已满时文件下载请求返回 **429**。下载在 `FILE_DOWNLOAD_IDLE_TIMEOUT_MS` 时间内无数据活动会被关闭，并释放占用的下载并发资源。
 
@@ -96,13 +96,9 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | `CONSOLE_COMMAND_WINDOW_MS` | `60000` | 控制台命令限流窗口，60 秒 |
 | `MAX_CONSOLE_STDIN_BYTES` | `65536` | 写入实例 stdin 的待处理输入缓冲上限，64 KiB |
 
-控制台连接数、单条命令大小、命令速率、WebSocket 入站帧和 stdin 待处理输入均受上表限制；历史输出与单次输出块分别受 `MAX_CONSOLE_BUFFER_BYTES`、`MAX_CONSOLE_CHUNK_BYTES` 限制。超过连接或缓冲容量会被拒绝或施加背压，命令超限或超过速率窗口不会写入实例 stdin。
-
-核心下载先写入临时文件，只有校验并完整完成后才以原子方式发布到 `DATA_DIR/cache/cores/` 的最终缓存路径。中断、超时或进程崩溃留下的未完成文件不会作为可用缓存复用。
+超过连接数或缓冲容量时，新连接会被拒绝或暂缓读取；命令超长或超过速率时不会写入实例。
 
 ### 上传、ZIP 解压与同机目录交接
-
-以下现有上传 / ZIP 参数继续有效：
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
@@ -122,9 +118,9 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 普通文件或 zip 上传超过 `MAX_UPLOAD_BYTES` 时返回 **413**；上传并发槽位已满时返回 **429**。ZIP 还会继续执行条目数、单条目、总解压大小和 central directory 配额校验。
 
-Web 的 ZIP 导入先把文件写入 `uploads/.tmp-import-preview-*` 并执行预检，再由用户确认配置后交给后台任务。预览按登录用户隔离，默认 30 分钟过期；面板关闭或重启时全部删除，不跨进程恢复。全局预览容量已满返回 **429**，任务队列已满时预览仍会保留以便重试确认。
+ZIP 导入的预检结果暂存在 `uploads/.tmp-import-preview-*`，按登录用户隔离，`IMPORT_PREVIEW_TTL_SECONDS` 后过期，面板重启时全部删除；全局预览数已满时返回 **429**。
 
-同机已有服务端只能从 `DATA_DIR/imports/<目录名>` 的直接子目录读取，API 只接收目录名而不是系统路径。复制任务会拒绝 symlink/junction、特殊文件和面板 ownership marker，并检查条目数、总字节数、任务超时与目标磁盘剩余空间。源目录只读且在成功后仍保留；确认实例可用后由管理员自行处理交接副本。
+`MAX_EXISTING_IMPORT_*` 限制从本机文件夹导入时单次复制的规模；导入前的其他检查见 [从本机文件夹导入](user-guide.md#从本机文件夹导入)。
 
 ### 数据目录
 
@@ -159,16 +155,6 @@ Web 的 ZIP 导入先把文件写入 `uploads/.tmp-import-preview-*` 并执行�
 **权限**：在 Linux/macOS 上，面板启动时会创建并校验数据根及 `instances`、`imports`、`uploads`、`.mystry-staging`、`.mystry-panel-lock` 等目录为 `0700`，`panel.db` 及其 WAL/SHM 为 `0600`。若已有目录对 group/other 可访问，默认拒绝启动；设置 `MYSTRY_REPAIR_DATA_PERMISSIONS=1` 可在启动时自动收紧权限。Windows 无法由 Node 可靠验证 ACL，首次启动会输出阻断级警告——请确保 `DATA_DIR` 仅当前运行面板的用户可读写（便携版由 `mystryctl`/PanelManager 创建用户专属目录）。
 
 `MYSTRY_HOME` 和 `MYSTRY_CONFIG_PATH` 用于确定配置文件位置，因此不能依赖该配置文件自己改变其加载位置；应由 `mystryctl`、shell 或进程环境在启动前设置。便携用户通常不需要手动设置这些变量。
-
-## 旧版外部实例
-
-旧版数据库中记录的外部实例目录不会被面板访问或删除。迁移必须由用户完成：
-
-1. 停止实例，并停止面板服务。
-2. 使用操作系统的复制工具，将旧外部目录完整复制到 `DATA_DIR/instances/<id>`。
-3. 重新启动面板，在对应实例页面点击 **接管**。
-
-面板不会自动搬迁、复制、扫描或清理旧外部目录。接管前也不会通过旧目录启动实例；目标目录必须是对应 `<id>` 的完整副本。
 
 ## 安全建议
 

@@ -17,7 +17,7 @@ Authorization: Bearer <token>
 - `instances`：以实例 ID 为键，包含 `cpuPercent`、`memoryBytes` 与 `state`（`ready` / `collecting` / `unavailable`）。仅采集面板持有的活进程，调用方不能指定 PID 或路径。
 - `warnings`：CPU 或内存连续采样至少 30 秒达到 90% 时提示；磁盘可用空间低于 5 GiB 或 10% 时提示。
 
-CPU 按整机逻辑核总容量归一至 0–100%；进程内存是驻留内存，与 JVM 堆内存上限 Xmx 不同。Windows 使用累计 CPU 时间和 WorkingSet，Linux 使用 `/proc` 与系统时钟频率；其他平台的进程指标暂不可用。空值不表示零占用。快照缓存 4 秒，并发请求合并；无历史存储，页面每 5 秒刷新、隐藏时暂停。采样间隔超过 15 秒会重新累计持续告警时间。
+CPU 按整机逻辑核总容量归一至 0–100%；进程内存是驻留内存，与 JVM 堆内存上限 Xmx 不同。进程指标目前只支持 Windows 和 Linux，其他平台为 `unavailable`。空值不表示零占用。快照缓存 4 秒，并发请求合并；无历史存储，页面每 5 秒刷新、隐藏时暂停。采样间隔超过 15 秒会重新累计持续告警时间。
 
 ## 健康检查
 
@@ -48,7 +48,7 @@ X-Setup-Token: <SETUP_TOKEN>
 {"username":"admin","password":"至少 12 位的强密码"}
 ```
 
-`SETUP_TOKEN` 和 `JWT_SECRET` 都必须是 64 位十六进制字符串，且必须使用不同的值。用户创建成功后，setup 接口不再可用；此时可以从 `.env` 移除 `SETUP_TOKEN`。用户表为空且未配置 setup token 时，服务不会启动。
+用户创建成功后 setup 接口不再可用。密钥格式要求见 [配置说明](configuration.md#首次启动必需配置)。
 
 ## 系统 `/api/system`
 
@@ -157,7 +157,7 @@ Authorization: Bearer <token>
 
 已认证的 `DELETE .../download-ticket/:ticket` 仅在 ticket、当前用户和 URL 中的实例 ID 三者都匹配，且 ticket 仍为 `reserved` 时取消并立即释放预占槽位，返回 **204**。已进入 `streaming` 时不改变流或槽位，返回 **409**；票据不存在、所属用户或实例不匹配时统一返回 **404**。
 
-上传文件超过 `MAX_UPLOAD_BYTES` 时返回 **413**；上传并发容量已满时返回 **429**。HTTP 请求、连接和上传空闲超时分别由 `HTTP_REQUEST_TIMEOUT_MS`、`HTTP_CONNECTION_TIMEOUT_MS` 和 `UPLOAD_IDLE_TIMEOUT_MS` 控制。文件下载受 `MAX_CONCURRENT_FILE_DOWNLOADS` 限制，并发容量已满时返回 **429**；下载在 `FILE_DOWNLOAD_IDLE_TIMEOUT_MS` 内无数据活动会被关闭并释放下载并发资源。
+上传文件超过 `MAX_UPLOAD_BYTES` 时返回 **413**；上传或下载的并发容量已满时返回 **429**。相关超时见 [配置说明](configuration.md)。
 
 ## 核心部署与导入
 
@@ -179,8 +179,6 @@ Authorization: Bearer <token>
 | GET | `/api/tasks` | 任务中心列表，按创建时间倒序返回最近 50 条 `{ tasks: TaskInfo[] }` |
 
 部署和导入始终把内容写入新实例的 `DATA_DIR/instances/<id>`，不接收自定义目录或 Java 可执行文件路径。实例默认使用 PATH 中的 `java` 启动，可通过 `javaRuntimeId` 绑定注册表中当前可用的运行时；部署请求中的绑定同样用于 Forge/NeoForge Installer。
-
-部署内部由 `core-metadata` 解析版本与地址，`core-download` 管理下载和缓存，`core-installer` 管理 Installer，`core-depot` 编排任务。相同缓存路径的并发任务共享一次下载；单个等待者取消不影响其他等待者，全部退出才中止未完成的下载并清理 part 文件。所有核心统一执行 staging 原子落地 → 注册实例 → 更新实例元数据的收尾顺序；目录落地后不再检查取消信号，必须继续注册，正常返回的 worker 仍记为成功。落地前失败只清理 staging，最终实例目录不参与该清理。
 
 ### 同机已有服务端交接
 
@@ -220,7 +218,7 @@ Authorization: Bearer <token>
 }
 ```
 
-提交前应停止原服务器。任务会只读扫描交接源，拒绝路径逃逸、symlink/junction、特殊文件和 ownership marker，并按 `MAX_EXISTING_IMPORT_ENTRIES`、`MAX_EXISTING_IMPORT_BYTES`、`TASK_TIMEOUT_MS` 与目标磁盘空间执行复制。成功或失败都不会删除源目录；失败时会清理新建的半成品托管实例。
+提交前应停止原服务器。复制前的检查与限制见 [从本机文件夹导入](user-guide.md#从本机文件夹导入)。成功或失败都不会删除源目录；失败时会清理新建的半成品实例。
 
 目录根部存在普通 `user_jvm_args.txt` 时，来源信息可包含 `detectedJvmConfig`。文件最大 64 KiB；不读取子目录文件，不跟随链接，也不解析或执行 `.bat` / `.sh`。检测到参数后，Web 要求用户明确选择沿用、面板推荐或自定义；解析失败时 `canonicalArgs` 为 `null`，不能沿用。
 
@@ -269,9 +267,7 @@ file=<server.zip>
 
 ZIP 导入只能走上面的预览流程；旧的一阶段 `POST /api/import` 已删除，调用会返回 **404**。
 
-ZIP 预览与解压由 `zip-service` 统一处理条目文件头和数据范围校验，任务入队与实例落地由 `import-service` 负责。普通文件支持存储和 Deflate 压缩；不支持的压缩方式在打开文件流前拒绝，JVM 参数预览返回结构化诊断，实际导入失败并清理半成品。此内部拆分不改变请求、响应或预览生命周期。
-
-核心版本、构建和 loader 元数据受 `MAX_CORE_METADATA_BYTES` 与 `CORE_METADATA_TIMEOUT_MS` 限制；核心文件下载先写入临时文件，完整完成后才原子发布到 `DATA_DIR/cache/cores/`，不复用未完成缓存。队列已满时创建任务返回 **429**。
+ZIP 中的普通文件只支持存储和 Deflate 两种压缩方式；其他方式会使导入任务失败，并清理半成品实例。
 
 ### `TaskInfo` 状态
 
@@ -282,7 +278,7 @@ ZIP 预览与解压由 `zip-service` 统一处理条目文件头和数据范围�
 | `completed` | 成功，`result` 可能含 `instanceId` |
 | `failed` | 失败，`error` 为原因 |
 
-部署或导入提交成功后，即使暂时没有执行槽位，也会先返回 `pending` 任务。调用方和前端应继续查询 `/api/tasks/:id`，直到 `completed` 或 `failed`；任务开始执行后超过 `TASK_TIMEOUT_MS` 会失败。排队状态不是失败，也不应通过重复提交来“催促”任务。
+部署或导入提交成功后，即使暂时没有执行槽位，也会先返回 `pending` 任务；队列已满时返回 **429**。调用方应继续查询 `/api/tasks/:id`，直到 `completed` 或 `failed`；任务开始执行后超过 `TASK_TIMEOUT_MS` 会失败。排队不是失败，不要重复提交。
 
 ## 控制台 WebSocket
 
@@ -295,7 +291,7 @@ Authorization: Bearer <token>
 
 然后连接：`ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`。ticket 默认 60 秒有效且只能建立一次连接。
 
-控制台 WebSocket 受以下限制保护：最多 `MAX_CONSOLE_CONNECTIONS=20` 个并发连接；单个入站消息最多 `MAX_CONSOLE_INCOMING_BYTES=4352` 字节；单条命令最多 `MAX_COMMAND_BYTES=4096` 字节；每个 `CONSOLE_COMMAND_WINDOW_MS=60000` 毫秒窗口最多 `MAX_CONSOLE_COMMANDS_PER_WINDOW=60` 条命令；写入实例 stdin 的待处理缓冲最多 `MAX_CONSOLE_STDIN_BYTES=65536` 字节。历史输出和单次输出块还分别受 `MAX_CONSOLE_BUFFER_BYTES`、`MAX_CONSOLE_CHUNK_BYTES` 限制。超过命令大小、速率、连接数或输入缓冲限制时，服务端不会继续向实例 stdin 写入。
+连接数、入站消息大小、命令长度和发送速率的上限见 [配置说明](configuration.md) 中 `MAX_CONSOLE_*` 等变量；超过限制时服务端不会向实例 stdin 写入。
 
 ### 服务端 → 客户端消息（JSON）
 
