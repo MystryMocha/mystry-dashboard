@@ -1,6 +1,11 @@
 # 统一使用 LF 行尾，避免 Windows / Linux 之间产生整文件噪声 diff
 * text=auto eol=lf
 
+# Windows 批处理必须是 CRLF：cmd.exe 读 LF 行尾的批处理时，跳转标签和多字节字符可能错位，
+# 把半行内容当命令执行。仓库里仍按 LF 存储，只有检出到工作区时转成 CRLF。
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
 # 二进制文件不做行尾转换
 *.png binary
 *.jpg binary
