@@ -4,6 +4,8 @@ $ErrorActionPreference = 'Stop'
 
 # Windows 源码管理入口：检查 Node.js、按需安装依赖并构建，生命周期交给 mystryctl。
 # 与 PanelManager.sh 的区别：配置默认沿用仓库根目录的 .env，构建结果按源码指纹缓存。
+# PanelManager.cmd 调用本脚本前会清空 PSModulePath：从 pwsh 7 里运行时会继承 7.x 的模块路径，
+# 5.1 加载到不兼容的模块后找不到 Get-FileHash。.cmd 里只能写 ASCII，所以说明放在这里。
 
 function Normalize-ProcessPath {
   # 部分 Windows 环境同时存在 Path 和 PATH，子进程可能拿到其中不完整的一份；合并为一份。
