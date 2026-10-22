@@ -33,6 +33,19 @@ test('Fabric 缓存键包含解析后的 loader 与 installer', async () => {
   assert.match(resolved, /loader-0\.16\.9-installer-1\.0\.1/);
 });
 
+test('Paper 未指定构建时取最新稳定版，指定的构建不存在时报错', async (t) => {
+  const { resolvePaperDownload } = await import('./core-metadata.js');
+  const download = (id: number) => ({ 'server:default': { url: `https://fixture.invalid/paper-${id}.jar`, name: `paper-${id}.jar` } });
+  t.mock.method(globalThis, 'fetch', async () => Response.json([
+    { id: 41, channel: 'STABLE', downloads: download(41) },
+    { id: 42, channel: 'STABLE', downloads: download(42) },
+    { id: 43, channel: 'BETA', downloads: download(43) },
+  ]));
+  assert.equal((await resolvePaperDownload('1.21.1')).build, 42);
+  assert.equal((await resolvePaperDownload('1.21.1', 43)).build, 43);
+  await assert.rejects(resolvePaperDownload('1.21.1', 99), /Paper 1\.21\.1 没有构建 #99/);
+});
+
 test('Forge 和 NeoForge JVM 参数文件可由 Java argfile 规则往返解析', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-user-jvm-args-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

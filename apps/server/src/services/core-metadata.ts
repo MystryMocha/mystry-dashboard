@@ -231,11 +231,17 @@ export async function resolvePaperDownload(
   );
   if (!builds.length) throw new Error(`Paper ${version} 没有可用构建`);
 
-  const stable = builds.filter((b) => b.channel === 'STABLE');
-  const pool = stable.length ? stable : builds;
-  const selected =
-    (build !== undefined ? pool.find((b) => b.id === build) || builds.find((b) => b.id === build) : null) ??
-    pool.sort((a, b) => b.id - a.id)[0]!;
+  let selected: PaperBuild;
+  if (build !== undefined) {
+    // 指定的构建不存在时直接报错，不能悄悄换成最新构建。
+    const requested = builds.find((b) => b.id === build);
+    if (!requested) throw new Error(`Paper ${version} 没有构建 #${build}`);
+    selected = requested;
+  } else {
+    const stable = builds.filter((b) => b.channel === 'STABLE');
+    const pool = stable.length ? stable : builds;
+    selected = pool.sort((a, b) => b.id - a.id)[0]!;
+  }
 
   const file = selected.downloads?.['server:default'];
   if (!file?.url) throw new Error(`Paper ${version}#${selected.id} 缺少下载地址`);

@@ -69,12 +69,14 @@ if [ "$#" -gt 1 ]; then
   fail "$(text '每次只能指定一个命令；' 'Specify one command at a time. ')$commands_hint"
 fi
 
+# 传入 force 时不管锁文件有没有变化，都重新安装依赖。
 ensure_dependencies() {
   if ! command -v npm >/dev/null 2>&1; then
     fail "$(text '未找到 npm。请修复 Node.js 22 或更高版本的安装。' 'npm was not found. Repair your Node.js 22+ installation.')"
   fi
 
-  if [ ! -d "$PROJECT_ROOT/node_modules" ] \
+  if [ "${1:-}" = force ] \
+    || [ ! -d "$PROJECT_ROOT/node_modules" ] \
     || [ ! -f "$PROJECT_ROOT/node_modules/.package-lock.json" ] \
     || [ "$PROJECT_ROOT/package-lock.json" -nt "$PROJECT_ROOT/node_modules/.package-lock.json" ]; then
     printf '%s\n' "$(text '正在根据 package-lock.json 安装依赖…' 'Installing dependencies from package-lock.json…')"
@@ -98,6 +100,14 @@ run_controller() {
   exec node --experimental-sqlite "$CONTROLLER" "$@"
 }
 
+# 和 run_controller 一样，但执行完会回到脚本，rebuild 停止面板后还要继续。
+call_controller() {
+  (
+    cd "$PROJECT_ROOT"
+    node --experimental-sqlite "$CONTROLLER" "$@"
+  )
+}
+
 command="${1:-start}"
 case "$command" in
   start|foreground)
@@ -106,9 +116,10 @@ case "$command" in
     run_controller "$command"
     ;;
   rebuild)
-    ensure_dependencies
+    call_controller stop
+    ensure_dependencies force
     build_sources
-    run_controller restart
+    run_controller start
     ;;
   stop|restart|status|logs|open|help|-h|--help)
     run_controller "$command"
