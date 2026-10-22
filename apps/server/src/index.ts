@@ -1,3 +1,4 @@
+import type { Socket } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
@@ -43,6 +44,15 @@ export type BuildAppOptions = LauncherRouteOptions & {
 };
 
 let activePanelDataLock: PanelDataLock | null = null;
+
+const defaultCloseGraceMs = 5_000;
+
+function getCloseGraceMs(): number {
+  const fromEnv = process.env.MYSTRY_TEST_CLOSE_GRACE_MS;
+  if (!fromEnv) return defaultCloseGraceMs;
+  const parsed = Number(fromEnv);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultCloseGraceMs;
+}
 
 export function releasePanelDataLock(): void {
   activePanelDataLock?.release();
@@ -192,6 +202,28 @@ async function main() {
   let shuttingDown = false;
   let shutdownPromise: Promise<void> | null = null;
   let shutdownCompleted = false;
+  const openSockets = new Set<Socket>();
+
+  // app.close() 要等所有连接断开才返回。浏览器标签页开着时，残留的连接可能一直不断，
+  // 关闭流程就停在这里，走不到释放数据目录锁。此时实例和任务都已停止，宽限期过后直接断开剩余连接。
+  const closeAppWithGrace = async (target: NonNullable<typeof app>): Promise<void> => {
+    const closing = target.close();
+    let timer: NodeJS.Timeout | undefined;
+    const timedOut = await Promise.race([
+      closing.then(() => false),
+      new Promise<boolean>((resolve) => {
+        timer = setTimeout(() => resolve(true), getCloseGraceMs());
+      }),
+    ]);
+    clearTimeout(timer);
+    if (!timedOut) return;
+    target.log.warn(
+      { openConnections: openSockets.size },
+      '等待连接断开超时，已强制断开剩余连接',
+    );
+    for (const socket of openSockets) socket.destroy();
+    await closing;
+  };
 
   const prepareShutdown = (): ShutdownSummary => {
     const alreadyShuttingDown = shuttingDown;
@@ -227,7 +259,7 @@ async function main() {
           '部分 Minecraft 实例在宽限期内未能完全退出，未发送 SIGKILL',
         );
       }
-      if (app) await app.close();
+      if (app) await closeAppWithGrace(app);
       releasePanelDataLock();
       getDb().close();
     })().catch((error) => {
@@ -245,6 +277,11 @@ async function main() {
     startShutdown: () => {
       void shutdown('launcher');
     },
+  });
+  // 自行跟踪全部 TCP 连接：已升级的 WebSocket 不在 Node 的 HTTP 连接列表里，closeAllConnections 管不到。
+  app.server.on('connection', (socket) => {
+    openSockets.add(socket);
+    socket.once('close', () => openSockets.delete(socket));
   });
   // 终端 Ctrl+C 会把 SIGINT 同时发给整个进程组，前台控制器还会再转发一次。
   // 信号处理器一直挂到进程退出：处理器一旦移除，重复信号会走默认动作直接杀掉进程，

@@ -56,4 +56,5 @@
 
 - 现象：终端 Ctrl+C 会把 SIGINT 发给整个前台进程组，`mystryctl foreground` 还会再转发一次。服务端曾在第一次信号后移除处理器，第二次信号走默认动作，面板在十几毫秒内被直接杀死，没有「正在安全关闭面板」日志，`.mystry-panel-lock` 留在数据目录。只看进程是否退出、端口是否释放会误判为通过。Windows 上 Node 的 `child.kill('SIGINT')` 等于强制结束进程，转发同样会打断安全关闭。
 - 当前处理：服务端信号处理器挂到进程退出，关闭途中的重复信号只记日志；控制器用 `on` 监听，Windows 不转发 SIGINT。
-- 预防：验证前台停止时要对整个进程组发信号（或真实按 Ctrl+C），并确认安全关闭日志、退出码和数据目录锁已释放；回归测试见 `scripts/smoke/panel-smoke.test.mjs` 与 `scripts/portable/portable.test.mjs`。
+- 后续发现：修复后在 Linux 实机验收中，浏览器开着面板时 10 轮里有 2 轮卡在 `app.close()`：Java 已退出、端口已关，但浏览器残留的连接一直不断，锁不释放。没开浏览器的测试测不出来。现在 `app.close()` 最多等 5 秒，之后强制断开服务端跟踪的全部 TCP 连接（含已升级的 WebSocket），测试可用 `MYSTRY_TEST_CLOSE_GRACE_MS` 缩短。
+- 预防：验证前台停止时要对整个进程组发信号（或真实按 Ctrl+C），并确认安全关闭日志、退出码和数据目录锁已释放；至少有一轮要开着浏览器面板（含实例控制台页）。回归测试见 `scripts/smoke/panel-smoke.test.mjs` 与 `scripts/portable/portable.test.mjs`。
