@@ -428,3 +428,89 @@ test('关闭过程中重复收到 SIGINT 仍完成安全关闭并释放数据目
   assert.equal(exitCode, 0, `面板关闭退出码异常\n${redact(logs)}`);
   await assert.rejects(fs.access(lockDir), { code: 'ENOENT' }, '安全关闭后应释放数据目录锁');
 });
+
+// 浏览器标签页开着时，残留连接可能一直不断，app.close() 会一直等下去、锁永远不释放。
+// 用一个请求体永远传不完的连接模拟它：宽限期过后面板应强制断开连接并完成安全关闭。
+test('关闭时残留连接一直不断开也能在宽限期后释放数据目录锁', { timeout: 90_000 }, async (t) => {
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-panel-linger-'));
+  let child = null;
+  let pending = null;
+  t.after(async () => {
+    pending?.destroy();
+    if (child && !childHasExited(child)) {
+      child.kill('SIGKILL');
+      await waitForExit(child, 5_000);
+    }
+    await removeTemp(tempRoot);
+  });
+
+  const dataDir = path.join(tempRoot, 'data');
+  const port = await reservePort();
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const fingerprint = `linger-${crypto.randomBytes(8).toString('hex')}`;
+  const [jwtSecret, setupToken, launcherToken] = distinctSecrets();
+  let logs = '';
+  let startupError = null;
+  child = spawn(process.execPath, [
+    '--experimental-sqlite',
+    '--import',
+    import.meta.resolve('tsx'),
+    path.join(repoRoot, 'apps', 'server', 'src', 'index.ts'),
+  ], {
+    cwd: tempRoot,
+    env: panelEnv({
+      MYSTRY_HOME: tempRoot,
+      MYSTRY_DATA_DIR: dataDir,
+      HOST: '127.0.0.1',
+      PORT: String(port),
+      JWT_SECRET: jwtSecret,
+      SETUP_TOKEN: setupToken,
+      LAUNCHER_TOKEN: launcherToken,
+      MYSTRY_PROCESS_FINGERPRINT: fingerprint,
+      MYSTRY_TEST_CLOSE_GRACE_MS: '1000',
+    }),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => { logs += chunk; });
+  child.stderr.on('data', (chunk) => { logs += chunk; });
+  child.once('error', (error) => { startupError = error; });
+
+  await waitForPanelHealth(child, baseUrl, fingerprint, () => startupError, () => logs);
+  const lockDir = path.join(dataDir, '.mystry-panel-lock');
+  await fs.access(lockDir);
+
+  pending = net.connect(port, '127.0.0.1');
+  await new Promise((resolve, reject) => {
+    pending.once('connect', resolve);
+    pending.once('error', reject);
+  });
+  pending.on('error', () => {});
+  pending.write([
+    'POST /api/auth/login HTTP/1.1',
+    `Host: 127.0.0.1:${port}`,
+    'Content-Type: application/json',
+    'Content-Length: 100',
+    '',
+    '{"username":',
+  ].join('\r\n'));
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
+  const acceptedShutdown = await requestJson(`${baseUrl}/api/launcher/shutdown`, {
+    method: 'POST',
+    headers: { 'x-launcher-token': launcherToken },
+  });
+  assert.equal(
+    acceptedShutdown.status,
+    202,
+    `启动器关闭未被接受：${acceptedShutdown.status} ${formatBody(acceptedShutdown.body)}`,
+  );
+
+  const exitCode = await waitForExit(child, STOP_TIMEOUT_MS);
+  assert.notEqual(exitCode, null, `残留连接让面板一直无法退出\n${redact(logs)}`);
+  assert.equal(child.signalCode, null, `面板被信号直接杀死，没有安全关闭\n${redact(logs)}`);
+  assert.equal(exitCode, 0, `面板关闭退出码异常\n${redact(logs)}`);
+  assert.match(logs, /已强制断开剩余连接/, `未走宽限期后的强制断开\n${redact(logs)}`);
+  await assert.rejects(fs.access(lockDir), { code: 'ENOENT' }, '安全关闭后应释放数据目录锁');
+});
