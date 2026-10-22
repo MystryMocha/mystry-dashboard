@@ -14,15 +14,14 @@ Mystry Dashboard 是独立的 Minecraft Java 服务端 Web 管理面板，在本
 | 修改代码或提交 PR | [开发指南](development.md) | [贡献指南](../CONTRIBUTING.md)、[验证矩阵](ai/verification.md) |
 | 接入接口或理解实现 | [API 参考](api.md) | [架构设计](architecture.md) |
 | 使用 AI 协助开发 | [项目开发规则](../AGENTS.md) | [AI 项目知识库](ai/README.md) |
-| 快速浏览页面与功能 | [产品介绍（截图与 PDF）](product-intro/README.md) | [中文 Wiki 导航](wiki/README.md) |
+| 快速浏览页面与功能 | [界面导览](product-intro/README.md) | [使用指南](user-guide.md) |
 
-首次使用建议按“快速开始 → 分步教程 → 使用指南”阅读。截图与 PDF 反映拍摄时的界面，可能与后续页面调整不同；操作说明以当前正文与实际界面为准。
+首次使用建议按“快速开始 → 分步教程 → 使用指南”阅读。界面导览的截图反映拍摄时的界面，操作说明以正文和实际界面为准。
 
 ## 文档分工
 
 - 根 [README](../README.md)：项目定位、能力边界和运行入口。
 - 本目录的专题文档：用户操作、配置、接口与开发流程的正文来源。
-- [Wiki](wiki/README.md)：保留中文页面入口，链接到正文，不重复维护命令、配置默认值和发布状态。
 - [AI 知识库](ai/README.md)：可追溯的实现事实、架构决策、禁区和检查方法。
 - 历史记录：保留当时的结论和证据，不作为当前缺陷或发布状态清单。
 
