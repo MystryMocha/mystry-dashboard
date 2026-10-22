@@ -76,27 +76,29 @@ export function ConfirmDialog({
         <h2 id={titleId} className="confirm-dialog-title">
           {title}
         </h2>
-        <div className="confirm-dialog-body">{description}</div>
-        {needText && (
-          <div className="field">
-            <label htmlFor={inputId}>
-              请输入「{requireText}」以确认操作
-            </label>
-            <input
-              id={inputId}
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              autoComplete="off"
-              autoFocus
-            />
-          </div>
-        )}
+        <div className="confirm-dialog-body">
+          {description}
+          {needText && (
+            <div className="field">
+              <label htmlFor={inputId}>
+                请输入「{requireText}」以确认操作
+              </label>
+              <input
+                id={inputId}
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
+                autoComplete="off"
+                autoFocus
+              />
+            </div>
+          )}
+        </div>
         <footer className="confirm-dialog-footer">
-          <button className="btn btn-ghost" type="button" disabled={busy} onClick={handleCancel}>
+          <button className="btn" type="button" disabled={busy} onClick={handleCancel}>
             取消
           </button>
           <button
-            className={`btn${danger ? ' btn-danger' : ''}`}
+            className={`btn ${danger ? 'btn-destructive' : 'btn-primary'}`}
             type="button"
             disabled={!canConfirm}
             onClick={onConfirm}

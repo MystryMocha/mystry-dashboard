@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderUp, RefreshCw } from 'lucide-react';
+import { FileArchive, FolderInput, FolderUp, Info, RefreshCw } from 'lucide-react';
 import type { CoreType, ExistingServerSourceInfo, ImportPreviewInfo, TaskInfo } from '@mystry/shared';
 import {
   ApiError,
@@ -15,6 +15,7 @@ import {
 import { EulaCheckbox } from '../components/EulaCheckbox';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor, type DetectedJvmChoice } from '../components/JvmSettingsEditor';
+import { PageHeader } from '../components/PageHeader';
 import { TaskProgress } from '../components/TaskProgress';
 import { errorMessage, isAbortError } from '../errors';
 
@@ -248,248 +249,263 @@ export function ImportPage() {
         : preview ? '确认配置并导入' : '请选择 ZIP';
 
   return (
-    <div className="import-workspace">
-      <div className="section-header">
-        <div>
-          <h1 className="page-title" style={{ margin: 0 }}>导入已有 Minecraft 服务端</h1>
-          <p className="page-desc" style={{ margin: '4px 0 0' }}>
-            从本机文件夹复制已有的服务端，或上传服务端 ZIP 压缩包；原文件不会被修改或删除。
-          </p>
-        </div>
-      </div>
+    <div className="page import-workspace">
+      <PageHeader
+        title="导入服务端"
+        subtitle="从本机文件夹复制已有的服务端，或上传服务端 ZIP 压缩包；原文件不会被修改或删除。"
+      />
 
-      <div className="import-mode-switch" role="group" aria-label="导入方式">
+      <div className="segmented import-mode-switch" role="group" aria-label="导入方式">
         <button
           type="button"
-          className={mode === 'directory' ? 'active' : undefined}
+          className={`segmented-item${mode === 'directory' ? ' active' : ''}`}
           aria-pressed={mode === 'directory'}
           disabled={busy}
           onClick={() => setMode('directory')}
         >
+          <FolderInput size={15} aria-hidden="true" />
           从本机文件夹导入
         </button>
         <button
           type="button"
-          className={mode === 'zip' ? 'active' : undefined}
+          className={`segmented-item${mode === 'zip' ? ' active' : ''}`}
           aria-pressed={mode === 'zip'}
           disabled={busy}
           onClick={() => setMode('zip')}
         >
+          <FileArchive size={15} aria-hidden="true" />
           上传 ZIP 压缩包
         </button>
       </div>
 
-      <form className="form-card import-panel" onSubmit={(e) => void onSubmit(e)}>
-        <div className="import-panel-body" role="region" aria-label="导入配置" tabIndex={0}>
+      <form className="form-stack import-form" onSubmit={(e) => void onSubmit(e)}>
         {mode === 'directory' ? (
-          <>
-            <div className="managed-note import-handoff-note">
-              <strong>导入步骤</strong>
-              <ol>
-                <li>先正常停止原服务器，确保世界数据已保存。</li>
-                <li>
-                  把整个服务端文件夹复制到面板数据目录下的 <code>imports</code> 文件夹（默认是面板所在文件夹里的{' '}
-                  <code>data/imports</code>）。
-                </li>
-                <li>在下方点「刷新目录」并选择它，面板会复制出一个新的实例。</li>
-              </ol>
-              <span>这里只显示 imports 中的第一层文件夹。</span>
-            </div>
-            <div className="field">
-              <label htmlFor="existing-server-source">选择要导入的文件夹</label>
-              <div className="btn-row import-source-row">
-                <select
-                  id="existing-server-source"
-                  value={sourceId}
-                  disabled={busy || sourcesLoading}
-                  onChange={(e) => setSourceId(e.target.value)}
-                >
-                  <option value="">{sourcesLoading ? '正在读取…' : '请选择文件夹'}</option>
-                  {sources.map((source) => (
-                    <option key={source.id} value={source.id} disabled={!source.ready}>
-                      {source.ready
-                        ? `${source.id} · ${source.launchTarget ?? '待完整校验'}`
-                        : `${source.id} · 不可用：${source.error}`}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  className="btn"
-                  type="button"
-                  disabled={busy || sourcesLoading}
-                  onClick={() => void loadSources()}
-                >
-                  <RefreshCw size={14} />
-                  {sourcesLoading ? '读取中…' : '刷新目录'}
-                </button>
+          <section className="form-section">
+            <h2 className="form-section-title">选择来源</h2>
+            <div className="card form-card">
+              <div className="callout callout-info import-handoff-note">
+                <Info size={18} aria-hidden="true" className="callout-icon" />
+                <div>
+                  <strong>导入步骤</strong>
+                  <ol>
+                    <li>先正常停止原服务器，确保世界数据已保存。</li>
+                    <li>
+                      把整个服务端文件夹复制到面板数据目录下的 <code>imports</code> 文件夹（默认是面板所在文件夹里的{' '}
+                      <code>data/imports</code>）。
+                    </li>
+                    <li>在下方点「刷新目录」并选择它，面板会复制出一个新的实例。</li>
+                  </ol>
+                  <p>这里只显示 imports 中的第一层文件夹。</p>
+                </div>
               </div>
-              {!sourcesLoading && sources.length === 0 ? (
-                <p className="muted field-help">imports 文件夹里还没有服务端，复制完成后点「刷新目录」。</p>
-              ) : null}
-              {selectedSource?.ready && selectedSource.launchTarget ? (
-                <p className="muted field-help">
-                  已探测启动目标：<code>{selectedSource.launchTarget}</code>
+              <div className="field">
+                <label htmlFor="existing-server-source">选择要导入的文件夹</label>
+                <div className="input-row import-source-row">
+                  <select
+                    id="existing-server-source"
+                    value={sourceId}
+                    disabled={busy || sourcesLoading}
+                    onChange={(e) => setSourceId(e.target.value)}
+                  >
+                    <option value="">{sourcesLoading ? '正在读取…' : '请选择文件夹'}</option>
+                    {sources.map((source) => (
+                      <option key={source.id} value={source.id} disabled={!source.ready}>
+                        {source.ready
+                          ? `${source.id} · ${source.launchTarget ?? '待完整校验'}`
+                          : `${source.id} · 不可用：${source.error}`}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={busy || sourcesLoading}
+                    onClick={() => void loadSources()}
+                  >
+                    <RefreshCw size={14} aria-hidden="true" className={sourcesLoading ? 'spin' : undefined} />
+                    {sourcesLoading ? '读取中…' : '刷新目录'}
+                  </button>
+                </div>
+                {!sourcesLoading && sources.length === 0 ? (
+                  <p className="field-help">imports 文件夹里还没有服务端，复制完成后点「刷新目录」。</p>
+                ) : null}
+                {selectedSource?.ready && selectedSource.launchTarget ? (
+                  <p className="field-help">
+                    已探测启动目标：<code>{selectedSource.launchTarget}</code>
+                  </p>
+                ) : null}
+                {selectedSource?.ready && selectedSource.error ? (
+                  <p className="field-help">{selectedSource.error}</p>
+                ) : null}
+                {sourcesError ? <p className="error">无法读取导入文件夹：{sourcesError}</p> : null}
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="form-section">
+            <h2 className="form-section-title">选择压缩包</h2>
+            <div className="card form-card">
+              <p className="field-help import-zip-lead">
+                ZIP 导入分两步：先上传并检查压缩包内容，确认设置后再创建实例。
+              </p>
+              {restoringPreview ? (
+                <p className="field-help" role="status">
+                  <span className="spinner spinner-sm" aria-hidden="true" /> 正在恢复待确认的 ZIP…
                 </p>
               ) : null}
-              {selectedSource?.ready && selectedSource.error ? (
-                <p className="muted field-help">{selectedSource.error}</p>
-              ) : null}
-              {sourcesError ? <p className="error">无法读取导入文件夹：{sourcesError}</p> : null}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="managed-note">
-              <strong>ZIP 导入分两步</strong>
-              <span>先上传并检查压缩包内容，确认设置后再创建实例。</span>
-            </div>
-            {restoringPreview ? <p className="muted" role="status">正在恢复待确认的 ZIP…</p> : null}
-            {preview ? (
-              <div className="import-preview-card" aria-live="polite">
-                <div>
-                  <strong>预检已完成</strong>
-                  <span>{preview.fileName} · {(preview.sizeBytes / 1024 / 1024).toFixed(1)} MiB</span>
-                  <span>有效至 {new Date(preview.expiresAt).toLocaleString()}</span>
-                </div>
-                <button className="btn btn-ghost" type="button" disabled={busy} onClick={() => void cancelPreview()}>
-                  取消并重新选择
-                </button>
-              </div>
-            ) : null}
-
-            <div className="field">
-              <label htmlFor="existing-server-zip">服务端压缩包（.zip）</label>
-              <div
-                style={{
-                  border: `2px dashed ${isDragging ? 'var(--accent)' : 'var(--border)'}`,
-                  borderRadius: 'var(--radius)',
-                  padding: '36px 20px',
-                  textAlign: 'center',
-                  cursor: busy || restoringPreview ? 'not-allowed' : 'pointer',
-                  background: isDragging ? 'var(--accent-subtle)' : file ? 'var(--bg-elevated)' : 'var(--bg)',
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '10px',
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  if (!busy && !restoringPreview) setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  if (busy || restoringPreview) return;
-                  const dropped = e.dataTransfer.files?.[0];
-                  selectZip(dropped ?? null);
-                }}
-              >
-                <FolderUp size={40} style={{ color: 'var(--accent)' }} />
-                <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
-                  {file ? file.name : '选择或拖拽 ZIP 压缩包至此处'}
-                </div>
-                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {file
-                    ? `文件大小：${(file.size / 1024 / 1024).toFixed(1)} MiB`
-                    : '上传大小与解压限制由面板配置决定'}
-                </span>
-                <button className="btn" type="button" disabled={busy || restoringPreview}
-                  onClick={() => document.getElementById('existing-server-zip')?.click()}>
-                  选择 ZIP
-                </button>
-              </div>
-              <input
-                key={preview?.id ?? 'new-preview'}
-                id="existing-server-zip"
-                type="file"
-                accept=".zip,application/zip"
-                disabled={busy || restoringPreview}
-                style={{ display: 'none' }}
-                onChange={(e) => { selectZip(e.target.files?.[0] ?? null); e.target.value = ''; }}
-              />
               {preview ? (
-                <p className="muted field-help">选择新文件并提交会先创建新预览，成功后才替换当前 ZIP。</p>
+                <div className="callout callout-success import-preview-card" aria-live="polite">
+                  <FileArchive size={18} aria-hidden="true" className="callout-icon" />
+                  <div>
+                    <strong>预检已完成</strong>
+                    <p>{preview.fileName} · {(preview.sizeBytes / 1024 / 1024).toFixed(1)} MiB</p>
+                    <p>有效至 {new Date(preview.expiresAt).toLocaleString()}</p>
+                  </div>
+                  <button className="btn btn-sm" type="button" disabled={busy} onClick={() => void cancelPreview()}>
+                    取消并重新选择
+                  </button>
+                </div>
               ) : null}
+
+              <div className="field">
+                <label htmlFor="existing-server-zip">服务端压缩包（.zip）</label>
+                <div
+                  className={`drop-zone${isDragging ? ' is-dragging' : ''}${file ? ' has-file' : ''}${busy || restoringPreview ? ' is-disabled' : ''}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (!busy && !restoringPreview) setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    if (busy || restoringPreview) return;
+                    const dropped = e.dataTransfer.files?.[0];
+                    selectZip(dropped ?? null);
+                  }}
+                >
+                  <span className="drop-zone-icon" aria-hidden="true"><FolderUp size={28} /></span>
+                  <div className="drop-zone-title">
+                    {file ? file.name : '选择或拖拽 ZIP 压缩包至此处'}
+                  </div>
+                  <span className="drop-zone-hint">
+                    {file
+                      ? `文件大小：${(file.size / 1024 / 1024).toFixed(1)} MiB`
+                      : '上传大小与解压限制由面板配置决定'}
+                  </span>
+                  <button className="btn" type="button" disabled={busy || restoringPreview}
+                    onClick={() => document.getElementById('existing-server-zip')?.click()}>
+                    选择 ZIP
+                  </button>
+                </div>
+                <input
+                  key={preview?.id ?? 'new-preview'}
+                  id="existing-server-zip"
+                  type="file"
+                  accept=".zip,application/zip"
+                  disabled={busy || restoringPreview}
+                  hidden
+                  onChange={(e) => { selectZip(e.target.files?.[0] ?? null); e.target.value = ''; }}
+                />
+                {preview ? (
+                  <p className="field-help">选择新文件并提交会先创建新预览，成功后才替换当前 ZIP。</p>
+                ) : null}
+              </div>
             </div>
-          </>
+          </section>
         )}
 
         {configurationVisible ? (
           <>
-            <div className="field">
-              <label htmlFor="import-instance-name">实例名称</label>
-              <input
-                id="import-instance-name"
-                value={name}
-                disabled={busy}
-                maxLength={128}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-            </div>
-            <div className="grid grid-2 import-meta-grid">
-              <div className="field">
-                <label htmlFor="import-core-type">核心类型</label>
-                <select
-                  id="import-core-type"
-                  value={coreType}
-                  disabled={busy}
-                  onChange={(e) => setCoreType(e.target.value as CoreType)}
-                >
-                  {coreTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+            <section className="form-section">
+              <h2 className="form-section-title">实例信息</h2>
+              <div className="card form-card">
+                <div className="field">
+                  <label htmlFor="import-instance-name">实例名称</label>
+                  <input
+                    id="import-instance-name"
+                    value={name}
+                    disabled={busy}
+                    maxLength={128}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="grid grid-2 import-meta-grid">
+                  <div className="field">
+                    <label htmlFor="import-core-type">核心类型</label>
+                    <select
+                      id="import-core-type"
+                      value={coreType}
+                      disabled={busy}
+                      onChange={(e) => setCoreType(e.target.value as CoreType)}
+                    >
+                      {coreTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label htmlFor="import-mc-version">Minecraft 版本（可选）</label>
+                    <input
+                      id="import-mc-version"
+                      value={mcVersion}
+                      disabled={busy}
+                      maxLength={64}
+                      placeholder="例如 1.20.1"
+                      onChange={(e) => setMcVersion(e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="field">
-                <label htmlFor="import-mc-version">Minecraft 版本（可选）</label>
-                <input
-                  id="import-mc-version"
-                  value={mcVersion}
+            </section>
+
+            <section className="form-section">
+              <h2 className="form-section-title">运行环境</h2>
+              <div className="card form-card">
+                <JavaRuntimeSelect
+                  value={javaRuntimeId}
+                  onChange={setJavaRuntimeId}
+                  onResolvedMajorChange={setJavaMajor}
+                  mcVersion={mcVersion}
                   disabled={busy}
-                  maxLength={64}
-                  placeholder="例如 1.20.1"
-                  onChange={(e) => setMcVersion(e.target.value)}
+                />
+                <JvmSettingsEditor
+                  value={jvmArgs}
+                  onChange={setJvmArgs}
+                  coreType={coreType}
+                  javaMajor={javaMajor}
+                  disabled={busy}
+                  useRecommendedDefault
+                  detectedJvmConfig={detectedJvmConfig}
+                  detectedChoice={detectedChoice}
+                  onDetectedChoiceChange={setDetectedChoice}
+                  onValidityChange={setJvmValid}
                 />
               </div>
-            </div>
+            </section>
 
-            <JavaRuntimeSelect
-              value={javaRuntimeId}
-              onChange={setJavaRuntimeId}
-              onResolvedMajorChange={setJavaMajor}
-              mcVersion={mcVersion}
-              disabled={busy}
-            />
-            <JvmSettingsEditor
-              value={jvmArgs}
-              onChange={setJvmArgs}
-              coreType={coreType}
-              javaMajor={javaMajor}
-              disabled={busy}
-              useRecommendedDefault
-              detectedJvmConfig={detectedJvmConfig}
-              detectedChoice={detectedChoice}
-              onDetectedChoiceChange={setDetectedChoice}
-              onValidityChange={setJvmValid}
-            />
-            <EulaCheckbox checked={acceptEula} disabled={busy} onChange={setAcceptEula} />
+            <section className="form-section">
+              <h2 className="form-section-title">许可协议</h2>
+              <div className="card form-card">
+                <EulaCheckbox checked={acceptEula} disabled={busy} onChange={setAcceptEula} />
+              </div>
+            </section>
           </>
         ) : null}
 
-        {error ? <p className="error">{error}</p> : null}
-        {progress ? <TaskProgress task={progress} label="导入进度" /> : null}
-        {busy ? (
-          <p className="muted" role="status" aria-live="polite">
-            {mode === 'zip' && file ? '正在上传并检查 ZIP，请保持此页打开。' : '导入已进入后台，可离开此页并在任务中心查看。'}
-          </p>
-        ) : null}
+        {error ? <p className="callout callout-danger" role="alert">{error}</p> : null}
+        {progress ? <div className="card form-card"><TaskProgress task={progress} label="导入进度" /></div> : null}
 
-        </div>
-        <div className="import-panel-footer">
-          <button className="btn btn-primary" type="submit" disabled={!canSubmit} style={{ padding: '0 24px' }}>
+        <div className="action-bar">
+          <span className="action-bar-status" role="status" aria-live="polite">
+            {busy
+              ? mode === 'zip' && file ? '正在上传并检查 ZIP，请保持此页打开。' : '导入已进入后台，可离开此页并在任务中心查看。'
+              : mode === 'directory'
+                ? selectedSource?.ready ? `将复制「${selectedSource.id}」为新实例` : '请先选择要导入的文件夹'
+                : preview ? '预检已完成，确认配置后即可导入' : '先上传压缩包完成预检'}
+          </span>
+          <button className="btn btn-primary" type="submit" disabled={!canSubmit}>
             {submitLabel}
           </button>
         </div>

@@ -22,7 +22,8 @@
 - 部署/导入/ZIP 先写入 `DATA_DIR/.mystry-staging/<taskId>/<instanceId>`（marker 含 task/instance/token），校验通过后原子移动到 `instances/<id>`；崩溃恢复只清理 marker 匹配且任务未完成的 staging，**不会**因 `result.instanceId` 删除已注册实例或最终目录（见 D-016）。
 - 实例 start/stop/restart/delete/adopt 互斥：启停、删除与接管走同一把实例操作锁；start 在首个异步步骤前占位 `starting`；普通 stop 只写 `stop\n`，超时返回仍在停止中且**不**隐式 `SIGKILL`；`force=1` 为唯一强杀路径（UI 二次确认）。面板关闭先标记 `shuttingDown` 并等待未完成的实例操作；`start` 在 spawn 前若已关闭则取消，避免留下无主 Java。
 - `server.properties` 读写、Java 状态检测、本机节点列表。
-- 响应式布局：`<=1024px` 显示导航菜单按钮并将部署网格改为单列；`<=768px` 实例卡片为单列、内容边距 16px，顶栏换行并隐藏次要标识，控制台高度随视口调整。总览保留「一键部署 / 导入已有服务端」入口；实例卡片通过名称链接或「进入管理」导航，启动/停止与更多操作独立；「更多操作」面板挂到 body 并以 fixed 定位在按钮下方右对齐展开（下方空间不足时翻到上方），不受卡片 `overflow` 裁剪，支持方向键、Home/End、Escape 与 Tab 关闭并恢复焦点。断点实现以 CSS 为准，真实宽度与六种主题的视觉验收需另行运行，不能由构建或 DOM 测试推定。
+- 界面参照 Apple HIG / Liquid Glass：导航层（悬浮侧栏、叠在内容上方的工具栏、底部标签栏、菜单、弹层、任务中心、页面底部悬浮操作栏）使用 `backdrop-filter` 毛玻璃，内容层为实色卡片与分组列表；页面以大标题开头，内容区滚动超过 12px 后工具栏显示页面标题与毛玻璃底；布尔型 `server.properties` 用 `role="switch"` 开关，实例子页和导入方式用分段控件，部署核心为 `radiogroup` 卡片（方向键切换）。文件页为面包屑 + 列表，「…」菜单提供下载/编辑/重命名/删除，新建文件夹改为弹窗。共用组件：`PageHeader`、`StatusPill`、`CoreIcon`、`BrandMark`。
+- 响应式布局：`<=1180px` 部署页指引改为单列、总览指标改为两列；`<=1024px` 侧栏收进左上角「打开导航菜单」（侧栏从工具栏下方展开，工具栏浮在遮罩之上，关闭按钮始终可点），任务中心按钮只显示图标；`<=768px` 出现底部悬浮标签栏（总览/部署/导入/本机，展开导航菜单时一并 inert），内容边距 16px，实例卡片单列，对话框改为底部升起的面板，控制台高度随视口调整；`<=560px` 指标圆环移到卡片右上角；`<=480px` 实例分段按钮隐藏图标。总览保留「一键部署 / 导入已有服务端」入口；实例卡片通过名称链接或「进入管理」导航，启动/停止与更多操作独立；「更多操作」面板挂到 body 并以 fixed 定位在按钮下方右对齐展开（下方空间不足时翻到上方），不受卡片 `overflow` 裁剪，支持方向键、Home/End、Escape 与 Tab 关闭并恢复焦点。断点实现以 CSS 为准，真实宽度与各外观/强调色的视觉验收需另行运行，不能由构建或 DOM 测试推定。
 - `PanelManager.cmd`（Windows）与 `PanelManager.sh`（Linux / WSL 源码）只负责检查 Node、安装依赖和构建，启停、状态、日志都转调 `scripts/portable/mystryctl.mjs`，经本机 `POST /api/launcher/shutdown` 安全关闭。Windows 默认配置为仓库根 `.env`。三个入口的提示跟随系统语言（中文系统用中文，其余英文），`MYSTRY_LANG` 可覆盖。
 - 跨平台 `mystryctl`：自动随机配置、后台 PID 指纹、健康检查、安全停止、状态和日志；便携包使用包内 Node，Linux 源码入口在依赖/构建预检后复用同一控制器。无参数且 stdin 为终端时显示交互菜单（通常是双击启动），菜单命令执行完或出错后等待回车再退出，避免窗口一闪而过；带参数调用与非终端 stdin 不暂停（`portable:test` 覆盖）。
 - 目标平台原生便携组装与最终压缩包冒烟脚本；发布包物理复制 `@mystry/shared`，并生成文件级 manifest。
@@ -30,7 +31,7 @@
 - 上传、下载、任务、元数据、控制台和 ZIP 解压均有大小、并发或超时边界。
 - 任务中心：`GET /api/tasks` 返回最近 50 条任务；桌面与移动布局均通过顶栏「任务中心」进入（共享单例轮询，429 退避、页面隐藏暂停），离开部署/导入页后仍可查看任务到终态。抽屉通过 portal 挂到 body，使用原生模态 dialog；关闭时不参与键盘导航，Escape、遮罩与关闭按钮均恢复入口焦点，任务进度带 progressbar 语义。
 - ZIP 可通过「选择 ZIP」按钮或拖放选择，两者共享扩展名校验与中文错误反馈；busy 和预览恢复期间禁止更换。上传大小与解压限制由面板配置决定，前端不承诺固定 4GB。
-- 工作区高度固定为视口扣除顶栏后的剩余空间，公共卡片高度不超过工作区；长内容在卡片内滚动。导入页标题和方式切换保留在卡片外，表单正文独立滚动，底部提交栏保持可见；卡片高度由 flex 剩余空间决定，不依赖写死的顶栏高度。
+- 内容区 `.content-container` 是唯一的页面滚动容器（工具栏叠在其上方），页面整体自然滚动；部署、导入、参数配置与实例设置的提交按钮放在 `position: sticky` 的底部悬浮操作栏中，滚动时始终可见。粘性偏移相对滚动容器内容区计算，所以容器上下内边距只留给工具栏和标签栏，页面末尾留白放在 `.content-inner`。切换路由时内容区回到顶部。
 - 节点页展示加载、空态、失败重试与返回的在线/离线状态；刷新失败保留上次数据并标记可能过期。控制台复制日志提供成功、空日志及剪贴板不可用/拒绝提示，卸载时清理提示计时器。
 - 危险操作防护：重启与强制停止需弹窗确认；运行/启动/停止中的实例禁止删除；删除实例需输入实例名二次确认（待迁移实例仅移除记录，免输名）；文件/目录与远程节点删除也使用统一确认弹窗，执行期间禁止 Escape 或遮罩绕过 busy 锁。
 - 控制台 WebSocket 断线后指数退避自动重连（1s→30s 封顶，重新申请一次性 ticket）。
@@ -44,7 +45,7 @@
 - `PanelManager.ps1` 安全停服：`Get-PanelHealth` 校验 PID、状态文件指纹与健康 JSON 一致后才发送 `X-Launcher-Token`（伪造健康服务测试断言永不发送 token）。
 - Paper/Fabric 等 core 缓存键基于解析后的不可变版本/build，旧 `latest` 键不再误命中。
 - 发布工作流（`.github/workflows/portable-release.yml`）：Actions 使用固定 commit SHA；Windows job 显式 `npm run windows:test`；`RELEASE_GPG_FINGERPRINT` 与仓库内发布公钥/指纹文件用于签名链门禁；`package-portable.mjs` 优先 `git rev-parse HEAD`，脏工作树拒绝正式打包。**本机未验证** GitHub Environment 私钥注入、真实 GPG 签名与双平台 Actions smoke 结果。
-- 三套主题各含暗/亮：`dark` / `light`（Mystry 粉紫）、`codex` / `codex-light`（暖灰青绿）、`grok` / `grok-light`（近黑或白底高对比）。CSS 变量按 `[data-theme]` 拆分，硬编码强调色已改为 `color-mix` 跟随 `--accent`；主按钮、实例页当前标签与任务徽标文字使用各主题的 `--on-accent`，危险按钮悬停使用 `--on-danger`。index.html 内联脚本在渲染前定主题（未保存时仅在 Mystry 暗/亮之间跟随 `prefers-color-scheme`），选择持久化 `mystry_theme`；选择器按套分组，入口在顶栏与登录页，控制台终端区域保持暗色。
+- 外观模型参照 macOS：外观 `auto` / `light` / `dark`（持久化 `mystry_appearance`，自动时跟随 `prefers-color-scheme` 并由 `watchSystemAppearance()` 监听系统切换）× 强调色 `blue` / `purple` / `pink`（Mystry 粉）/ `green` / `graphite`（持久化 `mystry_accent`）。index.html 内联脚本在渲染前写入 `<html data-appearance-preference data-appearance data-accent>`；两个新键都缺失时迁移旧 `mystry_theme`（`dark`/`light` → 深/浅 + 粉，`codex*` → 绿，`grok*` → 石墨），都没有时为自动 + 蓝色。CSS 令牌按 `:root[data-appearance]` 与 `[data-accent]` 拆分：`--accent` 填充、`--accent-text` 文字、`--on-accent` 主按钮文字（深色绿/石墨/粉用深色文字保证对比度），语义色为 Apple 系统色。选择器是工具栏与登录页的「外观」弹层（原生单选组，弹层挂到 body，因为毛玻璃父级会成为 fixed 定位的包含块）；控制台终端区域在两种外观下都保持深色。
 - 字体统一使用 `:root` 中的系统字体栈（`--font` / `--mono`，含中文系统字体回落），各主题不再单独指定字体；页面不加载任何外部字体或第三方样式，离线与国内网络下首屏不依赖外网。
 - 前端静态资源：`@mystry/web` 构建在 `vite build` 后运行 `scripts/precompress-dist.mjs`，为 dist 中 ≥1 KiB 的文本资源生成 `.br` / `.gz`；服务端 `@fastify/static` 开启 `preCompressed` 按 `Accept-Encoding` 发送并带 `Vary`，缺失时回落原文件。`/assets/*`（Vite 带 hash 产物）返回 `public, max-age=31536000, immutable`，`index.html` 与 SPA 回落页返回 `no-cache`（见 `frontend-assets.ts` 与 `test:static`）。
 - 文件列表 `listFiles` 只对目标目录调用一次 `resolveSafePath` 逐段校验，条目逐个 `lstat` 拒绝 symlink/junction，不再对每个条目重复 realpath 整条路径（大目录不会长时间阻塞事件循环）。实例根目录的所有权标记 `.mystry-instance.json` 不出现在列表中（子目录同名文件照常列出）；改写类接口仍由 `assertMutableTarget` 拒绝操作它。

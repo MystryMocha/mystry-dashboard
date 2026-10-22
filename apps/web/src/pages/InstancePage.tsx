@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Link, NavLink, Route, Routes, useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
+  ChevronLeft,
   Folder,
   Play,
   Power,
@@ -9,16 +9,19 @@ import {
   Settings,
   Sliders,
   Terminal,
+  TriangleAlert,
 } from 'lucide-react';
 import type { InstanceInfo } from '@mystry/shared';
 import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ConfigTab } from '../components/ConfigTab';
 import { ConsolePanel } from '../components/ConsolePanel';
+import { CoreIcon } from '../components/CoreIcon';
 import { EulaCheckbox } from '../components/EulaCheckbox';
 import { FilesTab } from '../components/FilesTab';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
+import { InstanceStatusPill } from '../components/StatusPill';
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
 import { errorMessage } from '../errors';
 import { useInstanceAction } from '../hooks/useInstanceAction';
@@ -27,17 +30,12 @@ import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import {
   canStartInstance,
   canStopInstance,
-  instanceStatusLabel,
   isLifecycleBusy,
   isProcessAlive,
 } from '../instance-status';
 
 function ConsoleTab({ instance }: { instance: InstanceInfo }) {
-  return (
-    <div>
-      <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} />
-    </div>
-  );
+  return <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} />;
 }
 
 function MigrationPanel({ instance, onAdopt }: { instance: InstanceInfo; onAdopt: () => Promise<void> }) {
@@ -49,11 +47,19 @@ function MigrationPanel({ instance, onAdopt }: { instance: InstanceInfo; onAdopt
     catch (err) { setError(errorMessage(err)); }
     finally { setBusy(false); }
   }
-  return <div className="migration-panel"><span className="badge migration">需要迁移</span><h2>接管托管目录</h2>
-    <p>请使用系统文件管理器，将旧实例文件复制到面板数据目录下的实例文件夹：</p><code>面板数据目录/instances/{instance.id}</code>
-    <p className="muted">面板不会读取或删除旧目录。复制完成后点击「接管托管目录」，成功后将恢复实例操作。</p>{error && <p className="error">{error}</p>}
-    <button className="btn" type="button" disabled={busy} onClick={() => void adopt()}>{busy ? '检查中…' : '接管托管目录'}</button>
-  </div>;
+  return (
+    <div className="card migration-panel">
+      <span className="empty-icon is-warning" aria-hidden="true"><TriangleAlert size={26} /></span>
+      <h2>接管托管目录</h2>
+      <p>请使用系统文件管理器，将旧实例文件复制到面板数据目录下的实例文件夹：</p>
+      <code className="code-block">面板数据目录/instances/{instance.id}</code>
+      <p className="muted">面板不会读取或删除旧目录。复制完成后点击「接管托管目录」，成功后将恢复实例操作。</p>
+      {error && <p className="callout callout-danger" role="alert">{error}</p>}
+      <button className="btn btn-primary" type="button" disabled={busy} onClick={() => void adopt()}>
+        {busy ? '检查中…' : '接管托管目录'}
+      </button>
+    </div>
+  );
 }
 
 type SettingsDraft = Pick<InstanceInfo, 'name' | 'jarFile' | 'jvmArgs' | 'acceptEula' | 'javaRuntimeId'>;
@@ -119,77 +125,97 @@ function SettingsTab({
   }
 
   return (
-    <div className="panel" style={{ maxWidth: 640 }}>
-      {error && <p className="error">{error}</p>}
-      {dirty && <p className="muted" role="status">有未保存的设置。</p>}
-      {saved && !dirty && <p className="muted" role="status" aria-live="polite">设置已保存。</p>}
-      <div className="field">
-        <label htmlFor="instance-settings-name">名称</label>
-        <input
-          id="instance-settings-name"
-          value={name}
-          disabled={saving}
-          onChange={(e) => {
-            setName(e.target.value);
-            setSaved(false);
-          }}
-        />
+    <div className="form-stack settings-workspace">
+      <section className="form-section">
+        <h3 className="form-section-title">基本信息</h3>
+        <div className="card form-card">
+          <div className="field">
+            <label htmlFor="instance-settings-name">名称</label>
+            <input
+              id="instance-settings-name"
+              value={name}
+              disabled={saving}
+              onChange={(e) => {
+                setName(e.target.value);
+                setSaved(false);
+              }}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="instance-settings-jar-file">Jar 文件名</label>
+            <input
+              id="instance-settings-jar-file"
+              value={jarFile}
+              disabled={saving}
+              onChange={(e) => {
+                setJarFile(e.target.value);
+                setSaved(false);
+              }}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="instance-settings-install-path">安装路径</label>
+            <input
+              id="instance-settings-install-path"
+              value={instance.installPath ?? `面板数据目录/instances/${instance.id}`}
+              readOnly
+            />
+            <p className="field-help">实例目录由面板托管，创建后不可修改。</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="form-section">
+        <h3 className="form-section-title">运行环境</h3>
+        <div className="card form-card">
+          <JavaRuntimeSelect
+            value={javaRuntimeId}
+            onChange={(nextRuntimeId) => {
+              setJavaRuntimeId(nextRuntimeId);
+              setSaved(false);
+            }}
+            mcVersion={instance.mcVersion}
+            disabled={saving}
+            onResolvedMajorChange={setJavaMajor}
+          />
+          <JvmSettingsEditor
+            value={jvmArgs}
+            onChange={(next) => {
+              setJvmArgs(next);
+              setSaved(false);
+            }}
+            coreType={instance.coreType}
+            javaMajor={javaMajor}
+            disabled={saving}
+            onValidityChange={setJvmValid}
+          />
+        </div>
+      </section>
+
+      <section className="form-section">
+        <h3 className="form-section-title">许可协议</h3>
+        <div className="card form-card">
+          <EulaCheckbox
+            checked={acceptEula}
+            disabled={saving}
+            onChange={(checked) => {
+              setAcceptEula(checked);
+              setSaved(false);
+            }}
+          />
+        </div>
+      </section>
+
+      {error && <p className="callout callout-danger" role="alert">{error}</p>}
+
+      <div className="action-bar">
+        <span className="action-bar-status" role="status" aria-live="polite">
+          {dirty ? '有未保存的设置。' : saved ? '设置已保存。' : '修改后点「保存设置」生效。'}
+        </span>
+        <button className="btn btn-primary" type="button" disabled={!dirty || saving || !jvmValid} onClick={() => void save()}>
+          {saving ? '保存中…' : '保存设置'}
+        </button>
       </div>
-      <div className="field">
-        <label htmlFor="instance-settings-jar-file">Jar 文件名</label>
-        <input
-          id="instance-settings-jar-file"
-          value={jarFile}
-          disabled={saving}
-          onChange={(e) => {
-            setJarFile(e.target.value);
-            setSaved(false);
-          }}
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="instance-settings-install-path">安装路径</label>
-        <input
-          id="instance-settings-install-path"
-          value={instance.installPath ?? `面板数据目录/instances/${instance.id}`}
-          readOnly
-        />
-        <p className="muted" style={{ margin: '0.25rem 0 0', fontSize: '0.8rem' }}>
-          实例目录由面板托管，创建后不可修改。
-        </p>
-      </div>
-      <JavaRuntimeSelect
-        value={javaRuntimeId}
-        onChange={(nextRuntimeId) => {
-          setJavaRuntimeId(nextRuntimeId);
-          setSaved(false);
-        }}
-        mcVersion={instance.mcVersion}
-        disabled={saving}
-        onResolvedMajorChange={setJavaMajor}
-      />
-      <JvmSettingsEditor
-        value={jvmArgs}
-        onChange={(next) => {
-          setJvmArgs(next);
-          setSaved(false);
-        }}
-        coreType={instance.coreType}
-        javaMajor={javaMajor}
-        disabled={saving}
-        onValidityChange={setJvmValid}
-      />
-      <EulaCheckbox
-        checked={acceptEula}
-        disabled={saving}
-        onChange={(checked) => {
-          setAcceptEula(checked);
-          setSaved(false);
-        }}
-      />
-      <button className="btn" type="button" disabled={!dirty || saving || !jvmValid} onClick={() => void save()}>
-        {saving ? '保存中…' : '保存设置'}
-      </button>
 
       <UnsavedChangesDialog
         blocker={blocker}
@@ -200,6 +226,8 @@ function SettingsTab({
     </div>
   );
 }
+
+const hubTabClass = ({ isActive }: { isActive: boolean }) => `segmented-item${isActive ? ' active' : ''}`;
 
 export function InstancePage() {
   const { id = '' } = useParams();
@@ -227,31 +255,48 @@ export function InstancePage() {
   }
 
   if (!instance) {
-    return <p>{error || '加载中…'}</p>;
+    return (
+      <div className="page">
+        <Link to="/" className="back-link">
+          <ChevronLeft size={18} aria-hidden="true" />
+          实例总览
+        </Link>
+        {error ? (
+          <div className="empty-state card" role="alert">
+            <p>{error}</p>
+            <button className="btn" type="button" onClick={() => void load()}>重新加载</button>
+          </div>
+        ) : (
+          <div className="page-loading" role="status">
+            <span className="spinner" aria-hidden="true" />
+            加载中…
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
-    <div className="instance-page" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div className="instance-hub-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-            <Link to="/" className="btn btn-icon" title="返回总览">
-              <ArrowLeft size={18} />
-            </Link>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <h2 style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700 }}>{instance.name}</h2>
-                <span className={`status-badge ${instance.requiresMigration ? 'starting' : instance.status}`}>
-                  {instance.requiresMigration ? '待迁移' : `● ${instanceStatusLabel[instance.status] || instance.status}`}
-                </span>
-              </div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                核心：{instance.coreType.toUpperCase()} {instance.mcVersion ? `· 版本 ${instance.mcVersion}` : ''}
+    <div className="page instance-page">
+      <header className="instance-header">
+        <Link to="/" className="back-link" title="返回总览">
+          <ChevronLeft size={18} aria-hidden="true" />
+          实例总览
+        </Link>
+        <div className="instance-title-row">
+          <CoreIcon coreType={instance.coreType} size="lg" />
+          <div className="instance-title-text">
+            <h1 className="large-title instance-name">{instance.name}</h1>
+            <div className="instance-meta">
+              <InstanceStatusPill instance={instance} />
+              <span>
+                {instance.coreType.toUpperCase()}
+                {instance.mcVersion ? ` · 版本 ${instance.mcVersion}` : ''}
               </span>
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="instance-actions">
             {canStartInstance(instance.status) && (
               <button
                 className="btn btn-ok"
@@ -259,7 +304,7 @@ export function InstancePage() {
                 disabled={busy || instance.requiresMigration}
                 onClick={() => act('start')}
               >
-                <Play size={14} />
+                <Play size={14} aria-hidden="true" />
                 启动
               </button>
             )}
@@ -270,7 +315,7 @@ export function InstancePage() {
                 disabled={busy || instance.requiresMigration}
                 onClick={() => act('stop')}
               >
-                <Power size={14} />
+                <Power size={14} aria-hidden="true" />
                 停止
               </button>
             )}
@@ -280,11 +325,11 @@ export function InstancePage() {
               disabled={busy || instance.requiresMigration || isLifecycleBusy(instance.status)}
               onClick={() => setConfirmRestart(true)}
             >
-              <RotateCcw size={14} />
+              <RotateCcw size={14} aria-hidden="true" />
               重启
             </button>
             <button
-              className="btn btn-ghost"
+              className="btn btn-plain is-danger"
               type="button"
               disabled={busy || instance.requiresMigration || !isProcessAlive(instance.status)}
               onClick={() => setConfirmForceStop(true)}
@@ -293,43 +338,30 @@ export function InstancePage() {
             </button>
           </div>
         </div>
+      </header>
 
-        {error && <p className="error" role="alert">{error}</p>}
+      {error && <p className="callout callout-danger" role="alert">{error}</p>}
 
-        {!instance.requiresMigration && (
-          <div className="hub-tabs">
-            <NavLink
-              to={`/instances/${id}`}
-              end
-              className={({ isActive }) => `hub-tab${isActive ? ' active' : ''}`}
-            >
-              <Terminal size={15} />
-              <span>控制台</span>
-            </NavLink>
-            <NavLink
-              to={`/instances/${id}/files`}
-              className={({ isActive }) => `hub-tab${isActive ? ' active' : ''}`}
-            >
-              <Folder size={15} />
-              <span>文件管理</span>
-            </NavLink>
-            <NavLink
-              to={`/instances/${id}/config`}
-              className={({ isActive }) => `hub-tab${isActive ? ' active' : ''}`}
-            >
-              <Sliders size={15} />
-              <span>参数配置</span>
-            </NavLink>
-            <NavLink
-              to={`/instances/${id}/settings`}
-              className={({ isActive }) => `hub-tab${isActive ? ' active' : ''}`}
-            >
-              <Settings size={15} />
-              <span>实例设置 & JVM</span>
-            </NavLink>
-          </div>
-        )}
-      </div>
+      {!instance.requiresMigration && (
+        <nav className="segmented hub-tabs" aria-label="实例功能">
+          <NavLink to={`/instances/${id}`} end className={hubTabClass}>
+            <Terminal size={15} aria-hidden="true" />
+            <span>控制台</span>
+          </NavLink>
+          <NavLink to={`/instances/${id}/files`} className={hubTabClass}>
+            <Folder size={15} aria-hidden="true" />
+            <span>文件管理</span>
+          </NavLink>
+          <NavLink to={`/instances/${id}/config`} className={hubTabClass}>
+            <Sliders size={15} aria-hidden="true" />
+            <span>参数配置</span>
+          </NavLink>
+          <NavLink to={`/instances/${id}/settings`} className={hubTabClass}>
+            <Settings size={15} aria-hidden="true" />
+            <span>实例设置</span>
+          </NavLink>
+        </nav>
+      )}
 
       <div className="instance-body" key={instance.id}>
         {instance.requiresMigration ? (

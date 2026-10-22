@@ -28,6 +28,7 @@
 | D-017 | Adopted | 同一 `DATA_DIR` 只允许一个面板进程在 `initDb` / 任务恢复前取得 `.mystry-panel-lock/`；存活 PID 拒绝启动，仅原 PID 明确不存在时可 quarantine 旧锁 | `data-lock-service.ts`、`index.ts` |
 | D-018 | Adopted | 四个实例入口统一使用结构化 JVM 配置器，但数据库继续只保存规范化 `jvmArgs` 字符串 | 不引入 schema 迁移；共享包负责解析、预设和诊断，服务端在保存、任务入队和启动前复验；`jvm-config.ts`、`JvmSettingsEditor.tsx`、`jvm-validation-service.ts` |
 | D-019 | Adopted | Web 的 ZIP 导入使用“上传预检 → 确认配置 → 后台任务”二阶段内存预览；旧的一阶段 `POST /api/import` 已删除 | 在消费大文件前展示并确认检测到的 JVM 参数；预览随机 ID 绑定用户、限时限量、不写数据库且不跨重启，队列满不消费；`import-preview-service.ts`、`cores.ts`、`ImportPage.tsx` |
+| D-020 | Adopted | Web 界面参照 Apple HIG / Liquid Glass：毛玻璃只用于导航层，内容层用实色卡片；主题改为「外观（自动/浅色/深色）× 强调色」，替代原 Mystry / Codex / Grok 六主题 | 与系统深浅色一致、强调色可选且对比度按外观分别校准；旧 `mystry_theme` 在渲染前自动迁移，不丢用户选择；仍不加载外部字体与样式。`theme.ts`、`index.html`、`styles.css`、`ThemeToggle.tsx` |
 
 ## 更新规则
 

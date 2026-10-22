@@ -2,28 +2,47 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <title>Mystry Dashboard</title>
     <script>
-      // 渲染前确定主题，避免闪烁。已保存则用 mystry_theme；
-      // 未保存时仅在 Mystry 暗/亮之间跟随系统偏好。
+      // 渲染前确定外观与强调色，避免闪烁。
+      // 优先读取 mystry_appearance / mystry_accent；没有时迁移旧版 mystry_theme 六主题；
+      // 都没有则外观跟随系统、强调色为蓝色。
       (function () {
+        var root = document.documentElement;
+        var appearance = 'auto';
+        var accent = 'blue';
         try {
-          var t = localStorage.getItem('mystry_theme');
-          if (
-            t !== 'light' &&
-            t !== 'dark' &&
-            t !== 'codex' &&
-            t !== 'codex-light' &&
-            t !== 'grok' &&
-            t !== 'grok-light'
-          ) {
-            t = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+          var legacy = {
+            dark: ['dark', 'pink'],
+            light: ['light', 'pink'],
+            codex: ['dark', 'green'],
+            'codex-light': ['light', 'green'],
+            grok: ['dark', 'graphite'],
+            'grok-light': ['light', 'graphite']
+          }[localStorage.getItem('mystry_theme')];
+          if (legacy) {
+            appearance = legacy[0];
+            accent = legacy[1];
           }
-          document.documentElement.dataset.theme = t;
-        } catch (e) {
-          document.documentElement.dataset.theme = 'dark';
+          var savedAppearance = localStorage.getItem('mystry_appearance');
+          var savedAccent = localStorage.getItem('mystry_accent');
+          if (savedAppearance === 'auto' || savedAppearance === 'light' || savedAppearance === 'dark') {
+            appearance = savedAppearance;
+          }
+          if (/^(blue|purple|pink|green|graphite)$/.test(savedAccent || '')) accent = savedAccent;
+        } catch (e) {}
+        var dark = appearance === 'dark';
+        if (appearance === 'auto') {
+          try {
+            dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          } catch (e) {}
         }
+        root.dataset.appearancePreference = appearance;
+        root.dataset.appearance = dark ? 'dark' : 'light';
+        root.dataset.accent = accent;
       })();
     </script>
   </head>

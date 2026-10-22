@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreVertical } from 'lucide-react';
+import { Ellipsis } from 'lucide-react';
 
 const PANEL_GAP = 6;
 const VIEWPORT_MARGIN = 8;
@@ -147,7 +147,7 @@ export function ActionMenu({
         onClick={() => (open ? close(false) : setOpen(true))}
         onKeyDown={onTriggerKeyDown}
       >
-        <MoreVertical size={16} aria-hidden="true" />
+        <Ellipsis size={17} aria-hidden="true" />
       </button>
       {open &&
         createPortal(
@@ -167,7 +167,7 @@ export function ActionMenu({
                 type="button"
                 role="menuitem"
                 tabIndex={-1}
-                className={`btn ${item.danger ? 'btn-danger' : 'btn-ghost'}`}
+                className={`menu-item${item.danger ? ' is-danger' : ''}`}
                 disabled={item.disabled}
                 title={item.title}
                 onClick={() => {
@@ -176,8 +176,8 @@ export function ActionMenu({
                   item.onSelect();
                 }}
               >
-                {item.icon}
-                {item.label}
+                <span className="menu-item-label">{item.label}</span>
+                {item.icon ? <span className="menu-item-icon" aria-hidden="true">{item.icon}</span> : null}
               </button>
             ))}
           </div>,

@@ -152,97 +152,110 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
   function renderField(field: FieldMeta) {
     const raw = props[field.key];
     const inputId = `server-property-${field.key}`;
+    const descId = `${inputId}-desc`;
     const disabled = !loaded || saving;
     return (
-      <div className="field" key={field.key}>
-        {field.type === 'boolean' ? (
-          <label className="config-bool">
+      <div className={`list-row config-row config-row-${field.type}`} key={field.key}>
+        <div className="list-row-text">
+          <label htmlFor={inputId} className="list-row-title">{field.label}</label>
+          <p className="list-row-desc" id={descId}>{field.desc}</p>
+        </div>
+        <div className="list-row-control">
+          {field.type === 'boolean' ? (
             <input
+              id={inputId}
               type="checkbox"
+              role="switch"
+              className="switch"
               checked={(raw ?? 'false') === 'true'}
               disabled={disabled}
+              aria-describedby={descId}
               onChange={(e) => setValue(field.key, e.target.checked ? 'true' : 'false')}
             />
-            {field.label}
-          </label>
-        ) : (
-          <>
-            <label htmlFor={inputId}>{field.label}</label>
-            {field.type === 'select' ? (
-              <select
-                id={inputId}
-                value={raw ?? ''}
-                disabled={disabled}
-                onChange={(e) => setValue(field.key, e.target.value)}
-              >
-                <option value="" disabled>
-                  请选择
+          ) : field.type === 'select' ? (
+            <select
+              id={inputId}
+              className="input"
+              value={raw ?? ''}
+              disabled={disabled}
+              aria-describedby={descId}
+              onChange={(e) => setValue(field.key, e.target.value)}
+            >
+              <option value="" disabled>
+                请选择
+              </option>
+              {field.options?.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
-                {field.options?.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                id={inputId}
-                type={field.type === 'number' ? 'number' : 'text'}
-                value={raw ?? ''}
-                disabled={disabled}
-                onChange={(e) => setValue(field.key, e.target.value)}
-              />
-            )}
-          </>
-        )}
-        <p className="config-field-desc">{field.desc}</p>
+              ))}
+            </select>
+          ) : (
+            <input
+              id={inputId}
+              className="input"
+              type={field.type === 'number' ? 'number' : 'text'}
+              value={raw ?? ''}
+              disabled={disabled}
+              aria-describedby={descId}
+              onChange={(e) => setValue(field.key, e.target.value)}
+            />
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="config-workspace panel">
-      <div className="config-workspace-header">
-        <p className="page-desc">编辑 server.properties（修改后需重启实例生效）。</p>
-        {error && <p className="error">{error}</p>}
-        {dirty && <p className="muted" role="status">有未保存的修改，离开页面会丢失。</p>}
-        {saved && !dirty && <p className="muted" role="status" aria-live="polite">已保存，重启实例后生效。</p>}
-        {!loaded && !error && <p className="muted">正在读取配置…</p>}
-      </div>
+    <div className="form-stack config-workspace">
+      <p className="section-lead">编辑 server.properties（修改后需重启实例生效）。</p>
+      {error && <p className="callout callout-danger" role="alert">{error}</p>}
+      {!loaded && !error && (
+        <div className="page-loading" role="status">
+          <span className="spinner" aria-hidden="true" />
+          正在读取配置…
+        </div>
+      )}
 
-      <div className="config-fields">
-        {GROUPS.map((group) => (
-          <section className="config-group" key={group.title}>
-            <h3>{group.title}</h3>
-            <div className="config-group-fields">{group.fields.map(renderField)}</div>
-          </section>
-        ))}
+      {GROUPS.map((group) => (
+        <section className="form-section" key={group.title}>
+          <h3 className="form-section-title">{group.title}</h3>
+          <div className="list-group">{group.fields.map(renderField)}</div>
+        </section>
+      ))}
 
-        {advancedKeys.length > 0 && (
-          <details className="config-advanced">
-            <summary>高级选项（{advancedKeys.length} 项未收录配置）</summary>
-            <div className="config-group-fields">
-              {advancedKeys.map((key) => {
-                const inputId = `server-property-${key}`;
-                return (
-                  <div className="field" key={key}>
-                    <label htmlFor={inputId}>{key}</label>
+      {advancedKeys.length > 0 && (
+        <details className="disclosure config-advanced">
+          <summary>高级选项（{advancedKeys.length} 项未收录配置）</summary>
+          <div className="list-group">
+            {advancedKeys.map((key) => {
+              const inputId = `server-property-${key}`;
+              return (
+                <div className="list-row config-row config-row-text" key={key}>
+                  <div className="list-row-text">
+                    <label htmlFor={inputId} className="list-row-title mono">{key}</label>
+                  </div>
+                  <div className="list-row-control">
                     <input
                       id={inputId}
+                      className="input"
                       value={props[key] ?? ''}
                       disabled={!loaded || saving}
                       onChange={(e) => setValue(key, e.target.value)}
                     />
                   </div>
-                );
-              })}
-            </div>
-          </details>
-        )}
-      </div>
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      )}
 
-      <div className="config-workspace-footer">
-        <button className="btn" type="button" disabled={!loaded || !dirty || saving} onClick={() => void save()}>
+      <div className="action-bar">
+        <span className="action-bar-status" role="status" aria-live="polite">
+          {dirty ? '有未保存的修改，离开页面会丢失。' : saved ? '已保存，重启实例后生效。' : '修改后需重启实例生效。'}
+        </span>
+        <button className="btn btn-primary" type="button" disabled={!loaded || !dirty || saving} onClick={() => void save()}>
           {saving ? '保存中…' : '保存配置'}
         </button>
       </div>

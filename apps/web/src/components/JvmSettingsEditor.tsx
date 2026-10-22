@@ -318,7 +318,7 @@ export function JvmSettingsEditor({
             </div>
           </div>
 
-          <details className="jvm-advanced">
+          <details className="disclosure jvm-advanced">
             <summary>高级 JVM 参数</summary>
             <label className="checkbox-field">
               <input

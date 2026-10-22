@@ -52,27 +52,30 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
       convertEol: true,
       disableStdin: true,
       cursorBlink: false,
-      fontFamily: "ui-monospace, 'Cascadia Mono', Consolas, 'SF Mono', Menlo, 'DejaVu Sans Mono', monospace",
+      fontFamily: "'SF Mono', ui-monospace, Menlo, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', monospace",
       fontSize: 13,
+      lineHeight: 1.25,
+      // 终端区域固定深色，配色取自 Apple 系统色的深色变体。
       theme: {
-        background: '#070508',
-        foreground: '#f0e6ed',
-        cursor: '#f062a6',
-        black: '#070508',
-        red: '#ff5d7d',
-        green: '#65d6a0',
-        yellow: '#e0a84a',
-        blue: '#64b5f6',
-        magenta: '#d67ae0',
-        cyan: '#56d4dd',
-        white: '#fff1f8',
-        brightBlack: '#6b5765',
-        brightRed: '#ff7691',
-        brightGreen: '#7ee2b0',
-        brightYellow: '#eec26f',
-        brightBlue: '#8ac4f8',
-        brightMagenta: '#e297ea',
-        brightCyan: '#7ae2ea',
+        background: '#161618',
+        foreground: '#e5e5ea',
+        cursor: '#0a84ff',
+        selectionBackground: 'rgba(10, 132, 255, 0.35)',
+        black: '#1c1c1e',
+        red: '#ff453a',
+        green: '#30d158',
+        yellow: '#ffd60a',
+        blue: '#0a84ff',
+        magenta: '#bf5af2',
+        cyan: '#64d2ff',
+        white: '#e5e5ea',
+        brightBlack: '#8e8e93',
+        brightRed: '#ff6961',
+        brightGreen: '#4ade80',
+        brightYellow: '#ffe066',
+        brightBlue: '#5eb0ff',
+        brightMagenta: '#da8fff',
+        brightCyan: '#8be4ff',
         brightWhite: '#ffffff',
       },
     });
@@ -258,40 +261,33 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
     copyTimerRef.current = setTimeout(() => setCopyMessage(''), 6000);
   }
 
+  const connectionTone = connected ? 'is-online' : canSend ? 'is-connecting' : 'is-offline';
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-      <div className="console-box-wrapper">
+    <div className="console-panel">
+      <div className="console-window">
         <div className="console-header-bar">
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.84rem' }}>
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                background: connected ? 'var(--ok)' : 'var(--warn)',
-                boxShadow: connected ? '0 0 8px var(--ok)' : 'none',
-              }}
-            />
+          <span className={`console-status ${connectionTone}`}>
+            <span className="status-dot" aria-hidden="true" />
             <span>{connected ? '实时日志 · 已连接' : canSend ? '控制台正在连接…' : '实例未运行'}</span>
           </span>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="console-tools">
             <button
-              className="btn btn-icon"
+              className="console-tool"
               type="button"
               title="清空屏幕"
+              aria-label="清空屏幕"
               onClick={clearScreen}
-              style={{ width: 30, height: 30 }}
             >
-              <Eraser size={14} />
+              <Eraser size={14} aria-hidden="true" />
             </button>
             <button
-              className="btn"
+              className="console-tool"
               type="button"
               title="复制全部输出"
               onClick={() => void copyAll()}
-              style={{ height: 30, padding: '0 10px', fontSize: '0.78rem' }}
             >
-              <Copy size={13} />
+              <Copy size={13} aria-hidden="true" />
               复制日志
             </button>
           </div>
@@ -301,9 +297,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
         <div className="console-output" ref={containerRef} />
 
         <form className="console-input-bar" onSubmit={onSubmit}>
-          <span className="console-prompt" aria-hidden="true" style={{ color: 'var(--accent)', fontWeight: 700 }}>
-            &gt;
-          </span>
+          <span className="console-prompt" aria-hidden="true">&gt;</span>
           <input
             className="console-input"
             type="text"
@@ -316,27 +310,27 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
             spellCheck={false}
             aria-label="控制台命令"
           />
-          <button className="btn btn-primary" type="submit" disabled={!inputEnabled || !command.trim()} style={{ height: 36 }}>
-            <Send size={14} />
+          <button className="btn btn-primary btn-sm" type="submit" disabled={!inputEnabled || !command.trim()}>
+            <Send size={13} aria-hidden="true" />
             发送
           </button>
         </form>
       </div>
 
       {/* 快捷命令按钮栏 */}
-      <div className="quick-cmd-bar">
-        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>常用命令快捷键：</span>
+      <div className="quick-cmd-bar" role="group" aria-label="常用命令">
+        <span className="quick-cmd-label">常用命令</span>
         {QUICK_COMMANDS.map((item) => (
           <button
             key={item.cmd}
             type="button"
-            className="btn"
+            className="chip"
             disabled={!inputEnabled}
-            style={{ height: 30, padding: '0 12px', fontSize: '0.8rem' }}
             onClick={() => sendCommand(item.cmd)}
             title={`向服务器发送 /${item.cmd}`}
           >
-            {item.label}（{item.desc}）
+            <span className="chip-mono">{item.label}</span>
+            <span className="chip-desc">{item.desc}</span>
           </button>
         ))}
       </div>

@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './auth';
 import { App } from './App';
+import { watchSystemAppearance } from './theme';
 import './styles.css';
+
+watchSystemAppearance();
 
 /** 渲染期异常兜底，避免整页白屏且无法恢复。 */
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -20,12 +23,14 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-          <h1>页面出现异常</h1>
-          <p>{String(this.state.error.message || this.state.error)}</p>
-          <button className="btn" type="button" onClick={() => window.location.reload()}>
-            刷新页面
-          </button>
+        <div className="splash" role="alert">
+          <div className="splash-card">
+            <h1 className="splash-title">页面出现异常</h1>
+            <p className="splash-text">{String(this.state.error.message || this.state.error)}</p>
+            <button className="btn btn-primary" type="button" onClick={() => window.location.reload()}>
+              刷新页面
+            </button>
+          </div>
         </div>
       );
     }

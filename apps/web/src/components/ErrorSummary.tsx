@@ -54,11 +54,11 @@ export function ErrorSummary({
           <p>{createErrorPreview(error)}</p>
         </div>
         <div className="error-summary-actions">
-          <button className="btn btn-ghost" type="button" onClick={() => void copyError()}>
+          <button className="btn btn-sm" type="button" onClick={() => void copyError()}>
             {copyStatus === 'copied' ? '已复制' : copyStatus === 'failed' ? '复制失败' : '复制错误'}
           </button>
           {hasDetails && (
-            <button className="btn btn-ghost" type="button" onClick={() => setShowDetails(true)}>
+            <button className="btn btn-sm" type="button" onClick={() => setShowDetails(true)}>
               查看详情
             </button>
           )}
@@ -90,7 +90,7 @@ export function ErrorSummary({
               <p>完整错误内容，可复制后用于排查。</p>
             </div>
             <button
-              className="btn btn-ghost"
+              className="btn btn-plain"
               type="button"
               aria-label="关闭错误详情"
               onClick={() => setShowDetails(false)}
@@ -107,7 +107,7 @@ export function ErrorSummary({
                   ? '复制失败，请在内容区域中手动选择复制'
                   : ''}
             </span>
-            <button className="btn" type="button" onClick={() => void copyError()}>
+            <button className="btn btn-primary" type="button" onClick={() => void copyError()}>
               {copyStatus === 'copied' ? '已复制' : '复制全部'}
             </button>
           </footer>
