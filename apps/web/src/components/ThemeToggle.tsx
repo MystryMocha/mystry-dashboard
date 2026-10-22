@@ -1,31 +1,44 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Palette } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Check, SunMoon } from 'lucide-react';
 import {
-  getTheme,
-  setTheme,
+  ACCENTS,
+  ACCENT_META,
+  APPEARANCES,
+  APPEARANCE_META,
+  getAccent,
+  getAppearance,
+  setAccent,
+  setAppearance,
   THEME_CHANGE_EVENT,
-  THEME_FAMILIES,
-  THEME_META,
-  type Theme,
+  type Accent,
+  type Appearance,
 } from '../theme';
 
-type Placement = 'sidebar' | 'topbar' | 'login';
+type Placement = 'topbar' | 'login';
+
+const POPOVER_WIDTH = 300;
 
 /**
- * 主题选择器：按套分组，每套可选暗色或亮色。
- * 多处渲染时通过主题事件同步当前项；面板用 fixed 定位避免侧栏 overflow 裁切。
+ * 外观选择器：参照 macOS「外观」设置，上排选择自动/浅色/深色，下排选择强调色。
+ * 两组都是原生单选框，方向键切换由浏览器提供；面板挂到 body 并用 fixed 定位，避免被裁切或错位。
  */
-export function ThemeToggle({ placement = 'sidebar' }: { placement?: Placement }) {
-  const [theme, setThemeState] = useState<Theme>(getTheme);
+export function ThemeToggle({ placement = 'topbar' }: { placement?: Placement }) {
+  const [appearance, setAppearanceState] = useState<Appearance>(getAppearance);
+  const [accent, setAccentState] = useState<Accent>(getAccent);
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
+  const groupName = useId();
   const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
 
   useEffect(() => {
-    const onChange = () => setThemeState(getTheme());
+    const onChange = () => {
+      setAppearanceState(getAppearance());
+      setAccentState(getAccent());
+    };
     window.addEventListener(THEME_CHANGE_EVENT, onChange);
     return () => window.removeEventListener(THEME_CHANGE_EVENT, onChange);
   }, []);
@@ -33,21 +46,14 @@ export function ThemeToggle({ placement = 'sidebar' }: { placement?: Placement }
   useEffect(() => {
     if (!open) return;
     function updatePosition() {
-      const rect = rootRef.current?.getBoundingClientRect();
+      const rect = toggleRef.current?.getBoundingClientRect();
       if (!rect) return;
-      const gap = 8;
-      const menuWidth = 268;
-      if (placement === 'sidebar') {
-        setPanelStyle({
-          left: Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8)),
-          bottom: window.innerHeight - rect.top + gap,
-        });
-      } else {
-        setPanelStyle({
-          top: rect.bottom + gap,
-          right: Math.max(8, window.innerWidth - rect.right),
-        });
-      }
+      const width = Math.min(POPOVER_WIDTH, window.innerWidth - 16);
+      setPanelStyle({
+        top: rect.bottom + 8,
+        left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
+        width,
+      });
     }
     updatePosition();
     window.addEventListener('resize', updatePosition);
@@ -56,102 +62,113 @@ export function ThemeToggle({ placement = 'sidebar' }: { placement?: Placement }
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
     };
-  }, [open, placement]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    panelRef.current?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus();
+    panelRef.current?.querySelector<HTMLInputElement>('input:checked')?.focus({ preventScroll: true });
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        setOpen(false);
-        toggleRef.current?.focus();
-        return;
-      }
-      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') {
-        return;
-      }
-      const options = [...(panelRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? [])];
-      if (options.length === 0) return;
-      const index = options.indexOf(document.activeElement as HTMLButtonElement);
-      const current = index < 0 ? 0 : index;
-      let nextIndex = current;
-      if (event.key === 'ArrowDown') nextIndex = (current + 2) % options.length;
-      if (event.key === 'ArrowUp') nextIndex = (current - 2 + options.length) % options.length;
-      if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') nextIndex = current ^ 1;
+      if (event.key !== 'Escape') return;
       event.preventDefault();
-      options[nextIndex]?.focus();
+      setOpen(false);
+      toggleRef.current?.focus();
     }
-
+    const isInside = (target: EventTarget | null) =>
+      Boolean(target instanceof Node && (rootRef.current?.contains(target) || panelRef.current?.contains(target)));
     function onMouseDown(event: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+      if (!isInside(event.target)) setOpen(false);
+    }
+    function onFocusIn(event: FocusEvent) {
+      // Tab 离开面板时自动收起，避免浮层停留在页面上。
+      if (!isInside(event.target)) setOpen(false);
     }
 
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('focusin', onFocusIn);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('focusin', onFocusIn);
     };
   }, [open]);
 
-  function choose(next: Theme) {
-    setTheme(next);
-    setOpen(false);
-    toggleRef.current?.focus();
-  }
+  const summary = `${APPEARANCE_META[appearance].label}外观，${ACCENT_META[accent].label}强调色`;
 
   return (
-    <div className={`theme-picker theme-picker-${placement}`} ref={rootRef}>
+    <div className={`appearance-picker appearance-picker-${placement}`} ref={rootRef}>
       <button
         ref={toggleRef}
         type="button"
-        className="task-center-toggle"
-        aria-label={`选择主题，当前为${THEME_META[theme].label}`}
-        title="选择主题"
+        className="toolbar-button"
+        aria-label={`外观设置，当前为${summary}`}
+        title="外观"
         aria-expanded={open}
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
         aria-controls={panelId}
         onClick={() => setOpen((value) => !value)}
       >
-        <Palette size={18} aria-hidden="true" />
+        <SunMoon size={18} aria-hidden="true" />
       </button>
 
-      {open && (
+      {/* 工具栏的毛玻璃（backdrop-filter）会成为 fixed 定位的包含块，面板必须挂到 body。 */}
+      {open && createPortal(
         <div
           id={panelId}
           ref={panelRef}
-          className="theme-menu"
+          className="popover appearance-popover"
           style={panelStyle}
-          role="listbox"
-          aria-label="主题"
+          role="dialog"
+          aria-label="外观"
         >
-          {THEME_FAMILIES.map((family) => (
-            <div key={family.id} className="theme-family" role="group" aria-label={family.label}>
-              <p className="theme-family-label">{family.label}</p>
-              <div className="theme-family-options">
-                {family.themes.map((id) => {
-                  const meta = THEME_META[id];
-                  const selected = theme === id;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      role="option"
-                      aria-label={meta.label}
-                      aria-selected={selected}
-                      className={`theme-option${selected ? ' is-selected' : ''}`}
-                      onClick={() => choose(id)}
-                    >
-                      <span className={`theme-swatch theme-swatch-${id}`} aria-hidden="true" />
-                      <span>{meta.shortLabel}</span>
-                    </button>
-                  );
-                })}
-              </div>
+          <fieldset className="appearance-group">
+            <legend className="popover-title">外观</legend>
+            <div className="appearance-options">
+              {APPEARANCES.map((id) => (
+                <label key={id} className="appearance-option">
+                  <input
+                    type="radio"
+                    className="visually-hidden"
+                    name={`${groupName}-appearance`}
+                    value={id}
+                    checked={appearance === id}
+                    onChange={() => setAppearance(id)}
+                  />
+                  <span className={`appearance-thumb appearance-thumb-${id}`} aria-hidden="true">
+                    <span className="appearance-thumb-bar" />
+                    <span className="appearance-thumb-card" />
+                  </span>
+                  <span className="appearance-option-label">{APPEARANCE_META[id].label}</span>
+                </label>
+              ))}
             </div>
-          ))}
-        </div>
+          </fieldset>
+
+          <fieldset className="appearance-group">
+            <legend className="popover-title">强调色</legend>
+            <div className="accent-options">
+              {ACCENTS.map((id) => (
+                <label key={id} className="accent-option" title={ACCENT_META[id].label}>
+                  <input
+                    type="radio"
+                    className="visually-hidden"
+                    name={`${groupName}-accent`}
+                    value={id}
+                    checked={accent === id}
+                    aria-label={ACCENT_META[id].label}
+                    onChange={() => setAccent(id)}
+                  />
+                  <span className={`accent-swatch accent-swatch-${id}`} aria-hidden="true">
+                    {accent === id && <Check size={12} strokeWidth={3} />}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="popover-footnote">{ACCENT_META[accent].label}</p>
+          </fieldset>
+        </div>,
+        document.body,
       )}
     </div>
   );

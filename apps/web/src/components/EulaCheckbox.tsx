@@ -20,7 +20,7 @@ export function EulaCheckbox({
       />
       <span>
         我已阅读并同意{' '}
-        <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
+        <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" className="link">
           Minecraft EULA
         </a>
         （面板会据此写入 eula.txt）

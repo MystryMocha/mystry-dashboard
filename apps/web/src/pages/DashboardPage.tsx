@@ -2,31 +2,34 @@ import { useCallback, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Activity,
+  ChevronRight,
   FolderDown,
   Layers,
   Play,
   Plus,
   Power,
+  RefreshCw,
   RotateCcw,
-  Server,
   Trash2,
   Zap,
 } from 'lucide-react';
 import type { InstanceInfo } from '@mystry/shared';
 import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
-import { HostMetricCards, processMetric, useDashboardMetrics } from '../components/DashboardMetrics';
+import { HostMetricCards, MetricWidget, processMetric, useDashboardMetrics } from '../components/DashboardMetrics';
 import { ActionMenu } from '../components/ActionMenu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { CoreIcon } from '../components/CoreIcon';
 import { EulaCheckbox } from '../components/EulaCheckbox';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
+import { PageHeader } from '../components/PageHeader';
+import { InstanceStatusPill } from '../components/StatusPill';
 import { errorMessage } from '../errors';
 import { useInstanceAction } from '../hooks/useInstanceAction';
 import { usePolling } from '../hooks/usePolling';
 import {
   canStartInstance,
   canStopInstance,
-  instanceStatusLabel,
   isLifecycleBusy,
   isProcessAlive,
 } from '../instance-status';
@@ -135,108 +138,125 @@ export function DashboardPage() {
   const stoppedCount = instances.filter((i) => i.status === 'stopped').length;
   const abnormalCount = instances.filter((i) => i.status === 'crashed' || i.requiresMigration).length;
   const runningRatio = instances.length > 0 ? (runningCount / instances.length) * 100 : 0;
+  const loaded = loadState === 'loaded';
+  const visibleInstances = instances.filter((inst) => !abnormalOnly || inst.status === 'crashed' || inst.requiresMigration);
+
+  const metricsStatusText = metricsError
+    ? `${metricsError}${metrics ? '，数据可能过期' : ''}`
+    : metrics
+      ? `更新于 ${new Date(metrics.sampledAt).toLocaleTimeString()}`
+      : '正在读取监测数据…';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      <div className="metric-grid dashboard-metrics">
-        <div className="metric-card">
-          <div className="metric-header">
-            <span>实例状态</span>
-            <Activity size={18} style={{ color: 'var(--ok)' }} />
-          </div>
-          <div className="metric-value">
-            {loadState === 'loaded' ? `${runningCount} / ${instances.length}` : '—'} <span className="metric-unit">运行中</span>
-          </div>
-          <div className="metric-bar">
-            <div className="metric-bar-fill" style={{ width: `${runningRatio}%`, background: 'var(--ok)' }} />
-          </div>
-          <div className="metric-detail">已停止 {loadState === 'loaded' ? stoppedCount : '—'} · <button type="button" className="metric-filter" aria-pressed={abnormalOnly} onClick={() => setAbnormalOnly(value => !value)}>异常 {loadState === 'loaded' ? abnormalCount : '—'}{abnormalOnly ? ' · 显示全部' : ''}</button></div>
-        </div>
+    <div className="page">
+      <PageHeader
+        title="实例总览"
+        subtitle={loaded ? `共 ${instances.length} 个实例，${runningCount} 个正在运行` : '本机 Minecraft Java 服务端'}
+        actions={
+          <>
+            <Link to="/deploy" className="btn btn-primary">
+              <Plus size={16} aria-hidden="true" />
+              一键部署
+            </Link>
+            <Link to="/import" className="btn">
+              <FolderDown size={16} aria-hidden="true" />
+              导入服务端
+            </Link>
+            <button type="button" className="btn" onClick={() => setEmptyOpen(true)}>
+              <Zap size={16} aria-hidden="true" />
+              创建空实例
+            </button>
+          </>
+        }
+      />
 
+      <section className="widget-grid" aria-label="运行概况">
+        <MetricWidget
+          label="实例状态"
+          icon={Activity}
+          tone="green"
+          value={loaded ? `${runningCount} / ${instances.length}` : '—'}
+          unit="运行中"
+          ratio={runningRatio}
+          detail={
+            <>
+              已停止 {loaded ? stoppedCount : '—'} ·{' '}
+              <button
+                type="button"
+                className={`link-button${abnormalCount > 0 ? ' is-danger' : ''}`}
+                aria-pressed={abnormalOnly}
+                onClick={() => setAbnormalOnly((value) => !value)}
+              >
+                异常 {loaded ? abnormalCount : '—'}{abnormalOnly ? ' · 显示全部' : ''}
+              </button>
+            </>
+          }
+        />
         <HostMetricCards metrics={metrics} error={metricsError} />
-      </div>
-      <div className="metrics-status">
-        <span role="status">{metricsError ? `${metricsError}${metrics ? '，数据可能过期' : ''}` : metrics ? `更新于 ${new Date(metrics.sampledAt).toLocaleTimeString()}` : '正在读取监测数据…'}{metrics && !metricsError && metrics.warnings.length > 0 ? ` · ${metrics.warnings.join(' · ')}` : ''}</span>
-        <button type="button" className="metric-filter" disabled={metricsBusy} onClick={() => void refreshMetrics()}>{metricsBusy ? '刷新中…' : metricsError ? '重试监测' : '刷新'}</button>
+      </section>
+      <div className={`metrics-status${metricsError ? ' is-error' : ''}`}>
+        <span role="status">
+          {metricsStatusText}
+          {metrics && !metricsError && metrics.warnings.length > 0 ? ` · ${metrics.warnings.join(' · ')}` : ''}
+        </span>
+        <button type="button" className="link-button" disabled={metricsBusy} onClick={() => void refreshMetrics()}>
+          <RefreshCw size={12} aria-hidden="true" className={metricsBusy ? 'spin' : undefined} />
+          {metricsBusy ? '刷新中…' : metricsError ? '重试监测' : '刷新'}
+        </button>
       </div>
 
-      {actionError && <p className="error" role="alert">{actionError}</p>}
+      {actionError && <p className="callout callout-danger" role="alert">{actionError}</p>}
       {loadError && (
-        <p className="error" role="alert">
+        <p className="callout callout-danger" role="alert">
           {loadError}
-          {loadState === 'loaded' ? ' 当前正在显示上次成功加载的实例数据。' : ''}
+          {loaded ? ' 当前正在显示上次成功加载的实例数据。' : ''}
         </p>
       )}
 
-      <div className="section-header">
-        <div className="section-title">
-          <span>Minecraft 实例列表</span>
-          <span className="tag-badge">{instances.length} 个实例</span>
+      <section className="page-section" aria-labelledby="instance-list-title">
+        <div className="section-header">
+          <h2 className="section-title" id="instance-list-title">
+            Minecraft 实例
+            <span className="count-badge">{instances.length}</span>
+          </h2>
+          {abnormalOnly && <span className="section-note">仅显示异常实例</span>}
         </div>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <Link to="/deploy" className="btn btn-primary">
-            <Plus size={15} />
-            一键部署
-          </Link>
-          <Link to="/import" className="btn">
-            <FolderDown size={15} />
-            导入服务端
-          </Link>
-          <button type="button" className="btn" onClick={() => setEmptyOpen(true)}>
-            <Zap size={15} />
-            创建空实例
-          </button>
-        </div>
-      </div>
 
-      {loadState === 'loading' ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-          正在加载实例列表…
-        </div>
-      ) : loadState === 'error' ? (
-        <div className="panel" role="alert" style={{ textAlign: 'center', padding: '32px' }}>
-          <p className="muted">实例列表暂时不可用，请检查面板连接后重试。</p>
-          <button className="btn btn-ghost" type="button" onClick={retryLoad} style={{ marginTop: '12px' }}>
-            重新加载
-          </button>
-        </div>
-      ) : instances.length === 0 ? (
-        <div className="panel" style={{ textAlign: 'center', padding: '48px 24px' }}>
-          <Layers size={40} style={{ color: 'var(--text-muted)', marginBottom: '12px' }} />
-          <h3 style={{ fontSize: '1.1rem', margin: '0 0 8px' }}>暂无 Minecraft 实例</h3>
-          <p className="muted" style={{ margin: '0 0 20px' }}>
-            你可以从「一键部署」下载官方核心，或从同机目录及 ZIP 包导入已有服务端。
-          </p>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
-            <Link to="/deploy" className="btn btn-primary">
-              <Plus size={15} />
-              部署第一个服务端
-            </Link>
-            <Link to="/import" className="btn">
-              <FolderDown size={15} />
-              导入已有服务端
-            </Link>
+        {loadState === 'loading' ? (
+          <div className="page-loading" role="status">
+            <span className="spinner" aria-hidden="true" />
+            正在加载实例列表…
           </div>
-        </div>
-      ) : (
-        <div className="instance-grid">
-          {abnormalOnly && abnormalCount === 0 && <p className="muted">暂无异常实例。</p>}
-          {instances.filter(inst => !abnormalOnly || inst.status === 'crashed' || inst.requiresMigration).map((inst) => (
-            <div
-              key={inst.id}
-              className="instance-card"
-            >
-              <div className="inst-card-top">
-                <div className="inst-card-info">
-                  <div
-                    className="inst-avatar"
-                    style={{
-                      color: inst.status === 'running' ? 'var(--accent)' : 'var(--text-muted)',
-                      borderColor: inst.status === 'running' ? 'var(--accent)' : 'var(--border)',
-                    }}
-                  >
-                    <Server size={22} />
-                  </div>
+        ) : loadState === 'error' ? (
+          <div className="empty-state card" role="alert">
+            <p>实例列表暂时不可用，请检查面板连接后重试。</p>
+            <button className="btn" type="button" onClick={retryLoad}>
+              重新加载
+            </button>
+          </div>
+        ) : instances.length === 0 ? (
+          <div className="empty-state card">
+            <span className="empty-icon" aria-hidden="true"><Layers size={30} /></span>
+            <h3>暂无 Minecraft 实例</h3>
+            <p>你可以从「一键部署」下载官方核心，或从同机目录及 ZIP 包导入已有服务端。</p>
+            <div className="empty-actions">
+              <Link to="/deploy" className="btn btn-primary">
+                <Plus size={16} aria-hidden="true" />
+                部署第一个服务端
+              </Link>
+              <Link to="/import" className="btn">
+                <FolderDown size={16} aria-hidden="true" />
+                导入已有服务端
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="instance-grid">
+            {abnormalOnly && abnormalCount === 0 && <p className="muted">暂无异常实例。</p>}
+            {visibleInstances.map((inst) => (
+              <article key={inst.id} className={`instance-card status-${inst.requiresMigration ? 'warning' : inst.status}`}>
+                <div className="inst-card-top">
+                  <CoreIcon coreType={inst.coreType} />
                   <div className="inst-name-group">
                     <Link to={`/instances/${inst.id}`} className="inst-name" title={inst.name}>
                       {inst.name}
@@ -245,93 +265,92 @@ export function DashboardPage() {
                       {inst.coreType.toUpperCase()} {inst.mcVersion ? `· ${inst.mcVersion}` : ''}
                     </div>
                   </div>
+                  <InstanceStatusPill instance={inst} />
                 </div>
-                <span className={`status-badge ${inst.requiresMigration ? 'starting' : inst.status}`}>
-                  {inst.requiresMigration ? '▲ 待迁移' : `● ${instanceStatusLabel[inst.status] || inst.status}`}
-                </span>
-              </div>
 
-              <div className="inst-stat-row">
-                <div className="inst-stat-item">
-                  <span className="inst-stat-label" title="按整机逻辑核总容量计算">进程 CPU</span>
-                  <span className="inst-stat-val">{processMetric(inst, metrics, metricsError, 'cpu')}</span>
-                </div>
-                <div className="inst-stat-item">
-                  <span className="inst-stat-label" title="服务器进程实际占用的内存，通常略高于设置的最大内存">进程内存</span>
-                  <span className="inst-stat-val">{processMetric(inst, metrics, metricsError, 'memory')}</span>
-                </div>
-                <div className="inst-stat-item">
-                  <span className="inst-stat-label">最大内存</span>
-                  <span className="inst-stat-val">{extractXmx(inst.jvmArgs)}</span>
-                </div>
-                <div className="inst-stat-item">
-                  <span className="inst-stat-label">Java 运行时</span>
-                  <span className="inst-stat-val">{inst.javaRuntimeId ? '专属环境' : '系统默认'}</span>
-                </div>
-              </div>
+                <dl className="inst-stats">
+                  <div className="inst-stat">
+                    <dt title="按整机逻辑核总容量计算">进程 CPU</dt>
+                    <dd>{processMetric(inst, metrics, metricsError, 'cpu')}</dd>
+                  </div>
+                  <div className="inst-stat">
+                    <dt title="服务器进程实际占用的内存，通常略高于设置的最大内存">进程内存</dt>
+                    <dd>{processMetric(inst, metrics, metricsError, 'memory')}</dd>
+                  </div>
+                  <div className="inst-stat">
+                    <dt>最大内存</dt>
+                    <dd>{extractXmx(inst.jvmArgs)}</dd>
+                  </div>
+                  <div className="inst-stat">
+                    <dt>Java 运行时</dt>
+                    <dd>{inst.javaRuntimeId ? '专属环境' : '系统默认'}</dd>
+                  </div>
+                </dl>
 
-              <div className="inst-card-actions">
-                {canStartInstance(inst.status) && (
-                  <button
-                    className="btn btn-ok"
-                    type="button"
-                    disabled={busyId === inst.id || inst.requiresMigration}
-                    onClick={() => void act(inst.id, 'start')}
-                  >
-                    <Play size={14} />
-                    启动
-                  </button>
-                )}
-                {canStopInstance(inst.status) && (
-                  <button
-                    className="btn btn-danger"
-                    type="button"
-                    disabled={busyId === inst.id || inst.requiresMigration}
-                    onClick={() => void act(inst.id, 'stop')}
-                  >
-                    <Power size={14} />
-                    停止
-                  </button>
-                )}
-                <Link to={`/instances/${inst.id}`} className="btn btn-primary">
-                  进入管理
-                </Link>
+                <div className="inst-card-actions">
+                  {canStartInstance(inst.status) && (
+                    <button
+                      className="btn btn-ok"
+                      type="button"
+                      disabled={busyId === inst.id || inst.requiresMigration}
+                      onClick={() => void act(inst.id, 'start')}
+                    >
+                      <Play size={14} aria-hidden="true" />
+                      启动
+                    </button>
+                  )}
+                  {canStopInstance(inst.status) && (
+                    <button
+                      className="btn btn-danger"
+                      type="button"
+                      disabled={busyId === inst.id || inst.requiresMigration}
+                      onClick={() => void act(inst.id, 'stop')}
+                    >
+                      <Power size={14} aria-hidden="true" />
+                      停止
+                    </button>
+                  )}
+                  <Link to={`/instances/${inst.id}`} className="btn btn-tinted inst-manage">
+                    进入管理
+                    <ChevronRight size={15} aria-hidden="true" />
+                  </Link>
 
-                <ActionMenu
-                  items={[
-                    {
-                      key: 'restart',
-                      label: '重启实例',
-                      icon: <RotateCcw size={13} />,
-                      disabled: busyId === inst.id || inst.requiresMigration || isLifecycleBusy(inst.status),
-                      onSelect: () => setRestartTarget(inst),
-                    },
-                    {
-                      key: 'force-stop',
-                      label: '强制停止',
-                      icon: <Power size={13} />,
-                      disabled: busyId === inst.id || inst.requiresMigration || !isProcessAlive(inst.status),
-                      onSelect: () => setForceStopTarget(inst),
-                    },
-                    {
-                      key: 'delete',
-                      label: '删除实例',
-                      icon: <Trash2 size={13} />,
-                      danger: true,
-                      disabled: busyId === inst.id || (!inst.requiresMigration && isProcessAlive(inst.status)),
-                      title:
-                        !inst.requiresMigration && isProcessAlive(inst.status)
-                          ? '实例仍在运行，请先停止后再删除'
-                          : undefined,
-                      onSelect: () => setDeleteTarget(inst),
-                    },
-                  ]}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+                  <ActionMenu
+                    items={[
+                      {
+                        key: 'restart',
+                        label: '重启实例',
+                        icon: <RotateCcw size={14} />,
+                        disabled: busyId === inst.id || inst.requiresMigration || isLifecycleBusy(inst.status),
+                        onSelect: () => setRestartTarget(inst),
+                      },
+                      {
+                        key: 'force-stop',
+                        label: '强制停止',
+                        icon: <Power size={14} />,
+                        disabled: busyId === inst.id || inst.requiresMigration || !isProcessAlive(inst.status),
+                        onSelect: () => setForceStopTarget(inst),
+                      },
+                      {
+                        key: 'delete',
+                        label: '删除实例',
+                        icon: <Trash2 size={14} />,
+                        danger: true,
+                        disabled: busyId === inst.id || (!inst.requiresMigration && isProcessAlive(inst.status)),
+                        title:
+                          !inst.requiresMigration && isProcessAlive(inst.status)
+                            ? '实例仍在运行，请先停止后再删除'
+                            : undefined,
+                        onSelect: () => setDeleteTarget(inst),
+                      },
+                    ]}
+                  />
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* 创建空实例弹窗 */}
       <ConfirmDialog

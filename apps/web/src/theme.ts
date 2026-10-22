@@ -1,46 +1,106 @@
 /**
- * 主题管理：Mystry / Codex / Grok，各有暗色与亮色。
- * 初始值由 index.html 内联脚本在渲染前写入 <html data-theme>
- *（未保存时跟随系统偏好，仅在 Mystry 暗/亮之间选择），
- * 这里负责读取、校验、切换，并广播事件让多处选择器保持同步。
+ * 外观管理：参照 macOS「外观 + 强调色」模型。
+ * - 外观：自动（跟随系统）/ 浅色 / 深色；
+ * - 强调色：蓝色、紫色、Mystry 粉、绿色、石墨。
+ * 初始值由 index.html 内联脚本在渲染前写入 <html> 的 data 属性
+ *（含旧版 mystry_theme 六主题的迁移），这里负责读取、切换、跟随系统变化，
+ * 并广播事件让多处选择器保持同步。
  */
 
-export const THEMES = ['dark', 'light', 'codex', 'codex-light', 'grok', 'grok-light'] as const;
-export type Theme = (typeof THEMES)[number];
+export const APPEARANCES = ['auto', 'light', 'dark'] as const;
+export type Appearance = (typeof APPEARANCES)[number];
 
-export const THEME_META: Record<Theme, { label: string; shortLabel: string }> = {
-  dark: { label: 'Mystry 暗色', shortLabel: '暗色' },
-  light: { label: 'Mystry 亮色', shortLabel: '亮色' },
-  codex: { label: 'Codex 暗色', shortLabel: '暗色' },
-  'codex-light': { label: 'Codex 亮色', shortLabel: '亮色' },
-  grok: { label: 'Grok 暗色', shortLabel: '暗色' },
-  'grok-light': { label: 'Grok 亮色', shortLabel: '亮色' },
+export const ACCENTS = ['blue', 'purple', 'pink', 'green', 'graphite'] as const;
+export type Accent = (typeof ACCENTS)[number];
+
+export const APPEARANCE_META: Record<Appearance, { label: string }> = {
+  auto: { label: '自动' },
+  light: { label: '浅色' },
+  dark: { label: '深色' },
 };
 
-export const THEME_FAMILIES: { id: string; label: string; themes: readonly Theme[] }[] = [
-  { id: 'mystry', label: 'Mystry', themes: ['dark', 'light'] },
-  { id: 'codex', label: 'Codex', themes: ['codex', 'codex-light'] },
-  { id: 'grok', label: 'Grok', themes: ['grok', 'grok-light'] },
-];
+export const ACCENT_META: Record<Accent, { label: string }> = {
+  blue: { label: '蓝色' },
+  purple: { label: '紫色' },
+  pink: { label: 'Mystry 粉' },
+  green: { label: '绿色' },
+  graphite: { label: '石墨' },
+};
 
-const THEME_KEY = 'mystry_theme';
+const APPEARANCE_KEY = 'mystry_appearance';
+const ACCENT_KEY = 'mystry_accent';
 export const THEME_CHANGE_EVENT = 'mystry:theme-change';
 
-export function isTheme(value: string | null | undefined): value is Theme {
-  return (THEMES as readonly string[]).includes(value ?? '');
+export function isAppearance(value: string | null | undefined): value is Appearance {
+  return (APPEARANCES as readonly string[]).includes(value ?? '');
 }
 
-export function getTheme(): Theme {
-  const current = document.documentElement.dataset.theme;
-  return isTheme(current) ? current : 'dark';
+export function isAccent(value: string | null | undefined): value is Accent {
+  return (ACCENTS as readonly string[]).includes(value ?? '');
 }
 
-export function setTheme(theme: Theme): void {
-  document.documentElement.dataset.theme = theme;
+function prefersDark(): boolean {
   try {
-    localStorage.setItem(THEME_KEY, theme);
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  } catch {
+    return false;
+  }
+}
+
+function resolveAppearance(preference: Appearance): 'light' | 'dark' {
+  if (preference === 'auto') return prefersDark() ? 'dark' : 'light';
+  return preference;
+}
+
+function store(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
   } catch {
     /* 隐私模式等场景下静默降级为仅本次会话生效 */
   }
+}
+
+/** 用户选择的外观（可能是「自动」）。 */
+export function getAppearance(): Appearance {
+  const current = document.documentElement.dataset.appearancePreference;
+  return isAppearance(current) ? current : 'auto';
+}
+
+export function getAccent(): Accent {
+  const current = document.documentElement.dataset.accent;
+  return isAccent(current) ? current : 'blue';
+}
+
+function apply(preference: Appearance, accent: Accent): void {
+  const root = document.documentElement;
+  root.dataset.appearancePreference = preference;
+  root.dataset.appearance = resolveAppearance(preference);
+  root.dataset.accent = accent;
   window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT));
+}
+
+export function setAppearance(preference: Appearance): void {
+  store(APPEARANCE_KEY, preference);
+  apply(preference, getAccent());
+}
+
+export function setAccent(accent: Accent): void {
+  store(ACCENT_KEY, accent);
+  apply(getAppearance(), accent);
+}
+
+/** 「自动」外观下跟随系统深浅色切换；返回取消监听函数。 */
+export function watchSystemAppearance(): () => void {
+  let query: MediaQueryList | undefined;
+  try {
+    query = window.matchMedia?.('(prefers-color-scheme: dark)');
+  } catch {
+    return () => {};
+  }
+  if (!query?.addEventListener) return () => {};
+  const onChange = () => {
+    if (getAppearance() === 'auto') apply('auto', getAccent());
+  };
+  query.addEventListener('change', onChange);
+  return () => query?.removeEventListener('change', onChange);
 }

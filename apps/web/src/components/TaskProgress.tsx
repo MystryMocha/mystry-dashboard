@@ -10,18 +10,19 @@ export function TaskProgress({ task, label }: { task: TaskInfo; label: string })
   const value = clampProgress(task.progress);
   return (
     <div className="task-progress" aria-live="polite">
-      <div className="muted">
-        {task.message}（{Math.round(value)}%）
+      <div className="task-progress-text">
+        <span>{task.message}</span>
+        <span className="task-progress-value">{Math.round(value)}%</span>
       </div>
       <div
-        className="metric-bar"
+        className="progress"
         role="progressbar"
         aria-label={label}
         aria-valuenow={value}
         aria-valuemin={0}
         aria-valuemax={100}
       >
-        <div className="metric-bar-fill" style={{ width: `${value}%` }} />
+        <div className="progress-fill" style={{ width: `${value}%` }} />
       </div>
     </div>
   );

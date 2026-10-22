@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { Clock, RefreshCw, X } from 'lucide-react';
+import { Download, FolderDown, Inbox, ListChecks, Package, RefreshCw, Rocket, X, type LucideIcon } from 'lucide-react';
 import type { TaskInfo } from '@mystry/shared';
 import { useTaskCenter } from '../task-center-store';
 import { clampProgress } from './TaskProgress';
@@ -13,18 +13,18 @@ const typeLabel: Record<TaskInfo['type'], string> = {
   import: '导入服务端',
 };
 
+const typeIcon: Record<TaskInfo['type'], LucideIcon> = {
+  download: Download,
+  extract: Package,
+  deploy: Rocket,
+  import: FolderDown,
+};
+
 const statusLabel: Record<TaskInfo['status'], string> = {
   pending: '排队中',
   running: '进行中',
   completed: '已完成',
   failed: '失败',
-};
-
-const statusColor: Record<TaskInfo['status'], string> = {
-  pending: 'var(--warn)',
-  running: 'var(--accent)',
-  completed: 'var(--ok)',
-  failed: 'var(--danger)',
 };
 
 function formatTime(iso: string | null): string {
@@ -34,13 +34,14 @@ function formatTime(iso: string | null): string {
   return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-/** 顶栏的任务中心按钮，点击后从右侧滑出任务列表与进度。 */
+/** 顶栏的任务中心按钮，点击后像通知中心一样从右侧浮出任务列表与进度。 */
 export function TaskCenter() {
   const { tasks, error, loading, activeCount, lastSuccessAt, retry } = useTaskCenter();
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDialogElement>(null);
   const drawerId = useId();
+  const titleId = useId();
 
   useEffect(() => {
     const dialog = drawerRef.current;
@@ -62,42 +63,19 @@ export function TaskCenter() {
       <button
         ref={toggleRef}
         type="button"
-        className="btn"
+        className="toolbar-button toolbar-button-labeled"
         aria-label={open ? '关闭任务中心' : `打开任务中心，${activeCount} 个任务进行中`}
         aria-expanded={open}
         aria-controls={drawerId}
         onClick={() => setOpen((value) => !value)}
         title="任务中心"
       >
-        <Clock size={16} aria-hidden="true" />
-        <span>任务中心</span>
+        <ListChecks size={18} aria-hidden="true" />
+        <span className="toolbar-label">任务中心</span>
         {activeCount > 0 ? (
-          <span
-            style={{
-              background: 'var(--accent)',
-              color: 'var(--on-accent)',
-              fontSize: '0.72rem',
-              padding: '2px 6px',
-              borderRadius: '8px',
-              lineHeight: 1,
-              fontWeight: 600,
-            }}
-          >
-            {activeCount}
-          </span>
+          <span className="toolbar-badge is-active" aria-hidden="true">{activeCount}</span>
         ) : tasks.length > 0 ? (
-          <span
-            style={{
-              background: 'var(--badge-bg)',
-              color: 'var(--text-muted)',
-              fontSize: '0.72rem',
-              padding: '2px 6px',
-              borderRadius: '8px',
-              lineHeight: 1,
-            }}
-          >
-            {tasks.length}
-          </span>
+          <span className="toolbar-badge" aria-hidden="true">{tasks.length}</span>
         ) : null}
       </button>
 
@@ -117,157 +95,94 @@ export function TaskCenter() {
           const rect = event.currentTarget.getBoundingClientRect();
           if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDrawer();
         }}
-        aria-label="任务中心"
+        aria-labelledby={titleId}
         tabIndex={-1}
       >
         <div className="drawer-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Clock size={18} style={{ color: 'var(--accent)' }} />
-            <span style={{ fontWeight: 700, fontSize: '1rem' }}>任务中心</span>
-            {activeCount > 0 && (
-              <span className="tag-badge" style={{ fontSize: '0.72rem', height: '22px' }}>
-                {activeCount} 进行中
-              </span>
-            )}
+          <div className="drawer-title-group">
+            <h2 id={titleId} className="drawer-title">任务中心</h2>
+            {activeCount > 0 && <span className="count-badge is-accent">{activeCount} 进行中</span>}
           </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div className="drawer-tools">
             <button
-              className="btn btn-icon"
+              className="btn btn-icon btn-plain"
               type="button"
               title="刷新任务"
               aria-label="刷新任务"
               onClick={() => retry()}
-              style={{ width: 32, height: 32 }}
             >
-              <RefreshCw size={14} aria-hidden="true" />
+              <RefreshCw size={15} aria-hidden="true" />
             </button>
             <button
-              className="btn btn-icon"
+              className="btn btn-icon btn-plain"
               type="button"
               title="关闭"
               aria-label="关闭任务中心"
               onClick={closeDrawer}
-              style={{ width: 32, height: 32 }}
             >
-              <X size={16} aria-hidden="true" />
+              <X size={17} aria-hidden="true" />
             </button>
           </div>
         </div>
 
         <div className="drawer-body">
           {stale && (
-            <div
-              style={{
-                padding: '12px',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--danger)',
-                background: 'var(--danger-subtle)',
-                fontSize: '0.84rem',
-              }}
-            >
-              <p style={{ color: 'var(--danger)', margin: 0, fontWeight: 600 }}>状态可能已过期：{error}</p>
-              {lastSuccessAt && (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: 4 }}>
-                  上次成功同步：{formatTime(lastSuccessAt)}
-                </p>
-              )}
+            <div className="callout callout-danger">
+              <div>
+                <strong>状态可能已过期：{error}</strong>
+                {lastSuccessAt && <p>上次成功同步：{formatTime(lastSuccessAt)}</p>}
+              </div>
             </div>
           )}
 
-          {loading && <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>正在读取任务列表…</p>}
+          {loading && (
+            <p className="drawer-hint">
+              <span className="spinner spinner-sm" aria-hidden="true" />
+              正在读取任务列表…
+            </p>
+          )}
 
           {!loading && !error && tasks.length === 0 && (
-            <div
-              style={{
-                padding: '36px 16px',
-                textAlign: 'center',
-                color: 'var(--text-muted)',
-                fontSize: '0.88rem',
-              }}
-            >
-              暂无任务。开始部署或导入后，进度会显示在这里。
+            <div className="empty-state empty-state-compact">
+              <span className="empty-icon" aria-hidden="true"><Inbox size={26} /></span>
+              <h3>暂无任务</h3>
+              <p>开始部署或导入后，进度会显示在这里。</p>
             </div>
           )}
 
-          {tasks.map((task) => (
-            <div key={task.id} className="task-card">
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontSize: '0.88rem',
-                  fontWeight: 600,
-                }}
-              >
-                <span>{typeLabel[task.type]}</span>
-                <span style={{ color: statusColor[task.status], fontSize: '0.8rem' }}>
-                  {task.status === 'running'
-                    ? `${task.progress}% 进行中`
-                    : statusLabel[task.status]}
-                </span>
-              </div>
-
-              {(task.status === 'pending' || task.status === 'running') && (
-                <div className="metric-bar" style={{ height: 4 }} role="progressbar" aria-label={`${typeLabel[task.type]}进度`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clampProgress(task.progress)}>
-                  <div
-                    className="metric-bar-fill"
-                    style={{
-                      width: `${clampProgress(task.progress)}%`,
-                    }}
-                  />
+          {tasks.map((task) => {
+            const Icon = typeIcon[task.type] ?? Package;
+            const active = task.status === 'pending' || task.status === 'running';
+            return (
+              <article key={task.id} className={`task-card status-${task.status}`}>
+                <div className="task-card-head">
+                  <span className="task-card-icon" aria-hidden="true"><Icon size={16} /></span>
+                  <span className="task-card-title">{typeLabel[task.type]}</span>
+                  <span className="task-card-status">
+                    {task.status === 'running' ? `${task.progress}% 进行中` : statusLabel[task.status]}
+                  </span>
                 </div>
-              )}
 
-              {task.message && (
-                <p
-                  style={{
-                    fontSize: '0.78rem',
-                    color: 'var(--text-muted)',
-                    margin: 0,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  {task.message}
-                </p>
-              )}
-
-              {task.status === 'failed' && task.error && (
-                <p
-                  style={{
-                    fontSize: '0.78rem',
-                    color: 'var(--danger)',
-                    margin: 0,
-                    overflowWrap: 'anywhere',
-                  }}
-                >
-                  {task.error}
-                </p>
-              )}
-
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontSize: '0.72rem',
-                  color: 'var(--text-muted)',
-                  marginTop: 2,
-                }}
-              >
-                <time>{formatTime(task.createdAt)}</time>
-                {task.result?.instanceId && (task.status === 'completed' || task.status === 'failed') && (
-                  <Link
-                    to={`/instances/${task.result.instanceId}`}
-                    onClick={closeDrawer}
-                    style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}
-                  >
-                    查看实例 →
-                  </Link>
+                {active && (
+                  <div className="progress" role="progressbar" aria-label={`${typeLabel[task.type]}进度`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clampProgress(task.progress)}>
+                    <div className="progress-fill" style={{ width: `${clampProgress(task.progress)}%` }} />
+                  </div>
                 )}
-              </div>
-            </div>
-          ))}
+
+                {task.message && <p className="task-card-message">{task.message}</p>}
+                {task.status === 'failed' && task.error && <p className="task-card-error">{task.error}</p>}
+
+                <div className="task-card-foot">
+                  <time>{formatTime(task.createdAt)}</time>
+                  {task.result?.instanceId && (task.status === 'completed' || task.status === 'failed') && (
+                    <Link to={`/instances/${task.result.instanceId}`} onClick={closeDrawer} className="link">
+                      查看实例 →
+                    </Link>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </dialog>, document.body)}
     </>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { recommendedJavaMajor, type JavaDetectResult, type JavaRuntimeInfo } from '@mystry/shared';
 import { detectDefaultJava, listJavaRuntimes } from '../api';
 import { errorMessage } from '../errors';
@@ -72,19 +73,9 @@ export function JavaRuntimeSelect({
   return (
     <div className="field">
       <label htmlFor={selectId}>Java 运行时</label>
-      <div className={`environment-status ${defaultJava?.available === false ? 'is-missing' : ''}`}>
-        <span className="environment-dot" />
-        {loading && defaultJava === null
-          ? '正在检查系统默认 Java…'
-          : defaultJava?.available
-            ? `系统默认 Java 可用${defaultJava.version ? ` · ${defaultJava.version}` : ''}`
-            : '未找到系统默认 Java，请先安装 Java 后点「重新探测」'}
-      </div>
-      <p className="muted field-help">不选择时使用系统默认 Java；电脑上装了多个 Java 时，可以在下面选择要用的版本。</p>
-      <div className="btn-row" style={{ alignItems: 'stretch' }}>
+      <div className="input-row">
         <select
           id={selectId}
-          style={{ flex: 1, minWidth: 0 }}
           value={value ?? ''}
           disabled={disabled || loading}
           onChange={(e) => onChange(e.target.value || null)}
@@ -97,17 +88,27 @@ export function JavaRuntimeSelect({
           ))}
         </select>
         <button
-          className="btn btn-ghost"
+          className="btn"
           type="button"
           disabled={disabled || refreshing}
           title="重新扫描本机 Java 安装目录"
           onClick={() => void load(true)}
         >
+          <RefreshCw size={14} aria-hidden="true" className={refreshing ? 'spin' : undefined} />
           {refreshing ? '探测中…' : '重新探测'}
         </button>
       </div>
+      <div className={`environment-status${loading && defaultJava === null ? '' : defaultJava?.available ? ' is-ready' : ' is-missing'}`}>
+        <span className="status-dot" aria-hidden="true" />
+        {loading && defaultJava === null
+          ? '正在检查系统默认 Java…'
+          : defaultJava?.available
+            ? `系统默认 Java 可用${defaultJava.version ? ` · ${defaultJava.version}` : ''}`
+            : '未找到系统默认 Java，请先安装 Java 后点「重新探测」'}
+      </div>
+      <p className="field-help">不选择时使用系统默认 Java；电脑上装了多个 Java 时，可以在上面选择要用的版本。</p>
       {recommended != null && (
-        <p className="muted field-help">当前 Minecraft {mcVersion} 推荐使用 Java {recommended}。</p>
+        <p className="field-help">当前 Minecraft {mcVersion} 推荐使用 Java {recommended}。</p>
       )}
       {mismatch && (
         <p className="field-warn" role="alert">
