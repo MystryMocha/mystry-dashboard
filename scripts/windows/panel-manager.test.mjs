@@ -88,6 +88,16 @@ test('PanelManager 拒绝未知命令和多余参数', { skip: process.platform 
   assert.equal(extra.status, 2, `${extra.stdout}\n${extra.stderr}`);
 });
 
+test('PanelManager.cmd 调用 Windows PowerShell 前清空 PSModulePath', () => {
+  // 从 pwsh 7 里运行时会继承 7.x 的模块路径，5.1 加载到不兼容的模块后找不到 Get-FileHash。
+  const launcher = fs.readFileSync(path.resolve(scriptDirectory, '../../PanelManager.cmd'), 'utf8');
+  const clearIndex = launcher.indexOf('set "PSModulePath="');
+  assert.ok(clearIndex >= 0, 'PanelManager.cmd 应清空 PSModulePath');
+  assert.ok(clearIndex < launcher.indexOf('powershell.exe'), '应在调用 powershell.exe 之前清空');
+  // chcp 65001 之后 cmd 按错位的字节继续读 LF 行尾的批处理，非 ASCII 字符会被当成命令执行。
+  assert.match(launcher, /^[\x00-\x7f]*$/, 'PanelManager.cmd 只能包含 ASCII 字符');
+});
+
 test('PanelManager 按 MYSTRY_LANG 切换语言，并传给 mystryctl', { skip: process.platform !== 'win32' }, () => {
   const run = (language, ...args) => spawnSync(
     'powershell.exe',
