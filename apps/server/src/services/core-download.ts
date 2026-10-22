@@ -160,6 +160,8 @@ export async function ensureCoreCache(
     if (onProgress) flight.callbacks.delete(onProgress);
     flight.waiters -= 1;
     if (flight.waiters === 0 && !flight.finished && !flight.controller.signal.aborted) {
+      // 先从表中移除再中止：旧下载收尾期间新来的调用会重新下载，而不是拿到别人的取消原因。
+      if (cacheDownloadFlights.get(cachePath) === flight) cacheDownloadFlights.delete(cachePath);
       flight.controller.abort(signal?.reason);
     }
   }

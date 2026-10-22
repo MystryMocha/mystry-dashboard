@@ -170,6 +170,29 @@ test('缓存所有等待者取消：终止下载、清理 part，后续可重新
   assert.deepEqual(fs.readdirSync(dir), ['core.jar']);
 });
 
+test('所有等待者取消后立刻重试：发起新下载，不继承别人的取消原因', async (t) => {
+  const dir = tempDir(t);
+  const { url, responses } = await downloadFixture(t);
+  const { ensureCoreCache } = await import('./core-download.js');
+  const dest = path.join(dir, 'core.jar');
+  const controller = new AbortController();
+  let progressSeen = false;
+  const canceled = assert.rejects(
+    ensureCoreCache(url, dest, () => { progressSeen = true; }, controller.signal), /任务已取消/,
+  );
+  await waitUntil(() => progressSeen);
+  controller.abort(new Error('任务已取消'));
+  await canceled;
+  // 不等旧下载收尾就重试：旧下载此时可能还没从合并表中移除。
+  const retry = ensureCoreCache(url, dest);
+  await waitUntil(() => responses.length === 2);
+  responses[1]!.end('def');
+  await retry;
+  assert.equal(fs.readFileSync(dest, 'utf8'), 'abcdef');
+  await waitUntil(() => responses[0]!.destroyed && fs.readdirSync(dir).length === 1);
+  assert.deepEqual(fs.readdirSync(dir), ['core.jar']);
+});
+
 type FakeInstaller = EventEmitter & { stdout: PassThrough; stderr: PassThrough; pid?: number; kill: (signal?: string) => boolean };
 
 function installerFixture(t: import('node:test').TestContext, onSpawn?: (child: FakeInstaller, cwd: string) => void) {

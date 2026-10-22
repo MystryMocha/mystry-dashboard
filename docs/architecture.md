@@ -134,7 +134,7 @@ mystry-dashboard/
 
 ### 部署与导入流水线
 
-部署由 `core-metadata` 解析版本与地址，`core-download` 管理下载和缓存，`core-installer` 管理 Installer，`core-depot` 编排任务。核心文件先写入独立的 part 文件，完整完成后才原子发布到 `DATA_DIR/cache/cores/`，未完成的文件不会被当作缓存复用。相同缓存路径的并发任务共享一次下载；单个等待者取消不影响其他等待者，全部退出才中止下载并清理 part 文件。
+部署由 `core-metadata` 解析版本与地址，`core-download` 管理下载和缓存，`core-installer` 管理 Installer，`core-depot` 编排任务。核心文件先写入独立的 part 文件，完整完成后才原子发布到 `DATA_DIR/cache/cores/`，未完成的文件不会被当作缓存复用。相同缓存路径的并发任务共享一次下载；单个等待者取消不影响其他等待者，全部退出才中止下载并清理 part 文件；中止时立即把这次下载移出合并表，之后的请求会重新下载，不会拿到前一批的取消原因。
 
 ZIP 预览与解压由 `zip-service` 统一做条目文件头和数据范围校验，不支持的压缩方式在打开文件流前拒绝；任务入队与实例落地由 `import-service` 负责。ZIP 预览只在 `uploads/.tmp-import-preview-*` 暂存，绑定登录用户且不跨重启，确认入队后由导入任务接管清理。
 
