@@ -6,6 +6,7 @@
  *（含旧版 mystry_theme 六主题的迁移），这里负责读取、切换、跟随系统变化，
  * 并广播事件让多处选择器保持同步。
  */
+import type { MessageKey } from './i18n';
 
 export const APPEARANCES = ['auto', 'light', 'dark'] as const;
 export type Appearance = (typeof APPEARANCES)[number];
@@ -13,19 +14,20 @@ export type Appearance = (typeof APPEARANCES)[number];
 export const ACCENTS = ['blue', 'purple', 'pink', 'green', 'graphite'] as const;
 export type Accent = (typeof ACCENTS)[number];
 
-export const APPEARANCE_META: Record<Appearance, { label: string }> = {
-  auto: { label: '自动' },
-  light: { label: '浅色' },
-  dark: { label: '深色' },
-};
+/** 外观与强调色的显示名称对应的文案键。 */
+export const APPEARANCE_LABEL_KEYS = {
+  auto: 'appearance.auto',
+  light: 'appearance.light',
+  dark: 'appearance.dark',
+} as const satisfies Record<Appearance, MessageKey>;
 
-export const ACCENT_META: Record<Accent, { label: string }> = {
-  blue: { label: '蓝色' },
-  purple: { label: '紫色' },
-  pink: { label: 'Mystry 粉' },
-  green: { label: '绿色' },
-  graphite: { label: '石墨' },
-};
+export const ACCENT_LABEL_KEYS = {
+  blue: 'accent.blue',
+  purple: 'accent.purple',
+  pink: 'accent.pink',
+  green: 'accent.green',
+  graphite: 'accent.graphite',
+} as const satisfies Record<Accent, MessageKey>;
 
 const APPEARANCE_KEY = 'mystry_appearance';
 const ACCENT_KEY = 'mystry_accent';

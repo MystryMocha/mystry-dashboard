@@ -1,11 +1,13 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, SunMoon } from 'lucide-react';
+import { usePopover } from '../hooks/usePopover';
+import { useI18n } from '../i18n';
 import {
   ACCENTS,
-  ACCENT_META,
+  ACCENT_LABEL_KEYS,
   APPEARANCES,
-  APPEARANCE_META,
+  APPEARANCE_LABEL_KEYS,
   getAccent,
   getAppearance,
   setAccent,
@@ -24,15 +26,11 @@ const POPOVER_WIDTH = 300;
  * 两组都是原生单选框，方向键切换由浏览器提供；面板挂到 body 并用 fixed 定位，避免被裁切或错位。
  */
 export function ThemeToggle({ placement = 'topbar' }: { placement?: Placement }) {
+  const { t } = useI18n();
   const [appearance, setAppearanceState] = useState<Appearance>(getAppearance);
   const [accent, setAccentState] = useState<Accent>(getAccent);
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const toggleRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const panelId = useId();
+  const popover = usePopover(POPOVER_WIDTH);
   const groupName = useId();
-  const [panelStyle, setPanelStyle] = useState<React.CSSProperties>({});
 
   useEffect(() => {
     const onChange = () => {
@@ -43,87 +41,36 @@ export function ThemeToggle({ placement = 'topbar' }: { placement?: Placement })
     return () => window.removeEventListener(THEME_CHANGE_EVENT, onChange);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    function updatePosition() {
-      const rect = toggleRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const width = Math.min(POPOVER_WIDTH, window.innerWidth - 16);
-      setPanelStyle({
-        top: rect.bottom + 8,
-        left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
-        width,
-      });
-    }
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    panelRef.current?.querySelector<HTMLInputElement>('input:checked')?.focus({ preventScroll: true });
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      setOpen(false);
-      toggleRef.current?.focus();
-    }
-    const isInside = (target: EventTarget | null) =>
-      Boolean(target instanceof Node && (rootRef.current?.contains(target) || panelRef.current?.contains(target)));
-    function onMouseDown(event: MouseEvent) {
-      if (!isInside(event.target)) setOpen(false);
-    }
-    function onFocusIn(event: FocusEvent) {
-      // Tab 离开面板时自动收起，避免浮层停留在页面上。
-      if (!isInside(event.target)) setOpen(false);
-    }
-
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('focusin', onFocusIn);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('focusin', onFocusIn);
-    };
-  }, [open]);
-
-  const summary = `${APPEARANCE_META[appearance].label}外观，${ACCENT_META[accent].label}强调色`;
+  const accentLabel = t(ACCENT_LABEL_KEYS[accent]);
 
   return (
-    <div className={`appearance-picker appearance-picker-${placement}`} ref={rootRef}>
+    <div className={`appearance-picker appearance-picker-${placement}`} ref={popover.rootRef}>
       <button
-        ref={toggleRef}
+        ref={popover.toggleRef}
         type="button"
         className="toolbar-button"
-        aria-label={`外观设置，当前为${summary}`}
-        title="外观"
-        aria-expanded={open}
+        aria-label={t('appearance.button', { appearance: t(APPEARANCE_LABEL_KEYS[appearance]), accent: accentLabel })}
+        title={t('appearance.title')}
+        aria-expanded={popover.open}
         aria-haspopup="dialog"
-        aria-controls={panelId}
-        onClick={() => setOpen((value) => !value)}
+        aria-controls={popover.panelId}
+        onClick={popover.toggle}
       >
         <SunMoon size={18} aria-hidden="true" />
       </button>
 
       {/* 工具栏的毛玻璃（backdrop-filter）会成为 fixed 定位的包含块，面板必须挂到 body。 */}
-      {open && createPortal(
+      {popover.open && createPortal(
         <div
-          id={panelId}
-          ref={panelRef}
+          id={popover.panelId}
+          ref={popover.panelRef}
           className="popover appearance-popover"
-          style={panelStyle}
+          style={popover.panelStyle}
           role="dialog"
-          aria-label="外观"
+          aria-label={t('appearance.title')}
         >
           <fieldset className="appearance-group">
-            <legend className="popover-title">外观</legend>
+            <legend className="popover-title">{t('appearance.title')}</legend>
             <div className="appearance-options">
               {APPEARANCES.map((id) => (
                 <label key={id} className="appearance-option">
@@ -139,24 +86,24 @@ export function ThemeToggle({ placement = 'topbar' }: { placement?: Placement })
                     <span className="appearance-thumb-bar" />
                     <span className="appearance-thumb-card" />
                   </span>
-                  <span className="appearance-option-label">{APPEARANCE_META[id].label}</span>
+                  <span className="appearance-option-label">{t(APPEARANCE_LABEL_KEYS[id])}</span>
                 </label>
               ))}
             </div>
           </fieldset>
 
           <fieldset className="appearance-group">
-            <legend className="popover-title">强调色</legend>
+            <legend className="popover-title">{t('appearance.accent')}</legend>
             <div className="accent-options">
               {ACCENTS.map((id) => (
-                <label key={id} className="accent-option" title={ACCENT_META[id].label}>
+                <label key={id} className="accent-option" title={t(ACCENT_LABEL_KEYS[id])}>
                   <input
                     type="radio"
                     className="visually-hidden"
                     name={`${groupName}-accent`}
                     value={id}
                     checked={accent === id}
-                    aria-label={ACCENT_META[id].label}
+                    aria-label={t(ACCENT_LABEL_KEYS[id])}
                     onChange={() => setAccent(id)}
                   />
                   <span className={`accent-swatch accent-swatch-${id}`} aria-hidden="true">
@@ -165,7 +112,7 @@ export function ThemeToggle({ placement = 'topbar' }: { placement?: Placement })
                 </label>
               ))}
             </div>
-            <p className="popover-footnote">{ACCENT_META[accent].label}</p>
+            <p className="popover-footnote">{accentLabel}</p>
           </fieldset>
         </div>,
         document.body,

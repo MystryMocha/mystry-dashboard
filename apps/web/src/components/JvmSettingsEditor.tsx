@@ -10,10 +10,88 @@ import {
   type CoreType,
   type DetectedJvmConfig,
   type JvmPresetId,
+  type JvmValidationIssue,
 } from '@mystry/shared';
 import { listNodes } from '../api';
+import { useI18n, type I18n, type MessageKey } from '../i18n';
 
 export type DetectedJvmChoice = 'detected' | 'recommended' | 'custom' | null;
+
+type BuiltinPresetId = Exclude<JvmPresetId, 'custom'>;
+
+const PRESET_LABEL_KEYS: Record<BuiltinPresetId, MessageKey> = {
+  compatibility: 'jvm.preset.compatibility.label',
+  'g1-balanced': 'jvm.preset.g1-balanced.label',
+  'paper-aikar': 'jvm.preset.paper-aikar.label',
+};
+
+const PRESET_DESCRIPTION_KEYS: Record<BuiltinPresetId, MessageKey> = {
+  compatibility: 'jvm.preset.compatibility.description',
+  'g1-balanced': 'jvm.preset.g1-balanced.description',
+  'paper-aikar': 'jvm.preset.paper-aikar.description',
+};
+
+/** 文案固定、无参数的诊断 code。 */
+const STATIC_ISSUE_KEYS: Record<string, MessageKey> = {
+  ARGS_TOO_LONG: 'jvm.issue.argsTooLong',
+  XMS_COUNT: 'jvm.issue.xmsCount',
+  XMX_COUNT: 'jvm.issue.xmxCount',
+  XMS_FORMAT: 'jvm.issue.xmsFormat',
+  XMX_FORMAT: 'jvm.issue.xmxFormat',
+  MEMORY_ORDER: 'jvm.issue.memoryOrder',
+  MEMORY_HIGH: 'jvm.issue.memoryHigh',
+  GC_CONFLICT: 'jvm.issue.gcConflict',
+  PAPER_MEMORY_MISMATCH: 'jvm.issue.paperMemoryMismatch',
+  PAPER_MEMORY_LOW: 'jvm.issue.paperMemoryLow',
+};
+
+/** 共享包解析器抛出的错误原文 → 键（PARSE_ERROR / ARGFILE_PARSE_ERROR 的 message 即错误原文）。 */
+const PARSE_ERROR_KEYS: Record<string, MessageKey> = {
+  'JVM 参数包含未闭合的引号': 'jvm.issue.unclosedQuote',
+};
+
+/**
+ * 把共享包 validateJvmArgs 生成的诊断翻译为当前语言。
+ * 带参数的 code 从中文原文中提取参数（服务端检测结果与前端校验使用同一套原文）；
+ * 未知 code 或原文格式对不上时回落显示原文。
+ */
+function translateJvmIssue(item: JvmValidationIssue, t: I18n['t']): string {
+  const presetLabel = (label: string) => {
+    const preset = JVM_PRESETS.find((candidate) => candidate.label === label);
+    return preset ? t(PRESET_LABEL_KEYS[preset.id]) : label;
+  };
+  const staticKey = STATIC_ISSUE_KEYS[item.code];
+  if (staticKey) return t(staticKey);
+  switch (item.code) {
+    case 'PARSE_ERROR':
+    case 'ARGFILE_PARSE_ERROR': {
+      const key = PARSE_ERROR_KEYS[item.message];
+      return key ? t(key) : item.message;
+    }
+    case 'PANEL_OWNED_ARGUMENT': {
+      const match = /^参数 ([\s\S]+) 由面板管理，不能写入 JVM 参数$/.exec(item.message);
+      return match ? t('jvm.issue.panelOwnedArgument', { argument: match[1]! }) : item.message;
+    }
+    case 'PRESET_CORE_MISMATCH': {
+      const match = /^(.+) 仅适用于 (.+) 核心$/.exec(item.message);
+      return match
+        ? t('jvm.issue.presetCoreMismatch', { preset: presetLabel(match[1]!), cores: match[2]! })
+        : item.message;
+    }
+    case 'JAVA_MAJOR_UNKNOWN': {
+      const match = /^(.+) 尚未确认所选 Java 版本是否兼容$/.exec(item.message);
+      return match ? t('jvm.issue.javaMajorUnknown', { preset: presetLabel(match[1]!) }) : item.message;
+    }
+    case 'PRESET_JAVA_MISMATCH': {
+      const match = /^(.+) 未验证支持 Java (\S+)$/.exec(item.message);
+      return match
+        ? t('jvm.issue.presetJavaMismatch', { preset: presetLabel(match[1]!), java: match[2]! })
+        : item.message;
+    }
+    default:
+      return item.message;
+  }
+}
 
 type Draft = {
   xmsMiB: number;
@@ -85,6 +163,7 @@ export function JvmSettingsEditor({
   onDetectedChoiceChange?: (choice: DetectedJvmChoice) => void;
   onValidityChange?: (valid: boolean) => void;
 }) {
+  const { t, rich } = useI18n();
   const maximumId = useId();
   const presetId = useId();
   const xmsId = useId();
@@ -210,10 +289,10 @@ export function JvmSettingsEditor({
   const paperAvailable = coreType === 'paper' && g1Available;
 
   return (
-    <section className="jvm-settings" aria-label="JVM 设置">
+    <section className="jvm-settings" aria-label={t('jvm.section.ariaLabel')}>
       {detectedJvmConfig && (
         <fieldset className="jvm-detected-choice" disabled={disabled}>
-          <legend>检测到 user_jvm_args.txt，请确认处理方式</legend>
+          <legend>{t('jvm.detected.legend')}</legend>
           <label>
             <input
               type="radio"
@@ -222,7 +301,7 @@ export function JvmSettingsEditor({
               disabled={!detectedJvmConfig.canonicalArgs}
               onChange={() => chooseDetectedMode('detected')}
             />
-            沿用检测到的参数
+            {t('jvm.detected.keep')}
           </label>
           <label>
             <input
@@ -231,7 +310,7 @@ export function JvmSettingsEditor({
               checked={detectedChoice === 'recommended'}
               onChange={() => chooseDetectedMode('recommended')}
             />
-            使用面板推荐
+            {t('jvm.detected.recommended')}
           </label>
           <label>
             <input
@@ -240,11 +319,11 @@ export function JvmSettingsEditor({
               checked={detectedChoice === 'custom'}
               onChange={() => chooseDetectedMode('custom')}
             />
-            自定义配置
+            {t('jvm.detected.custom')}
           </label>
           {detectedJvmConfig.issues.map((item, index) => (
             <p key={`${item.code}-${index}`} className={item.severity === 'error' ? 'error' : 'field-warn'}>
-              {item.message}
+              {translateJvmIssue(item, t)}
             </p>
           ))}
         </fieldset>
@@ -252,7 +331,7 @@ export function JvmSettingsEditor({
 
       {draft.rawMode ? (
         <div className="field">
-          <label htmlFor={extraId}>原始 JVM 参数（修正错误后会恢复引导模式）</label>
+          <label htmlFor={extraId}>{t('jvm.raw.label')}</label>
           <textarea
             id={extraId}
             rows={5}
@@ -272,7 +351,7 @@ export function JvmSettingsEditor({
         <>
           <div className="grid grid-2 jvm-basic-grid">
             <div className="field">
-              <label htmlFor={maximumId}>最大内存（MiB）</label>
+              <label htmlFor={maximumId}>{t('jvm.memory.max.label')}</label>
               <input
                 id={maximumId}
                 type="number"
@@ -286,12 +365,16 @@ export function JvmSettingsEditor({
                 }}
               />
               <p className="muted field-help">
-                推荐 {recommendedMaximum} MiB
-                {totalMemoryMiB ? ` · 主机总内存约 ${Math.round(totalMemoryMiB / 1024)} GiB` : ' · 未读取到主机内存'}
+                {totalMemoryMiB
+                  ? t('jvm.memory.help.withHost', {
+                    recommended: recommendedMaximum,
+                    total: Math.round(totalMemoryMiB / 1024),
+                  })
+                  : t('jvm.memory.help.noHost', { recommended: recommendedMaximum })}
               </p>
             </div>
             <div className="field">
-              <label htmlFor={presetId}>优化方案</label>
+              <label htmlFor={presetId}>{t('jvm.preset.label')}</label>
               <select
                 id={presetId}
                 value={draft.presetId}
@@ -301,25 +384,32 @@ export function JvmSettingsEditor({
                   emit({ ...draft, presetId: nextPreset });
                 }}
               >
-                <option value="compatibility">兼容优先</option>
-                <option value="g1-balanced" disabled={!g1Available}>G1 均衡</option>
-                <option value="paper-aikar" disabled={!paperAvailable}>Paper Aikar</option>
-                <option value="custom">自定义（不附加预设）</option>
+                <option value="compatibility">{t(PRESET_LABEL_KEYS.compatibility)}</option>
+                <option value="g1-balanced" disabled={!g1Available}>{t(PRESET_LABEL_KEYS['g1-balanced'])}</option>
+                <option value="paper-aikar" disabled={!paperAvailable}>{t(PRESET_LABEL_KEYS['paper-aikar'])}</option>
+                <option value="custom">{t('jvm.preset.custom.option')}</option>
               </select>
               <p className="muted field-help">
-                {selectedPreset?.description ?? '保留无法归类的自定义参数。'}
+                {selectedPreset ? t(PRESET_DESCRIPTION_KEYS[selectedPreset.id]) : t('jvm.preset.custom.description')}
               </p>
               {selectedPreset?.sourceUrl ? (
                 <p className="muted field-help">
-                  冻结版本 {selectedPreset.version} · 复核于 {selectedPreset.reviewedAt} ·{' '}
-                  <a href={selectedPreset.sourceUrl} target="_blank" rel="noreferrer">查看官方来源</a>
+                  {rich(
+                    'jvm.preset.source',
+                    {
+                      link: (chunk) => (
+                        <a href={selectedPreset.sourceUrl ?? undefined} target="_blank" rel="noreferrer">{chunk}</a>
+                      ),
+                    },
+                    { version: selectedPreset.version, date: selectedPreset.reviewedAt },
+                  )}
                 </p>
               ) : null}
             </div>
           </div>
 
           <details className="disclosure jvm-advanced">
-            <summary>高级 JVM 参数</summary>
+            <summary>{t('jvm.advanced.summary')}</summary>
             <label className="checkbox-field">
               <input
                 type="checkbox"
@@ -327,10 +417,10 @@ export function JvmSettingsEditor({
                 disabled={fieldsDisabled}
                 onChange={(event) => emit({ ...draft, manualXms: event.target.checked })}
               />
-              手动设置初始内存 Xms
+              {t('jvm.xms.manual')}
             </label>
             <div className="field">
-              <label htmlFor={xmsId}>初始内存（MiB）</label>
+              <label htmlFor={xmsId}>{t('jvm.xms.label')}</label>
               <input
                 id={xmsId}
                 type="number"
@@ -345,29 +435,29 @@ export function JvmSettingsEditor({
               />
             </div>
             <div className="field">
-              <label htmlFor={extraId}>附加参数</label>
+              <label htmlFor={extraId}>{t('jvm.extra.label')}</label>
               <textarea
                 id={extraId}
                 rows={4}
                 value={draft.extraArgs}
                 disabled={fieldsDisabled}
-                placeholder="例如 -Dfile.encoding=UTF-8"
+                placeholder={t('jvm.extra.placeholder')}
                 onChange={(event) => emit({ ...draft, extraArgs: event.target.value })}
               />
-              <p className="muted field-help">内存和启动目标由面板管理，请勿在这里重复填写。</p>
+              <p className="muted field-help">{t('jvm.extra.help')}</p>
             </div>
           </details>
         </>
       )}
 
-      <div className="jvm-args-preview" aria-label="最终 JVM 参数">
-        <strong>最终参数</strong>
+      <div className="jvm-args-preview" aria-label={t('jvm.preview.ariaLabel')}>
+        <strong>{t('jvm.preview.title')}</strong>
         {tokens.length > 0 ? (
           <div className="jvm-token-list">
             {tokens.map((token, index) => <code key={`${token}-${index}`}>{token}</code>)}
           </div>
         ) : (
-          <code>{value || '暂无可解析参数'}</code>
+          <code>{value || t('jvm.preview.empty')}</code>
         )}
       </div>
       {issues.map((item, index) => (
@@ -376,7 +466,7 @@ export function JvmSettingsEditor({
           className={item.severity === 'error' ? 'error' : 'field-warn'}
           role={item.severity === 'error' ? 'alert' : undefined}
         >
-          {item.message}
+          {translateJvmIssue(item, t)}
         </p>
       ))}
     </section>

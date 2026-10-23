@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react';
 import { recommendedJavaMajor, type JavaDetectResult, type JavaRuntimeInfo } from '@mystry/shared';
 import { detectDefaultJava, listJavaRuntimes } from '../api';
 import { errorMessage } from '../errors';
+import { useI18n } from '../i18n';
 
 /**
  * Java 运行时选择器：
@@ -22,6 +23,7 @@ export function JavaRuntimeSelect({
   disabled?: boolean;
   onResolvedMajorChange?: (major: number | null) => void;
 }) {
+  const { t } = useI18n();
   const selectId = useId();
   const [runtimes, setRuntimes] = useState<JavaRuntimeInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +74,7 @@ export function JavaRuntimeSelect({
 
   return (
     <div className="field">
-      <label htmlFor={selectId}>Java 运行时</label>
+      <label htmlFor={selectId}>{t('java.runtime.label')}</label>
       <div className="input-row">
         <select
           id={selectId}
@@ -80,10 +82,13 @@ export function JavaRuntimeSelect({
           disabled={disabled || loading}
           onChange={(e) => onChange(e.target.value || null)}
         >
-          <option value="">系统默认 Java</option>
+          <option value="">{t('java.runtime.systemDefault')}</option>
           {runtimes.map((runtime) => (
             <option key={runtime.id} value={runtime.id} disabled={!runtime.available}>
-              {`Java ${runtime.majorVersion ?? runtime.version ?? '未知版本'} · ${runtime.path}${runtime.available ? '' : '（不可用）'}`}
+              {t(runtime.available ? 'java.runtime.option' : 'java.runtime.optionUnavailable', {
+                version: runtime.majorVersion ?? runtime.version ?? t('java.runtime.unknownVersion'),
+                path: runtime.path,
+              })}
             </option>
           ))}
         </select>
@@ -91,36 +96,41 @@ export function JavaRuntimeSelect({
           className="btn"
           type="button"
           disabled={disabled || refreshing}
-          title="重新扫描本机 Java 安装目录"
+          title={t('java.runtime.rescan.title')}
           onClick={() => void load(true)}
         >
           <RefreshCw size={14} aria-hidden="true" className={refreshing ? 'spin' : undefined} />
-          {refreshing ? '探测中…' : '重新探测'}
+          {refreshing ? t('java.runtime.rescanning') : t('java.runtime.rescan')}
         </button>
       </div>
       <div className={`environment-status${loading && defaultJava === null ? '' : defaultJava?.available ? ' is-ready' : ' is-missing'}`}>
         <span className="status-dot" aria-hidden="true" />
         {loading && defaultJava === null
-          ? '正在检查系统默认 Java…'
+          ? t('java.default.checking')
           : defaultJava?.available
-            ? `系统默认 Java 可用${defaultJava.version ? ` · ${defaultJava.version}` : ''}`
-            : '未找到系统默认 Java，请先安装 Java 后点「重新探测」'}
+            ? defaultJava.version
+              ? t('java.default.availableWithVersion', { version: defaultJava.version })
+              : t('java.default.available')
+            : t('java.default.missing')}
       </div>
-      <p className="field-help">不选择时使用系统默认 Java；电脑上装了多个 Java 时，可以在上面选择要用的版本。</p>
+      <p className="field-help">{t('java.help.default')}</p>
       {recommended != null && (
-        <p className="field-help">当前 Minecraft {mcVersion} 推荐使用 Java {recommended}。</p>
+        <p className="field-help">{t('java.help.recommended', { mcVersion: mcVersion ?? '', java: recommended })}</p>
       )}
       {mismatch && (
         <p className="field-warn" role="alert">
-          {value ? '所选 Java' : '系统默认 Java'} 是 Java {resolvedMajor}，推荐使用 Java {recommended}；版本不符时服务器可能无法启动。
+          {t(value ? 'java.warn.mismatch.selected' : 'java.warn.mismatch.default', {
+            actual: resolvedMajor,
+            recommended,
+          })}
         </p>
       )}
       {value && !loading && (!selected || !selected.available) && (
         <p className="field-warn" role="alert">
-          之前选择的 Java 已不可用，保存前请点「重新探测」并重新选择。
+          {t('java.warn.unavailable')}
         </p>
       )}
-      {error && <p className="error">无法读取本机 Java 列表：{error}</p>}
+      {error && <p className="error">{t('java.error.load', { error })}</p>}
     </div>
   );
 }

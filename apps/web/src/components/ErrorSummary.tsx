@@ -1,5 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { useDialogOpen } from '../hooks/useDialogOpen';
+import { useI18n } from '../i18n';
 import '../deploy-error.css';
 
 // 页面只保留紧凑摘要，完整错误交给受限尺寸的详情弹窗展示。
@@ -24,6 +25,7 @@ export function ErrorSummary({
   detailTitle: string;
   error: string;
 }) {
+  const { t } = useI18n();
   const [showDetails, setShowDetails] = useState(false);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const dialogRef = useDialogOpen(showDetails);
@@ -55,11 +57,15 @@ export function ErrorSummary({
         </div>
         <div className="error-summary-actions">
           <button className="btn btn-sm" type="button" onClick={() => void copyError()}>
-            {copyStatus === 'copied' ? '已复制' : copyStatus === 'failed' ? '复制失败' : '复制错误'}
+            {copyStatus === 'copied'
+              ? t('dialog.error.copied')
+              : copyStatus === 'failed'
+                ? t('dialog.error.copyFailed')
+                : t('dialog.error.copy')}
           </button>
           {hasDetails && (
             <button className="btn btn-sm" type="button" onClick={() => setShowDetails(true)}>
-              查看详情
+              {t('dialog.error.viewDetails')}
             </button>
           )}
         </div>
@@ -87,28 +93,28 @@ export function ErrorSummary({
           <header className="error-dialog-header">
             <div>
               <h2 id={dialogTitleId}>{detailTitle}</h2>
-              <p>完整错误内容，可复制后用于排查。</p>
+              <p>{t('dialog.error.detailHint')}</p>
             </div>
             <button
               className="btn btn-plain"
               type="button"
-              aria-label="关闭错误详情"
+              aria-label={t('dialog.error.closeLabel')}
               onClick={() => setShowDetails(false)}
             >
-              关闭
+              {t('action.close')}
             </button>
           </header>
           <pre className="error-dialog-output">{error}</pre>
           <footer className="error-dialog-footer">
             <span className="muted" aria-live="polite">
               {copyStatus === 'copied'
-                ? '错误内容已复制到剪贴板'
+                ? t('dialog.error.copiedStatus')
                 : copyStatus === 'failed'
-                  ? '复制失败，请在内容区域中手动选择复制'
+                  ? t('dialog.error.copyFailedStatus')
                   : ''}
             </span>
             <button className="btn btn-primary" type="button" onClick={() => void copyError()}>
-              {copyStatus === 'copied' ? '已复制' : '复制全部'}
+              {copyStatus === 'copied' ? t('dialog.error.copied') : t('dialog.error.copyAll')}
             </button>
           </footer>
         </div>

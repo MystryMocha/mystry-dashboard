@@ -1,5 +1,6 @@
 import type { InstanceInfo } from '@mystry/shared';
-import { instanceStatusLabel } from '../instance-status';
+import { useI18n } from '../i18n';
+import { instanceStatusKey } from '../instance-status';
 
 export type StatusTone = 'running' | 'stopped' | 'starting' | 'stopping' | 'crashed' | 'warning';
 
@@ -22,8 +23,8 @@ export function StatusPill({
 }
 
 export function InstanceStatusPill({ instance }: { instance: InstanceInfo }) {
-  if (instance.requiresMigration) return <StatusPill tone="warning">待迁移</StatusPill>;
-  return (
-    <StatusPill tone={instance.status}>{instanceStatusLabel[instance.status] || instance.status}</StatusPill>
-  );
+  const { t } = useI18n();
+  if (instance.requiresMigration) return <StatusPill tone="warning">{t('instance.status.migration')}</StatusPill>;
+  const key = instanceStatusKey(instance.status);
+  return <StatusPill tone={instance.status}>{key ? t(key) : instance.status}</StatusPill>;
 }

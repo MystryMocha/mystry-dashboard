@@ -10,6 +10,7 @@ import {
 import type { AuthSetupStatus, AuthUser } from '@mystry/shared';
 import { api, ApiError, getToken, setToken, UNAUTHORIZED_EVENT } from './api';
 import { errorMessage } from './errors';
+import { useI18n } from './i18n';
 
 type AuthState = {
   user: AuthUser | null;
@@ -28,7 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
-  const [statusError, setStatusError] = useState<string | null>(null);
+  const { t } = useI18n();
+  // 只保存服务端/网络返回的原始错误，对外暴露时再按当前语言拼成完整提示。
+  const [statusErrorDetail, setStatusError] = useState<string | null>(null);
+  const statusError = statusErrorDetail === null
+    ? null
+    : t('login.status.connectError', { message: statusErrorDetail });
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -54,8 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       setUser(null);
-      const message = errorMessage(error);
-      setStatusError(`无法连接面板服务：${message}`);
+      setStatusError(errorMessage(error));
     } finally {
       setLoading(false);
     }

@@ -15,7 +15,13 @@ import {
 } from 'lucide-react';
 import type { InstanceInfo } from '@mystry/shared';
 import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
-import { HostMetricCards, MetricWidget, processMetric, useDashboardMetrics } from '../components/DashboardMetrics';
+import {
+  HostMetricCards,
+  MetricWidget,
+  metricWarningText,
+  processMetric,
+  useDashboardMetrics,
+} from '../components/DashboardMetrics';
 import { ActionMenu } from '../components/ActionMenu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CoreIcon } from '../components/CoreIcon';
@@ -27,6 +33,7 @@ import { InstanceStatusPill } from '../components/StatusPill';
 import { errorMessage } from '../errors';
 import { useInstanceAction } from '../hooks/useInstanceAction';
 import { usePolling } from '../hooks/usePolling';
+import { useI18n } from '../i18n';
 import {
   canStartInstance,
   canStopInstance,
@@ -36,12 +43,15 @@ import {
 
 type LoadState = 'loading' | 'loaded' | 'error';
 
-function extractXmx(jvmArgs: string): string {
+/** 未设置 -Xmx 时返回 null，由调用方显示「默认」。 */
+function extractXmx(jvmArgs: string): string | null {
   const match = jvmArgs.match(/-Xmx(\w+)/i);
-  return match ? match[1].toUpperCase() : '默认';
+  return match ? match[1].toUpperCase() : null;
 }
 
 export function DashboardPage() {
+  const i18n = useI18n();
+  const { t, tp, fmt } = i18n;
   const navigate = useNavigate();
   const { metrics, error: metricsError, busy: metricsBusy, refresh: refreshMetrics } = useDashboardMetrics();
   const [abnormalOnly, setAbnormalOnly] = useState(false);
@@ -53,7 +63,7 @@ export function DashboardPage() {
   const [forceStopTarget, setForceStopTarget] = useState<InstanceInfo | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InstanceInfo | null>(null);
   const [emptyOpen, setEmptyOpen] = useState(false);
-  const [emptyName, setEmptyName] = useState('自定义 Jar 实例');
+  const [emptyName, setEmptyName] = useState(() => t('dashboard.createEmpty.defaultName'));
   const [emptyJvm, setEmptyJvm] = useState('-Xms1G -Xmx2G');
   // EULA 必须由用户主动勾选同意，不预先替用户同意。
   const [emptyEula, setEmptyEula] = useState(false);
@@ -142,52 +152,59 @@ export function DashboardPage() {
   const visibleInstances = instances.filter((inst) => !abnormalOnly || inst.status === 'crashed' || inst.requiresMigration);
 
   const metricsStatusText = metricsError
-    ? `${metricsError}${metrics ? '，数据可能过期' : ''}`
+    ? (metrics ? t('dashboard.metrics.errorStale', { error: metricsError }) : metricsError)
     : metrics
-      ? `更新于 ${new Date(metrics.sampledAt).toLocaleTimeString()}`
-      : '正在读取监测数据…';
+      ? t('dashboard.metrics.updatedAt', { time: fmt.time(metrics.sampledAt) })
+      : t('dashboard.metrics.loading');
+  const abnormalLabel = loaded ? abnormalCount : '—';
 
   return (
     <div className="page">
       <PageHeader
-        title="实例总览"
-        subtitle={loaded ? `共 ${instances.length} 个实例，${runningCount} 个正在运行` : '本机 Minecraft Java 服务端'}
+        title={t('nav.overview')}
+        subtitle={
+          loaded
+            ? tp('dashboard.subtitle.summary', instances.length, { running: runningCount })
+            : t('dashboard.subtitle.default')
+        }
         actions={
           <>
             <Link to="/deploy" className="btn btn-primary">
               <Plus size={16} aria-hidden="true" />
-              一键部署
+              {t('nav.deploy')}
             </Link>
             <Link to="/import" className="btn">
               <FolderDown size={16} aria-hidden="true" />
-              导入服务端
+              {t('nav.import')}
             </Link>
             <button type="button" className="btn" onClick={() => setEmptyOpen(true)}>
               <Zap size={16} aria-hidden="true" />
-              创建空实例
+              {t('dashboard.action.createEmpty')}
             </button>
           </>
         }
       />
 
-      <section className="widget-grid" aria-label="运行概况">
+      <section className="widget-grid" aria-label={t('dashboard.widgets.label')}>
         <MetricWidget
-          label="实例状态"
+          label={t('dashboard.widget.instances.label')}
           icon={Activity}
           tone="green"
           value={loaded ? `${runningCount} / ${instances.length}` : '—'}
-          unit="运行中"
+          unit={t('instance.status.running')}
           ratio={runningRatio}
           detail={
             <>
-              已停止 {loaded ? stoppedCount : '—'} ·{' '}
+              {t('dashboard.widget.instances.stopped', { count: loaded ? stoppedCount : '—' })} ·{' '}
               <button
                 type="button"
                 className={`link-button${abnormalCount > 0 ? ' is-danger' : ''}`}
                 aria-pressed={abnormalOnly}
                 onClick={() => setAbnormalOnly((value) => !value)}
               >
-                异常 {loaded ? abnormalCount : '—'}{abnormalOnly ? ' · 显示全部' : ''}
+                {abnormalOnly
+                  ? t('dashboard.widget.instances.abnormalShowAll', { count: abnormalLabel })
+                  : t('dashboard.widget.instances.abnormal', { count: abnormalLabel })}
               </button>
             </>
           }
@@ -197,11 +214,17 @@ export function DashboardPage() {
       <div className={`metrics-status${metricsError ? ' is-error' : ''}`}>
         <span role="status">
           {metricsStatusText}
-          {metrics && !metricsError && metrics.warnings.length > 0 ? ` · ${metrics.warnings.join(' · ')}` : ''}
+          {metrics && !metricsError && metrics.warnings.length > 0
+            ? ` · ${metrics.warnings.map((warning) => metricWarningText(warning, t)).join(' · ')}`
+            : ''}
         </span>
         <button type="button" className="link-button" disabled={metricsBusy} onClick={() => void refreshMetrics()}>
           <RefreshCw size={12} aria-hidden="true" className={metricsBusy ? 'spin' : undefined} />
-          {metricsBusy ? '刷新中…' : metricsError ? '重试监测' : '刷新'}
+          {metricsBusy
+            ? t('dashboard.metrics.refreshing')
+            : metricsError
+              ? t('dashboard.metrics.retry')
+              : t('action.refresh')}
         </button>
       </div>
 
@@ -209,50 +232,50 @@ export function DashboardPage() {
       {loadError && (
         <p className="callout callout-danger" role="alert">
           {loadError}
-          {loaded ? ' 当前正在显示上次成功加载的实例数据。' : ''}
+          {loaded ? ` ${t('dashboard.load.staleNotice')}` : ''}
         </p>
       )}
 
       <section className="page-section" aria-labelledby="instance-list-title">
         <div className="section-header">
           <h2 className="section-title" id="instance-list-title">
-            Minecraft 实例
+            {t('dashboard.list.title')}
             <span className="count-badge">{instances.length}</span>
           </h2>
-          {abnormalOnly && <span className="section-note">仅显示异常实例</span>}
+          {abnormalOnly && <span className="section-note">{t('dashboard.list.abnormalOnly')}</span>}
         </div>
 
         {loadState === 'loading' ? (
           <div className="page-loading" role="status">
             <span className="spinner" aria-hidden="true" />
-            正在加载实例列表…
+            {t('dashboard.list.loading')}
           </div>
         ) : loadState === 'error' ? (
           <div className="empty-state card" role="alert">
-            <p>实例列表暂时不可用，请检查面板连接后重试。</p>
+            <p>{t('error.instances.load')}</p>
             <button className="btn" type="button" onClick={retryLoad}>
-              重新加载
+              {t('action.reload')}
             </button>
           </div>
         ) : instances.length === 0 ? (
           <div className="empty-state card">
             <span className="empty-icon" aria-hidden="true"><Layers size={30} /></span>
-            <h3>暂无 Minecraft 实例</h3>
-            <p>你可以从「一键部署」下载官方核心，或从同机目录及 ZIP 包导入已有服务端。</p>
+            <h3>{t('empty.instances.title')}</h3>
+            <p>{t('empty.instances.body')}</p>
             <div className="empty-actions">
               <Link to="/deploy" className="btn btn-primary">
                 <Plus size={16} aria-hidden="true" />
-                部署第一个服务端
+                {t('dashboard.empty.deployFirst')}
               </Link>
               <Link to="/import" className="btn">
                 <FolderDown size={16} aria-hidden="true" />
-                导入已有服务端
+                {t('dashboard.empty.importExisting')}
               </Link>
             </div>
           </div>
         ) : (
           <div className="instance-grid">
-            {abnormalOnly && abnormalCount === 0 && <p className="muted">暂无异常实例。</p>}
+            {abnormalOnly && abnormalCount === 0 && <p className="muted">{t('dashboard.list.noAbnormal')}</p>}
             {visibleInstances.map((inst) => (
               <article key={inst.id} className={`instance-card status-${inst.requiresMigration ? 'warning' : inst.status}`}>
                 <div className="inst-card-top">
@@ -270,20 +293,24 @@ export function DashboardPage() {
 
                 <dl className="inst-stats">
                   <div className="inst-stat">
-                    <dt title="按整机逻辑核总容量计算">进程 CPU</dt>
-                    <dd>{processMetric(inst, metrics, metricsError, 'cpu')}</dd>
+                    <dt title={t('dashboard.card.processCpu.hint')}>{t('dashboard.card.processCpu')}</dt>
+                    <dd>{processMetric(inst, metrics, metricsError, 'cpu', i18n)}</dd>
                   </div>
                   <div className="inst-stat">
-                    <dt title="服务器进程实际占用的内存，通常略高于设置的最大内存">进程内存</dt>
-                    <dd>{processMetric(inst, metrics, metricsError, 'memory')}</dd>
+                    <dt title={t('dashboard.card.processMemory.hint')}>{t('dashboard.card.processMemory')}</dt>
+                    <dd>{processMetric(inst, metrics, metricsError, 'memory', i18n)}</dd>
                   </div>
                   <div className="inst-stat">
-                    <dt>最大内存</dt>
-                    <dd>{extractXmx(inst.jvmArgs)}</dd>
+                    <dt>{t('dashboard.card.maxMemory')}</dt>
+                    <dd>{extractXmx(inst.jvmArgs) ?? t('common.default')}</dd>
                   </div>
                   <div className="inst-stat">
-                    <dt>Java 运行时</dt>
-                    <dd>{inst.javaRuntimeId ? '专属环境' : '系统默认'}</dd>
+                    <dt>{t('dashboard.card.javaRuntime')}</dt>
+                    <dd>
+                      {inst.javaRuntimeId
+                        ? t('dashboard.card.javaRuntime.dedicated')
+                        : t('dashboard.card.javaRuntime.system')}
+                    </dd>
                   </div>
                 </dl>
 
@@ -296,7 +323,7 @@ export function DashboardPage() {
                       onClick={() => void act(inst.id, 'start')}
                     >
                       <Play size={14} aria-hidden="true" />
-                      启动
+                      {t('action.start')}
                     </button>
                   )}
                   {canStopInstance(inst.status) && (
@@ -307,11 +334,11 @@ export function DashboardPage() {
                       onClick={() => void act(inst.id, 'stop')}
                     >
                       <Power size={14} aria-hidden="true" />
-                      停止
+                      {t('action.stop')}
                     </button>
                   )}
                   <Link to={`/instances/${inst.id}`} className="btn btn-tinted inst-manage">
-                    进入管理
+                    {t('dashboard.card.manage')}
                     <ChevronRight size={15} aria-hidden="true" />
                   </Link>
 
@@ -319,27 +346,27 @@ export function DashboardPage() {
                     items={[
                       {
                         key: 'restart',
-                        label: '重启实例',
+                        label: t('dashboard.card.menu.restart'),
                         icon: <RotateCcw size={14} />,
                         disabled: busyId === inst.id || inst.requiresMigration || isLifecycleBusy(inst.status),
                         onSelect: () => setRestartTarget(inst),
                       },
                       {
                         key: 'force-stop',
-                        label: '强制停止',
+                        label: t('action.forceStop'),
                         icon: <Power size={14} />,
                         disabled: busyId === inst.id || inst.requiresMigration || !isProcessAlive(inst.status),
                         onSelect: () => setForceStopTarget(inst),
                       },
                       {
                         key: 'delete',
-                        label: '删除实例',
+                        label: t('dashboard.card.menu.delete'),
                         icon: <Trash2 size={14} />,
                         danger: true,
                         disabled: busyId === inst.id || (!inst.requiresMigration && isProcessAlive(inst.status)),
                         title:
                           !inst.requiresMigration && isProcessAlive(inst.status)
-                            ? '实例仍在运行，请先停止后再删除'
+                            ? t('dashboard.card.menu.deleteRunning')
                             : undefined,
                         onSelect: () => setDeleteTarget(inst),
                       },
@@ -355,12 +382,12 @@ export function DashboardPage() {
       {/* 创建空实例弹窗 */}
       <ConfirmDialog
         open={emptyOpen}
-        title="创建空实例"
+        title={t('dashboard.action.createEmpty')}
         description={
           <>
-            <p>将创建一个空的实例文件夹。创建后请在文件页上传服务端 jar 文件，并在「实例设置」中确认启动文件名。</p>
+            <p>{t('dashboard.createEmpty.body')}</p>
             <div className="field">
-              <label htmlFor="empty-instance-name">实例名称</label>
+              <label htmlFor="empty-instance-name">{t('dashboard.createEmpty.name')}</label>
               <input
                 id="empty-instance-name"
                 value={emptyName}
@@ -387,7 +414,7 @@ export function DashboardPage() {
             <EulaCheckbox checked={emptyEula} disabled={emptyBusy} onChange={setEmptyEula} />
           </>
         }
-        confirmLabel="创建并前往文件页"
+        confirmLabel={t('dashboard.createEmpty.confirm')}
         busy={emptyBusy}
         confirmDisabled={!emptyJvmValid}
         onConfirm={() => void confirmCreateEmpty()}
@@ -397,9 +424,9 @@ export function DashboardPage() {
       {/* 重启确认 */}
       <ConfirmDialog
         open={restartTarget !== null}
-        title={`重启实例「${restartTarget?.name ?? ''}」？`}
-        description="重启会中断当前游戏进程并断开所有在线玩家，未保存的世界数据可能丢失。"
-        confirmLabel="确认重启"
+        title={t('dashboard.restart.title', { name: restartTarget?.name ?? '' })}
+        description={t('dashboard.restart.body')}
+        confirmLabel={t('dashboard.restart.confirm')}
         busy={busyId === restartTarget?.id}
         onConfirm={() => void confirmRestart()}
         onCancel={() => setRestartTarget(null)}
@@ -408,9 +435,9 @@ export function DashboardPage() {
       {/* 强制停止确认 */}
       <ConfirmDialog
         open={forceStopTarget !== null}
-        title={`强制停止实例「${forceStopTarget?.name ?? ''}」？`}
-        description="强制停止会立即结束服务器进程，未保存的世界数据可能丢失甚至损坏。建议先尝试普通「停止」。"
-        confirmLabel="确认强制停止"
+        title={t('dashboard.forceStop.title', { name: forceStopTarget?.name ?? '' })}
+        description={t('dashboard.forceStop.body')}
+        confirmLabel={t('dashboard.forceStop.confirm')}
         danger
         busy={busyId === forceStopTarget?.id}
         onConfirm={() => void confirmForceStop()}
@@ -420,13 +447,17 @@ export function DashboardPage() {
       {/* 删除确认 */}
       <ConfirmDialog
         open={deleteTarget !== null}
-        title={deleteTarget?.requiresMigration ? `移除实例记录「${deleteTarget?.name ?? ''}」？` : `删除实例「${deleteTarget?.name ?? ''}」？`}
+        title={
+          deleteTarget?.requiresMigration
+            ? t('dashboard.removeRecord.title', { name: deleteTarget?.name ?? '' })
+            : t('dashboard.delete.title', { name: deleteTarget?.name ?? '' })
+        }
         description={
           deleteTarget?.requiresMigration
-            ? '仅移除面板中的实例记录，不会删除旧目录中的任何文件。'
-            : '将永久删除该实例目录及其全部文件（世界、配置、模组），此操作不可恢复。'
+            ? t('dashboard.removeRecord.body')
+            : t('dashboard.delete.body')
         }
-        confirmLabel={deleteTarget?.requiresMigration ? '移除记录' : '永久删除'}
+        confirmLabel={deleteTarget?.requiresMigration ? t('dashboard.removeRecord.confirm') : t('action.deletePermanently')}
         danger
         busy={busyId === deleteTarget?.id}
         requireText={deleteTarget?.requiresMigration ? undefined : deleteTarget?.name}

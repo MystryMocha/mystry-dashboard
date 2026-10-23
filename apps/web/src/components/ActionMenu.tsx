@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Ellipsis } from 'lucide-react';
+import { useI18n } from '../i18n';
 
 const PANEL_GAP = 6;
 const VIEWPORT_MARGIN = 8;
@@ -27,12 +28,14 @@ type PanelStyle = {
  * 统一在触发按钮下方右对齐展开，仅在下方空间不足且上方更宽裕时翻到上方。
  */
 export function ActionMenu({
-  label = '更多操作',
+  label: labelProp,
   items,
 }: {
   label?: string;
   items: ActionMenuItem[];
 }) {
+  const { t } = useI18n();
+  const label = labelProp ?? t('menu.more');
   const [open, setOpen] = useState(false);
   const [panelStyle, setPanelStyle] = useState<PanelStyle | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);

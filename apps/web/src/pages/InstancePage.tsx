@@ -27,6 +27,7 @@ import { errorMessage } from '../errors';
 import { useInstanceAction } from '../hooks/useInstanceAction';
 import { usePolling } from '../hooks/usePolling';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
+import { useI18n } from '../i18n';
 import {
   canStartInstance,
   canStopInstance,
@@ -39,6 +40,7 @@ function ConsoleTab({ instance }: { instance: InstanceInfo }) {
 }
 
 function MigrationPanel({ instance, onAdopt }: { instance: InstanceInfo; onAdopt: () => Promise<void> }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function adopt() {
@@ -50,13 +52,13 @@ function MigrationPanel({ instance, onAdopt }: { instance: InstanceInfo; onAdopt
   return (
     <div className="card migration-panel">
       <span className="empty-icon is-warning" aria-hidden="true"><TriangleAlert size={26} /></span>
-      <h2>接管托管目录</h2>
-      <p>请使用系统文件管理器，将旧实例文件复制到面板数据目录下的实例文件夹：</p>
-      <code className="code-block">面板数据目录/instances/{instance.id}</code>
-      <p className="muted">面板不会读取或删除旧目录。复制完成后点击「接管托管目录」，成功后将恢复实例操作。</p>
+      <h2>{t('instance.migration.title')}</h2>
+      <p>{t('instance.migration.instructions')}</p>
+      <code className="code-block">{t('instance.path.managed', { id: instance.id })}</code>
+      <p className="muted">{t('instance.migration.note')}</p>
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
       <button className="btn btn-primary" type="button" disabled={busy} onClick={() => void adopt()}>
-        {busy ? '检查中…' : '接管托管目录'}
+        {busy ? t('instance.migration.checking') : t('instance.migration.adopt')}
       </button>
     </div>
   );
@@ -89,6 +91,7 @@ function SettingsTab({
   instance: InstanceInfo;
   onSaved: () => void;
 }) {
+  const { t } = useI18n();
   const [name, setName] = useState(instance.name);
   const [jarFile, setJarFile] = useState(instance.jarFile);
   const [jvmArgs, setJvmArgs] = useState(instance.jvmArgs);
@@ -127,10 +130,10 @@ function SettingsTab({
   return (
     <div className="form-stack settings-workspace">
       <section className="form-section">
-        <h3 className="form-section-title">基本信息</h3>
+        <h3 className="form-section-title">{t('instance.settings.section.basic')}</h3>
         <div className="card form-card">
           <div className="field">
-            <label htmlFor="instance-settings-name">名称</label>
+            <label htmlFor="instance-settings-name">{t('instance.settings.name.label')}</label>
             <input
               id="instance-settings-name"
               value={name}
@@ -142,7 +145,7 @@ function SettingsTab({
             />
           </div>
           <div className="field">
-            <label htmlFor="instance-settings-jar-file">Jar 文件名</label>
+            <label htmlFor="instance-settings-jar-file">{t('instance.settings.jarFile.label')}</label>
             <input
               id="instance-settings-jar-file"
               value={jarFile}
@@ -154,19 +157,19 @@ function SettingsTab({
             />
           </div>
           <div className="field">
-            <label htmlFor="instance-settings-install-path">安装路径</label>
+            <label htmlFor="instance-settings-install-path">{t('instance.settings.installPath.label')}</label>
             <input
               id="instance-settings-install-path"
-              value={instance.installPath ?? `面板数据目录/instances/${instance.id}`}
+              value={instance.installPath ?? t('instance.path.managed', { id: instance.id })}
               readOnly
             />
-            <p className="field-help">实例目录由面板托管，创建后不可修改。</p>
+            <p className="field-help">{t('instance.settings.installPath.help')}</p>
           </div>
         </div>
       </section>
 
       <section className="form-section">
-        <h3 className="form-section-title">运行环境</h3>
+        <h3 className="form-section-title">{t('instance.settings.section.runtime')}</h3>
         <div className="card form-card">
           <JavaRuntimeSelect
             value={javaRuntimeId}
@@ -193,7 +196,7 @@ function SettingsTab({
       </section>
 
       <section className="form-section">
-        <h3 className="form-section-title">许可协议</h3>
+        <h3 className="form-section-title">{t('instance.settings.section.eula')}</h3>
         <div className="card form-card">
           <EulaCheckbox
             checked={acceptEula}
@@ -210,18 +213,21 @@ function SettingsTab({
 
       <div className="action-bar">
         <span className="action-bar-status" role="status" aria-live="polite">
-          {dirty ? '有未保存的设置。' : saved ? '设置已保存。' : '修改后点「保存设置」生效。'}
+          {dirty
+            ? t('instance.settings.status.dirty')
+            : saved ? t('instance.settings.status.saved') : t('instance.settings.status.idle')}
         </span>
         <button className="btn btn-primary" type="button" disabled={!dirty || saving || !jvmValid} onClick={() => void save()}>
-          {saving ? '保存中…' : '保存设置'}
+          {saving ? t('action.saving') : t('instance.settings.save')}
         </button>
       </div>
 
       <UnsavedChangesDialog
         blocker={blocker}
         saving={saving}
-        subject="设置"
-        description="离开设置页会丢失尚未保存的实例设置。"
+        title={t('instance.settings.unsaved.title')}
+        savingTitle={t('instance.settings.unsaved.savingTitle')}
+        description={t('instance.settings.unsaved.description')}
       />
     </div>
   );
@@ -230,6 +236,7 @@ function SettingsTab({
 const hubTabClass = ({ isActive }: { isActive: boolean }) => `segmented-item${isActive ? ' active' : ''}`;
 
 export function InstancePage() {
+  const { t } = useI18n();
   const { id = '' } = useParams();
   const [instance, setInstance] = useState<InstanceInfo | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -259,17 +266,17 @@ export function InstancePage() {
       <div className="page">
         <Link to="/" className="back-link">
           <ChevronLeft size={18} aria-hidden="true" />
-          实例总览
+          {t('nav.overview')}
         </Link>
         {error ? (
           <div className="empty-state card" role="alert">
             <p>{error}</p>
-            <button className="btn" type="button" onClick={() => void load()}>重新加载</button>
+            <button className="btn" type="button" onClick={() => void load()}>{t('action.reload')}</button>
           </div>
         ) : (
           <div className="page-loading" role="status">
             <span className="spinner" aria-hidden="true" />
-            加载中…
+            {t('common.loading')}
           </div>
         )}
       </div>
@@ -279,9 +286,9 @@ export function InstancePage() {
   return (
     <div className="page instance-page">
       <header className="instance-header">
-        <Link to="/" className="back-link" title="返回总览">
+        <Link to="/" className="back-link" title={t('instance.header.backTitle')}>
           <ChevronLeft size={18} aria-hidden="true" />
-          实例总览
+          {t('nav.overview')}
         </Link>
         <div className="instance-title-row">
           <CoreIcon coreType={instance.coreType} size="lg" />
@@ -291,7 +298,7 @@ export function InstancePage() {
               <InstanceStatusPill instance={instance} />
               <span>
                 {instance.coreType.toUpperCase()}
-                {instance.mcVersion ? ` · 版本 ${instance.mcVersion}` : ''}
+                {instance.mcVersion ? ` · ${t('instance.header.version', { version: instance.mcVersion })}` : ''}
               </span>
             </div>
           </div>
@@ -305,7 +312,7 @@ export function InstancePage() {
                 onClick={() => act('start')}
               >
                 <Play size={14} aria-hidden="true" />
-                启动
+                {t('action.start')}
               </button>
             )}
             {canStopInstance(instance.status) && (
@@ -316,7 +323,7 @@ export function InstancePage() {
                 onClick={() => act('stop')}
               >
                 <Power size={14} aria-hidden="true" />
-                停止
+                {t('action.stop')}
               </button>
             )}
             <button
@@ -326,7 +333,7 @@ export function InstancePage() {
               onClick={() => setConfirmRestart(true)}
             >
               <RotateCcw size={14} aria-hidden="true" />
-              重启
+              {t('action.restart')}
             </button>
             <button
               className="btn btn-plain is-danger"
@@ -334,7 +341,7 @@ export function InstancePage() {
               disabled={busy || instance.requiresMigration || !isProcessAlive(instance.status)}
               onClick={() => setConfirmForceStop(true)}
             >
-              强制停止
+              {t('action.forceStop')}
             </button>
           </div>
         </div>
@@ -343,22 +350,22 @@ export function InstancePage() {
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
 
       {!instance.requiresMigration && (
-        <nav className="segmented hub-tabs" aria-label="实例功能">
+        <nav className="segmented hub-tabs" aria-label={t('instance.tabs.label')}>
           <NavLink to={`/instances/${id}`} end className={hubTabClass}>
             <Terminal size={15} aria-hidden="true" />
-            <span>控制台</span>
+            <span>{t('instance.tab.console')}</span>
           </NavLink>
           <NavLink to={`/instances/${id}/files`} className={hubTabClass}>
             <Folder size={15} aria-hidden="true" />
-            <span>文件管理</span>
+            <span>{t('instance.tab.files')}</span>
           </NavLink>
           <NavLink to={`/instances/${id}/config`} className={hubTabClass}>
             <Sliders size={15} aria-hidden="true" />
-            <span>参数配置</span>
+            <span>{t('instance.tab.properties')}</span>
           </NavLink>
           <NavLink to={`/instances/${id}/settings`} className={hubTabClass}>
             <Settings size={15} aria-hidden="true" />
-            <span>实例设置</span>
+            <span>{t('instance.tab.settings')}</span>
           </NavLink>
         </nav>
       )}
@@ -378,9 +385,9 @@ export function InstancePage() {
 
       <ConfirmDialog
         open={confirmRestart}
-        title={`重启实例「${instance.name}」？`}
-        description="重启会中断当前游戏进程并断开所有在线玩家，未保存的世界数据可能丢失。"
-        confirmLabel="确认重启"
+        title={t('instance.restart.title', { name: instance.name })}
+        description={t('instance.restart.description')}
+        confirmLabel={t('instance.restart.confirm')}
         busy={busy}
         onConfirm={() => {
           setConfirmRestart(false);
@@ -390,9 +397,9 @@ export function InstancePage() {
       />
       <ConfirmDialog
         open={confirmForceStop}
-        title={`强制停止实例「${instance.name}」？`}
-        description="强制停止会立即强制结束进程，可能导致世界损坏。建议先尝试普通「停止」。"
-        confirmLabel="确认强制停止"
+        title={t('instance.forceStop.title', { name: instance.name })}
+        description={t('instance.forceStop.description')}
+        confirmLabel={t('instance.forceStop.confirm')}
         danger
         busy={busy}
         onConfirm={() => {

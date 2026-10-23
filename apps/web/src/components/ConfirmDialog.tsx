@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { useI18n } from '../i18n';
 
 /**
  * 通用确认弹窗：替代原生 confirm()。
@@ -8,7 +9,7 @@ export function ConfirmDialog({
   open,
   title,
   description,
-  confirmLabel = '确认',
+  confirmLabel: confirmLabelProp,
   danger = false,
   busy = false,
   confirmDisabled = false,
@@ -29,6 +30,8 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
+  const confirmLabel = confirmLabelProp ?? t('action.confirm');
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [typed, setTyped] = useState('');
   const titleId = useId();
@@ -81,7 +84,7 @@ export function ConfirmDialog({
           {needText && (
             <div className="field">
               <label htmlFor={inputId}>
-                请输入「{requireText}」以确认操作
+                {t('dialog.confirm.requireText', { text: requireText ?? '' })}
               </label>
               <input
                 id={inputId}
@@ -95,7 +98,7 @@ export function ConfirmDialog({
         </div>
         <footer className="confirm-dialog-footer">
           <button className="btn" type="button" disabled={busy} onClick={handleCancel}>
-            取消
+            {t('action.cancel')}
           </button>
           <button
             className={`btn ${danger ? 'btn-destructive' : 'btn-primary'}`}
@@ -103,7 +106,7 @@ export function ConfirmDialog({
             disabled={!canConfirm}
             onClick={onConfirm}
           >
-            {busy ? '处理中…' : confirmLabel}
+            {busy ? t('dialog.confirm.busy') : confirmLabel}
           </button>
         </footer>
       </div>

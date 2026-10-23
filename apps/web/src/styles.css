@@ -33,6 +33,14 @@
   --check-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
 }
 
+/* 繁體中文：繁体字体排在简体字体之前，否则部分字会以简体字形显示。 */
+:root:lang(zh-TW) {
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'PingFang TC', 'Microsoft JhengHei UI',
+    'Microsoft JhengHei', 'Noto Sans TC', 'Noto Sans CJK TC', 'PingFang SC', 'Hiragino Sans GB', system-ui,
+    'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC',
+    sans-serif;
+}
+
 /* ========== 浅色外观 ========== */
 :root {
   --bg: #f5f5f7;
@@ -248,6 +256,7 @@ h1, h2, h3 { letter-spacing: -0.015em; }
   color: var(--accent-text);
   font: inherit;
   font-weight: 500;
+  white-space: nowrap;
 }
 .link-button:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
 .link-button:disabled { opacity: 0.55; cursor: progress; }
@@ -577,6 +586,7 @@ h1, h2, h3 { letter-spacing: -0.015em; }
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
+  white-space: nowrap;
 }
 .count-badge.is-accent { background: var(--accent-soft); color: var(--accent-text); }
 
@@ -1337,7 +1347,7 @@ input[type='radio'] {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.console-status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #aeaeb2; }
+.console-status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #aeaeb2; white-space: nowrap; }
 .console-status .status-dot { width: 8px; height: 8px; background: #8e8e93; }
 .console-status.is-online .status-dot { background: #30d158; box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.22); }
 .console-status.is-connecting .status-dot { background: #ff9f0a; animation: blink 1.2s var(--ease) infinite; }
@@ -1354,9 +1364,11 @@ input[type='radio'] {
   border: 0;
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
   color: #e5e5ea;
   font-size: 12.5px;
   font-weight: 500;
+  white-space: nowrap;
   transition: background-color 0.15s var(--ease);
 }
 .console-tool:hover { background: rgba(255, 255, 255, 0.15); }
@@ -1637,6 +1649,25 @@ button.file-main:hover { background: var(--fill-2); }
 .accent-option:hover .accent-swatch { transform: scale(1.1); }
 .accent-option input:checked + .accent-swatch { box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 4px var(--swatch); }
 .accent-option input:focus-visible + .accent-swatch { outline: 3px solid var(--focus-ring); outline-offset: 5px; }
+
+/* 语言选择器：列表式单选，选中项右侧打勾 */
+.language-options { clear: both; display: flex; flex-direction: column; gap: 1px; }
+.language-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 9px;
+  color: var(--label);
+  font-size: 14px;
+  cursor: pointer;
+}
+.language-option:hover { background: var(--fill-2); }
+.language-option:has(input:checked) { font-weight: 600; }
+.language-option:has(input:focus-visible) { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
+.language-option svg { flex-shrink: 0; color: var(--accent-text); }
 
 /* ========== 懒加载下拉框 ========== */
 .lazy-select { position: relative; width: 100%; }
@@ -2096,7 +2127,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   place-items: center;
   padding: 56px 16px 40px;
 }
-.login-appearance { position: fixed; top: 16px; right: 16px; z-index: 10; }
+.login-appearance { position: fixed; top: 16px; right: 16px; z-index: 10; display: flex; gap: 8px; }
 
 .login-stack {
   display: flex;
@@ -2317,6 +2348,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   /* 四个实例分段在手机上去掉图标，保证一行放下。 */
   .hub-tabs .segmented-item { gap: 0; padding: 0 8px; }
   .hub-tabs .segmented-item svg { display: none; }
+  /* 英文「Import from a Local Folder」较长，窄屏下导入方式切换同样去掉图标。 */
+  .import-mode-switch .segmented-item { gap: 0; padding: 0 10px; }
+  .import-mode-switch .segmented-item svg { display: none; }
   .page-header-actions { width: 100%; }
   .page-header-actions > .btn { flex: 1 1 auto; }
   .instance-actions { width: 100%; }

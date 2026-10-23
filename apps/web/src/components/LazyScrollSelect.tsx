@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useI18n } from '../i18n';
 
 const PAGE_SIZE = 10;
 const PANEL_MAX_HEIGHT = 400;
@@ -44,10 +45,11 @@ export function LazyScrollSelect<T extends string | number>({
   loading = false,
   onOpen,
   formatLabel = (v) => String(v),
-  placeholder = '请选择',
-  emptyText = '暂无选项',
+  placeholder,
+  emptyText,
   ariaLabel,
 }: LazyScrollSelectProps<T>) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -237,7 +239,7 @@ export function LazyScrollSelect<T extends string | number>({
 
   const display =
     value === '' || (typeof value === 'number' && Number.isNaN(value))
-      ? placeholder
+      ? placeholder ?? t('select.placeholder')
       : formatLabel(value as T);
   const hasValue = value !== '';
   const visibleOptions = options.slice(0, visibleCount);
@@ -279,10 +281,10 @@ export function LazyScrollSelect<T extends string | number>({
           tabIndex={-1}
         >
           {loading && options.length === 0 && (
-            <div className="lazy-select-more muted">加载中…</div>
+            <div className="lazy-select-more muted">{t('common.loading')}</div>
           )}
           {!loading && options.length === 0 && (
-            <div className="lazy-select-more muted">{emptyText}</div>
+            <div className="lazy-select-more muted">{emptyText ?? t('select.empty')}</div>
           )}
           {visibleOptions.map((opt, index) => {
             const selected = opt === value;
@@ -304,7 +306,7 @@ export function LazyScrollSelect<T extends string | number>({
             );
           })}
           {visibleCount < options.length && (
-            <div className="lazy-select-more muted">向下滚动加载更多…</div>
+            <div className="lazy-select-more muted">{t('select.loadMore')}</div>
           )}
         </div>
       )}

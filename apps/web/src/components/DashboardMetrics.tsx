@@ -3,20 +3,45 @@ import { Cpu, HardDrive, MemoryStick, type LucideIcon } from 'lucide-react';
 import type { DashboardMetrics as Metrics, InstanceInfo } from '@mystry/shared';
 import { api } from '../api';
 import { usePolling } from '../hooks/usePolling';
+import { useI18n, type I18n, type MessageKey } from '../i18n';
 
-export function gib(bytes: number): string { return (bytes / 1024 ** 3).toFixed(1); }
+// 服务端监测告警是固定的中文文案，这里按原文映射到文案键；未知告警回落显示原文。
+const WARNING_CPU_HIGH = '主机 CPU 持续偏高';
+const WARNING_MEMORY_HIGH = '主机内存持续偏高';
+const WARNING_DISK_LOW = '数据盘剩余空间不足';
+const warningKeys: Record<string, MessageKey> = {
+  [WARNING_CPU_HIGH]: 'dashboard.metrics.warning.cpuHigh',
+  [WARNING_MEMORY_HIGH]: 'dashboard.metrics.warning.memoryHigh',
+  [WARNING_DISK_LOW]: 'dashboard.metrics.warning.diskLow',
+};
 
-export function processMetric(inst: InstanceInfo, metrics: Metrics | null, error: string, kind: 'cpu' | 'memory'): string {
+export function metricWarningText(warning: string, t: I18n['t']): string {
+  const key = warningKeys[warning];
+  return key ? t(key) : warning;
+}
+
+export function processMetric(
+  inst: InstanceInfo,
+  metrics: Metrics | null,
+  error: string,
+  kind: 'cpu' | 'memory',
+  { t, fmt }: Pick<I18n, 't' | 'fmt'>,
+): string {
   if (!['running', 'starting', 'stopping'].includes(inst.status)) return '—';
   const sample = metrics?.instances[inst.id];
   const value = kind === 'cpu' ? sample?.cpuPercent : sample?.memoryBytes;
-  if (value != null) return `${kind === 'cpu' ? `${value.toFixed(1)}%` : `${gib(value)} GiB`}${error ? '（过期）' : ''}`;
-  return error || sample?.state === 'unavailable' ? '暂不可用' : '采集中…';
+  if (value != null) {
+    const text = kind === 'cpu' ? fmt.percent(value) : `${fmt.gib(value)} GiB`;
+    return error ? t('dashboard.metrics.valueStale', { value: text }) : text;
+  }
+  return error || sample?.state === 'unavailable' ? t('dashboard.metrics.unavailable') : t('dashboard.metrics.collecting');
 }
 
 export function useDashboardMetrics() {
+  const { t } = useI18n();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [error, setError] = useState('');
+  // 只保存文案键，渲染时按当前语言取文案，切换语言后错误提示也会跟着变。
+  const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(false);
@@ -26,9 +51,9 @@ export function useDashboardMetrics() {
     try {
       const result = await api<Metrics>('/api/system/metrics');
       if (!result.memory || !result.instances || !Array.isArray(result.warnings)) throw new Error('监测数据暂不可用');
-      if (mounted.current) { setMetrics(result); setError(''); }
+      if (mounted.current) { setMetrics(result); setErrorKey(null); }
     } catch {
-      if (mounted.current) setError('监测数据获取失败');
+      if (mounted.current) setErrorKey('dashboard.metrics.fetchFailed');
     } finally {
       pending.current = false;
       if (mounted.current) setBusy(false);
@@ -39,6 +64,7 @@ export function useDashboardMetrics() {
     return () => { mounted.current = false; };
   }, []);
   usePolling(refresh);
+  const error = errorKey ? t(errorKey) : '';
   return { metrics, error, busy, refresh };
 }
 
@@ -109,33 +135,36 @@ export function MetricWidget({
 }
 
 export function HostMetricCards({ metrics, error }: { metrics: Metrics | null; error: string }) {
+  const { t, fmt } = useI18n();
+  const unavailable = t('dashboard.metrics.unavailable');
+  const collecting = t('dashboard.metrics.collecting');
   return <>
     <MetricWidget
-      label="主机 CPU"
+      label={t('dashboard.metric.hostCpu.label')}
       icon={Cpu}
       tone="blue"
-      value={metrics?.cpuPercent == null ? (error ? '暂不可用' : '采集中…') : `${metrics.cpuPercent.toFixed(1)}%`}
-      detail="整机逻辑核总容量"
+      value={metrics?.cpuPercent == null ? (error ? unavailable : collecting) : fmt.percent(metrics.cpuPercent)}
+      detail={t('dashboard.metric.hostCpu.detail')}
       ratio={metrics?.cpuPercent}
-      warning={metrics?.warnings.includes('主机 CPU 持续偏高')}
+      warning={metrics?.warnings.includes(WARNING_CPU_HIGH)}
     />
     <MetricWidget
-      label="主机内存"
+      label={t('dashboard.metric.hostMemory.label')}
       icon={MemoryStick}
       tone="purple"
-      value={metrics ? `${gib(metrics.memory.usedBytes)} / ${gib(metrics.memory.totalBytes)}` : (error ? '暂不可用' : '采集中…')}
-      detail="GiB · 已用 / 总量"
+      value={metrics ? `${fmt.gib(metrics.memory.usedBytes)} / ${fmt.gib(metrics.memory.totalBytes)}` : (error ? unavailable : collecting)}
+      detail={t('dashboard.metric.hostMemory.detail')}
       ratio={metrics ? metrics.memory.usedBytes / metrics.memory.totalBytes * 100 : null}
-      warning={metrics?.warnings.includes('主机内存持续偏高')}
+      warning={metrics?.warnings.includes(WARNING_MEMORY_HIGH)}
     />
     <MetricWidget
-      label="数据盘空间"
+      label={t('dashboard.metric.disk.label')}
       icon={HardDrive}
       tone="orange"
-      value={metrics?.disk ? `${gib(metrics.disk.availableBytes)} GiB` : (metrics || error ? '暂不可用' : '采集中…')}
-      detail="剩余空间 · 数据目录所在磁盘"
+      value={metrics?.disk ? `${fmt.gib(metrics.disk.availableBytes)} GiB` : (metrics || error ? unavailable : collecting)}
+      detail={t('dashboard.metric.disk.detail')}
       ratio={metrics?.disk ? (1 - metrics.disk.availableBytes / metrics.disk.totalBytes) * 100 : null}
-      warning={metrics?.warnings.includes('数据盘剩余空间不足')}
+      warning={metrics?.warnings.includes(WARNING_DISK_LOW)}
     />
   </>;
 }

@@ -81,7 +81,7 @@ npm run build -w @mystry/shared
 ## 代码风格
 
 - 与现有文件保持一致：ESM（`import`）、TypeScript、服务端文件后缀 `.ts` 编译为 `.js`。
-- 用户可见文案与注释使用中文（与项目一致）。
+- 注释使用中文。Web 界面文案写进 `apps/web/src/i18n/` 的英文、简体中文与繁體中文文案表，规则见 [贡献指南](../CONTRIBUTING.md#用户可见文案)。
 - 避免无关重构；小范围修复优先。
 
 ## AI 项目知识库

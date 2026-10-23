@@ -18,13 +18,15 @@ import { JvmSettingsEditor, type DetectedJvmChoice } from '../components/JvmSett
 import { PageHeader } from '../components/PageHeader';
 import { TaskProgress } from '../components/TaskProgress';
 import { errorMessage, isAbortError } from '../errors';
+import { useI18n, type MessageKey } from '../i18n';
 
 type ImportMode = 'directory' | 'zip';
 
 const IMPORT_PREVIEW_SESSION_KEY = 'mystry_import_preview_id';
 
-const coreTypeOptions: Array<{ value: CoreType; label: string }> = [
-  { value: 'custom', label: '自动识别 / 自定义' },
+// 核心名是技术名词不翻译；只有「自动识别 / 自定义」存文案键，渲染时再取当前语言。
+const coreTypeOptions: Array<{ value: CoreType; label: string; labelKey?: MessageKey }> = [
+  { value: 'custom', label: '', labelKey: 'import.form.coreType.auto' },
   { value: 'paper', label: 'Paper' },
   { value: 'fabric', label: 'Fabric' },
   { value: 'forge', label: 'Forge' },
@@ -38,8 +40,10 @@ function clearStoredPreview() {
 
 export function ImportPage() {
   const navigate = useNavigate();
+  const { t, rich, fmt } = useI18n();
   const [mode, setMode] = useState<ImportMode>('directory');
-  const [name, setName] = useState('已有服务器');
+  // 默认实例名按进入页面时的界面语言生成，之后由用户自行修改。
+  const [name, setName] = useState(() => t('import.form.name.default'));
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreviewInfo | null>(null);
   const [restoringPreview, setRestoringPreview] = useState(true);
@@ -118,7 +122,7 @@ export function ImportPage() {
   function selectZip(selected: File | null) {
     if (busy || restoringPreview || !selected) return;
     if (!selected.name.toLowerCase().endsWith('.zip')) {
-      setError('请选择 ZIP 格式的服务端压缩包。');
+      setError(t('import.error.notZip'));
       return;
     }
     setError('');
@@ -166,16 +170,16 @@ export function ImportPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (mode === 'directory' && !selectedSource?.ready) {
-      setError('请选择一个可导入的文件夹');
+      setError(t('import.error.noSource'));
       return;
     }
     if (mode === 'zip' && !file && !preview) {
-      setError('请选择 ZIP 安装包并先完成预检');
+      setError(t('import.error.noZip'));
       return;
     }
     const isPreviewUpload = mode === 'zip' && file !== null;
     if (!isPreviewUpload && !jvmValid) {
-      setError('请先修正 JVM 参数错误并完成检测参数选择');
+      setError(t('import.error.jvmInvalid'));
       return;
     }
 
@@ -240,22 +244,22 @@ export function ImportPage() {
     }
   }
 
-  const submitLabel = busy
-    ? mode === 'zip' && file ? '上传预检中…' : '导入中…'
+  const submitLabel = t(busy
+    ? mode === 'zip' && file ? 'import.submit.uploading' : 'import.submit.importing'
     : mode === 'directory'
-      ? '复制并接管'
+      ? 'import.submit.copy'
       : file
-        ? preview ? '上传并替换预览' : '上传并预检'
-        : preview ? '确认配置并导入' : '请选择 ZIP';
+        ? preview ? 'import.submit.replacePreview' : 'import.submit.upload'
+        : preview ? 'import.submit.confirm' : 'import.submit.chooseZip');
 
   return (
     <div className="page import-workspace">
       <PageHeader
-        title="导入服务端"
-        subtitle="从本机文件夹复制已有的服务端，或上传服务端 ZIP 压缩包；原文件不会被修改或删除。"
+        title={t('nav.import')}
+        subtitle={t('import.page.subtitle')}
       />
 
-      <div className="segmented import-mode-switch" role="group" aria-label="导入方式">
+      <div className="segmented import-mode-switch" role="group" aria-label={t('import.mode.ariaLabel')}>
         <button
           type="button"
           className={`segmented-item${mode === 'directory' ? ' active' : ''}`}
@@ -264,7 +268,7 @@ export function ImportPage() {
           onClick={() => setMode('directory')}
         >
           <FolderInput size={15} aria-hidden="true" />
-          从本机文件夹导入
+          {t('import.mode.directory')}
         </button>
         <button
           type="button"
@@ -274,32 +278,31 @@ export function ImportPage() {
           onClick={() => setMode('zip')}
         >
           <FileArchive size={15} aria-hidden="true" />
-          上传 ZIP 压缩包
+          {t('import.mode.zip')}
         </button>
       </div>
 
       <form className="form-stack import-form" onSubmit={(e) => void onSubmit(e)}>
         {mode === 'directory' ? (
           <section className="form-section">
-            <h2 className="form-section-title">选择来源</h2>
+            <h2 className="form-section-title">{t('import.directory.title')}</h2>
             <div className="card form-card">
               <div className="callout callout-info import-handoff-note">
                 <Info size={18} aria-hidden="true" className="callout-icon" />
                 <div>
-                  <strong>导入步骤</strong>
+                  <strong>{t('import.directory.steps.title')}</strong>
                   <ol>
-                    <li>先正常停止原服务器，确保世界数据已保存。</li>
+                    <li>{t('import.directory.steps.stop')}</li>
                     <li>
-                      把整个服务端文件夹复制到面板数据目录下的 <code>imports</code> 文件夹（默认是面板所在文件夹里的{' '}
-                      <code>data/imports</code>）。
+                      {rich('import.directory.steps.copy', { code: (chunk) => <code>{chunk}</code> })}
                     </li>
-                    <li>在下方点「刷新目录」并选择它，面板会复制出一个新的实例。</li>
+                    <li>{t('import.directory.steps.select')}</li>
                   </ol>
-                  <p>这里只显示 imports 中的第一层文件夹。</p>
+                  <p>{t('import.directory.steps.note')}</p>
                 </div>
               </div>
               <div className="field">
-                <label htmlFor="existing-server-source">选择要导入的文件夹</label>
+                <label htmlFor="existing-server-source">{t('import.directory.source.label')}</label>
                 <div className="input-row import-source-row">
                   <select
                     id="existing-server-source"
@@ -307,12 +310,17 @@ export function ImportPage() {
                     disabled={busy || sourcesLoading}
                     onChange={(e) => setSourceId(e.target.value)}
                   >
-                    <option value="">{sourcesLoading ? '正在读取…' : '请选择文件夹'}</option>
+                    <option value="">
+                      {sourcesLoading ? t('import.directory.source.loading') : t('import.directory.source.placeholder')}
+                    </option>
                     {sources.map((source) => (
                       <option key={source.id} value={source.id} disabled={!source.ready}>
                         {source.ready
-                          ? `${source.id} · ${source.launchTarget ?? '待完整校验'}`
-                          : `${source.id} · 不可用：${source.error}`}
+                          ? t('import.directory.source.ready', {
+                            id: source.id,
+                            target: source.launchTarget ?? t('import.directory.source.pendingCheck'),
+                          })
+                          : t('import.directory.source.unavailable', { id: source.id, error: source.error ?? '' })}
                       </option>
                     ))}
                   </select>
@@ -323,52 +331,61 @@ export function ImportPage() {
                     onClick={() => void loadSources()}
                   >
                     <RefreshCw size={14} aria-hidden="true" className={sourcesLoading ? 'spin' : undefined} />
-                    {sourcesLoading ? '读取中…' : '刷新目录'}
+                    {sourcesLoading ? t('import.directory.refreshing') : t('import.directory.refresh')}
                   </button>
                 </div>
                 {!sourcesLoading && sources.length === 0 ? (
-                  <p className="field-help">imports 文件夹里还没有服务端，复制完成后点「刷新目录」。</p>
+                  <p className="field-help">{t('import.directory.empty')}</p>
                 ) : null}
                 {selectedSource?.ready && selectedSource.launchTarget ? (
                   <p className="field-help">
-                    已探测启动目标：<code>{selectedSource.launchTarget}</code>
+                    {rich(
+                      'import.directory.launchTarget',
+                      { code: (chunk) => <code>{chunk}</code> },
+                      { target: selectedSource.launchTarget },
+                    )}
                   </p>
                 ) : null}
                 {selectedSource?.ready && selectedSource.error ? (
                   <p className="field-help">{selectedSource.error}</p>
                 ) : null}
-                {sourcesError ? <p className="error">无法读取导入文件夹：{sourcesError}</p> : null}
+                {sourcesError ? <p className="error">{t('import.directory.loadError', { error: sourcesError })}</p> : null}
               </div>
             </div>
           </section>
         ) : (
           <section className="form-section">
-            <h2 className="form-section-title">选择压缩包</h2>
+            <h2 className="form-section-title">{t('import.zip.title')}</h2>
             <div className="card form-card">
               <p className="field-help import-zip-lead">
-                ZIP 导入分两步：先上传并检查压缩包内容，确认设置后再创建实例。
+                {t('import.zip.lead')}
               </p>
               {restoringPreview ? (
                 <p className="field-help" role="status">
-                  <span className="spinner spinner-sm" aria-hidden="true" /> 正在恢复待确认的 ZIP…
+                  <span className="spinner spinner-sm" aria-hidden="true" /> {t('import.zip.restoring')}
                 </p>
               ) : null}
               {preview ? (
                 <div className="callout callout-success import-preview-card" aria-live="polite">
                   <FileArchive size={18} aria-hidden="true" className="callout-icon" />
                   <div>
-                    <strong>预检已完成</strong>
-                    <p>{preview.fileName} · {(preview.sizeBytes / 1024 / 1024).toFixed(1)} MiB</p>
-                    <p>有效至 {new Date(preview.expiresAt).toLocaleString()}</p>
+                    <strong>{t('import.zip.preview.title')}</strong>
+                    <p>
+                      {t('import.zip.preview.fileInfo', {
+                        name: preview.fileName,
+                        size: fmt.fixed(preview.sizeBytes / 1024 / 1024, 1),
+                      })}
+                    </p>
+                    <p>{t('import.zip.preview.expires', { time: fmt.dateTime(preview.expiresAt) })}</p>
                   </div>
                   <button className="btn btn-sm" type="button" disabled={busy} onClick={() => void cancelPreview()}>
-                    取消并重新选择
+                    {t('import.zip.preview.cancel')}
                   </button>
                 </div>
               ) : null}
 
               <div className="field">
-                <label htmlFor="existing-server-zip">服务端压缩包（.zip）</label>
+                <label htmlFor="existing-server-zip">{t('import.zip.file.label')}</label>
                 <div
                   className={`drop-zone${isDragging ? ' is-dragging' : ''}${file ? ' has-file' : ''}${busy || restoringPreview ? ' is-disabled' : ''}`}
                   onDragOver={(e) => {
@@ -386,16 +403,16 @@ export function ImportPage() {
                 >
                   <span className="drop-zone-icon" aria-hidden="true"><FolderUp size={28} /></span>
                   <div className="drop-zone-title">
-                    {file ? file.name : '选择或拖拽 ZIP 压缩包至此处'}
+                    {file ? file.name : t('import.zip.drop.title')}
                   </div>
                   <span className="drop-zone-hint">
                     {file
-                      ? `文件大小：${(file.size / 1024 / 1024).toFixed(1)} MiB`
-                      : '上传大小与解压限制由面板配置决定'}
+                      ? t('import.zip.drop.size', { size: fmt.fixed(file.size / 1024 / 1024, 1) })
+                      : t('import.zip.drop.hint')}
                   </span>
                   <button className="btn" type="button" disabled={busy || restoringPreview}
                     onClick={() => document.getElementById('existing-server-zip')?.click()}>
-                    选择 ZIP
+                    {t('import.zip.choose')}
                   </button>
                 </div>
                 <input
@@ -408,7 +425,7 @@ export function ImportPage() {
                   onChange={(e) => { selectZip(e.target.files?.[0] ?? null); e.target.value = ''; }}
                 />
                 {preview ? (
-                  <p className="field-help">选择新文件并提交会先创建新预览，成功后才替换当前 ZIP。</p>
+                  <p className="field-help">{t('import.zip.replaceHelp')}</p>
                 ) : null}
               </div>
             </div>
@@ -418,10 +435,10 @@ export function ImportPage() {
         {configurationVisible ? (
           <>
             <section className="form-section">
-              <h2 className="form-section-title">实例信息</h2>
+              <h2 className="form-section-title">{t('import.instance.title')}</h2>
               <div className="card form-card">
                 <div className="field">
-                  <label htmlFor="import-instance-name">实例名称</label>
+                  <label htmlFor="import-instance-name">{t('import.form.name.label')}</label>
                   <input
                     id="import-instance-name"
                     value={name}
@@ -433,7 +450,7 @@ export function ImportPage() {
                 </div>
                 <div className="grid grid-2 import-meta-grid">
                   <div className="field">
-                    <label htmlFor="import-core-type">核心类型</label>
+                    <label htmlFor="import-core-type">{t('import.form.coreType.label')}</label>
                     <select
                       id="import-core-type"
                       value={coreType}
@@ -441,18 +458,20 @@ export function ImportPage() {
                       onChange={(e) => setCoreType(e.target.value as CoreType)}
                     >
                       {coreTypeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
+                        <option key={option.value} value={option.value}>
+                          {option.labelKey ? t(option.labelKey) : option.label}
+                        </option>
                       ))}
                     </select>
                   </div>
                   <div className="field">
-                    <label htmlFor="import-mc-version">Minecraft 版本（可选）</label>
+                    <label htmlFor="import-mc-version">{t('import.form.mcVersion.label')}</label>
                     <input
                       id="import-mc-version"
                       value={mcVersion}
                       disabled={busy}
                       maxLength={64}
-                      placeholder="例如 1.20.1"
+                      placeholder={t('import.form.mcVersion.placeholder')}
                       onChange={(e) => setMcVersion(e.target.value)}
                     />
                   </div>
@@ -461,7 +480,7 @@ export function ImportPage() {
             </section>
 
             <section className="form-section">
-              <h2 className="form-section-title">运行环境</h2>
+              <h2 className="form-section-title">{t('import.runtime.title')}</h2>
               <div className="card form-card">
                 <JavaRuntimeSelect
                   value={javaRuntimeId}
@@ -486,7 +505,7 @@ export function ImportPage() {
             </section>
 
             <section className="form-section">
-              <h2 className="form-section-title">许可协议</h2>
+              <h2 className="form-section-title">{t('import.eula.title')}</h2>
               <div className="card form-card">
                 <EulaCheckbox checked={acceptEula} disabled={busy} onChange={setAcceptEula} />
               </div>
@@ -495,15 +514,15 @@ export function ImportPage() {
         ) : null}
 
         {error ? <p className="callout callout-danger" role="alert">{error}</p> : null}
-        {progress ? <div className="card form-card"><TaskProgress task={progress} label="导入进度" /></div> : null}
+        {progress ? <div className="card form-card"><TaskProgress task={progress} label={t('import.progress.label')} /></div> : null}
 
         <div className="action-bar">
           <span className="action-bar-status" role="status" aria-live="polite">
             {busy
-              ? mode === 'zip' && file ? '正在上传并检查 ZIP，请保持此页打开。' : '导入已进入后台，可离开此页并在任务中心查看。'
+              ? mode === 'zip' && file ? t('import.status.uploading') : t('import.status.background')
               : mode === 'directory'
-                ? selectedSource?.ready ? `将复制「${selectedSource.id}」为新实例` : '请先选择要导入的文件夹'
-                : preview ? '预检已完成，确认配置后即可导入' : '先上传压缩包完成预检'}
+                ? selectedSource?.ready ? t('import.status.willCopy', { id: selectedSource.id }) : t('import.status.chooseSource')
+                : preview ? t('import.status.previewReady') : t('import.status.uploadFirst')}
           </span>
           <button className="btn btn-primary" type="submit" disabled={!canSubmit}>
             {submitLabel}

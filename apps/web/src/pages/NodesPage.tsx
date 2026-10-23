@@ -7,10 +7,14 @@ import { PageHeader } from '../components/PageHeader';
 import { StatusPill } from '../components/StatusPill';
 import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
+import { useI18n, type MessageKey } from '../i18n';
 
-const statusLabel: Record<string, string> = {
-  online: '在线',
-  offline: '离线',
+/** 服务端 db.ts 写入的内置本机节点默认名称。 */
+const DEFAULT_LOCAL_NODE_NAME = '本机节点';
+
+const statusLabel: Record<string, MessageKey> = {
+  online: 'nodes.status.online',
+  offline: 'nodes.status.offline',
 };
 
 /** Node.js 平台标识转成用户看得懂的系统名。 */
@@ -23,6 +27,7 @@ const platformLabel: Record<string, string> = {
 type LoadState = 'loading' | 'loaded' | 'error';
 
 export function NodesPage() {
+  const { t, tp, fmt } = useI18n();
   const [nodes, setNodes] = useState<NodeInfo[]>([]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [loadError, setLoadError] = useState('');
@@ -76,78 +81,83 @@ export function NodesPage() {
 
   const localNode = nodes.find((n) => n.isLocal);
   const remoteNodes = nodes.filter((n) => !n.isLocal);
+  const nodeStatusText = (status: string) => {
+    const key = statusLabel[status];
+    return key ? t(key) : status;
+  };
 
   return (
     <div className="page">
-      <PageHeader title="本机环境" subtitle="运行面板和 Minecraft 服务器的这台电脑的基本信息。" />
+      <PageHeader title={t('nav.machine')} subtitle={t('nodes.subtitle')} />
 
       {loadError && (
         <div className="callout callout-danger" role="alert">
           <p>
             {loadError}
-            {nodes.length > 0 ? ' 当前数据可能已过期，正在显示上次成功加载的节点数据。' : ''}
+            {nodes.length > 0 ? ` ${t('nodes.load.staleNotice')}` : ''}
           </p>
-          <button className="btn btn-sm" type="button" onClick={retryLoad}>重试加载</button>
+          <button className="btn btn-sm" type="button" onClick={retryLoad}>{t('nodes.load.retry')}</button>
         </div>
       )}
 
       {loadState === 'loading' && (
         <div className="page-loading" role="status">
           <span className="spinner" aria-hidden="true" />
-          正在加载节点信息…
+          {t('nodes.load.loading')}
         </div>
       )}
       {loadState === 'loaded' && !loadError && nodes.length === 0 && (
         <div className="empty-state card">
           <span className="empty-icon" aria-hidden="true"><Monitor size={28} /></span>
-          <p>暂无节点。</p>
-          <button className="btn" type="button" onClick={retryLoad}>刷新节点</button>
+          <p>{t('nodes.empty.body')}</p>
+          <button className="btn" type="button" onClick={retryLoad}>{t('nodes.empty.refresh')}</button>
         </div>
       )}
 
       {localNode && (
-        <section className="card about-card" aria-label="本机信息">
+        <section className="card about-card" aria-label={t('nodes.local.label')}>
           <div className="about-hero">
             <span className="about-icon" aria-hidden="true"><Monitor size={34} strokeWidth={1.6} /></span>
             <div className="about-title">
-              <h2>{localNode.name}</h2>
+              {/* 服务端内置的默认名称按当前语言显示；用户改过的名称原样显示。 */}
+              <h2>{localNode.name === DEFAULT_LOCAL_NODE_NAME ? t('nodes.local.defaultName') : localNode.name}</h2>
               <StatusPill
                 tone={loadError ? 'warning' : localNode.status === 'online' ? 'running' : 'stopped'}
                 icon={<ShieldCheck size={13} aria-hidden="true" />}
               >
-                {loadError ? '状态可能已过期' : statusLabel[localNode.status] || localNode.status}
+                {loadError ? t('nodes.status.stale') : nodeStatusText(localNode.status)}
               </StatusPill>
             </div>
           </div>
 
           <dl className="list-group about-specs">
             <div className="list-row">
-              <dt className="list-row-title">操作系统</dt>
+              <dt className="list-row-title">{t('nodes.spec.os')}</dt>
               <dd className="list-row-value">
                 {localNode.hostInfo?.platform
                   ? platformLabel[localNode.hostInfo.platform] ?? localNode.hostInfo.platform
-                  : '未知'}
+                  : t('common.unknown')}
               </dd>
             </div>
             <div className="list-row">
-              <dt className="list-row-title">CPU 架构 / 核心</dt>
+              <dt className="list-row-title">{t('nodes.spec.cpu')}</dt>
               <dd className="list-row-value">
-                {localNode.hostInfo?.arch || '未知'}
-                {localNode.hostInfo?.cpuCount ? ` · ${localNode.hostInfo.cpuCount} 线程` : ''}
+                {localNode.hostInfo?.arch || t('common.unknown')}
+                {localNode.hostInfo?.cpuCount ? ` · ${tp('nodes.spec.threads', localNode.hostInfo.cpuCount)}` : ''}
               </dd>
             </div>
             <div className="list-row">
-              <dt className="list-row-title">物理内存总量</dt>
+              <dt className="list-row-title">{t('nodes.spec.memory')}</dt>
               <dd className="list-row-value">
                 {localNode.hostInfo?.totalMemMb
-                  ? `${(localNode.hostInfo.totalMemMb / 1024).toFixed(1)} GiB`
-                  : '未知'}
+                  ? `${fmt.fixed(localNode.hostInfo.totalMemMb / 1024, 1)} GiB`
+                  : t('common.unknown')}
               </dd>
             </div>
             <div className="list-row">
-              <dt className="list-row-title">实例数量</dt>
+              <dt className="list-row-title">{t('nodes.spec.instances')}</dt>
               <dd className="list-row-value is-accent">
-                {localNode.instanceCount} 个服务实例
+                {tp('nodes.spec.instanceCount', localNode.instanceCount)}
               </dd>
             </div>
           </dl>
@@ -156,20 +166,21 @@ export function NodesPage() {
 
       {remoteNodes.length > 0 && (
         <section className="form-section">
-          <h2 className="form-section-title">其他节点列表</h2>
+          <h2 className="form-section-title">{t('nodes.remote.title')}</h2>
           <ul className="list-group">
             {remoteNodes.map((node) => (
               <li key={node.id} className="list-row node-row">
                 <div className="list-row-text">
                   <span className="list-row-title">{node.name}</span>
                   <span className="list-row-desc">
-                    远程节点 · {node.instanceCount} 个实例 · 最近心跳{' '}
-                    {node.lastSeenAt ? new Date(node.lastSeenAt).toLocaleString() : '—'}
+                    {tp('nodes.remote.desc', node.instanceCount, {
+                      lastSeen: node.lastSeenAt ? fmt.dateTime(node.lastSeenAt) || '—' : '—',
+                    })}
                   </span>
                 </div>
                 <div className="list-row-control">
                   <StatusPill tone={node.status === 'online' ? 'running' : 'stopped'}>
-                    {statusLabel[node.status] || node.status}
+                    {nodeStatusText(node.status)}
                   </StatusPill>
                   <button
                     className="btn btn-danger btn-sm"
@@ -177,7 +188,7 @@ export function NodesPage() {
                     disabled={busyId === node.id || node.instanceCount > 0}
                     onClick={() => openDeleteDialog(node)}
                   >
-                    删除
+                    {t('action.delete')}
                   </button>
                 </div>
               </li>
@@ -188,14 +199,14 @@ export function NodesPage() {
 
       <ConfirmDialog
         open={deleteTarget !== null}
-        title={`删除节点「${deleteTarget?.name ?? ''}」？`}
+        title={t('nodes.delete.title', { name: deleteTarget?.name ?? '' })}
         description={
           <>
-            <p>仅可删除没有关联实例的远程节点。删除后无法恢复。</p>
+            <p>{t('nodes.delete.body')}</p>
             {deleteError && <p className="error" role="alert">{deleteError}</p>}
           </>
         }
-        confirmLabel="确认删除"
+        confirmLabel={t('nodes.delete.confirm')}
         danger
         busy={busyId === deleteTarget?.id}
         onConfirm={() => void confirmDelete()}

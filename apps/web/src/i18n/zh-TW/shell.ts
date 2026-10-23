@@ -1,0 +1,37 @@
+import type en from '../en/shell';
+
+/** 应用外壳（侧栏、工具栏、底部标签栏、外观与语言弹层、启动与异常页）文案（繁體中文）。 */
+export default {
+  'shell.pageTitle.workspace': '實例工作台',
+  'shell.pageTitle.fallback': '管理主控台',
+  'shell.loading.page': '頁面載入中…',
+  'shell.nav.label': '主導覽',
+  'shell.nav.open': '開啟導覽選單',
+  'shell.nav.close': '關閉導覽選單',
+  'shell.tabBar.label': '快速導覽',
+  'shell.tabBar.overview': '總覽',
+  'shell.tabBar.deploy': '部署',
+  'shell.tabBar.import': '匯入',
+  'shell.tabBar.machine': '本機',
+  'shell.user.role': '管理員',
+  'shell.user.signOut': '登出',
+  'shell.error.title': '頁面發生錯誤',
+  'shell.error.reload': '重新整理頁面',
+
+  'appearance.title': '外觀',
+  'appearance.accent': '強調色',
+  'appearance.auto': '自動',
+  'appearance.light': '淺色',
+  'appearance.dark': '深色',
+  'appearance.button': '外觀設定，目前為{appearance}外觀，{accent}強調色',
+  'accent.blue': '藍色',
+  'accent.purple': '紫色',
+  'accent.pink': 'Mystry 粉',
+  'accent.green': '綠色',
+  'accent.graphite': '石墨',
+
+  'language.title': '語言',
+  'language.auto': '自動',
+  'language.auto.hint': '跟隨瀏覽器語言，目前為{language}。',
+  'language.button': '語言設定，目前為{language}',
+} satisfies Record<keyof typeof en, string>;
