@@ -18,7 +18,7 @@ import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
 import {
   HostMetricCards,
   MetricWidget,
-  metricWarningText,
+  metricWarningTexts,
   processMetric,
   useDashboardMetrics,
 } from '../components/DashboardMetrics';
@@ -215,7 +215,7 @@ export function DashboardPage() {
         <span role="status">
           {metricsStatusText}
           {metrics && !metricsError && metrics.warnings.length > 0
-            ? ` · ${metrics.warnings.map((warning) => metricWarningText(warning, t)).join(' · ')}`
+            ? ` · ${metricWarningTexts(metrics, i18n.tm).join(' · ')}`
             : ''}
         </span>
         <button type="button" className="link-button" disabled={metricsBusy} onClick={() => void refreshMetrics()}>

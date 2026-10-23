@@ -2,7 +2,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileDownloadQuerySchema, fileDownloadTicketBodySchema } from '@mystry/shared';
+import {
+  fileDownloadQuerySchema,
+  fileDownloadTicketBodySchema,
+  type ApiErrorBody,
+  type ServerMessageKey,
+} from '@mystry/shared';
 import { config } from '../config.js';
 import {
   acquireFileDownloadSlot,
@@ -24,6 +29,7 @@ import {
   failDownloadStream,
   getDownloadTicketStatus,
   reserveDownloadTicket,
+  type DownloadTicketFailure,
 } from '../services/download-ticket-service.js';
 import { getInstance } from '../services/instance-service.js';
 import {
@@ -32,6 +38,7 @@ import {
   readServerProperties,
 } from '../services/config-service.js';
 import { sendRouteError } from '../http-errors.js';
+import { errorBody, errorMessage, isPanelError, PanelError, panelErrorBody, toPanelMessage } from '../utils/errors.js';
 
 const { maxTextFileBytes } = config;
 const maxPathLength = 1_024;
@@ -85,8 +92,17 @@ const serverPropertiesBodySchema = {
   additionalProperties: { type: 'string', maxLength: maxTextFileBytes },
 } as const;
 
-function validationMessage(reply: { code: (statusCode: number) => { send: (payload: unknown) => unknown } }, message: string) {
-  return reply.code(400).send({ error: message });
+function validationMessage(reply: { code: (statusCode: number) => { send: (payload: unknown) => unknown } }, key: ServerMessageKey) {
+  return reply.code(400).send(panelErrorBody(key));
+}
+
+/** 开流失败只透出「文件不存在 / 不是普通文件」，其余原因（含路径校验）统一为「文件打开失败」。 */
+function fileOpenErrorBody(err: unknown): ApiErrorBody {
+  if (isPanelError(err)
+    && (err.messageKey === 'server.files.fileNotFound' || err.messageKey === 'server.files.notRegularFile')) {
+    return errorBody(err);
+  }
+  return panelErrorBody('server.files.download.openFailed');
 }
 
 /** 仅用 basename，附带 RFC 5987 filename*，禁止路径注入。 */
@@ -124,7 +140,7 @@ export function waitForDownloadStreamOpen(stream: EventEmitter): Promise<void> {
     };
     const onClose = () => {
       cleanup();
-      reject(new Error('文件下载连接已中止'));
+      reject(new PanelError('server.files.download.aborted'));
     };
     stream.once('open', onOpen);
     stream.once('error', onError);
@@ -134,8 +150,8 @@ export function waitForDownloadStreamOpen(stream: EventEmitter): Promise<void> {
 
 type DownloadTicketCancelRouteResult =
   | { statusCode: 204 }
-  | { statusCode: 409; error: string }
-  | { statusCode: 404; error: string };
+  | { statusCode: 409; error: ApiErrorBody }
+  | { statusCode: 404; error: ApiErrorBody };
 
 export function cancelDownloadTicketRoute(
   ticket: string,
@@ -144,8 +160,8 @@ export function cancelDownloadTicketRoute(
 ): DownloadTicketCancelRouteResult {
   const result = cancelReservedDownloadTicket(ticket, userId, instanceId);
   if (result === 'cancelled') return { statusCode: 204 };
-  if (result === 'streaming') return { statusCode: 409, error: '下载已开始，无法取消票据' };
-  return { statusCode: 404, error: '下载票据不存在或无权取消' };
+  if (result === 'streaming') return { statusCode: 409, error: panelErrorBody('server.files.download.ticketStreaming') };
+  return { statusCode: 404, error: panelErrorBody('server.files.download.ticketNotFoundCancel') };
 }
 
 export async function fileRoutes(app: FastifyInstance): Promise<void> {
@@ -162,8 +178,8 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/files',
     { attachValidation: true, schema: { querystring: optionalPathQuerySchema } },
     async (req, reply) => {
-      if (req.validationError) return validationMessage(reply, '文件路径过长或格式不正确');
-      if (!getInstance(req.params.id)) return reply.code(404).send({ error: '实例不存在' });
+      if (req.validationError) return validationMessage(reply, 'server.files.validation.path');
+      if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
         return listFiles(req.params.id, req.query.path || '');
       } catch (err) {
@@ -176,8 +192,8 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/files/content',
     { attachValidation: true, schema: { querystring: requiredPathQuerySchema } },
     async (req, reply) => {
-      if (req.validationError) return validationMessage(reply, '文件路径过长或格式不正确');
-      if (!getInstance(req.params.id)) return reply.code(404).send({ error: '实例不存在' });
+      if (req.validationError) return validationMessage(reply, 'server.files.validation.path');
+      if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
         const content = readTextFile(req.params.id, req.query.path);
         return { path: req.query.path, content };
@@ -191,8 +207,8 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/files/content',
     { attachValidation: true, schema: { body: textContentBodySchema } },
     async (req, reply) => {
-      if (req.validationError) return validationMessage(reply, '文本文件路径、内容过长或包含不支持的字段');
-      if (!getInstance(req.params.id)) return reply.code(404).send({ error: '实例不存在' });
+      if (req.validationError) return validationMessage(reply, 'server.files.validation.textBody');
+      if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
         writeTextFile(req.params.id, req.body.path, req.body.content);
         return { ok: true };
@@ -206,7 +222,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/files',
     { attachValidation: true, schema: { querystring: requiredPathQuerySchema } },
     async (req, reply) => {
-      if (req.validationError) return validationMessage(reply, '文件路径过长或格式不正确');
+      if (req.validationError) return validationMessage(reply, 'server.files.validation.path');
       try {
         deletePath(req.params.id, req.query.path);
         return { ok: true };
@@ -220,7 +236,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/files/mkdir',
     { attachValidation: true, schema: { body: pathBodySchema } },
     async (req, reply) => {
-      if (req.validationError) return validationMessage(reply, '目录路径过长或包含不支持的字段');
+      if (req.validationError) return validationMessage(reply, 'server.files.validation.dirBody');
       try {
         mkdirPath(req.params.id, req.body.path);
         return { ok: true };
@@ -234,7 +250,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/files/rename',
     { attachValidation: true, schema: { body: renameBodySchema } },
     async (req, reply) => {
-      if (req.validationError) return validationMessage(reply, '重命名路径过长或包含不支持的字段');
+      if (req.validationError) return validationMessage(reply, 'server.files.validation.renameBody');
       try {
         renamePath(req.params.id, req.body.from, req.body.to);
         return { ok: true };
@@ -248,8 +264,8 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/files/download-ticket',
     { attachValidation: true, schema: { body: fileDownloadTicketBodySchema } },
     async (req, reply) => {
-      if (req.validationError) return validationMessage(reply, '文件路径过长或包含不支持的字段');
-      if (!getInstance(req.params.id)) return reply.code(404).send({ error: '实例不存在' });
+      if (req.validationError) return validationMessage(reply, 'server.files.validation.pathBody');
+      if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       let releaseDownload: (() => void) | null = null;
       try {
         getAbsoluteFilePath(req.params.id, req.body.path);
@@ -263,12 +279,9 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         releaseDownload?.();
         if (isFileDownloadCapacityError(err)) {
-          return reply.code(429).send({ error: err.message });
+          return reply.code(429).send(errorBody(err));
         }
-        const message = err instanceof Error && /^(文件不存在|目标不是普通文件)$/.test(err.message)
-          ? err.message
-          : '文件打开失败';
-        return reply.code(400).send({ error: message });
+        return reply.code(400).send(fileOpenErrorBody(err));
       }
     },
   );
@@ -276,9 +289,9 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string; ticket: string } }>(
     '/api/instances/:id/files/download-ticket/:ticket/status',
     async (req, reply) => {
-      if (!getInstance(req.params.id)) return reply.code(404).send({ error: '实例不存在' });
+      if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       const status = getDownloadTicketStatus(req.params.ticket, req.user.id);
-      if (!status) return reply.code(404).send({ error: '下载票据不存在或无权查看' });
+      if (!status) return reply.code(404).send(panelErrorBody('server.files.download.ticketNotFoundView'));
       return status;
     },
   );
@@ -288,7 +301,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const result = cancelDownloadTicketRoute(req.params.ticket, req.user.id, req.params.id);
       if (result.statusCode === 204) return reply.code(204).send();
-      return reply.code(result.statusCode).send({ error: result.error });
+      return reply.code(result.statusCode).send(result.error);
     },
   );
 
@@ -296,13 +309,13 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/files/download',
     { attachValidation: true, schema: { querystring: fileDownloadQuerySchema } },
     async (req, reply) => {
-      if (req.validationError) return validationMessage(reply, '文件路径过长或格式不正确');
+      if (req.validationError) return validationMessage(reply, 'server.files.validation.path');
       const ticketParam = req.query.ticket;
       const hasTicket = typeof ticketParam === 'string' && ticketParam.length > 0;
       let activeTicket: string | null = hasTicket ? ticketParam : null;
       if (hasTicket) {
         const began = beginDownloadStream(ticketParam, req.params.id, req.query.path);
-        if (!began) return reply.code(401).send({ error: '下载链接无效或已过期，请重新下载' });
+        if (!began) return reply.code(401).send(panelErrorBody('server.files.download.linkExpired'));
       }
       let releaseDownload: (() => void) | null = null;
       try {
@@ -335,29 +348,30 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
           }
           releaseResources();
         }
-        function finishFailure(errorMessage: string): void {
+        function finishFailure(reason: DownloadTicketFailure): void {
           if (cleaned) return;
           cleaned = true;
           releaseDownload?.();
           if (activeTicket) {
-            failDownloadStream(activeTicket, errorMessage);
+            failDownloadStream(activeTicket, reason);
             activeTicket = null;
           }
           releaseResources();
         }
         function onStreamError(error: Error): void {
-          finishFailure(error.message || '文件读取失败');
+          // Node.js 流错误保留原文，无文本时使用可翻译的兜底消息。
+          finishFailure(error.message || { key: 'server.files.download.readFailed' });
           if (responseStarted && !reply.raw.destroyed) {
             reply.raw.destroy();
           }
         }
         function onStreamClosed(): void {
           if (stream.readableEnded) return;
-          finishFailure('文件下载连接已中止');
+          finishFailure({ key: 'server.files.download.aborted' });
           if (responseStarted && !reply.raw.destroyed) reply.raw.destroy();
         }
         function onConnectionClosed(): void {
-          if (!reply.raw.writableFinished) finishFailure('文件下载连接已中止');
+          if (!reply.raw.writableFinished) finishFailure({ key: 'server.files.download.aborted' });
         }
         stream.once('close', onStreamClosed);
         stream.once('error', onStreamError);
@@ -365,12 +379,12 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         reply.raw.once('close', onConnectionClosed);
         reply.raw.setTimeout(config.fileDownloadIdleTimeoutMs, () => {
           if (cleaned) return;
-          finishFailure('文件下载空闲超时');
+          finishFailure({ key: 'server.files.download.idleTimeout' });
           if (!reply.raw.destroyed) reply.raw.destroy();
         });
         if (reply.raw.destroyed) {
-          finishFailure('文件下载连接已中止');
-          throw new Error('文件下载连接已中止');
+          finishFailure({ key: 'server.files.download.aborted' });
+          throw new PanelError('server.files.download.aborted');
         }
         await waitForDownloadStreamOpen(stream);
         responseStarted = true;
@@ -380,19 +394,20 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
           .send(stream);
       } catch (err) {
         if (activeTicket) {
-          const message = err instanceof Error ? err.message : '文件打开失败';
-          failDownloadStream(activeTicket, message);
+          failDownloadStream(
+            activeTicket,
+            err instanceof Error
+              ? toPanelMessage(err) ?? errorMessage(err)
+              : { key: 'server.files.download.openFailed' },
+          );
           activeTicket = null;
         }
         releaseDownload?.();
         if (isFileDownloadCapacityError(err)) {
-          return reply.code(429).send({ error: err.message });
+          return reply.code(429).send(errorBody(err));
         }
         if (reply.raw.destroyed) return reply;
-        const message = err instanceof Error && /^(文件不存在|目标不是普通文件)$/.test(err.message)
-          ? err.message
-          : '文件打开失败';
-        return reply.code(400).send({ error: message });
+        return reply.code(400).send(fileOpenErrorBody(err));
       }
     },
   );
@@ -401,11 +416,11 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/files/upload',
     { attachValidation: true, schema: { querystring: optionalPathQuerySchema } },
     async (req, reply) => {
-      if (req.validationError) return validationMessage(reply, '目录路径过长或格式不正确');
-      if (!getInstance(req.params.id)) return reply.code(404).send({ error: '实例不存在' });
+      if (req.validationError) return validationMessage(reply, 'server.files.validation.dirPath');
+      if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
         const file = await req.file();
-        if (!file) return reply.code(400).send({ error: '未上传文件' });
+        if (!file) return reply.code(400).send(panelErrorBody('server.files.upload.missing'));
         const saved = await saveUploadedFile(
           req.params.id,
           req.query.path || '',
@@ -420,7 +435,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
   );
 
   app.get<{ Params: { id: string } }>('/api/instances/:id/config/server.properties', async (req, reply) => {
-    if (!getInstance(req.params.id)) return reply.code(404).send({ error: '实例不存在' });
+    if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
     try {
       assertTextFileWithinLimit(req.params.id, 'server.properties');
       return readServerProperties(req.params.id);
@@ -433,13 +448,13 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/config/server.properties',
     { attachValidation: true, schema: { body: serverPropertiesBodySchema } },
     async (req, reply) => {
-      if (!getInstance(req.params.id)) return reply.code(404).send({ error: '实例不存在' });
-      if (req.validationError) return validationMessage(reply, 'server.properties 键数量、文本长度或格式不正确');
+      if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
+      if (req.validationError) return validationMessage(reply, 'server.files.validation.serverProperties');
       try {
         assertTextFileWithinLimit(req.params.id, 'server.properties');
         const preview = previewServerPropertiesWrite(req.params.id, req.body);
         if (Buffer.byteLength(preview, 'utf8') > maxTextFileBytes) {
-          return reply.code(400).send({ error: `server.properties 超过大小限制（${maxTextFileBytes} 字节）` });
+          return reply.code(400).send(panelErrorBody('server.files.serverProperties.tooLarge', { limit: maxTextFileBytes }));
         }
         writeServerProperties(req.params.id, req.body);
         return { ok: true };

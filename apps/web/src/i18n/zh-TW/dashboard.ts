@@ -22,9 +22,6 @@ export default {
   'dashboard.metrics.unavailable': '暫時無法使用',
   'dashboard.metrics.collecting': '收集中…',
   'dashboard.metrics.valueStale': '{value}（已過期）',
-  'dashboard.metrics.warning.cpuHigh': '主機 CPU 持續偏高',
-  'dashboard.metrics.warning.memoryHigh': '主機記憶體持續偏高',
-  'dashboard.metrics.warning.diskLow': '資料磁碟剩餘空間不足',
 
   'dashboard.metric.hostCpu.label': '主機 CPU',
   'dashboard.metric.hostCpu.detail': '全機邏輯核心總容量',

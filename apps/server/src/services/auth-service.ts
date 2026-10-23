@@ -2,6 +2,12 @@ import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { getDb, type UserRow } from '../db.js';
 import { nowIso } from '../utils/path.js';
+import { PanelError } from '../utils/errors.js';
+
+const USERNAME_MIN_LENGTH = 2;
+const USERNAME_MAX_LENGTH = 64;
+const PASSWORD_MIN_LENGTH = 12;
+const PASSWORD_MAX_LENGTH = 128;
 
 /** bcrypt 只使用前 72 字节，超出部分静默截断会导致不同密码可互相登录；初始化时即拒绝超长密码。 */
 const BCRYPT_MAX_BYTES = 72;
@@ -16,12 +22,20 @@ export function needsSetup(): boolean {
 
 export function setupAdmin(username: string, password: string): { id: string; username: string } {
   const normalizedUsername = username.trim();
-  if (normalizedUsername.length < 2) throw new Error('用户名至少 2 个字符');
-  if (normalizedUsername.length > 64) throw new Error('用户名最多 64 个字符');
-  if (password.length < 12) throw new Error('密码至少 12 位');
-  if (password.length > 128) throw new Error('密码最多 128 位');
+  if (normalizedUsername.length < USERNAME_MIN_LENGTH) {
+    throw new PanelError('server.auth.usernameTooShort', { min: USERNAME_MIN_LENGTH });
+  }
+  if (normalizedUsername.length > USERNAME_MAX_LENGTH) {
+    throw new PanelError('server.auth.usernameTooLong', { max: USERNAME_MAX_LENGTH });
+  }
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    throw new PanelError('server.auth.passwordTooShort', { min: PASSWORD_MIN_LENGTH });
+  }
+  if (password.length > PASSWORD_MAX_LENGTH) {
+    throw new PanelError('server.auth.passwordTooLong', { max: PASSWORD_MAX_LENGTH });
+  }
   if (Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) {
-    throw new Error(`密码最多 ${BCRYPT_MAX_BYTES} 字节（bcrypt 截断上限）`);
+    throw new PanelError('server.auth.passwordTooManyBytes', { max: BCRYPT_MAX_BYTES });
   }
 
   const id = nanoid(12);
@@ -34,7 +48,7 @@ export function setupAdmin(username: string, password: string): { id: string; us
     )
     .run(id, normalizedUsername, hash, nowIso());
   if (Number(result.changes) === 0) {
-    throw new Error('管理员已初始化');
+    throw new PanelError('server.auth.alreadyInitialized', undefined, { statusCode: 409 });
   }
   return { id, username: normalizedUsername };
 }

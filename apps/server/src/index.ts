@@ -23,6 +23,7 @@ import {
 } from './routes/launcher.js';
 import { processManager } from './services/process-manager.js';
 import { createRateLimitHook } from './services/security-service.js';
+import { errorBody, PanelError, panelErrorBody } from './utils/errors.js';
 import {
   getTaskActivity,
   recoverInterruptedTasks,
@@ -135,7 +136,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
       && req.url !== '/api/health'
       && req.url !== '/api/launcher/shutdown'
     ) {
-      return reply.code(503).send({ error: '面板正在关闭' });
+      return reply.code(503).send(panelErrorBody('server.common.shuttingDown'));
     }
   });
   app.addHook('onSend', async (_req, reply, payload) => {
@@ -152,16 +153,22 @@ export async function buildApp(options: BuildAppOptions = {}) {
   app.setErrorHandler((error, req, reply) => {
     req.log.error(error);
     if (reply.sent) return;
-    const err = error as { statusCode?: unknown; message?: unknown };
+    const err = error as { statusCode?: unknown; message?: unknown; validation?: unknown };
+    const rawStatus = error instanceof PanelError && error.statusCode !== undefined ? error.statusCode : err.statusCode;
     const statusCode =
-      typeof err.statusCode === 'number' && Number.isInteger(err.statusCode) ? err.statusCode : 500;
+      typeof rawStatus === 'number' && Number.isInteger(rawStatus) ? rawStatus : 500;
     const normalized = statusCode >= 400 && statusCode < 600 ? statusCode : 500;
     if (normalized === 500) {
-      return reply.code(500).send({ error: '服务器内部错误' });
+      return reply.code(500).send(panelErrorBody('server.common.internal'));
+    }
+    if (error instanceof PanelError) return reply.code(normalized).send(errorBody(error));
+    // Fastify 请求校验失败：原文为 AJV 生成的英文说明，作为参数交给前端拼成完整句子。
+    if (err.validation && typeof err.message === 'string') {
+      return reply.code(normalized).send(panelErrorBody('server.common.invalidRequest', { detail: err.message }));
     }
     return reply
       .code(normalized)
-      .send({ error: typeof err.message === 'string' ? err.message : '请求失败' });
+      .send(typeof err.message === 'string' ? { error: err.message } : panelErrorBody('server.common.requestFailed'));
   });
 
   registerAuthHooks(app);

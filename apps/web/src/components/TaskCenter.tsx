@@ -32,7 +32,7 @@ const TASK_TIME_FORMAT: Intl.DateTimeFormatOptions = { month: '2-digit', day: '2
 
 /** 顶栏的任务中心按钮，点击后像通知中心一样从右侧浮出任务列表与进度。 */
 export function TaskCenter() {
-  const { t, tp, fmt } = useI18n();
+  const { t, tp, tm, fmt } = useI18n();
   const { tasks, error, loading, activeCount, lastSuccessAt, retry } = useTaskCenter();
   const formatTime = (iso: string | null): string => (iso ? fmt.dateTime(iso, TASK_TIME_FORMAT) : '');
   const [open, setOpen] = useState(false);
@@ -169,8 +169,10 @@ export function TaskCenter() {
                   </div>
                 )}
 
-                {task.message && <p className="task-card-message">{task.message}</p>}
-                {task.status === 'failed' && task.error && <p className="task-card-error">{task.error}</p>}
+                {task.message && <p className="task-card-message">{tm(task.messageI18n, task.message)}</p>}
+                {task.status === 'failed' && task.error && (
+                  <p className="task-card-error">{tm(task.errorI18n, task.error)}</p>
+                )}
 
                 <div className="task-card-foot">
                   <time>{formatTime(task.createdAt)}</time>

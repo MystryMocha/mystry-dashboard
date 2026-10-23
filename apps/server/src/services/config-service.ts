@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import { assertTextFileWithinLimit } from './file-service.js';
 import { writeFileAtomic } from '../utils/atomic-write.js';
 import { getInstanceDir, resolveSafePath } from '../utils/path.js';
+import { PanelError } from '../utils/errors.js';
 
 export type PropertiesMap = Record<string, string>;
 
@@ -246,7 +247,7 @@ function assertMutablePropertiesFile(instanceId: string, file: string): void {
   if (!fs.existsSync(file)) return;
   const stat = fs.lstatSync(file);
   if (stat.isSymbolicLink() || !stat.isFile()) {
-    throw new Error('server.properties 不是普通文件');
+    throw new PanelError('server.instance.propertiesNotRegularFile');
   }
 }
 

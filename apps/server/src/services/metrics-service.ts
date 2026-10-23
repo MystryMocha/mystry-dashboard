@@ -3,7 +3,7 @@ import path from 'node:path';
 import { readFile, statfs } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { DashboardMetrics } from '@mystry/shared';
+import { renderPanelMessage, type DashboardMetrics, type PanelMessage, type ServerMessageKey } from '@mystry/shared';
 
 const execute = promisify(execFile);
 type Target = { id: string; pid: number };
@@ -35,12 +35,12 @@ export async function readProcesses(targets: Target[]): Promise<RawProcess[]> {
   if (process.platform === 'linux') {
     const { stdout } = await execute('getconf', ['CLK_TCK'], { timeout: 1000, maxBuffer: 1024 });
     const ticks = Number(stdout.trim());
-    if (!(ticks > 0)) throw new Error('无法读取系统时钟频率');
+    if (!(ticks > 0)) throw new Error('Cannot read the system clock tick rate.');
     const results = await Promise.allSettled(targets.map(async ({ pid }) => {
       const [stat, status] = await Promise.all([readFile(`/proc/${pid}/stat`, 'utf8'), readFile(`/proc/${pid}/status`, 'utf8')]);
       const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/);
       const rss = /^VmRSS:\s+(\d+)\s+kB$/m.exec(status);
-      if (!rss) throw new Error('进程已退出或无法采样');
+      if (!rss) throw new Error('The process has exited or cannot be sampled.');
       return { pid, identity: fields[19]!, cpuMs: (Number(fields[11]) + Number(fields[12])) / ticks * 1000, memoryBytes: Number(rss[1]) * 1024 };
     }));
     return results.flatMap(r => r.status === 'fulfilled' ? [r.value] : []);
@@ -98,17 +98,19 @@ export class MetricsService {
       if (raw) next.set(target.id, { ...raw, at: now });
     }
     this.previousProcesses = next;
-    const warnings: string[] = [];
-    const conditions: Array<[string, boolean, string]> = [
-      ['cpu', cpuPercent !== null && cpuPercent >= 90, '主机 CPU 持续偏高'],
-      ['memory', totalBytes > 0 && memory.usedBytes / totalBytes >= 0.9, '主机内存持续偏高'],
+    // 告警同时返回英文文本与消息键，Web 按键判断告警种类并按当前语言显示。
+    const warningsI18n: PanelMessage[] = [];
+    const conditions: Array<[string, boolean, ServerMessageKey]> = [
+      ['cpu', cpuPercent !== null && cpuPercent >= 90, 'server.system.metricsCpuHigh'],
+      ['memory', totalBytes > 0 && memory.usedBytes / totalBytes >= 0.9, 'server.system.metricsMemoryHigh'],
     ];
-    for (const [key, high, label] of conditions) {
+    for (const [key, high, messageKey] of conditions) {
       if (!high || (this.cachedAt && now - this.cachedAt > 15000)) this.highSince.delete(key);
       if (high && !this.highSince.has(key)) this.highSince.set(key, now);
-      if (high && now - this.highSince.get(key)! >= 30000) warnings.push(label);
+      if (high && now - this.highSince.get(key)! >= 30000) warningsI18n.push({ key: messageKey });
     }
-    if (disk && (disk.availableBytes < 5 * 1024 ** 3 || disk.availableBytes / disk.totalBytes < 0.1)) warnings.push('数据盘剩余空间不足');
-    return { sampledAt: new Date().toISOString(), cpuPercent, memory, disk, instances, warnings };
+    if (disk && (disk.availableBytes < 5 * 1024 ** 3 || disk.availableBytes / disk.totalBytes < 0.1)) warningsI18n.push({ key: 'server.system.metricsDiskLow' });
+    const warnings = warningsI18n.map((message) => renderPanelMessage(message));
+    return { sampledAt: new Date().toISOString(), cpuPercent, memory, disk, instances, warnings, warningsI18n };
   }
 }

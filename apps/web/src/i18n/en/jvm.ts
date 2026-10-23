@@ -30,23 +30,6 @@ export default {
   'jvm.preview.title': 'Final Arguments',
   'jvm.preview.empty': 'No parsable arguments',
 
-  // 共享包 JVM 诊断（按 issue.code 映射，参数从原文中提取）
-  'jvm.issue.argsTooLong': 'JVM arguments can\'t exceed 8,192 characters.',
-  'jvm.issue.unclosedQuote': 'JVM arguments contain an unclosed quote.',
-  'jvm.issue.xmsCount': 'JVM arguments must include exactly one -Xms initial memory argument.',
-  'jvm.issue.xmxCount': 'JVM arguments must include exactly one -Xmx max memory argument.',
-  'jvm.issue.xmsFormat': 'The initial memory format is invalid. Use a value like -Xms1G or -Xms1024M.',
-  'jvm.issue.xmxFormat': 'The max memory format is invalid. Use a value like -Xmx4G or -Xmx4096M.',
-  'jvm.issue.memoryOrder': 'Initial memory can\'t be greater than max memory.',
-  'jvm.issue.memoryHigh': 'Max memory is close to or above what this host can safely allocate. Leave memory for the system and the panel.',
-  'jvm.issue.panelOwnedArgument': 'The panel manages {argument}. You can\'t add it to JVM arguments.',
-  'jvm.issue.gcConflict': 'GC arguments can\'t repeat, and you can choose only one garbage collector.',
-  'jvm.issue.presetCoreMismatch': '{preset} only works with {cores} cores.',
-  'jvm.issue.javaMajorUnknown': 'We haven\'t confirmed that {preset} works with the selected Java version.',
-  'jvm.issue.presetJavaMismatch': '{preset} isn\'t verified on Java {java}.',
-  'jvm.issue.paperMemoryMismatch': 'The Paper Aikar preset requires Xms and Xmx to match.',
-  'jvm.issue.paperMemoryLow': 'PaperMC recommends at least 6 GiB of memory for Aikar flags.',
-
   // Java 运行时选择
   'java.runtime.label': 'Java Runtime',
   'java.runtime.systemDefault': 'System Default Java',

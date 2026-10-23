@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { CoreType } from '@mystry/shared';
 import { assertSafeInstanceRoot, resolveSafePath } from '../utils/path.js';
-import { throwIfAborted } from '../utils/errors.js';
+import { PanelError, throwIfAborted } from '../utils/errors.js';
 
 export type ServerLaunchTarget = {
   value: string;
@@ -16,9 +16,9 @@ export type ModLoaderScanBudget = {
   signal?: AbortSignal;
 };
 
-class ModLoaderScanLimitError extends Error {
-  constructor(message: string) {
-    super(message);
+class ModLoaderScanLimitError extends PanelError {
+  constructor(key: 'server.imports.launchScan.timeout' | 'server.imports.launchScan.tooManyEntries' | 'server.imports.launchScan.tooDeep') {
+    super(key);
     this.name = 'ModLoaderScanLimitError';
   }
 }
@@ -80,10 +80,10 @@ export async function findModLoaderArgsFile(
   const checkBudget = (): void => {
     throwIfAborted(budget.signal);
     if (Date.now() - startedAt > budget.deadlineMs) {
-      throw new ModLoaderScanLimitError('Forge/NeoForge 启动文件扫描超时');
+      throw new ModLoaderScanLimitError('server.imports.launchScan.timeout');
     }
     if (visited >= budget.maxEntries) {
-      throw new ModLoaderScanLimitError('Forge/NeoForge 启动文件扫描条目过多');
+      throw new ModLoaderScanLimitError('server.imports.launchScan.tooManyEntries');
     }
   };
 
@@ -91,7 +91,7 @@ export async function findModLoaderArgsFile(
     checkBudget();
     const currentItem = queue.pop()!;
     if (currentItem.depth > budget.maxDepth) {
-      throw new ModLoaderScanLimitError('Forge/NeoForge 启动文件扫描层级过深');
+      throw new ModLoaderScanLimitError('server.imports.launchScan.tooDeep');
     }
 
     const current = resolveSafePath(dir, currentItem.relative);
@@ -104,7 +104,7 @@ export async function findModLoaderArgsFile(
       const full = resolveSafePath(dir, relative);
       const stat = await fs.promises.lstat(full);
       if (stat.isSymbolicLink()) {
-        throw new Error('启动文件目录不能包含符号链接或目录联接');
+        throw new PanelError('server.imports.launchScan.symlink');
       }
       if (stat.isDirectory()) {
         assertSafeInstanceRoot(full);

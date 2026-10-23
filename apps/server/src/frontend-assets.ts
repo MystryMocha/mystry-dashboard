@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
+import { panelErrorBody } from './utils/errors.js';
 
 /** Vite 产物中带内容 hash 的文件，内容变化必然换文件名，可长期缓存。 */
 const HASHED_ASSET_CACHE_CONTROL = 'public, max-age=31536000, immutable';
@@ -33,7 +34,7 @@ export async function registerFrontendAssets(
   });
   app.setNotFoundHandler((req, reply) => {
     if (req.url.startsWith('/api') || req.url.startsWith('/ws')) {
-      return reply.code(404).send({ error: '接口不存在' });
+      return reply.code(404).send(panelErrorBody('server.common.notFound'));
     }
     return reply.sendFile('index.html');
   });

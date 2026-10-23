@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import type {
-  ExistingServerSourceInfo,
-  ImportExistingServerInput,
+import {
+  renderPanelMessage,
+  type ExistingServerSourceInfo,
+  type ImportExistingServerInput,
+  type PanelMessage,
 } from '@mystry/shared';
 import { nanoid } from 'nanoid';
 import { config } from '../config.js';
@@ -23,7 +25,7 @@ import {
   removeTaskStagingTree,
 } from './task-staging-service.js';
 import { createByteCounter } from '../utils/byte-counter.js';
-import { errorMessage, throwIfAborted } from '../utils/errors.js';
+import { errorMessage, PanelError, throwIfAborted, toPanelMessage } from '../utils/errors.js';
 
 type SourceScan = {
   entries: number;
@@ -37,6 +39,11 @@ type PrecheckCacheEntry = {
 };
 
 const sourcePrecheckCache = new Map<string, PrecheckCacheEntry>();
+
+/** 来源列表中显示给用户的说明：英文文本与消息键同时返回，Web 按界面语言翻译。 */
+function sourceError(message: PanelMessage): Pick<ExistingServerSourceInfo, 'error' | 'errorI18n'> {
+  return { error: renderPanelMessage(message), errorI18n: message };
+}
 
 function modLoaderPrecheckBudget(): ModLoaderScanBudget {
   return {
@@ -65,7 +72,7 @@ function assertSourceId(sourceId: string): void {
     || sourceId.includes('\\')
     || /[\u0000-\u001f]/.test(sourceId)
   ) {
-    throw new Error('导入文件夹名称无效');
+    throw new PanelError('server.imports.existing.invalidSourceId');
   }
 }
 
@@ -76,7 +83,7 @@ export function resolveExistingServerSource(sourceId: string): string {
   const sourceDir = path.resolve(importRoot, sourceId);
   const relative = path.relative(importRoot, sourceDir);
   if (relative !== sourceId || path.isAbsolute(relative)) {
-    throw new Error('导入文件夹必须位于面板数据目录的 imports 文件夹下');
+    throw new PanelError('server.imports.existing.outsideImportDir');
   }
   return assertSafeInstanceRoot(sourceDir);
 }
@@ -99,7 +106,7 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
     };
 
     if (fs.existsSync(resolveSafePath(sourceDir, OWNERSHIP_MARKER_FILE))) {
-      throw new Error('该文件夹包含面板实例标记，不能作为导入来源');
+      throw new PanelError('server.imports.existing.managedMarker');
     }
 
     const jarFile = detectJarFile(sourceDir);
@@ -140,7 +147,7 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
           coreType: 'custom',
           modifiedAt: stat.mtime.toISOString(),
           ready: true,
-          error: '快速预检未找到启动文件；提交后将在导入任务中做完整校验',
+          ...sourceError({ key: 'server.imports.existing.precheckIncomplete' }),
         };
         return completeInfo(info);
       }
@@ -153,10 +160,11 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
       coreType: 'custom',
       modifiedAt: stat.mtime.toISOString(),
       ready: false,
-      error: '未找到服务端 jar 或 Forge/NeoForge 启动参数文件',
+      ...sourceError({ key: 'server.imports.existing.noLaunchTarget' }),
     };
     return completeInfo(info);
   } catch (error) {
+    const errorI18n = toPanelMessage(error);
     return {
       id: sourceId,
       launchTarget: null,
@@ -164,6 +172,7 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
       modifiedAt: new Date(0).toISOString(),
       ready: false,
       error: errorMessage(error),
+      ...(errorI18n ? { errorI18n } : {}),
     };
   }
 }
@@ -185,10 +194,10 @@ export async function listExistingServerSources(): Promise<ExistingServerSourceI
 
 function checkScanLimits(scan: SourceScan): void {
   if (scan.entries > config.maxExistingImportEntries) {
-    throw new Error(`已有服务端文件条目超过上限 ${config.maxExistingImportEntries}`);
+    throw new PanelError('server.imports.existing.tooManyEntries', { limit: config.maxExistingImportEntries });
   }
   if (scan.bytes > config.maxExistingImportBytes) {
-    throw new Error(`已有服务端总大小超过上限 ${config.maxExistingImportBytes} 字节`);
+    throw new PanelError('server.imports.existing.tooLarge', { limit: config.maxExistingImportBytes });
   }
 }
 
@@ -209,14 +218,14 @@ async function scanSourceDirectory(
     for (const entry of entries) {
       throwIfAborted(signal);
       if (!relativeDirectory && entry.name === OWNERSHIP_MARKER_FILE) {
-        throw new Error('导入文件夹包含面板实例标记，拒绝复制');
+        throw new PanelError('server.imports.existing.markerRefused');
       }
 
       const relative = path.join(relativeDirectory, entry.name);
       const source = resolveSafePath(sourceRoot, relative);
       const stat = await fs.promises.lstat(source);
       if (stat.isSymbolicLink()) {
-        throw new Error(`导入文件夹不能包含符号链接或目录联接：${relative}`);
+        throw new PanelError('server.imports.existing.symlink', { path: relative });
       }
 
       scan.entries += 1;
@@ -227,7 +236,7 @@ async function scanSourceDirectory(
         continue;
       }
       if (!stat.isFile()) {
-        throw new Error(`导入文件夹包含不支持的特殊文件：${relative}`);
+        throw new PanelError('server.imports.existing.specialFile', { path: relative });
       }
       scan.bytes += stat.size;
       checkScanLimits(scan);
@@ -242,7 +251,7 @@ function assertEnoughDiskSpace(instanceRoot: string, requiredBytes: number): voi
   const stat = fs.statfsSync(instanceRoot);
   const availableBytes = BigInt(stat.bavail) * BigInt(stat.bsize);
   if (BigInt(requiredBytes) > availableBytes) {
-    throw new Error('面板数据目录剩余空间不足，无法复制已有服务端');
+    throw new PanelError('server.imports.existing.diskSpace');
   }
 }
 
@@ -251,7 +260,7 @@ async function copySourceDirectory(
   instanceRoot: string,
   scan: SourceScan,
   signal: AbortSignal,
-  report: (progress: number, message: string) => void,
+  report: (progress: number, message: PanelMessage) => void,
 ): Promise<void> {
   let copiedEntries = 0;
   let copiedBytes = 0;
@@ -264,7 +273,10 @@ async function copySourceDirectory(
     const progress = Math.min(90, 20 + Math.floor(ratio * 70));
     if (progress === lastProgress) return;
     lastProgress = progress;
-    report(progress, `正在复制已有服务端… ${copiedEntries}/${scan.entries} 项`);
+    report(progress, {
+      key: 'server.imports.existing.progress.copying',
+      params: { copied: copiedEntries, total: scan.entries },
+    });
   }
 
   async function walk(relativeDirectory: string): Promise<void> {
@@ -277,7 +289,7 @@ async function copySourceDirectory(
     for (const entry of entries) {
       throwIfAborted(signal);
       if (!relativeDirectory && entry.name === OWNERSHIP_MARKER_FILE) {
-        throw new Error('导入文件夹包含面板实例标记，拒绝复制');
+        throw new PanelError('server.imports.existing.markerRefused');
       }
 
       const relative = path.join(relativeDirectory, entry.name);
@@ -285,12 +297,12 @@ async function copySourceDirectory(
       const target = resolveSafePath(instanceRoot, relative);
       const stat = await fs.promises.lstat(source);
       if (stat.isSymbolicLink()) {
-        throw new Error(`导入文件夹不能包含符号链接或目录联接：${relative}`);
+        throw new PanelError('server.imports.existing.symlink', { path: relative });
       }
 
       copiedEntries += 1;
       if (copiedEntries > config.maxExistingImportEntries) {
-        throw new Error(`已有服务端文件条目超过上限 ${config.maxExistingImportEntries}`);
+        throw new PanelError('server.imports.existing.tooManyEntries', { limit: config.maxExistingImportEntries });
       }
 
       if (stat.isDirectory()) {
@@ -302,14 +314,14 @@ async function copySourceDirectory(
         continue;
       }
       if (!stat.isFile()) {
-        throw new Error(`导入文件夹包含不支持的特殊文件：${relative}`);
+        throw new PanelError('server.imports.existing.specialFile', { path: relative });
       }
 
       let fileBytes = 0;
       const meter = createByteCounter((chunkBytes) => {
         fileBytes += chunkBytes;
         return copiedBytes + fileBytes > config.maxExistingImportBytes
-          ? new Error(`已有服务端总大小超过上限 ${config.maxExistingImportBytes} 字节`)
+          ? new PanelError('server.imports.existing.tooLarge', { limit: config.maxExistingImportBytes })
           : undefined;
       });
       // 先打开源文件 fd 再 fstat 校验，消除 lstat 与读流之间文件被替换的 TOCTOU 窗口。
@@ -317,7 +329,7 @@ async function copySourceDirectory(
       try {
         const fdStat = await sourceFd.stat();
         if (!fdStat.isFile()) {
-          throw new Error(`导入文件夹包含不支持的特殊文件：${relative}`);
+          throw new PanelError('server.imports.existing.specialFile', { path: relative });
         }
         await pipeline(
           sourceFd.createReadStream(),
@@ -347,21 +359,21 @@ export async function importExistingServerDirectory(input: ImportExistingServerI
     }),
   };
 
-  return runBackgroundTask('import', '等待复制已有服务端…', async (taskId, signal, report) => {
+  return runBackgroundTask('import', { key: 'server.imports.existing.task.queued' }, async (taskId, signal, report) => {
     let instanceId: string | null = null;
     let stagingToken: string | null = null;
     let completed = false;
     try {
       throwIfAborted(signal);
       const sourceRoot = resolveExistingServerSource(input.sourceId);
-      report(5, '正在校验已有服务端目录…');
+      report(5, { key: 'server.imports.existing.progress.validating' });
       const scan = await scanSourceDirectory(sourceRoot, signal);
       const sourceLaunchTarget = await detectServerLaunchTarget(
         sourceRoot,
         modLoaderFullScanBudget(signal),
       );
       if (!sourceLaunchTarget) {
-        throw new Error('导入文件夹中未找到可用的服务端 jar 或 Forge/NeoForge 启动参数文件');
+        throw new PanelError('server.imports.existing.missingLaunchTarget');
       }
 
       throwIfAborted(signal);
@@ -371,20 +383,20 @@ export async function importExistingServerDirectory(input: ImportExistingServerI
       const stagingRoot = prepareTaskStaging(taskId, instanceId, stagingToken);
       assertEnoughDiskSpace(stagingRoot, scan.bytes);
 
-      report(20, '开始复制已有服务端…');
+      report(20, { key: 'server.imports.existing.progress.copyStart' });
       await copySourceDirectory(sourceRoot, stagingRoot, scan, signal, report);
 
       throwIfAborted(signal);
-      report(92, '正在确认启动文件…');
+      report(92, { key: 'server.imports.existing.progress.confirmingLaunch' });
       const copiedLaunchTarget = await detectServerLaunchTarget(
         stagingRoot,
         modLoaderFullScanBudget(signal),
       );
       if (!copiedLaunchTarget) {
-        throw new Error('复制完成后未找到可用的服务端启动文件');
+        throw new PanelError('server.imports.existing.copiedNoLaunchTarget');
       }
 
-      report(95, '写入实例目录…');
+      report(95, { key: 'server.imports.progress.writingInstance' });
       throwIfAborted(signal);
       promoteTaskStagingToInstance(taskId, instanceId);
       registerPromotedInstance(instanceId, {
@@ -402,7 +414,7 @@ export async function importExistingServerDirectory(input: ImportExistingServerI
         fs.writeFileSync(resolveSafePath(instanceRoot, 'eula.txt'), 'eula=true\n', 'utf8');
       }
 
-      report(100, '已有服务端已复制到面板托管目录');
+      report(100, { key: 'server.imports.existing.progress.done' });
       return { instanceId };
     } finally {
       if (!completed && instanceId) {

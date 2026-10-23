@@ -8,12 +8,12 @@ export function clampProgress(progress: number): number {
 
 /** 部署、导入页的任务进度：当前步骤文案加进度条。 */
 export function TaskProgress({ task, label }: { task: TaskInfo; label: string }) {
-  const { fmt } = useI18n();
+  const { fmt, tm } = useI18n();
   const value = clampProgress(task.progress);
   return (
     <div className="task-progress" aria-live="polite">
       <div className="task-progress-text">
-        <span>{task.message}</span>
+        <span>{tm(task.messageI18n, task.message)}</span>
         <span className="task-progress-value">{fmt.percent(Math.round(value), 0)}</span>
       </div>
       <div

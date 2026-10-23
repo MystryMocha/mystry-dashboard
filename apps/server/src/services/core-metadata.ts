@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 import type { CoreType } from '@mystry/shared';
 import { config } from '../config.js';
-import { throwIfAborted } from '../utils/errors.js';
+import { PanelError, throwIfAborted } from '../utils/errors.js';
 import { createTimeoutAbort, USER_AGENT } from './core-utils.js';
 
 type DeployableCore = Exclude<CoreType, 'custom'>;
@@ -9,9 +9,9 @@ type DeployableCore = Exclude<CoreType, 'custom'>;
 async function readBoundedResponseText(response: Response): Promise<string> {
   const contentLength = Number(response.headers.get('content-length') || 0);
   if (Number.isFinite(contentLength) && contentLength > config.maxCoreMetadataBytes) {
-    throw new Error('核心元数据超过大小限制');
+    throw new PanelError('server.deploy.metadataTooLarge');
   }
-  if (!response.body) throw new Error('核心元数据响应没有正文');
+  if (!response.body) throw new PanelError('server.deploy.metadataNoBody');
 
   const nodeStream = Readable.fromWeb(
     response.body as import('stream/web').ReadableStream,
@@ -24,7 +24,7 @@ async function readBoundedResponseText(response: Response): Promise<string> {
       bytes += buffer.length;
       if (bytes > config.maxCoreMetadataBytes) {
         nodeStream.destroy();
-        throw new Error('核心元数据超过大小限制');
+        throw new PanelError('server.deploy.metadataTooLarge');
       }
       chunks.push(buffer);
     }
@@ -36,7 +36,7 @@ async function readBoundedResponseText(response: Response): Promise<string> {
 
 async function fetchMetadataText(url: string, signal?: AbortSignal): Promise<string> {
   throwIfAborted(signal);
-  const timeout = createTimeoutAbort(signal, config.coreMetadataTimeoutMs, '核心元数据请求超时');
+  const timeout = createTimeoutAbort(signal, config.coreMetadataTimeoutMs, 'server.deploy.metadataTimeout');
 
   try {
     const response = await fetch(url, {
@@ -49,7 +49,7 @@ async function fetchMetadataText(url: string, signal?: AbortSignal): Promise<str
       } catch {
         /* 忽略错误响应正文清理失败 */
       }
-      throw new Error(`请求失败（HTTP ${response.status}）：${url}`);
+      throw new PanelError('server.deploy.metadataHttpFailed', { status: response.status, url });
     }
     return await readBoundedResponseText(response);
   } catch (error) {
@@ -77,7 +77,7 @@ function parseMavenVersions(xml: string): string[] {
 export function neoForgeVersionToMc(neoVersion: string): string {
   const cleaned = neoVersion.replace(/-beta.*$/i, '');
   const [a, b] = cleaned.split('.');
-  if (!a || b === undefined) throw new Error(`无法解析 NeoForge 版本：${neoVersion}`);
+  if (!a || b === undefined) throw new PanelError('server.deploy.neoforgeVersionInvalid', { version: neoVersion });
   if (b === '0') return `1.${a}`;
   return `1.${a}.${b}`;
 }
@@ -211,12 +211,12 @@ export async function resolveVanillaServerUrl(mcVersion: string, signal: AbortSi
     versions: Array<{ id: string; url: string }>;
   }>('https://launchermeta.mojang.com/mc/game/version_manifest_v2.json', signal);
   const entry = manifest.versions.find((v) => v.id === mcVersion);
-  if (!entry) throw new Error(`找不到 Vanilla 版本：${mcVersion}`);
+  if (!entry) throw new PanelError('server.deploy.vanillaVersionNotFound', { version: mcVersion });
   const detail = await fetchJson<{
     downloads?: { server?: { url: string } };
   }>(entry.url, signal);
   const url = detail.downloads?.server?.url;
-  if (!url) throw new Error(`该版本没有官方服务端 jar：${mcVersion}`);
+  if (!url) throw new PanelError('server.deploy.vanillaNoServerJar', { version: mcVersion });
   return url;
 }
 
@@ -229,13 +229,13 @@ export async function resolvePaperDownload(
     `https://fill.papermc.io/v3/projects/paper/versions/${version}/builds`,
     signal,
   );
-  if (!builds.length) throw new Error(`Paper ${version} 没有可用构建`);
+  if (!builds.length) throw new PanelError('server.deploy.paperNoBuilds', { version });
 
   let selected: PaperBuild;
   if (build !== undefined) {
     // 指定的构建不存在时直接报错，不能悄悄换成最新构建。
     const requested = builds.find((b) => b.id === build);
-    if (!requested) throw new Error(`Paper ${version} 没有构建 #${build}`);
+    if (!requested) throw new PanelError('server.deploy.paperBuildNotFound', { version, build });
     selected = requested;
   } else {
     const stable = builds.filter((b) => b.channel === 'STABLE');
@@ -244,7 +244,7 @@ export async function resolvePaperDownload(
   }
 
   const file = selected.downloads?.['server:default'];
-  if (!file?.url) throw new Error(`Paper ${version}#${selected.id} 缺少下载地址`);
+  if (!file?.url) throw new PanelError('server.deploy.paperNoDownloadUrl', { version, build: selected.id });
   return { url: file.url, build: selected.id, filename: file.name || 'server.jar' };
 }
 
@@ -268,7 +268,7 @@ export async function resolveFabricJarUrl(
   const loaders = loaderVersion ? [loaderVersion] : await listFabricLoaders(gameVersion, signal);
   const installers = installerVersion ? [installerVersion] : await listFabricInstallers(signal);
   if (!loaders.length || !installers.length) {
-    throw new Error(`Fabric ${gameVersion} 没有可用的 Loader 或 Installer 版本`);
+    throw new PanelError('server.deploy.fabricNoVersions', { version: gameVersion });
   }
   const loader = loaders[0]!;
   const installer = installers[0]!;

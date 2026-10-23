@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { nanoid } from 'nanoid';
-import type { ConfirmZipImportInput, ImportPreviewInfo, TaskInfo } from '@mystry/shared';
+import type { ConfirmZipImportInput, ImportPreviewInfo, ServerMessageKey, TaskInfo } from '@mystry/shared';
 import { config } from '../config.js';
 import { importZipPackage } from './import-service.js';
 import { inspectZipJvmConfig } from './zip-service.js';
@@ -9,6 +9,7 @@ import {
   assertImportPreviewUploadPath,
   removeUploadTemp,
 } from './upload-service.js';
+import { PanelError } from '../utils/errors.js';
 
 type PreviewEntry = {
   info: ImportPreviewInfo;
@@ -17,12 +18,14 @@ type PreviewEntry = {
   state: 'available' | 'confirming';
 };
 
-export class ImportPreviewHttpError extends Error {
+export class ImportPreviewHttpError extends PanelError {
+  declare readonly statusCode: 404 | 409 | 410 | 429;
+
   constructor(
-    message: string,
-    readonly statusCode: 404 | 409 | 410 | 429,
+    key: ServerMessageKey,
+    statusCode: 404 | 409 | 410 | 429,
   ) {
-    super(message);
+    super(key, undefined, { statusCode });
     this.name = 'ImportPreviewHttpError';
   }
 }
@@ -40,11 +43,11 @@ function removeEntry(entry: PreviewEntry): void {
 function findOwnedPreview(id: string, userId: string, now = Date.now()): PreviewEntry {
   const entry = previews.get(id);
   if (!entry || entry.userId !== userId) {
-    throw new ImportPreviewHttpError('ZIP 导入预览不存在', 404);
+    throw new ImportPreviewHttpError('server.imports.preview.notFound', 404);
   }
   if (Date.parse(entry.info.expiresAt) <= now) {
     removeEntry(entry);
-    throw new ImportPreviewHttpError('ZIP 导入预览已过期，请重新上传', 410);
+    throw new ImportPreviewHttpError('server.imports.preview.expired', 410);
   }
   return entry;
 }
@@ -118,11 +121,11 @@ export async function createImportPreview(input: {
   cleanupExpiredImportPreviews(now);
   const previous = [...previews.values()].find((entry) => entry.userId === input.userId);
   if (previous?.state === 'confirming') {
-    throw new ImportPreviewHttpError('当前 ZIP 导入预览正在确认，请稍后再替换', 409);
+    throw new ImportPreviewHttpError('server.imports.preview.replaceWhileConfirming', 409);
   }
   const otherCount = previews.size - (previous ? 1 : 0);
   if (otherCount >= config.maxImportPreviews) {
-    throw new ImportPreviewHttpError('ZIP 导入预览容量已满，请稍后重试', 429);
+    throw new ImportPreviewHttpError('server.imports.preview.capacity', 429);
   }
 
   const zipPath = assertImportPreviewUploadPath(input.zipPath);
@@ -147,7 +150,7 @@ export function getImportPreview(id: string, userId: string, now = Date.now()): 
 export function cancelImportPreview(id: string, userId: string, now = Date.now()): void {
   const entry = findOwnedPreview(id, userId, now);
   if (entry.state === 'confirming') {
-    throw new ImportPreviewHttpError('ZIP 导入预览正在确认，不能重复取消', 409);
+    throw new ImportPreviewHttpError('server.imports.preview.cancelWhileConfirming', 409);
   }
   removeEntry(entry);
 }
@@ -160,11 +163,11 @@ export async function confirmImportPreview(
 ): Promise<TaskInfo> {
   const confirmed = confirmedPreviews.get(id);
   if (confirmed?.userId === userId && Date.parse(confirmed.expiresAt) > now) {
-    throw new ImportPreviewHttpError('ZIP 导入预览已经确认，请勿重复提交', 409);
+    throw new ImportPreviewHttpError('server.imports.preview.alreadyConfirmed', 409);
   }
   const entry = findOwnedPreview(id, userId, now);
   if (entry.state !== 'available') {
-    throw new ImportPreviewHttpError('ZIP 导入预览正在确认，请勿重复提交', 409);
+    throw new ImportPreviewHttpError('server.imports.preview.confirming', 409);
   }
   entry.state = 'confirming';
   try {

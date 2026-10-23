@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { panelErrorBody } from '../utils/errors.js';
 
 type RateLimitOptions = {
   max: number;
@@ -62,7 +63,7 @@ export function createRateLimitHook(options: RateLimitOptions) {
 
     if (bucket.count > options.max) {
       reply.header('Retry-After', String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))));
-      reply.code(429).send({ error: '请求过于频繁，请稍后再试' });
+      reply.code(429).send(panelErrorBody('server.common.tooManyRequests'));
     }
   };
 }
@@ -110,7 +111,7 @@ export function createLoginFailureLimiter(options: RateLimitOptions): LoginFailu
       if (!bucket) return false;
       setHeaders(reply, bucket, now);
       if (bucket.count < options.max) return false;
-      reply.code(429).send({ error: '请求过于频繁，请稍后再试' });
+      reply.code(429).send(panelErrorBody('server.common.tooManyRequests'));
       return true;
     },
     recordFailure(request, reply, username) {

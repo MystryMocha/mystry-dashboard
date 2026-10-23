@@ -241,7 +241,7 @@ test('删除须等待未完成的 start，启动中不得拆掉目录', async (t
 
   releaseJava();
   await startPromise;
-  await assert.rejects(deletePromise, /请先停止实例再删除/);
+  await assert.rejects(deletePromise, { messageKey: 'server.instance.deleteRunning' });
   assert.equal(processManager.isRunning(info.id), true);
 });
 
@@ -290,7 +290,7 @@ test('关闭时取消尚未 spawn 的启动，不留下无主进程', async (t) 
   const stopAllPromise = manager.stopAll();
   releaseJava();
 
-  await assert.rejects(startPromise, /面板正在关闭，已取消启动/);
+  await assert.rejects(startPromise, { messageKey: 'server.instance.startCancelledShuttingDown' });
   const result = await stopAllPromise;
   assert.equal(spawnCount, 0);
   assert.equal(manager.getRunningCount(), 0);
@@ -320,7 +320,7 @@ test('关闭后拒绝新的 start', async (t) => {
   );
   manager.beginShutdown();
 
-  await assert.rejects(() => manager.start(row as InstanceRow), /面板正在关闭，无法启动实例/);
+  await assert.rejects(() => manager.start(row as InstanceRow), { messageKey: 'server.instance.startShuttingDown' });
   assert.equal(spawnCount, 0);
   assert.equal(manager.getRunningCount(), 0);
 });

@@ -31,66 +31,12 @@ const PRESET_DESCRIPTION_KEYS: Record<BuiltinPresetId, MessageKey> = {
   'paper-aikar': 'jvm.preset.paper-aikar.description',
 };
 
-/** 文案固定、无参数的诊断 code。 */
-const STATIC_ISSUE_KEYS: Record<string, MessageKey> = {
-  ARGS_TOO_LONG: 'jvm.issue.argsTooLong',
-  XMS_COUNT: 'jvm.issue.xmsCount',
-  XMX_COUNT: 'jvm.issue.xmxCount',
-  XMS_FORMAT: 'jvm.issue.xmsFormat',
-  XMX_FORMAT: 'jvm.issue.xmxFormat',
-  MEMORY_ORDER: 'jvm.issue.memoryOrder',
-  MEMORY_HIGH: 'jvm.issue.memoryHigh',
-  GC_CONFLICT: 'jvm.issue.gcConflict',
-  PAPER_MEMORY_MISMATCH: 'jvm.issue.paperMemoryMismatch',
-  PAPER_MEMORY_LOW: 'jvm.issue.paperMemoryLow',
-};
-
-/** 共享包解析器抛出的错误原文 → 键（PARSE_ERROR / ARGFILE_PARSE_ERROR 的 message 即错误原文）。 */
-const PARSE_ERROR_KEYS: Record<string, MessageKey> = {
-  'JVM 参数包含未闭合的引号': 'jvm.issue.unclosedQuote',
-};
-
 /**
- * 把共享包 validateJvmArgs 生成的诊断翻译为当前语言。
- * 带参数的 code 从中文原文中提取参数（服务端检测结果与前端校验使用同一套原文）；
- * 未知 code 或原文格式对不上时回落显示原文。
+ * 把共享包 JVM 诊断翻译为当前语言：诊断带消息键与参数（`server.jvm.issue.*`）时按键翻译，
+ * 预设名称等嵌套参数一并翻译；没有键的诊断（其他来源的检测错误或旧数据）回落显示原文。
  */
-function translateJvmIssue(item: JvmValidationIssue, t: I18n['t']): string {
-  const presetLabel = (label: string) => {
-    const preset = JVM_PRESETS.find((candidate) => candidate.label === label);
-    return preset ? t(PRESET_LABEL_KEYS[preset.id]) : label;
-  };
-  const staticKey = STATIC_ISSUE_KEYS[item.code];
-  if (staticKey) return t(staticKey);
-  switch (item.code) {
-    case 'PARSE_ERROR':
-    case 'ARGFILE_PARSE_ERROR': {
-      const key = PARSE_ERROR_KEYS[item.message];
-      return key ? t(key) : item.message;
-    }
-    case 'PANEL_OWNED_ARGUMENT': {
-      const match = /^参数 ([\s\S]+) 由面板管理，不能写入 JVM 参数$/.exec(item.message);
-      return match ? t('jvm.issue.panelOwnedArgument', { argument: match[1]! }) : item.message;
-    }
-    case 'PRESET_CORE_MISMATCH': {
-      const match = /^(.+) 仅适用于 (.+) 核心$/.exec(item.message);
-      return match
-        ? t('jvm.issue.presetCoreMismatch', { preset: presetLabel(match[1]!), cores: match[2]! })
-        : item.message;
-    }
-    case 'JAVA_MAJOR_UNKNOWN': {
-      const match = /^(.+) 尚未确认所选 Java 版本是否兼容$/.exec(item.message);
-      return match ? t('jvm.issue.javaMajorUnknown', { preset: presetLabel(match[1]!) }) : item.message;
-    }
-    case 'PRESET_JAVA_MISMATCH': {
-      const match = /^(.+) 未验证支持 Java (\S+)$/.exec(item.message);
-      return match
-        ? t('jvm.issue.presetJavaMismatch', { preset: presetLabel(match[1]!), java: match[2]! })
-        : item.message;
-    }
-    default:
-      return item.message;
-  }
+function translateJvmIssue(item: JvmValidationIssue, tm: I18n['tm']): string {
+  return tm(item.key ? { key: item.key, params: item.params } : undefined, item.message);
 }
 
 type Draft = {
@@ -163,7 +109,7 @@ export function JvmSettingsEditor({
   onDetectedChoiceChange?: (choice: DetectedJvmChoice) => void;
   onValidityChange?: (valid: boolean) => void;
 }) {
-  const { t, rich } = useI18n();
+  const { t, tm, rich } = useI18n();
   const maximumId = useId();
   const presetId = useId();
   const xmsId = useId();
@@ -323,7 +269,7 @@ export function JvmSettingsEditor({
           </label>
           {detectedJvmConfig.issues.map((item, index) => (
             <p key={`${item.code}-${index}`} className={item.severity === 'error' ? 'error' : 'field-warn'}>
-              {translateJvmIssue(item, t)}
+              {translateJvmIssue(item, tm)}
             </p>
           ))}
         </fieldset>
@@ -466,7 +412,7 @@ export function JvmSettingsEditor({
           className={item.severity === 'error' ? 'error' : 'field-warn'}
           role={item.severity === 'error' ? 'alert' : undefined}
         >
-          {translateJvmIssue(item, t)}
+          {translateJvmIssue(item, tm)}
         </p>
       ))}
     </section>

@@ -12,7 +12,7 @@ Writing rules for every language of the web UI, how to add a language, and right
 | `fr`, `ru`, `es` | Français, Русский, Español | Planned; draft glossary below |
 | `ar` | العربية (right-to-left) | Planned; needs the right-to-left work below first |
 
-Together these are the six official UN languages. The implementation lives in [`apps/web/src/i18n/`](../apps/web/src/i18n/): `LOCALES` and the browser-language detection in `locale.ts`, one table per UI area in `en/<area>.ts`, and the same keys in every other locale. Messages produced by the server are covered in [current state](ai/current-state.md); check there before claiming a server message is translated.
+Together these are the six official UN languages. The implementation lives in [`apps/web/src/i18n/`](../apps/web/src/i18n/): `LOCALES` and the browser-language detection in `locale.ts`, one table per UI area in `en/<area>.ts`, and the same keys in every other locale. Messages produced by the server (errors, task progress, console errors) are translated too, see [Server messages](#server-messages) ().
 
 **The glossary is code.** Status words, common actions and navigation names are defined once in [`i18n/en/common.ts`](../apps/web/src/i18n/en/common.ts) and its `zh-CN` / `zh-TW` counterparts. Use those strings; do not paraphrase them per screen, and do not copy them into this page.
 
@@ -24,6 +24,15 @@ Together these are the six official UN languages. The implementation lives in [`
 - Never concatenate sentence fragments; use `{name}` parameters. Never pick a plural by hand; use `tp()` (`Intl.PluralRules`).
 - Format numbers, dates and sizes with `useI18n().fmt` and keep a space between number and unit. Digits stay Western (0–9) in every locale, Arabic included, so ports, versions and log lines read the same everywhere.
 - Technical names (`Paper`, `JVM`, `server.properties`, Minecraft commands) are never translated.
+
+## Server messages
+
+The server never writes user-facing text in Chinese or any other locale. It returns a stable key with parameters, plus the rendered English text for scripts and older clients:
+
+- English templates live in [`packages/shared/src/messages/<area>.ts`](../packages/shared/src/messages/), keyed `server.<area>.<meaning>`. Translations live in `apps/web/src/i18n/zh-CN/server/<area>.ts` and `zh-TW/server/<area>.ts`; type checking requires the same keys as the shared templates.
+- Server code throws `PanelError(key, params)`, replies with `panelErrorBody(key, params)` or `sendRouteError`, and reports task progress as `report(progress, { key, params })`. A parameter can itself be a message, so a reason is translated inside its sentence.
+- The web app shows them with `errorMessage(error)` or `useI18n().tm(message, fallbackText)`; without a key (raw Node.js, Java or network text, or tasks stored before this change) it shows the text as is.
+- Startup logs written to the terminal stay out of scope.
 
 ## Per-language rules
 

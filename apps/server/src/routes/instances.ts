@@ -17,6 +17,7 @@ import {
   processManager,
 } from '../services/process-manager.js';
 import { sendRouteError } from '../http-errors.js';
+import { errorBody, panelErrorBody, toPanelMessage } from '../utils/errors.js';
 
 const commandBodySchema = {
   type: 'object',
@@ -29,18 +30,18 @@ const commandBodySchema = {
 
 function replyProcessManagerError(reply: FastifyReply, err: unknown) {
   if (isInstanceStopPendingError(err)) {
+    // `code` 是停止仍在进行的稳定标识（前端按 stillStopping 判断），可翻译消息放在 errorI18n。
     return reply.code(202).send({
       code: 'INSTANCE_STOP_PENDING',
       error: err.message,
+      errorI18n: toPanelMessage(err),
       status: 'stopping',
       stillStopping: true as const,
     });
   }
   if (isInstanceOperationConflictError(err)) {
-    return reply.code(409).send({
-      code: 'INSTANCE_OPERATION_CONFLICT',
-      error: err.message,
-    });
+    // 冲突错误按通用错误体返回，`code` 为消息键，前端据此翻译。
+    return reply.code(409).send(errorBody(err));
   }
   return sendRouteError(reply, err);
 }
@@ -52,7 +53,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
 
   app.get<{ Params: { id: string } }>('/api/instances/:id', async (req, reply) => {
     const inst = getInstance(req.params.id);
-    if (!inst) return reply.code(404).send({ error: '实例不存在' });
+    if (!inst) return reply.code(404).send(panelErrorBody('server.instance.notFound'));
     return inst;
   });
 
@@ -60,10 +61,10 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     Body: CreateInstanceInput;
   }>('/api/instances', { attachValidation: true, schema: { body: createInstanceBodySchema } }, async (req, reply) => {
     if (req.validationError) {
-      return reply.code(400).send({ error: '实例参数包含不支持的字段或格式不正确' });
+      return reply.code(400).send(panelErrorBody('server.instance.invalidParams'));
     }
     if (!req.body?.name?.trim()) {
-      return reply.code(400).send({ error: '名称不能为空' });
+      return reply.code(400).send(panelErrorBody('server.instance.nameRequired'));
     }
     try {
       return createInstance({ ...req.body, name: req.body.name.trim() });
@@ -77,10 +78,10 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     Body: UpdateInstanceInput;
   }>('/api/instances/:id', { attachValidation: true, schema: { body: updateInstanceBodySchema } }, async (req, reply) => {
     if (req.validationError) {
-      return reply.code(400).send({ error: '实例参数包含不支持的字段或格式不正确' });
+      return reply.code(400).send(panelErrorBody('server.instance.invalidParams'));
     }
     if (!getInstanceRow(req.params.id)) {
-      return reply.code(404).send({ error: '实例不存在' });
+      return reply.code(404).send(panelErrorBody('server.instance.notFound'));
     }
     try {
       return updateInstance(req.params.id, req.body);
@@ -111,7 +112,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{ Params: { id: string } }>('/api/instances/:id/start', async (req, reply) => {
     const row = getInstanceRow(req.params.id);
-    if (!row) return reply.code(404).send({ error: '实例不存在' });
+    if (!row) return reply.code(404).send(panelErrorBody('server.instance.notFound'));
     try {
       await processManager.start(row);
       return getInstance(row.id);
@@ -124,7 +125,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/stop',
     async (req, reply) => {
       if (!getInstanceRow(req.params.id)) {
-        return reply.code(404).send({ error: '实例不存在' });
+        return reply.code(404).send(panelErrorBody('server.instance.notFound'));
       }
       try {
         await processManager.stop(req.params.id, req.query.force === '1');
@@ -137,7 +138,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{ Params: { id: string } }>('/api/instances/:id/restart', async (req, reply) => {
     const row = getInstanceRow(req.params.id);
-    if (!row) return reply.code(404).send({ error: '实例不存在' });
+    if (!row) return reply.code(404).send(panelErrorBody('server.instance.notFound'));
     try {
       await processManager.restart(row);
       return getInstance(row.id);
@@ -151,7 +152,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     { attachValidation: true, schema: { body: commandBodySchema } },
     async (req, reply) => {
       if (req.validationError) {
-        return reply.code(400).send({ error: '命令过长、为空或包含不支持的字段' });
+        return reply.code(400).send(panelErrorBody('server.instance.commandInvalid'));
       }
       try {
         processManager.sendCommand(req.params.id, req.body.command);

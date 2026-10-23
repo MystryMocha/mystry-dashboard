@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { Copy, Eraser, Send } from 'lucide-react';
-import type { ConsoleMessage } from '@mystry/shared';
+import { isServerMessageKey, type ConsoleMessage, type PanelMessageParam } from '@mystry/shared';
 import { createConsoleTicket } from '../api';
 import { errorMessage, isAbortError } from '../errors';
 import {
@@ -12,7 +12,7 @@ import {
   createConsoleColorizeState,
   flushConsoleColorize,
 } from '../console-colorize';
-import { t as translateNow, tp as translatePluralNow, useI18n, type MessageKey } from '../i18n';
+import { t as translateNow, tm as translateMessageNow, tp as translatePluralNow, useI18n, type MessageKey } from '../i18n';
 
 type Props = {
   instanceId: string;
@@ -27,6 +27,37 @@ const QUICK_COMMANDS: { label: string; descKey: MessageKey; cmd: string }[] = [
   { label: 'whitelist list', descKey: 'console.quick.whitelist', cmd: 'whitelist list' },
   { label: 'help', descKey: 'console.quick.help', cmd: 'help' },
 ];
+
+// 服务端写进控制台日志的面板提示整行：英文句式为当前写法，中文句式来自旧版本留下的历史缓冲。
+const PROCESS_START_FAILED_RE = /^(?:\[Panel\] Process failed to start: |\[面板\] 进程启动失败：)(.*)$/gm;
+const PROCESS_EXITED_RE = /^(?:\[Panel\] Process exited \(exit code (.*?), signal (.*?)\)|\[面板\] 进程已退出（退出码 (.*?)，信号 (.*?)）)$/gm;
+
+/** 「无」占位换成可翻译消息，其余（退出码、信号名）原样显示。 */
+function exitDetail(value: string): PanelMessageParam {
+  return value === 'none' || value === '无' ? { key: 'server.instance.consoleNone' } : value;
+}
+
+/** 把服务端写入的面板提示行改写为当前界面语言；其余输出原样保留。 */
+function localizePanelLines(text: string): string {
+  if (!text.includes('[Panel]') && !text.includes('[面板]')) return text;
+  return text
+    .replace(PROCESS_START_FAILED_RE, (_line, reason: string) => translateMessageNow({
+      key: 'server.instance.consoleProcessStartFailed',
+      params: { reason },
+    }))
+    .replace(PROCESS_EXITED_RE, (_line, enCode?: string, enSignal?: string, zhCode?: string, zhSignal?: string) =>
+      translateMessageNow({
+        key: 'server.instance.consoleProcessExited',
+        params: { code: exitDetail(enCode ?? zhCode ?? ''), signal: exitDetail(enSignal ?? zhSignal ?? '') },
+      }));
+}
+
+/** 控制台错误帧：有消息键时按当前语言显示，否则显示服务端原文。 */
+function consoleErrorText(msg: ConsoleMessage): string {
+  return isServerMessageKey(msg.code)
+    ? translateMessageNow({ key: msg.code, params: msg.params }, msg.data)
+    : msg.data;
+}
 
 export function ConsolePanel({ instanceId, canSend = true }: Props) {
   const { t } = useI18n();
@@ -97,7 +128,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
     const RETRY_DELAYS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 
     const writeColored = (chunk: string, flush = false) => {
-      const colored = colorizeConsoleStream(chunk, colorState);
+      const colored = colorizeConsoleStream(localizePanelLines(chunk), colorState);
       if (colored) term.write(colored);
       if (flush) {
         const rest = flushConsoleColorize(colorState);
@@ -155,7 +186,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
               writeColored(msg.data);
             }
             if (msg.type === 'error') {
-              writeSystemLine(`${translateNow('console.prefix.error')} ${msg.data}`);
+              writeSystemLine(`${translateNow('console.prefix.error')} ${consoleErrorText(msg)}`);
             }
           } catch {
             writeColored(String(ev.data));

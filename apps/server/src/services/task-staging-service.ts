@@ -3,6 +3,7 @@ import path from 'node:path';
 import { config } from '../config.js';
 import { writeFileAtomic } from '../utils/atomic-write.js';
 import { defaultInstanceDir } from '../utils/path.js';
+import { PanelError } from '../utils/errors.js';
 
 export const STAGING_ROOT_DIR = '.mystry-staging';
 export const STAGING_MARKER_FILE = '.mystry-staging-marker.json';
@@ -101,10 +102,10 @@ export function promoteTaskStagingToInstance(
   const staging = taskStagingDir(taskId, instanceId, dataDir);
   const instanceDir = defaultInstanceDir(instanceId);
   if (!fs.existsSync(staging)) {
-    throw new Error('部署临时文件已丢失，无法完成实例创建，请重新部署');
+    throw new PanelError('server.imports.staging.lost');
   }
   if (fs.existsSync(instanceDir)) {
-    throw new Error('实例目录已存在，拒绝覆盖已有数据');
+    throw new PanelError('server.imports.staging.instanceDirExists');
   }
   fs.renameSync(staging, instanceDir);
   removeEmptyParents(staging, dataDir);

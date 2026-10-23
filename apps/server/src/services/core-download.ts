@@ -5,7 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import { config } from '../config.js';
 import { createByteCounter } from '../utils/byte-counter.js';
-import { abortError } from '../utils/errors.js';
+import { abortError, PanelError } from '../utils/errors.js';
 import { createTimeoutAbort, USER_AGENT } from './core-utils.js';
 
 export function isUsableCoreCache(filePath: string): boolean {
@@ -24,7 +24,7 @@ export async function downloadToFile(
   signal?: AbortSignal,
 ): Promise<void> {
   if (signal?.aborted) throw abortError(signal);
-  const timeout = createTimeoutAbort(signal, config.coreDownloadTimeoutMs, '核心下载超时');
+  const timeout = createTimeoutAbort(signal, config.coreDownloadTimeoutMs, 'server.deploy.downloadTimeout');
   const part = path.join(
     path.dirname(dest),
     `.part-${path.basename(dest)}-${Date.now()}-${randomBytes(12).toString('hex')}`,
@@ -35,16 +35,16 @@ export async function downloadToFile(
     fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
     const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: timeout.signal });
     if (!res.ok || !res.body) {
-      throw new Error(`下载失败（HTTP ${res.status}）：${url}`);
+      throw new PanelError('server.deploy.downloadHttpFailed', { status: res.status, url });
     }
 
     const total = Number(res.headers.get('content-length') || 0);
-    if (total > config.maxCoreDownloadBytes) throw new Error('核心下载文件超过大小限制');
+    if (total > config.maxCoreDownloadBytes) throw new PanelError('server.deploy.downloadTooLarge');
     let downloaded = 0;
     const nodeStream = Readable.fromWeb(res.body as import('stream/web').ReadableStream);
     const counter = createByteCounter((chunkBytes) => {
       downloaded += chunkBytes;
-      if (downloaded > config.maxCoreDownloadBytes) return new Error('核心下载文件超过大小限制');
+      if (downloaded > config.maxCoreDownloadBytes) return new PanelError('server.deploy.downloadTooLarge');
       if (total > 0 && onProgress) onProgress(downloaded / total);
       return undefined;
     });

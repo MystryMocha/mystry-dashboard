@@ -32,23 +32,6 @@ export default {
   'jvm.preview.title': '最終參數',
   'jvm.preview.empty': '目前沒有可解析的參數',
 
-  // 共享包 JVM 诊断（按 issue.code 映射，参数从原文中提取）
-  'jvm.issue.argsTooLong': 'JVM 參數不能超過 8192 個字元',
-  'jvm.issue.unclosedQuote': 'JVM 參數包含未閉合的引號',
-  'jvm.issue.xmsCount': 'JVM 參數必須包含一個且只能有一個 -Xms 初始記憶體參數',
-  'jvm.issue.xmxCount': 'JVM 參數必須包含一個且只能有一個 -Xmx 最大記憶體參數',
-  'jvm.issue.xmsFormat': '初始記憶體格式無效，請使用例如 -Xms1G 或 -Xms1024M',
-  'jvm.issue.xmxFormat': '最大記憶體格式無效，請使用例如 -Xmx4G 或 -Xmx4096M',
-  'jvm.issue.memoryOrder': '初始記憶體不能大於最大記憶體',
-  'jvm.issue.memoryHigh': '最大記憶體接近或超過主機可安全分配的範圍，請為系統和面板保留記憶體',
-  'jvm.issue.panelOwnedArgument': '參數 {argument} 由面板管理，不能寫入 JVM 參數',
-  'jvm.issue.gcConflict': '垃圾回收器參數不能重複，也不能同時選擇多個回收器',
-  'jvm.issue.presetCoreMismatch': '{preset} 僅適用於 {cores} 核心',
-  'jvm.issue.javaMajorUnknown': '{preset} 尚未確認是否相容所選的 Java 版本',
-  'jvm.issue.presetJavaMismatch': '{preset} 未經驗證支援 Java {java}',
-  'jvm.issue.paperMemoryMismatch': 'Paper Aikar 方案要求 Xms 與 Xmx 相同',
-  'jvm.issue.paperMemoryLow': 'PaperMC 建議為 Aikar 參數分配至少 6 GiB 記憶體',
-
   // Java 运行时选择
   'java.runtime.label': 'Java 執行環境',
   'java.runtime.systemDefault': '系統預設 Java',

@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { config } from '../config.js';
+import { PanelError } from '../utils/errors.js';
 
 type ConsoleTicket = {
   userId: string;
@@ -25,7 +26,7 @@ export function issueConsoleTicket(userId: string, instanceId: string): {
   const now = Date.now();
   pruneExpired(now);
   if (tickets.size >= MAX_CONSOLE_TICKETS) {
-    throw new Error('控制台票据数量已达上限，请稍后重试');
+    throw new PanelError('server.instance.consoleTicketLimit');
   }
   const ticket = randomBytes(32).toString('base64url');
   tickets.set(ticket, {

@@ -1,12 +1,39 @@
 import type { CoreType } from './index.js';
+import {
+  renderPanelMessage,
+  type PanelMessage,
+  type PanelMessageParams,
+  type ServerMessageKey,
+} from './messages/index.js';
 
 export type JvmPresetId = 'compatibility' | 'g1-balanced' | 'paper-aikar' | 'custom';
 
 export type JvmValidationIssue = {
   code: string;
   severity: 'error' | 'warning';
+  /** 渲染好的英文文本；没有 key 的旧数据或其他来源的诊断直接显示原文。 */
   message: string;
+  /** 可翻译消息键（`server.jvm.issue.*`）与参数，Web 按当前语言显示。 */
+  key?: ServerMessageKey;
+  params?: PanelMessageParams;
 };
+
+/** 解析 JVM 参数失败：共享包不依赖服务端 PanelError，这里自带消息键与参数，`message` 为英文文本。 */
+export class JvmArgsParseError extends Error {
+  readonly messageKey: ServerMessageKey;
+  readonly params?: PanelMessageParams;
+
+  constructor(key: ServerMessageKey, params?: PanelMessageParams) {
+    super(renderPanelMessage({ key, params }));
+    this.name = 'JvmArgsParseError';
+    this.messageKey = key;
+    this.params = params;
+  }
+
+  toPanelMessage(): PanelMessage {
+    return this.params ? { key: this.messageKey, params: this.params } : { key: this.messageKey };
+  }
+}
 
 export type DetectedJvmConfig = {
   source: 'user_jvm_args.txt';
@@ -79,8 +106,8 @@ const PAPER_AIKAR_ARGS = [
 export const JVM_PRESETS: readonly JvmPresetDefinition[] = [
   {
     id: 'compatibility',
-    label: '兼容优先',
-    description: '只设置初始和最大内存，不附加 GC 调优参数。',
+    label: 'Compatibility First',
+    description: 'Sets only initial and max memory, with no GC tuning flags.',
     version: '1',
     supportedCoreTypes: null,
     supportedJavaMajors: null,
@@ -90,8 +117,8 @@ export const JVM_PRESETS: readonly JvmPresetDefinition[] = [
   },
   {
     id: 'g1-balanced',
-    label: 'G1 均衡',
-    description: '使用保守的 G1 暂停目标，适合常规服务端。',
+    label: 'G1 Balanced',
+    description: 'Uses a conservative G1 pause target. Suits most servers.',
     version: '1',
     supportedCoreTypes: null,
     supportedJavaMajors: GC_PRESET_JAVA_MAJORS,
@@ -102,7 +129,7 @@ export const JVM_PRESETS: readonly JvmPresetDefinition[] = [
   {
     id: 'paper-aikar',
     label: 'Paper Aikar',
-    description: 'PaperMC 官方 Aikar 参数；建议至少分配 6 GiB。',
+    description: 'The official PaperMC Aikar flags. Allocate at least 6 GiB.',
     version: 'papermc-2026-08-11',
     supportedCoreTypes: ['paper'],
     supportedJavaMajors: GC_PRESET_JAVA_MAJORS,
@@ -111,6 +138,13 @@ export const JVM_PRESETS: readonly JvmPresetDefinition[] = [
     args: PAPER_AIKAR_ARGS,
   },
 ] as const;
+
+/** 诊断里 {preset} 参数使用的预设名称消息键（label 为英文默认值，Web 界面按预设 id 翻译）。 */
+const PRESET_LABEL_KEYS: Record<Exclude<JvmPresetId, 'custom'>, ServerMessageKey> = {
+  compatibility: 'server.jvm.preset.compatibility',
+  'g1-balanced': 'server.jvm.preset.g1Balanced',
+  'paper-aikar': 'server.jvm.preset.paperAikar',
+};
 
 const GC_SELECTOR_PATTERN = /^-XX:[+-]Use(?:G1|Parallel|Serial|Z|Shenandoah|Epsilon|ConcMarkSweep)GC$/;
 
@@ -133,9 +167,17 @@ const PANEL_OWNED_ARGS = new Set([
 function issue(
   code: string,
   severity: JvmValidationIssue['severity'],
-  message: string,
+  key: ServerMessageKey,
+  params?: PanelMessageParams,
 ): JvmValidationIssue {
-  return { code, severity, message };
+  const message = renderPanelMessage({ key, params });
+  return params ? { code, severity, message, key, params } : { code, severity, message, key };
+}
+
+/** 解析器抛出的错误转成诊断：带键的解析错误保留键与参数，其余（理论上不会出现）保留原文。 */
+function parseErrorIssue(code: string, error: unknown): JvmValidationIssue {
+  if (error instanceof JvmArgsParseError) return issue(code, 'error', error.messageKey, error.params);
+  return { code, severity: 'error', message: error instanceof Error ? error.message : String(error) };
 }
 
 function parseJvmTokens(value: string, unescapeQuotedBackslashes: boolean): string[] {
@@ -194,7 +236,7 @@ function parseJvmTokens(value: string, unescapeQuotedBackslashes: boolean): stri
     tokenStarted = true;
   }
 
-  if (quote) throw new Error('JVM 参数包含未闭合的引号');
+  if (quote) throw new JvmArgsParseError('server.jvm.issue.unclosedQuote');
   pushCurrent();
   return args;
 }
@@ -291,7 +333,7 @@ export function parseJvmArgFile(value: string): string[] {
     current += character;
     tokenStarted = true;
   }
-  if (quote) throw new Error('JVM 参数包含未闭合的引号');
+  if (quote) throw new JvmArgsParseError('server.jvm.issue.unclosedQuote');
   pushCurrent();
   return args;
 }
@@ -376,37 +418,37 @@ export function validateJvmArgs(
 ): JvmValidationIssue[] {
   const issues: JvmValidationIssue[] = [];
   if (value.length > 8192) {
-    issues.push(issue('ARGS_TOO_LONG', 'error', 'JVM 参数不能超过 8192 个字符'));
+    issues.push(issue('ARGS_TOO_LONG', 'error', 'server.jvm.issue.argsTooLong', { max: 8192 }));
   }
   let args: string[];
   try {
     args = parseJvmArgs(value);
   } catch (error) {
-    return [issue('PARSE_ERROR', 'error', error instanceof Error ? error.message : String(error))];
+    return [parseErrorIssue('PARSE_ERROR', error)];
   }
 
   const xmsArgs = args.filter((argument) => argument.startsWith('-Xms'));
   const xmxArgs = args.filter((argument) => argument.startsWith('-Xmx'));
   if (xmsArgs.length !== 1) {
-    issues.push(issue('XMS_COUNT', 'error', 'JVM 参数必须且只能包含一个 -Xms 初始内存参数'));
+    issues.push(issue('XMS_COUNT', 'error', 'server.jvm.issue.xmsCount'));
   }
   if (xmxArgs.length !== 1) {
-    issues.push(issue('XMX_COUNT', 'error', 'JVM 参数必须且只能包含一个 -Xmx 最大内存参数'));
+    issues.push(issue('XMX_COUNT', 'error', 'server.jvm.issue.xmxCount'));
   }
 
   const xmsMiB = xmsArgs.length === 1 ? parseMemoryMiB(xmsArgs[0]!, 's') : null;
   const xmxMiB = xmxArgs.length === 1 ? parseMemoryMiB(xmxArgs[0]!, 'x') : null;
   if (xmsArgs.length === 1 && xmsMiB === null) {
-    issues.push(issue('XMS_FORMAT', 'error', '初始内存格式无效，请使用例如 -Xms1G 或 -Xms1024M'));
+    issues.push(issue('XMS_FORMAT', 'error', 'server.jvm.issue.xmsFormat'));
   }
   if (xmxArgs.length === 1 && xmxMiB === null) {
-    issues.push(issue('XMX_FORMAT', 'error', '最大内存格式无效，请使用例如 -Xmx4G 或 -Xmx4096M'));
+    issues.push(issue('XMX_FORMAT', 'error', 'server.jvm.issue.xmxFormat'));
   }
   if (xmsMiB !== null && xmxMiB !== null && xmsMiB > xmxMiB) {
-    issues.push(issue('MEMORY_ORDER', 'error', '初始内存不能大于最大内存'));
+    issues.push(issue('MEMORY_ORDER', 'error', 'server.jvm.issue.memoryOrder'));
   }
   if (xmxMiB !== null && context.totalMemoryMiB && xmxMiB > context.totalMemoryMiB - 2048) {
-    issues.push(issue('MEMORY_HIGH', 'warning', '最大内存接近或超过主机可安全分配范围，请为系统和面板保留内存'));
+    issues.push(issue('MEMORY_HIGH', 'warning', 'server.jvm.issue.memoryHigh'));
   }
 
   for (const argument of args) {
@@ -417,33 +459,40 @@ export function validateJvmArgs(
       || normalizedArgument.startsWith('--class-path=')
       || normalizedArgument.startsWith('--module=')
     ) {
-      issues.push(issue('PANEL_OWNED_ARGUMENT', 'error', `参数 ${argument} 由面板管理，不能写入 JVM 参数`));
+      issues.push(issue('PANEL_OWNED_ARGUMENT', 'error', 'server.jvm.issue.panelOwnedArgument', { argument }));
     }
   }
   const gcSelectors = args.filter((argument) => GC_SELECTOR_PATTERN.test(argument));
   if (gcSelectors.length > 1) {
-    issues.push(issue('GC_CONFLICT', 'error', '垃圾回收器参数不能重复，也不能同时选择多个回收器'));
+    issues.push(issue('GC_CONFLICT', 'error', 'server.jvm.issue.gcConflict'));
   }
 
   const nonMemoryArgs = args.filter((argument) => !argument.startsWith('-Xms') && !argument.startsWith('-Xmx'));
   const detected = detectPreset(nonMemoryArgs);
   const preset = presetById(detected.presetId);
+  const presetLabel: PanelMessage | null = preset ? { key: PRESET_LABEL_KEYS[preset.id] } : null;
   if (preset?.supportedCoreTypes && context.coreType && !preset.supportedCoreTypes.includes(context.coreType)) {
-    issues.push(issue('PRESET_CORE_MISMATCH', 'error', `${preset.label} 仅适用于 ${preset.supportedCoreTypes.join('/')} 核心`));
+    issues.push(issue('PRESET_CORE_MISMATCH', 'error', 'server.jvm.issue.presetCoreMismatch', {
+      preset: presetLabel!,
+      cores: preset.supportedCoreTypes.join('/'),
+    }));
   }
   if (preset?.supportedJavaMajors) {
     if (context.javaMajor == null) {
-      issues.push(issue('JAVA_MAJOR_UNKNOWN', 'warning', `${preset.label} 尚未确认所选 Java 版本是否兼容`));
+      issues.push(issue('JAVA_MAJOR_UNKNOWN', 'warning', 'server.jvm.issue.javaMajorUnknown', { preset: presetLabel! }));
     } else if (!preset.supportedJavaMajors.includes(context.javaMajor)) {
-      issues.push(issue('PRESET_JAVA_MISMATCH', 'warning', `${preset.label} 未验证支持 Java ${context.javaMajor}`));
+      issues.push(issue('PRESET_JAVA_MISMATCH', 'warning', 'server.jvm.issue.presetJavaMismatch', {
+        preset: presetLabel!,
+        java: context.javaMajor,
+      }));
     }
   }
   if (detected.presetId === 'paper-aikar' && xmsMiB !== null && xmxMiB !== null) {
     if (xmsMiB !== xmxMiB) {
-      issues.push(issue('PAPER_MEMORY_MISMATCH', 'error', 'Paper Aikar 方案要求 Xms 与 Xmx 相同'));
+      issues.push(issue('PAPER_MEMORY_MISMATCH', 'error', 'server.jvm.issue.paperMemoryMismatch'));
     }
     if (xmxMiB < 6144) {
-      issues.push(issue('PAPER_MEMORY_LOW', 'warning', 'PaperMC 建议为 Aikar 参数分配至少 6 GiB 内存'));
+      issues.push(issue('PAPER_MEMORY_LOW', 'warning', 'server.jvm.issue.paperMemoryLow'));
     }
   }
   return issues;
@@ -504,7 +553,7 @@ export function inspectJvmArgFile(
       source: 'user_jvm_args.txt',
       raw,
       canonicalArgs: null,
-      issues: [issue('ARGFILE_PARSE_ERROR', 'error', error instanceof Error ? error.message : String(error))],
+      issues: [parseErrorIssue('ARGFILE_PARSE_ERROR', error)],
     };
   }
 }
@@ -525,9 +574,17 @@ export function buildJvmArgs(input: {
   ]);
 }
 
+/** 第一条错误诊断（含消息键与参数）；没有错误时返回 null。 */
+export function firstJvmValidationIssue(
+  value: string,
+  context: JvmValidationContext = {},
+): JvmValidationIssue | null {
+  return validateJvmArgs(value, context).find((item) => item.severity === 'error') ?? null;
+}
+
 export function firstJvmValidationError(
   value: string,
   context: JvmValidationContext = {},
 ): string | null {
-  return validateJvmArgs(value, context).find((item) => item.severity === 'error')?.message ?? null;
+  return firstJvmValidationIssue(value, context)?.message ?? null;
 }

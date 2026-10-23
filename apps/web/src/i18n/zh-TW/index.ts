@@ -12,6 +12,7 @@ import consoleMessages from './console';
 import configMessages from './config';
 import filesMessages from './files';
 import tasksMessages from './tasks';
+import serverMessages from './server';
 
 export default {
   ...commonMessages,
@@ -27,4 +28,5 @@ export default {
   ...configMessages,
   ...filesMessages,
   ...tasksMessages,
+  ...serverMessages,
 };

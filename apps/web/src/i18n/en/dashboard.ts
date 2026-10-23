@@ -20,9 +20,6 @@ export default {
   'dashboard.metrics.unavailable': 'Unavailable',
   'dashboard.metrics.collecting': 'Collecting…',
   'dashboard.metrics.valueStale': '{value} (stale)',
-  'dashboard.metrics.warning.cpuHigh': 'Host CPU has stayed high',
-  'dashboard.metrics.warning.memoryHigh': 'Host memory has stayed high',
-  'dashboard.metrics.warning.diskLow': 'Data disk is low on space',
 
   'dashboard.metric.hostCpu.label': 'Host CPU',
   'dashboard.metric.hostCpu.detail': 'Total capacity of all logical cores',

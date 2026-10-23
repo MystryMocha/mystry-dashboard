@@ -6,22 +6,22 @@ import { pipeline } from 'node:stream/promises';
 import { config } from '../config.js';
 import { resolveSafePath } from '../utils/path.js';
 import { createByteCounter } from '../utils/byte-counter.js';
-import { hasErrorCode } from '../utils/errors.js';
+import { hasErrorCode, PanelError } from '../utils/errors.js';
 
-export class UploadCapacityError extends Error {
+export class UploadCapacityError extends PanelError {
   readonly code = 'UPLOAD_CAPACITY';
 
   constructor() {
-    super('上传并发容量已满，请稍后重试');
+    super('server.files.upload.capacity', undefined, { statusCode: 429 });
     this.name = 'UploadCapacityError';
   }
 }
 
-export class UploadTooLargeError extends Error {
+export class UploadTooLargeError extends PanelError {
   readonly code = 'UPLOAD_TOO_LARGE';
 
   constructor() {
-    super('上传文件超过大小限制');
+    super('server.files.upload.tooLarge', undefined, { statusCode: 413 });
     this.name = 'UploadTooLargeError';
   }
 }
@@ -64,7 +64,7 @@ export async function streamToUploadTemp(input: Readable, prefix: string): Promi
     clearIdleTimer();
     idleTimer = setTimeout(() => {
       timedOut = true;
-      const error = new Error('上传流空闲超时');
+      const error = new PanelError('server.files.upload.idleTimeout');
       input.destroy(error);
     }, config.uploadIdleTimeoutMs);
   };
@@ -94,7 +94,7 @@ export async function streamToUploadTemp(input: Readable, prefix: string): Promi
     if ((input as Readable & { truncated?: boolean }).truncated) {
       throw new UploadTooLargeError();
     }
-    if (timedOut) throw new Error('上传流空闲超时');
+    if (timedOut) throw new PanelError('server.files.upload.idleTimeout');
     throw err;
   } finally {
     clearIdleTimer();
@@ -107,7 +107,7 @@ export function removeUploadTemp(filePath: string): void {
   const uploadRoot = path.resolve(config.uploadDir);
   const relative = path.relative(uploadRoot, resolved);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new Error('非法临时文件路径');
+    throw new PanelError('server.files.upload.invalidTempPath');
   }
   fs.rmSync(resolved, { force: true });
 }
@@ -116,7 +116,7 @@ export function removeUploadTemp(filePath: string): void {
 export function assertUploadPath(filePath: string): string {
   const safe = resolveSafePath(config.uploadDir, path.basename(filePath));
   if (!path.basename(safe).startsWith('.tmp-import-')) {
-    throw new Error('非法上传临时文件');
+    throw new PanelError('server.files.upload.invalidTemp');
   }
   return safe;
 }
@@ -125,7 +125,7 @@ export function assertUploadPath(filePath: string): string {
 export function assertImportPreviewUploadPath(filePath: string): string {
   const safe = resolveSafePath(config.uploadDir, path.basename(filePath));
   if (!path.basename(safe).startsWith('.tmp-import-preview-')) {
-    throw new Error('非法 ZIP 预览临时文件');
+    throw new PanelError('server.files.upload.invalidPreviewTemp');
   }
   return safe;
 }

@@ -124,7 +124,10 @@ async function main(): Promise<void> {
     const health = await app.inject({ method: 'GET', url: '/api/health' });
     assert.equal(health.statusCode, 200);
     assert.equal(health.json<{ processFingerprint: string }>().processFingerprint, 'security-self-test');
-    assert.throws(() => resolveSafePath(testRoot, '../outside'), /非法路径/);
+    assert.throws(
+      () => resolveSafePath(testRoot, '../outside'),
+      (error: unknown) => (error as { messageKey?: string }).messageKey === 'server.files.path.outside',
+    );
     assert.equal(getMinecraftChildEnv().JWT_SECRET, undefined);
     const mockedJavaPath = process.platform === 'win32'
       ? 'C:/runtime/bin/java.exe'
@@ -149,9 +152,11 @@ async function main(): Promise<void> {
     ].join('\n');
     assert.equal(isRetryableInstallerFailure(installerNetworkFailure), true);
     assert.equal(isRetryableInstallerFailure('Installer configuration is invalid'), false);
+    const installerFailureSummary = summarizeInstallerDownloadFailure(installerNetworkFailure, 2);
+    assert.equal(installerFailureSummary.key, 'server.deploy.installerDownloadFailed');
     assert.match(
-      summarizeInstallerDownloadFailure(installerNetworkFailure, 2),
-      /已自动重试 1 次.*maven\.minecraftforge\.net 读取超时.*org\.example:library:1\.0/,
+      (await import('@mystry/shared')).renderPanelMessage(installerFailureSummary),
+      /automatic retries: 1, read timed out for maven\.minecraftforge\.net.*org\.example:library:1\.0/,
     );
     assert.throws(
       () => assertDistinctSecrets([
@@ -182,9 +187,12 @@ async function main(): Promise<void> {
         coreType: 'custom',
         javaRuntimeId: unavailableRuntimeId,
       }),
-      /不可用/,
+      { messageKey: 'server.instance.javaRuntimeInvalid' },
     );
-    await assert.rejects(() => resolveJavaRuntimeCommand(unavailableRuntimeId), /不可用/);
+    await assert.rejects(
+      () => resolveJavaRuntimeCommand(unavailableRuntimeId),
+      { messageKey: 'server.instance.javaRuntimeUnavailable' },
+    );
 
     const interruptedInstance = createInstance({ name: '中断任务实例', coreType: 'custom' });
     const interruptedTask = createTask('deploy');
@@ -227,7 +235,10 @@ async function main(): Promise<void> {
       '-Dconfig=C:\\Minecraft Server\\config.json',
       '-Dlabel=Mystry Panel',
     ]);
-    assert.throws(() => parseJvmArgs('-Dconfig="not-closed'), /未闭合的引号/);
+    assert.throws(
+      () => parseJvmArgs('-Dconfig="not-closed'),
+      (error: unknown) => (error as { messageKey?: unknown }).messageKey === 'server.jvm.issue.unclosedQuote',
+    );
     assert.deepEqual(
       parseJvmArgs('-Dshare="\\\\server\\Minecraft Servers"'),
       ['-Dshare=\\\\server\\Minecraft Servers'],
@@ -264,7 +275,7 @@ async function main(): Promise<void> {
     assert.equal(spawnedArgs.includes('-Dconfig=C:\\Minecraft Server\\config.json'), true);
     assert.equal(isolatedProcessManager.getStatus(crashedInstance.id), 'crashed');
     assert.match(isolatedProcessManager.getHistory(crashedInstance.id), /模拟崩溃输出/);
-    assert.match(isolatedProcessManager.getHistory(crashedInstance.id), /退出码 1/);
+    assert.match(isolatedProcessManager.getHistory(crashedInstance.id), /\[Panel\] Process exited \(exit code 1, signal none\)/);
     assert.equal(isolatedProcessManager.getRunningCount(), 0);
     await deleteInstance(crashedInstance.id);
 
@@ -312,6 +323,7 @@ async function main(): Promise<void> {
         modifiedAt: string;
         ready: boolean;
         error?: string;
+        errorI18n?: { key: string };
       }>;
     }>().sources;
     assert.deepEqual(
@@ -325,7 +337,10 @@ async function main(): Promise<void> {
       },
     );
     assert.equal(sourceItems.find((source) => source.id === 'managed-copy')?.ready, false);
-    assert.match(sourceItems.find((source) => source.id === 'managed-copy')?.error ?? '', /实例标记/);
+    assert.equal(
+      sourceItems.find((source) => source.id === 'managed-copy')?.errorI18n?.key,
+      'server.imports.existing.managedMarker',
+    );
 
     const rejectedExistingTraversal = await app.inject({
       method: 'POST',
@@ -549,9 +564,13 @@ async function main(): Promise<void> {
     // 开流失败后票据作废，浏览器轮询能拿到失败原因
     const failing = reserveDownloadTicket('user', 'instance', 'ops.txt', noRelease);
     assert.ok(beginDownloadStream(failing.ticket, 'instance', 'ops.txt'));
-    failDownloadStream(failing.ticket, '文件打开失败');
+    failDownloadStream(failing.ticket, { key: 'server.files.download.openFailed' });
     assert.equal(beginDownloadStream(failing.ticket, 'instance', 'ops.txt'), null);
-    assert.deepEqual(getDownloadTicketStatus(failing.ticket, 'user'), { status: 'failed', error: '文件打开失败' });
+    assert.deepEqual(getDownloadTicketStatus(failing.ticket, 'user'), {
+      status: 'failed',
+      error: "Couldn't open the file.",
+      errorI18n: { key: 'server.files.download.openFailed' },
+    });
 
     const uploaded = await streamToUploadTemp(Readable.from([Buffer.from('streamed')]), 'test');
     assert.equal(fs.readFileSync(uploaded, 'utf8'), 'streamed');
@@ -702,7 +721,10 @@ async function main(): Promise<void> {
     const badZipPath = path.join(testRoot, 'bad.zip');
     fs.writeFileSync(badZipPath, makeStoredZip('../escape.txt', Buffer.from('nope')));
     const badExtracted = path.join(testRoot, 'bad-extracted');
-    await assert.rejects(() => safeExtract(badZipPath, badExtracted), /不安全的 ZIP 路径/);
+    await assert.rejects(
+      () => safeExtract(badZipPath, badExtracted),
+      (error: unknown) => (error as { messageKey?: string }).messageKey === 'server.files.zip.unsafePath',
+    );
     assert.equal(fs.existsSync(path.join(testRoot, 'escape.txt')), false);
 
     const missingLauncherToken = await app.inject({

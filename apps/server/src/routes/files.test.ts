@@ -60,11 +60,20 @@ test('GET 开流失败应通过 ticket 状态查询反馈 SPA', async () => {
   const issued = reserveDownloadTicket('user-1', 'inst-1', 'missing.txt', () => {
     released = true;
   });
-  failDownloadStream(issued.ticket, '文件不存在');
+  failDownloadStream(issued.ticket, { key: 'server.files.fileNotFound' });
   assert.equal(released, true);
   const status = getDownloadTicketStatus(issued.ticket, 'user-1');
   assert.equal(status?.status, 'failed');
-  assert.match(status?.error ?? '', /文件不存在/);
+  assert.equal(status?.errorI18n?.key, 'server.files.fileNotFound');
+  assert.equal(status?.error, 'File not found.');
+
+  // Node.js 流的原始错误文本原样保留，不附带消息键。
+  const raw = reserveDownloadTicket('user-1', 'inst-1', 'raw.txt', () => {});
+  failDownloadStream(raw.ticket, 'EACCES: permission denied');
+  assert.deepEqual(getDownloadTicketStatus(raw.ticket, 'user-1'), {
+    status: 'failed',
+    error: 'EACCES: permission denied',
+  });
 });
 
 test('下载完成后状态查询返回 consumed 而非 404（短时 tombstone）', async () => {
@@ -183,11 +192,11 @@ test('streaming 失败在签发 TTL 后仍可查询失败原因', async () => {
     assert.equal(beginDownloadStream(issued.ticket, 'inst-1', 'logs/latest.log')?.userId, 'user-1');
 
     mock.timers.tick(config.fileDownloadTicketTtlSeconds * 1000 + 1);
-    failDownloadStream(issued.ticket, '文件下载空闲超时');
+    failDownloadStream(issued.ticket, { key: 'server.files.download.idleTimeout' });
 
     const status = getDownloadTicketStatus(issued.ticket, 'user-1');
     assert.equal(status?.status, 'failed');
-    assert.match(status?.error ?? '', /空闲超时/);
+    assert.equal(status?.errorI18n?.key, 'server.files.download.idleTimeout');
   } finally {
     const { resetDownloadTicketsForTests } = await import('../services/download-ticket-service.js');
     resetDownloadTicketsForTests();
@@ -202,7 +211,9 @@ test('开流前 close 应结束等待并移除监听', async () => {
 
   stream.emit('close');
 
-  await assert.rejects(opening, /文件下载连接已中止/);
+  await assert.rejects(opening, (err: unknown) => (
+    err instanceof Error && (err as { messageKey?: string }).messageKey === 'server.files.download.aborted'
+  ));
   assert.equal(stream.listenerCount('open'), 0);
   assert.equal(stream.listenerCount('error'), 0);
   assert.equal(stream.listenerCount('close'), 0);
@@ -224,7 +235,7 @@ test('所属用户取消 reserved ticket 应立即释放槽位并进入取消终
   assert.equal(cancelReservedDownloadTicket(issued.ticket, 'user-1', 'inst-1'), 'cancelled');
   assert.equal(released, 1);
   assert.equal(getDownloadTicketStatus(issued.ticket, 'user-1')?.status, 'failed');
-  assert.match(getDownloadTicketStatus(issued.ticket, 'user-1')?.error ?? '', /已取消/);
+  assert.equal(getDownloadTicketStatus(issued.ticket, 'user-1')?.errorI18n?.key, 'server.files.download.cancelled');
 });
 
 test('跨用户或跨实例取消 ticket 应拒绝且不释放', async () => {

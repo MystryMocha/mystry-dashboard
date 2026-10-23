@@ -1,23 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Cpu, HardDrive, MemoryStick, type LucideIcon } from 'lucide-react';
-import type { DashboardMetrics as Metrics, InstanceInfo } from '@mystry/shared';
+import {
+  isPanelMessage,
+  type DashboardMetrics as Metrics,
+  type InstanceInfo,
+  type ServerMessageKey,
+} from '@mystry/shared';
 import { api } from '../api';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n, type I18n, type MessageKey } from '../i18n';
 
-// 服务端监测告警是固定的中文文案，这里按原文映射到文案键；未知告警回落显示原文。
-const WARNING_CPU_HIGH = '主机 CPU 持续偏高';
-const WARNING_MEMORY_HIGH = '主机内存持续偏高';
-const WARNING_DISK_LOW = '数据盘剩余空间不足';
-const warningKeys: Record<string, MessageKey> = {
-  [WARNING_CPU_HIGH]: 'dashboard.metrics.warning.cpuHigh',
-  [WARNING_MEMORY_HIGH]: 'dashboard.metrics.warning.memoryHigh',
-  [WARNING_DISK_LOW]: 'dashboard.metrics.warning.diskLow',
-};
+/** 服务端监测告警：有消息键时按当前语言显示，否则显示服务端原文。 */
+export function metricWarningTexts(metrics: Metrics, tm: I18n['tm']): string[] {
+  return metrics.warnings.map((warning, index) => {
+    const message = metrics.warningsI18n?.[index];
+    return tm(isPanelMessage(message) ? message : undefined, warning);
+  });
+}
 
-export function metricWarningText(warning: string, t: I18n['t']): string {
-  const key = warningKeys[warning];
-  return key ? t(key) : warning;
+/** 按消息键判断是否出现某类告警。 */
+function hasWarning(metrics: Metrics | null, key: ServerMessageKey): boolean {
+  return metrics?.warningsI18n?.some((message) => message.key === key) ?? false;
 }
 
 export function processMetric(
@@ -146,7 +149,7 @@ export function HostMetricCards({ metrics, error }: { metrics: Metrics | null; e
       value={metrics?.cpuPercent == null ? (error ? unavailable : collecting) : fmt.percent(metrics.cpuPercent)}
       detail={t('dashboard.metric.hostCpu.detail')}
       ratio={metrics?.cpuPercent}
-      warning={metrics?.warnings.includes(WARNING_CPU_HIGH)}
+      warning={hasWarning(metrics, 'server.system.metricsCpuHigh')}
     />
     <MetricWidget
       label={t('dashboard.metric.hostMemory.label')}
@@ -155,7 +158,7 @@ export function HostMetricCards({ metrics, error }: { metrics: Metrics | null; e
       value={metrics ? `${fmt.gib(metrics.memory.usedBytes)} / ${fmt.gib(metrics.memory.totalBytes)}` : (error ? unavailable : collecting)}
       detail={t('dashboard.metric.hostMemory.detail')}
       ratio={metrics ? metrics.memory.usedBytes / metrics.memory.totalBytes * 100 : null}
-      warning={metrics?.warnings.includes(WARNING_MEMORY_HIGH)}
+      warning={hasWarning(metrics, 'server.system.metricsMemoryHigh')}
     />
     <MetricWidget
       label={t('dashboard.metric.disk.label')}
@@ -164,7 +167,7 @@ export function HostMetricCards({ metrics, error }: { metrics: Metrics | null; e
       value={metrics?.disk ? `${fmt.gib(metrics.disk.availableBytes)} GiB` : (metrics || error ? unavailable : collecting)}
       detail={t('dashboard.metric.disk.detail')}
       ratio={metrics?.disk ? (1 - metrics.disk.availableBytes / metrics.disk.totalBytes) * 100 : null}
-      warning={metrics?.warnings.includes(WARNING_DISK_LOW)}
+      warning={hasWarning(metrics, 'server.system.metricsDiskLow')}
     />
   </>;
 }

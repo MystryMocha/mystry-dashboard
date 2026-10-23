@@ -54,7 +54,7 @@ Web 界面支持英文（默认）、简体中文和繁體中文，规则如下�
 - 英文：标题、按钮、菜单、标签页用 Title Case；说明、提示、对话框正文用 sentence case 并以句号结尾；称呼用 you；技术名（Paper、JVM、`server.properties` 等）不翻译。英文通常比中文长 30–60%，横排里的按钮和标签要 `white-space: nowrap` + `flex-shrink: 0`，窄屏下检查不被挤成竖排。
 - 繁體中文用台湾惯用词，不要把简体直接转成繁体：伺服器、檔案、資料夾、連線、載入、設定、主控台、指令、當機；对照表见 `i18n/zh-TW/common.ts`。
 - 数字、日期和大小用 `useI18n().fmt`（基于 `Intl`），不要写死 `'zh-CN'`。
-- 服务端返回的错误和任务进度目前只有中文，前端原样显示。
+- 服务端返回给用户的错误和任务进度用 `server.*` 消息键（`PanelError`、`panelErrorBody`、任务 `report(progress, { key, params })`）：英文模板写在 `packages/shared/src/messages/<区域>.ts`，简体与繁體翻译写在 `apps/web/src/i18n/zh-CN/server/`、`zh-TW/server/`。服务端不再写中文提示；启动期终端日志除外。
 
 中文界面文字、错误信息和用户文档按下表统一叫法：
 

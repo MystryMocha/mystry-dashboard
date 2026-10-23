@@ -22,9 +22,6 @@ export default {
   'dashboard.metrics.unavailable': '暂不可用',
   'dashboard.metrics.collecting': '采集中…',
   'dashboard.metrics.valueStale': '{value}（过期）',
-  'dashboard.metrics.warning.cpuHigh': '主机 CPU 持续偏高',
-  'dashboard.metrics.warning.memoryHigh': '主机内存持续偏高',
-  'dashboard.metrics.warning.diskLow': '数据盘剩余空间不足',
 
   'dashboard.metric.hostCpu.label': '主机 CPU',
   'dashboard.metric.hostCpu.detail': '整机逻辑核总容量',

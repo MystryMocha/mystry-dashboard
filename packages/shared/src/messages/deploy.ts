@@ -1,0 +1,61 @@
+/** 服务端返回给用户的消息：核心元数据、下载与安装。值为英文模板，`{name}` 为参数占位；其他语言由 Web 文案表按键翻译。 */
+export const DEPLOY_MESSAGES = {
+  'server.deploy.unsupportedCore': "This core type isn't supported.",
+  'server.deploy.invalidParams': 'The deploy request has unsupported fields or an invalid format.',
+  'server.deploy.missingParams': 'Required parameters are missing.',
+  'server.deploy.downloadTimeout': 'The core download timed out.',
+  'server.deploy.metadataTimeout': 'The core metadata request timed out.',
+
+  // 核心下载
+  'server.deploy.downloadHttpFailed': 'The download failed (HTTP {status}): {url}',
+  'server.deploy.downloadTooLarge': 'The core download exceeds the size limit.',
+
+  // 核心元数据
+  'server.deploy.metadataTooLarge': 'The core metadata exceeds the size limit.',
+  'server.deploy.metadataNoBody': 'The core metadata response has no body.',
+  'server.deploy.metadataHttpFailed': 'The request failed (HTTP {status}): {url}',
+  'server.deploy.neoforgeVersionInvalid': "Can't parse the NeoForge version: {version}",
+  'server.deploy.vanillaVersionNotFound': "Vanilla version {version} wasn't found.",
+  'server.deploy.vanillaNoServerJar': 'This version has no official server jar: {version}',
+  'server.deploy.paperNoBuilds': 'Paper {version} has no available builds.',
+  'server.deploy.paperBuildNotFound': 'Paper {version} has no build #{build}.',
+  'server.deploy.paperNoDownloadUrl': 'Paper {version}#{build} has no download URL.',
+  'server.deploy.fabricNoVersions': 'Fabric {version} has no available Loader or Installer version.',
+
+  // 部署流程
+  'server.deploy.loaderNoVersions': '{coreType} {mcVersion} has no available versions.',
+  'server.deploy.launchTargetNotFound': 'The installation finished, but no launchable server jar or launch arguments file was found.',
+
+  // 安装器（Forge / NeoForge）
+  'server.deploy.installerExitCode': 'The installer exited with code {exitCode}.\n{output}',
+  'server.deploy.installerExitUnknown': 'The installer exited with an unknown code.\n{output}',
+  'server.deploy.installerDownloadFailed': "The installer couldn't download its dependencies ({detail}). {libraries}Check your network, proxy, or firewall, and then deploy again.",
+  'server.deploy.installerFailedLibraries': 'Failed dependencies: {libraries}. ',
+  'server.deploy.installerRetried': 'automatic retries: {count}, {detail}',
+  'server.deploy.installerHostReason': '{reason} for {host}',
+  'server.deploy.installerReason.connectFailed': 'connection failed',
+  'server.deploy.installerReason.readTimeout': 'read timed out',
+  'server.deploy.installerReason.dnsFailed': 'DNS lookup failed',
+  'server.deploy.installerReason.tlsFailed': 'TLS connection failed',
+
+  // 部署任务进度
+  'server.deploy.progress.deploying': 'Deploying {coreType} {mcVersion}',
+  'server.deploy.progress.resolvingLoader': 'Resolving the Forge/NeoForge version…',
+  'server.deploy.progress.usingCachedInstaller': 'Using the cached installer…',
+  'server.deploy.progress.downloadingInstaller': 'Downloading the installer…',
+  'server.deploy.progress.downloadingInstallerPercent': 'Downloading the installer {percent}%',
+  'server.deploy.progress.runningInstaller': 'Running --installServer…',
+  'server.deploy.progress.detectingLaunch': 'Detecting the launch files…',
+  'server.deploy.progress.writingInstance': 'Writing the instance folder…',
+  'server.deploy.progress.resolvingUrl': 'Resolving the download URL…',
+  'server.deploy.progress.usingCache': 'Using the local cache…',
+  'server.deploy.progress.startingDownload': 'Starting the core download…',
+  'server.deploy.progress.downloading': 'Downloading {percent}%',
+  'server.deploy.progress.writingConfig': 'Writing the launch configuration…',
+  'server.deploy.progress.completed': 'Deployment complete',
+  'server.deploy.progress.installerDownloading': 'The installer is downloading {name}…',
+  'server.deploy.progress.installerDownloadingUnknown': 'The installer is downloading a dependency…',
+  'server.deploy.progress.installerDownloadsDone': 'Installer downloads finished: {count}…',
+  'server.deploy.progress.installerNetworkIssue': 'The installer hit a network problem and is still working…',
+  'server.deploy.progress.installerRetrying': 'The installer download was incomplete. Retrying automatically ({attempt}/{max})…',
+} as const satisfies Record<string, string>;

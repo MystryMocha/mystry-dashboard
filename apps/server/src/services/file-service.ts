@@ -6,15 +6,15 @@ import type { FileEntry } from '@mystry/shared';
 import { config } from '../config.js';
 import { getInstanceDir, OWNERSHIP_MARKER_FILE, resolveSafePath } from '../utils/path.js';
 import { streamToUploadTemp, removeUploadTemp } from './upload-service.js';
-import { hasErrorCode } from '../utils/errors.js';
+import { hasErrorCode, PanelError } from '../utils/errors.js';
 
 const { maxTextFileBytes } = config;
 
-export class FileDownloadCapacityError extends Error {
+export class FileDownloadCapacityError extends PanelError {
   readonly code = 'FILE_DOWNLOAD_CAPACITY';
 
   constructor() {
-    super('文件下载并发容量已满，请稍后重试');
+    super('server.files.download.capacity', undefined, { statusCode: 429 });
     this.name = 'FileDownloadCapacityError';
   }
 }
@@ -24,12 +24,12 @@ export function isFileDownloadCapacityError(error: unknown): error is FileDownlo
     || hasErrorCode(error, 'FILE_DOWNLOAD_CAPACITY');
 }
 
-export class FileRenameConflictError extends Error {
+export class FileRenameConflictError extends PanelError {
   readonly code = 'FILE_RENAME_CONFLICT' as const;
   readonly httpStatus = 409 as const;
 
-  constructor(message = '目标路径已存在，无法重命名') {
-    super(message);
+  constructor() {
+    super('server.files.rename.conflict', undefined, { statusCode: 409 });
     this.name = 'FileRenameConflictError';
   }
 }
@@ -64,11 +64,11 @@ function samePath(left: string, right: string): boolean {
 /** 所有会改变实例目录的入口都不得触碰根目录或 ownership marker。 */
 function assertMutableTarget(root: string, target: string): void {
   if (samePath(root, target)) {
-    throw new Error('不能修改实例根目录');
+    throw new PanelError('server.files.rootImmutable');
   }
   const marker = resolveSafePath(root, OWNERSHIP_MARKER_FILE);
   if (samePath(marker, target)) {
-    throw new Error('不能修改实例所有权标记');
+    throw new PanelError('server.files.markerImmutable');
   }
 }
 
@@ -76,11 +76,11 @@ export function listFiles(instanceId: string, relativePath = ''): FileEntry[] {
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
   if (!fs.existsSync(target)) {
-    throw new Error('目录不存在');
+    throw new PanelError('server.files.dirNotFound');
   }
   const stat = fs.statSync(target);
   if (!stat.isDirectory()) {
-    throw new Error('目标不是目录');
+    throw new PanelError('server.files.notDirectory');
   }
 
   // 按运行环境区域设置排序（Windows 资源管理器风格：目录优先 + 自然序）
@@ -95,7 +95,7 @@ export function listFiles(instanceId: string, relativePath = ''): FileEntry[] {
     .map((entry) => {
       const full = path.join(target, entry.name);
       const s = fs.lstatSync(full);
-      if (s.isSymbolicLink()) throw new Error('目录中存在符号链接或目录联接，已拒绝访问');
+      if (s.isSymbolicLink()) throw new PanelError('server.files.dirContainsLink');
       const rel = path.relative(root, full).replace(/\\/g, '/');
       return {
         name: entry.name,
@@ -115,30 +115,30 @@ export function readTextFile(instanceId: string, relativePath: string): string {
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
   if (!fs.existsSync(target)) {
-    throw new Error('文件不存在');
+    throw new PanelError('server.files.fileNotFound');
   }
 
   const linkStat = fs.lstatSync(target);
   if (linkStat.isSymbolicLink() || !linkStat.isFile()) {
-    throw new Error('目标不是普通文件');
+    throw new PanelError('server.files.notRegularFile');
   }
   const stat = fs.statSync(target);
   if (!stat.isFile()) {
-    throw new Error('目标不是普通文件');
+    throw new PanelError('server.files.notRegularFile');
   }
   if (stat.size > maxTextFileBytes) {
-    throw new Error(`文本文件超过大小限制（${maxTextFileBytes} 字节）`);
+    throw new PanelError('server.files.text.tooLarge', { limit: maxTextFileBytes });
   }
   return fs.readFileSync(target, 'utf8');
 }
 
 export function writeTextFile(instanceId: string, relativePath: string, content: string): void {
   if (typeof content !== 'string') {
-    throw new Error('文本内容格式不正确');
+    throw new PanelError('server.files.text.invalidContent');
   }
   const contentBytes = Buffer.byteLength(content, 'utf8');
   if (contentBytes > maxTextFileBytes) {
-    throw new Error(`文本文件超过大小限制（${maxTextFileBytes} 字节）`);
+    throw new PanelError('server.files.text.tooLarge', { limit: maxTextFileBytes });
   }
 
   const root = getInstanceDir(instanceId);
@@ -147,7 +147,7 @@ export function writeTextFile(instanceId: string, relativePath: string, content:
   if (fs.existsSync(target)) {
     const stat = fs.lstatSync(target);
     if (stat.isSymbolicLink() || !stat.isFile()) {
-      throw new Error('目标不是普通文件');
+      throw new PanelError('server.files.notRegularFile');
     }
   }
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
@@ -162,14 +162,14 @@ export function assertTextFileWithinLimit(instanceId: string, relativePath: stri
 
   const linkStat = fs.lstatSync(target);
   if (linkStat.isSymbolicLink() || !linkStat.isFile()) {
-    throw new Error('目标不是普通文件');
+    throw new PanelError('server.files.notRegularFile');
   }
   const stat = fs.statSync(target);
   if (!stat.isFile()) {
-    throw new Error('目标不是普通文件');
+    throw new PanelError('server.files.notRegularFile');
   }
   if (stat.size > maxTextFileBytes) {
-    throw new Error(`文本文件超过大小限制（${maxTextFileBytes} 字节）`);
+    throw new PanelError('server.files.text.tooLarge', { limit: maxTextFileBytes });
   }
 }
 
@@ -178,7 +178,7 @@ export function deletePath(instanceId: string, relativePath: string): void {
   const target = resolveSafePath(root, relativePath);
   assertMutableTarget(root, target);
   if (!fs.existsSync(target)) {
-    throw new Error('路径不存在');
+    throw new PanelError('server.files.pathNotFound');
   }
   fs.rmSync(target, { recursive: true, force: true });
 }
@@ -189,7 +189,7 @@ export function renamePath(instanceId: string, from: string, to: string): void {
   const fromDir = path.posix.dirname(fromNorm);
   const toDir = path.posix.dirname(toNorm);
   if (fromDir !== toDir) {
-    throw new Error('重命名只能在同一目录内进行');
+    throw new PanelError('server.files.rename.sameDirOnly');
   }
 
   const root = getInstanceDir(instanceId);
@@ -197,7 +197,7 @@ export function renamePath(instanceId: string, from: string, to: string): void {
   const dest = resolveSafePath(root, to);
   assertMutableTarget(root, src);
   assertMutableTarget(root, dest);
-  if (!fs.existsSync(src)) throw new Error('源路径不存在');
+  if (!fs.existsSync(src)) throw new PanelError('server.files.rename.sourceNotFound');
   if (fs.existsSync(dest)) {
     throw new FileRenameConflictError();
   }
@@ -215,15 +215,15 @@ export function getAbsoluteFilePath(instanceId: string, relativePath: string): s
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
   if (!fs.existsSync(target)) {
-    throw new Error('文件不存在');
+    throw new PanelError('server.files.fileNotFound');
   }
   const linkStat = fs.lstatSync(target);
   if (linkStat.isSymbolicLink()) {
-    throw new Error('文件不存在');
+    throw new PanelError('server.files.fileNotFound');
   }
   const stat = fs.statSync(target);
   if (!stat.isFile()) {
-    throw new Error('文件不存在');
+    throw new PanelError('server.files.fileNotFound');
   }
   return target;
 }
@@ -240,7 +240,7 @@ function createUploadBackupPath(target: string): string {
     const backup = path.join(directory, `.${name}.mystry-upload-backup-${randomBytes(12).toString('hex')}`);
     if (!fs.existsSync(backup)) return backup;
   }
-  throw new Error('无法创建上传覆盖备份文件');
+  throw new PanelError('server.files.upload.backupFailed');
 }
 
 export async function saveUploadedFile(
@@ -263,7 +263,7 @@ export async function saveUploadedFile(
     if (fs.existsSync(target)) {
       const existing = fs.lstatSync(target);
       if (existing.isSymbolicLink() || !existing.isFile()) {
-        throw new Error('目标不是普通文件');
+        throw new PanelError('server.files.notRegularFile');
       }
       backup = createUploadBackupPath(target);
       renameSync(target, backup);
@@ -276,7 +276,7 @@ export async function saveUploadedFile(
           renameSync(backup, target);
           backup = null;
         } catch {
-          throw new Error('上传覆盖失败，且旧文件恢复失败');
+          throw new PanelError('server.files.upload.restoreFailed');
         }
       }
       throw error;
