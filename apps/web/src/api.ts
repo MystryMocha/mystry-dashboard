@@ -14,6 +14,7 @@ import type {
 } from '@mystry/shared';
 import { isInstanceStopPendingResult } from '@mystry/shared';
 import { isAbortError } from './errors';
+import { t } from './i18n';
 
 const TOKEN_KEY = 'mystry_token';
 
@@ -77,7 +78,7 @@ export async function api<T>(
     const message =
       typeof data === 'object' && data && 'error' in data
         ? String((data as { error: string }).error)
-        : `请求失败（${res.status}）`;
+        : t('request.failed', { status: String(res.status) });
     throw new ApiError(res.status, message);
   }
 
@@ -90,7 +91,7 @@ export function instanceApi(instanceId: string, suffix = ''): string {
 }
 
 function abortError(): DOMException {
-  return new DOMException('操作已取消', 'AbortError');
+  return new DOMException(t('request.aborted'), 'AbortError');
 }
 
 function throwIfAborted(signal?: AbortSignal): void {
@@ -142,7 +143,7 @@ function cancelReservedDownloadTicket(instanceId: string, ticket: string): void 
 export function openDownloadPopup(): Window {
   const popup = window.open('about:blank', '_blank');
   if (!popup) {
-    throw new Error('浏览器拦截了下载窗口，请允许弹窗后重试');
+    throw new Error(t('request.download.popupBlocked'));
   }
   try {
     popup.opener = null;
@@ -192,7 +193,7 @@ export async function downloadAuthenticated(
         if (signal?.aborted || isAbortError(error)) throw error;
         // 票据被服务端清理（过期等）时返回 404：关闭空白下载窗并明确报错。
         if (error instanceof ApiError && error.status === 404) {
-          throw new Error('下载票据已过期，请重试');
+          throw new Error(t('request.download.ticketExpiredRetry'));
         }
         if (error instanceof ApiError && error.status === 429) {
           statusPollDelayMs = Math.min(
@@ -214,10 +215,10 @@ export async function downloadAuthenticated(
       }
       if (status.status === 'reserved' || status.status === 'streaming') continue;
       if (status.status === 'failed') {
-        throw new Error(status.error || '文件下载失败');
+        throw new Error(status.error || t('request.download.failed'));
       }
       if (status.status === 'expired') {
-        throw new Error(status.error || '下载票据已过期');
+        throw new Error(status.error || t('request.download.ticketExpired'));
       }
     }
   } catch (error) {
@@ -302,7 +303,7 @@ export async function controlInstance(
     { method: 'POST' },
   );
   if (isInstanceStopPendingResult(result)) {
-    throw new Error(result.error || '服务仍在保存，请等待或选择强制停止');
+    throw new Error(result.error || t('request.stopPending'));
   }
 }
 
@@ -332,7 +333,7 @@ export async function pollTask(
     throwIfAborted(signal);
     onUpdate?.(task);
     if (task.status === 'completed') return task.result;
-    if (task.status === 'failed') throw new Error(task.error || '任务失败');
+    if (task.status === 'failed') throw new Error(task.error || t('request.taskFailed'));
     await delay(TASK_POLL_INTERVAL_MS, signal);
   }
 }

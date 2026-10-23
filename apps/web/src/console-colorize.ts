@@ -2,6 +2,7 @@
  * 控制台日志着色：按 ECMA-48 / ISO 6429 SGR 标准色映射常见级别。
  * INFO=绿、WARN=黄、ERROR=红（使用亮色变体，便于深色终端阅读）。
  */
+import { LOCALES, translate, type MessageKey } from './i18n';
 
 const RESET = '\x1b[0m';
 
@@ -14,6 +15,17 @@ const ANSI = {
 } as const;
 
 const HAS_ANSI = /\x1b\[/;
+
+/**
+ * 面板自身提示前缀：收集所有界面语言的写法，切换语言后旧日志和
+ * 服务端 process-manager 写入的中文「[面板]」仍能着色。
+ */
+function prefixesFor(key: MessageKey): string[] {
+  return [...new Set(LOCALES.map((locale) => translate(locale, key)))];
+}
+
+const PANEL_PREFIXES = prefixesFor('console.prefix.panel');
+const ERROR_PREFIXES = prefixesFor('console.prefix.error');
 
 /**
  * 剥离 OSC（ESC ]…：剪贴板读写/标题/清屏）与除 SGR（ESC [ … m）之外的
@@ -63,8 +75,8 @@ export function colorizeConsoleLine(line: string): string {
   if (!line || HAS_ANSI.test(line)) return sanitizeAnsi(line);
 
   // 面板自身提示
-  if (line.startsWith('[错误]')) return `${ANSI.error}${line}${RESET}`;
-  if (line.startsWith('[面板]')) return `${ANSI.debug}${line}${RESET}`;
+  if (ERROR_PREFIXES.some((prefix) => line.startsWith(prefix))) return `${ANSI.error}${line}${RESET}`;
+  if (PANEL_PREFIXES.some((prefix) => line.startsWith(prefix))) return `${ANSI.debug}${line}${RESET}`;
 
   const match = LEVEL_RE.exec(line);
   if (!match?.[1]) return line;

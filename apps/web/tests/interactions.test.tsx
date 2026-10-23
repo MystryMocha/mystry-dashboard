@@ -31,6 +31,8 @@ let nodes: unknown[];
 let failNodes: boolean;
 beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
+  // 这组回归按中文原文查元素，固定界面语言为 zh-CN；语言切换与英文文案见 i18n.test.tsx。
+  document.documentElement.lang = 'zh-CN'; document.documentElement.dataset.localePreference = 'zh-CN';
   requests = []; nodes = []; failNodes = false; terminal.text = '';
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener() {}, removeEventListener() {} });
   // jsdom 不实现原生模态层；此替身仅验证开关状态与应用的焦点恢复逻辑。

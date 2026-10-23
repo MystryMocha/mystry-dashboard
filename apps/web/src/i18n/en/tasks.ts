@@ -1,0 +1,46 @@
+/** 任务中心、通用弹窗、错误汇总、菜单与请求错误文案（英文主表）。 */
+export default {
+  'tasks.type.download': 'Download Core',
+  'tasks.type.extract': 'Extract Files',
+  'tasks.type.deploy': 'Deploy Instance',
+  'tasks.type.import': 'Import Server',
+
+  'tasks.center.title': 'Task Center',
+  'tasks.center.open_one': 'Open Task Center, {count} task in progress',
+  'tasks.center.open_other': 'Open Task Center, {count} tasks in progress',
+  'tasks.center.close': 'Close Task Center',
+  'tasks.center.refresh': 'Refresh Tasks',
+  'tasks.center.activeBadge': '{count} in progress',
+  'tasks.center.stale': 'Status may be out of date: {error}',
+  'tasks.center.lastSync': 'Last synced: {time}',
+  'tasks.center.loading': 'Loading tasks…',
+  'tasks.center.empty.title': 'No tasks yet',
+  'tasks.center.empty.body': 'Progress appears here after you start a deploy or import.',
+  'tasks.card.runningProgress': '{percent} in progress',
+  'tasks.card.progressLabel': '{type} progress',
+  'tasks.card.viewInstance': 'View Instance →',
+
+  'menu.more': 'More Actions',
+
+  'dialog.confirm.requireText': 'Type "{text}" to confirm.',
+  'dialog.confirm.busy': 'Working…',
+
+  'dialog.error.copy': 'Copy Error',
+  'dialog.error.copied': 'Copied',
+  'dialog.error.copyFailed': 'Copy Failed',
+  'dialog.error.viewDetails': 'View Details',
+  'dialog.error.detailHint': 'The full error. You can copy it for troubleshooting.',
+  'dialog.error.closeLabel': 'Close Error Details',
+  'dialog.error.copiedStatus': 'The error was copied to the clipboard.',
+  'dialog.error.copyFailedStatus': "Couldn't copy. Select the text in the content area and copy it manually.",
+  'dialog.error.copyAll': 'Copy All',
+
+  'request.failed': 'Request failed ({status}).',
+  'request.aborted': 'The operation was canceled.',
+  'request.download.popupBlocked': 'Your browser blocked the download window. Allow pop-ups and try again.',
+  'request.download.ticketExpiredRetry': 'The download link expired. Try again.',
+  'request.download.ticketExpired': 'The download link expired.',
+  'request.download.failed': "The file couldn't be downloaded.",
+  'request.stopPending': 'The server is still saving. Wait, or choose Force Stop.',
+  'request.taskFailed': 'The task failed.',
+} satisfies Record<string, string>;

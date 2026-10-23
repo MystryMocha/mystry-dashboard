@@ -3,10 +3,27 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './auth';
 import { App } from './App';
+import { useI18n, watchBrowserLocale } from './i18n';
 import { watchSystemAppearance } from './theme';
 import './styles.css';
 
 watchSystemAppearance();
+watchBrowserLocale();
+
+function ErrorScreen({ error }: { error: Error }) {
+  const { t } = useI18n();
+  return (
+    <div className="splash" role="alert">
+      <div className="splash-card">
+        <h1 className="splash-title">{t('shell.error.title')}</h1>
+        <p className="splash-text">{String(error.message || error)}</p>
+        <button className="btn btn-primary" type="button" onClick={() => window.location.reload()}>
+          {t('shell.error.reload')}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /** 渲染期异常兜底，避免整页白屏且无法恢复。 */
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -21,19 +38,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   }
 
   render() {
-    if (this.state.error) {
-      return (
-        <div className="splash" role="alert">
-          <div className="splash-card">
-            <h1 className="splash-title">页面出现异常</h1>
-            <p className="splash-text">{String(this.state.error.message || this.state.error)}</p>
-            <button className="btn btn-primary" type="button" onClick={() => window.location.reload()}>
-              刷新页面
-            </button>
-          </div>
-        </div>
-      );
-    }
+    if (this.state.error) return <ErrorScreen error={this.state.error} />;
     return this.props.children;
   }
 }

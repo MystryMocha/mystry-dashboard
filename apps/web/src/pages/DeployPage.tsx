@@ -13,15 +13,16 @@ import { PageHeader } from '../components/PageHeader';
 import { TaskProgress } from '../components/TaskProgress';
 import { errorMessage, isAbortError } from '../errors';
 import { useKeyedLoader } from '../hooks/useKeyedLoader';
+import { useI18n, type MessageKey } from '../i18n';
 
 type CoreType = 'paper' | 'fabric' | 'vanilla' | 'forge' | 'neoforge';
 
-const CORE_ITEMS: Array<{ id: CoreType; name: string; desc: string }> = [
-  { id: 'paper', name: 'Paper', desc: '插件服 · 新手推荐' },
-  { id: 'fabric', name: 'Fabric', desc: '轻量现代化模组' },
-  { id: 'forge', name: 'Forge', desc: '经典重型模组' },
-  { id: 'neoforge', name: 'NeoForge', desc: '新一代模组端' },
-  { id: 'vanilla', name: 'Vanilla', desc: 'Mojang 原版' },
+const CORE_ITEMS: Array<{ id: CoreType; name: string; descKey: MessageKey }> = [
+  { id: 'paper', name: 'Paper', descKey: 'deploy.core.paper.desc' },
+  { id: 'fabric', name: 'Fabric', descKey: 'deploy.core.fabric.desc' },
+  { id: 'forge', name: 'Forge', descKey: 'deploy.core.forge.desc' },
+  { id: 'neoforge', name: 'NeoForge', descKey: 'deploy.core.neoforge.desc' },
+  { id: 'vanilla', name: 'Vanilla', descKey: 'deploy.core.vanilla.desc' },
 ];
 
 function hasLoader(coreType: CoreType | ''): coreType is 'fabric' | 'forge' | 'neoforge' {
@@ -30,13 +31,15 @@ function hasLoader(coreType: CoreType | ''): coreType is 'fabric' | 'forge' | 'n
 
 export function DeployPage() {
   const navigate = useNavigate();
+  const { t, rich } = useI18n();
   // 默认选中新手推荐的 Paper，进入页面即可直接部署最新正式版。
   const [coreType, setCoreType] = useState<CoreType | ''>('paper');
   const [mcVersion, setMcVersion] = useState('');
   const [build, setBuild] = useState<number | ''>('');
   const [loaderVersion, setLoaderVersion] = useState('');
   const [installerVersion, setInstallerVersion] = useState('');
-  const [name, setName] = useState('我的服务器');
+  // 默认实例名按进入页面时的界面语言生成，之后由用户自行修改。
+  const [name, setName] = useState(() => t('deploy.form.name.default'));
   const [jvmArgs, setJvmArgs] = useState('-Xms1G -Xmx2G');
   const [javaRuntimeId, setJavaRuntimeId] = useState<string | null>(null);
   const [javaMajor, setJavaMajor] = useState<number | null>(null);
@@ -108,7 +111,7 @@ export function DeployPage() {
   async function deploy() {
     if (!coreType || !selectedMcVersion) return;
     if (!jvmValid) {
-      setError('请先修正 JVM 参数错误');
+      setError(t('deploy.error.jvmInvalid'));
       return;
     }
     setBusy(true);
@@ -146,8 +149,11 @@ export function DeployPage() {
     }
   }
 
-  const loaderLabel =
-    coreType === 'forge' ? 'Forge 版本' : coreType === 'neoforge' ? 'NeoForge 版本' : 'Loader 版本';
+  const loaderLabel = t(
+    coreType === 'forge' ? 'deploy.form.loader.forge'
+      : coreType === 'neoforge' ? 'deploy.form.loader.neoforge'
+        : 'deploy.form.loader.default',
+  );
 
   // Build、Loader 与 Installer 留空时由服务端解析为最新稳定版，只有核心与游戏版本必填。
   const canDeploy = Boolean(coreType && selectedMcVersion) && acceptEula;
@@ -156,8 +162,8 @@ export function DeployPage() {
   return (
     <div className="page">
       <PageHeader
-        title="一键部署"
-        subtitle="从官方源下载服务端核心，自动完成安装与启动配置。"
+        title={t('nav.deploy')}
+        subtitle={t('deploy.page.subtitle')}
       />
 
       <div className="deploy-layout">
@@ -165,7 +171,7 @@ export function DeployPage() {
           <section className="form-section" aria-labelledby={`${nameFieldId}-core-title`}>
             <h2 className="form-section-title" id={`${nameFieldId}-core-title`}>
               <span className="step-badge" aria-hidden="true">1</span>
-              选择服务端核心
+              {t('deploy.core.title')}
             </h2>
             <div className="core-select-grid" role="radiogroup" aria-labelledby={`${nameFieldId}-core-title`}>
               {CORE_ITEMS.map((item, index) => {
@@ -185,7 +191,7 @@ export function DeployPage() {
                   >
                     <CoreIcon coreType={item.id} />
                     <span className="core-name">{item.name}</span>
-                    <span className="core-desc">{item.desc}</span>
+                    <span className="core-desc">{t(item.descKey)}</span>
                     <span className="core-check" aria-hidden="true"><Check size={12} strokeWidth={3} /></span>
                   </button>
                 );
@@ -196,11 +202,11 @@ export function DeployPage() {
           <section className="form-section">
             <h2 className="form-section-title">
               <span className="step-badge" aria-hidden="true">2</span>
-              基本信息
+              {t('deploy.basic.title')}
             </h2>
             <div className="card form-card">
               <div className="field">
-                <label htmlFor={nameFieldId}>实例名称</label>
+                <label htmlFor={nameFieldId}>{t('deploy.form.name.label')}</label>
                 <input
                   id={nameFieldId}
                   value={name}
@@ -210,9 +216,9 @@ export function DeployPage() {
               </div>
 
               <div className="field">
-                <label id={`${nameFieldId}-mc-version-label`}>游戏版本</label>
+                <label id={`${nameFieldId}-mc-version-label`}>{t('deploy.form.mcVersion.label')}</label>
                 <LazyScrollSelect
-                  ariaLabel="游戏版本"
+                  ariaLabel={t('deploy.form.mcVersion.label')}
                   value={selectedMcVersion}
                   options={versions.data ?? []}
                   onChange={handleMcVersionChange}
@@ -220,16 +226,18 @@ export function DeployPage() {
                   loading={versions.loading}
                   disabled={busy || !coreType}
                   placeholder={
-                    !coreType ? '请先选择上方核心' : versions.loading ? '正在获取版本列表…' : '请选择游戏版本'
+                    !coreType ? t('deploy.form.mcVersion.placeholder.noCore')
+                      : versions.loading ? t('deploy.form.mcVersion.placeholder.loading')
+                        : t('deploy.form.mcVersion.placeholder.select')
                   }
-                  emptyText="暂无可用版本"
+                  emptyText={t('deploy.form.mcVersion.empty')}
                 />
               </div>
               {coreType === 'paper' && (
                 <div className="field">
-                  <label id={`${nameFieldId}-paper-build-label`}>Paper 构建版本（可选）</label>
+                  <label id={`${nameFieldId}-paper-build-label`}>{t('deploy.form.paperBuild.label')}</label>
                   <LazyScrollSelect
-                    ariaLabel="Paper Build"
+                    ariaLabel={t('deploy.form.paperBuild.ariaLabel')}
                     value={build}
                     options={builds.data ?? []}
                     onChange={setBuild}
@@ -237,14 +245,14 @@ export function DeployPage() {
                     loading={builds.loading}
                     formatLabel={(b) => `#${b}`}
                     disabled={busy || !selectedMcVersion}
-                    placeholder="自动使用最新构建（优先稳定版）"
-                    emptyText="暂无 Build"
+                    placeholder={t('deploy.form.paperBuild.placeholder')}
+                    emptyText={t('deploy.form.paperBuild.empty')}
                   />
                 </div>
               )}
               {hasLoader(coreType) && (
                 <div className="field">
-                  <label id={`${nameFieldId}-loader-label`}>{loaderLabel}（可选）</label>
+                  <label id={`${nameFieldId}-loader-label`}>{t('deploy.form.optionalLabel', { label: loaderLabel })}</label>
                   <LazyScrollSelect
                     ariaLabel={loaderLabel}
                     value={loaderVersion}
@@ -253,40 +261,40 @@ export function DeployPage() {
                     onOpen={() => void loaders.load()}
                     loading={loaders.loading}
                     disabled={busy || !selectedMcVersion}
-                    placeholder="自动使用最新稳定版"
-                    emptyText="暂无版本"
+                    placeholder={t('deploy.form.latestStable')}
+                    emptyText={t('deploy.form.versionEmpty')}
                   />
                 </div>
               )}
               {coreType === 'fabric' && (
                 <div className="field">
-                  <label id={`${nameFieldId}-installer-label`}>Installer 版本（可选）</label>
+                  <label id={`${nameFieldId}-installer-label`}>{t('deploy.form.installer.label')}</label>
                   <LazyScrollSelect
-                    ariaLabel="Fabric Installer 版本"
+                    ariaLabel={t('deploy.form.installer.ariaLabel')}
                     value={installerVersion}
                     options={loaders.data?.installers ?? []}
                     onChange={setInstallerVersion}
                     onOpen={() => void loaders.load()}
                     loading={loaders.loading}
                     disabled={busy || !selectedMcVersion}
-                    placeholder="自动使用最新稳定版"
-                    emptyText="暂无版本"
+                    placeholder={t('deploy.form.latestStable')}
+                    emptyText={t('deploy.form.versionEmpty')}
                   />
                 </div>
               )}
               {(coreType === 'forge' || coreType === 'neoforge') && (
                 <p className="field-help">
-                  Forge / NeoForge 需要先下载官方安装器并完成安装，耗时会比其他核心长一些。
+                  {t('deploy.form.forgeHelp')}
                 </p>
               )}
-              {metadataError && <p className="error" role="alert">无法获取版本信息：{metadataError}</p>}
+              {metadataError && <p className="error" role="alert">{t('deploy.form.metadataError', { error: metadataError })}</p>}
             </div>
           </section>
 
           <section className="form-section">
             <h2 className="form-section-title">
               <span className="step-badge" aria-hidden="true">3</span>
-              运行环境
+              {t('deploy.runtime.title')}
             </h2>
             <div className="card form-card">
               <JavaRuntimeSelect
@@ -311,28 +319,35 @@ export function DeployPage() {
           <section className="form-section">
             <h2 className="form-section-title">
               <span className="step-badge" aria-hidden="true">4</span>
-              确认并部署
+              {t('deploy.confirm.title')}
             </h2>
             <div className="card form-card">
               <EulaCheckbox checked={acceptEula} disabled={busy} onChange={setAcceptEula} />
               {!acceptEula && (
                 <p className="field-help">
-                  Minecraft 服务器必须同意 EULA 才能运行，勾选后才能开始部署。
+                  {t('deploy.confirm.eulaHelp')}
                 </p>
               )}
-              {progress && <TaskProgress task={progress} label="部署进度" />}
+              {progress && <TaskProgress task={progress} label={t('deploy.progress.label')} />}
               {busy && (
                 <p className="field-help" role="status" aria-live="polite">
-                  部署任务已提交，可以离开此页，进度会在右上角「任务中心」持续更新。
+                  {t('deploy.progress.submitted')}
                 </p>
               )}
-              {error && <ErrorSummary key={error} title="部署失败" detailTitle="部署错误详情" error={error} />}
+              {error && (
+                <ErrorSummary
+                  key={error}
+                  title={t('deploy.error.title')}
+                  detailTitle={t('deploy.error.detailTitle')}
+                  error={error}
+                />
+              )}
             </div>
           </section>
 
           <div className="action-bar">
             <span className="action-bar-status">
-              {selectedCore ? `${selectedCore.name}${selectedMcVersion ? ` ${selectedMcVersion}` : ''}` : '尚未选择核心'}
+              {selectedCore ? `${selectedCore.name}${selectedMcVersion ? ` ${selectedMcVersion}` : ''}` : t('deploy.action.noCore')}
               {name ? ` · ${name}` : ''}
             </span>
             <button
@@ -341,24 +356,24 @@ export function DeployPage() {
               disabled={busy || !canDeploy || !jvmValid}
               onClick={() => void deploy()}
             >
-              {busy ? '部署任务运行中…' : '开始部署'}
+              {busy ? t('deploy.action.running') : t('deploy.action.start')}
             </button>
           </div>
         </div>
 
         {/* 右侧新手指引：怎么选核心、部署后怎么进服 */}
-        <aside className="card deploy-guide" aria-label="新手指引">
-          <h3>选哪个核心？</h3>
+        <aside className="card deploy-guide" aria-label={t('deploy.guide.ariaLabel')}>
+          <h3>{t('deploy.guide.core.title')}</h3>
           <ul>
-            <li><strong>Paper</strong>：想装插件（领地、经济等）选它，性能也更好。</li>
-            <li><strong>Fabric / NeoForge / Forge</strong>：想装模组时，按模组页面要求的加载器选择。</li>
-            <li><strong>Vanilla</strong>：纯原版，不装插件和模组。</li>
+            <li>{rich('deploy.guide.core.paper', { strong: (chunk) => <strong>{chunk}</strong> })}</li>
+            <li>{rich('deploy.guide.core.modded', { strong: (chunk) => <strong>{chunk}</strong> })}</li>
+            <li>{rich('deploy.guide.core.vanilla', { strong: (chunk) => <strong>{chunk}</strong> })}</li>
           </ul>
-          <h3>部署完成后</h3>
+          <h3>{t('deploy.guide.after.title')}</h3>
           <ol>
-            <li>在实例页点「启动」，等控制台出现 <code>Done</code>。</li>
-            <li>同一台电脑的游戏里添加服务器地址 <code>127.0.0.1</code>。</li>
-            <li>朋友加入需要你的局域网或公网地址，并放行防火墙端口（默认 25565）。</li>
+            <li>{rich('deploy.guide.after.start', { code: (chunk) => <code>{chunk}</code> })}</li>
+            <li>{rich('deploy.guide.after.local', { code: (chunk) => <code>{chunk}</code> })}</li>
+            <li>{t('deploy.guide.after.friends')}</li>
           </ol>
         </aside>
       </div>

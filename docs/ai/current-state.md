@@ -46,11 +46,12 @@
 - Paper/Fabric 等 core 缓存键基于解析后的不可变版本/build，旧 `latest` 键不再误命中。
 - 发布工作流（`.github/workflows/portable-release.yml`）：Actions 使用固定 commit SHA；Windows job 显式 `npm run windows:test`；`RELEASE_GPG_FINGERPRINT` 与仓库内发布公钥/指纹文件用于签名链门禁；`package-portable.mjs` 优先 `git rev-parse HEAD`，脏工作树拒绝正式打包。**本机未验证** GitHub Environment 私钥注入、真实 GPG 签名与双平台 Actions smoke 结果。
 - 外观模型参照 macOS：外观 `auto` / `light` / `dark`（持久化 `mystry_appearance`，自动时跟随 `prefers-color-scheme` 并由 `watchSystemAppearance()` 监听系统切换）× 强调色 `blue` / `purple` / `pink`（Mystry 粉）/ `green` / `graphite`（持久化 `mystry_accent`）。index.html 内联脚本在渲染前写入 `<html data-appearance-preference data-appearance data-accent>`；两个新键都缺失时迁移旧 `mystry_theme`（`dark`/`light` → 深/浅 + 粉，`codex*` → 绿，`grok*` → 石墨），都没有时为自动 + 蓝色。CSS 令牌按 `:root[data-appearance]` 与 `[data-accent]` 拆分：`--accent` 填充、`--accent-text` 文字、`--on-accent` 主按钮文字（深色绿/石墨/粉用深色文字保证对比度），语义色为 Apple 系统色。选择器是工具栏与登录页的「外观」弹层（原生单选组，弹层挂到 body，因为毛玻璃父级会成为 fixed 定位的包含块）；控制台终端区域在两种外观下都保持深色。
+- Web 界面多语言（见 D-021）：零依赖实现，`apps/web/src/i18n/`。语言偏好 `auto` / `en` / `zh-CN` / `zh-TW` 持久化在 `mystry_locale`；自动时按浏览器语言列表取第一个 `zh*` 或 `en*`：繁体（`Hant`，或未写 `Hans` 且地区为 TW/HK/MO）用繁體中文，其他 `zh*` 用简体中文，`en*` 或都不匹配用英文，并监听 `languagechange`。index.html 内联脚本在渲染前写入 `<html lang data-locale-preference>`，规则与 `detectLocale()` 一致。文案表按界面区域拆分为 `en/<区域>.ts`（主表）与 `zh-CN/<区域>.ts`、`zh-TW/<区域>.ts`（`satisfies Record<keyof typeof en, string>` 强制键一致），运行时缺键回落 en；`useI18n()` 提供 `t`（`{name}` 插值）、`tp`（`_one`/`_other` 复数）、`rich`（句内标签）与 `fmt`（Intl 数字/日期/大小）。`:root:lang(zh-TW)` 把繁体字体（PingFang TC、Microsoft JhengHei、Noto Sans TC）排在简体字体前。语言切换是工具栏与登录页外观按钮旁的独立「语言」弹层（与外观弹层共用 `usePopover`）。JVM 预设名称与诊断按预设 id / issue code 在前端翻译；服务端返回的错误、任务进度消息和服务端写入控制台的 `[面板]` 提示仍只有中文，前端原样显示。
 - 字体统一使用 `:root` 中的系统字体栈（`--font` / `--mono`，含中文系统字体回落），各主题不再单独指定字体；页面不加载任何外部字体或第三方样式，离线与国内网络下首屏不依赖外网。
 - 前端静态资源：`@mystry/web` 构建在 `vite build` 后运行 `scripts/precompress-dist.mjs`，为 dist 中 ≥1 KiB 的文本资源生成 `.br` / `.gz`；服务端 `@fastify/static` 开启 `preCompressed` 按 `Accept-Encoding` 发送并带 `Vary`，缺失时回落原文件。`/assets/*`（Vite 带 hash 产物）返回 `public, max-age=31536000, immutable`，`index.html` 与 SPA 回落页返回 `no-cache`（见 `frontend-assets.ts` 与 `test:static`）。
 - 文件列表 `listFiles` 只对目标目录调用一次 `resolveSafePath` 逐段校验，条目逐个 `lstat` 拒绝 symlink/junction，不再对每个条目重复 realpath 整条路径（大目录不会长时间阻塞事件循环）。实例根目录的所有权标记 `.mystry-instance.json` 不出现在列表中（子目录同名文件照常列出）；改写类接口仍由 `assertMutableTarget` 拒绝操作它。
 - 一键部署默认选中 Paper，选定核心后自动拉取版本列表并默认选中最新正式版；Paper Build、Fabric Loader/Installer、Forge/NeoForge 版本均为可选，留空时由服务端解析为最新（Paper 优先稳定构建）。部署、ZIP/目录导入、创建空实例三处的 EULA 同意默认不勾选；部署页必须勾选后才能提交，导入和空实例可不勾选（不勾选时启动不改写已有 `eula.txt`）。部署页右侧为新手指引（选核心与进服步骤），不再展示内部实现说明。
-- 面向用户的文案避免内部术语：侧栏「本机环境」（`/nodes`，页面不再展示远程集群锁定卡）、「从本机文件夹导入」（`DATA_DIR/imports`）、「系统默认 Java」（PATH 中的 `java`）、「最大内存」（`-Xmx`）；导入与部分启动、落地错误改为「导入文件夹」「部署临时文件」「Forge/NeoForge 启动参数文件」等说法。
+- 面向用户的文案避免内部术语（英文对应叫法见 `apps/web/src/i18n/en/common.ts` 与贡献指南）：侧栏「本机环境」（`/nodes`，页面不再展示远程集群锁定卡）、「从本机文件夹导入」（`DATA_DIR/imports`）、「系统默认 Java」（PATH 中的 `java`）、「最大内存」（`-Xmx`）；导入与部分启动、落地错误改为「导入文件夹」「部署临时文件」「Forge/NeoForge 启动参数文件」等说法。
 
 主要事实源：
 
@@ -58,6 +59,7 @@
 - `apps/server/src/routes/`
 - `apps/server/src/services/`
 - `apps/web/src/App.tsx`
+- `apps/web/src/i18n/`
 - `packages/shared/src/index.ts`
 
 ## 尚未形成完整用户功能

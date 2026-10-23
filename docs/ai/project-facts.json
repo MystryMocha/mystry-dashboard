@@ -145,6 +145,12 @@
     "apps/web/src/api.ts",
     "apps/web/src/App.tsx",
     "apps/web/src/components/JvmSettingsEditor.tsx",
+    "apps/web/src/components/LanguageToggle.tsx",
+    "apps/web/src/i18n/index.ts",
+    "apps/web/src/i18n/locale.ts",
+    "apps/web/src/i18n/en/common.ts",
+    "apps/web/src/i18n/zh-CN/common.ts",
+    "apps/web/src/i18n/zh-TW/common.ts",
     "packages/shared/src/index.ts",
     "packages/shared/src/jvm-config.ts",
     "packages/shared/src/schemas.ts",
@@ -173,8 +179,13 @@
         "docs/ai/README.md",
         "docs/ai/project-facts.json",
         "npm.cmd run verify",
-        ".slim/deepwork/**"
+        ".slim/deepwork/**",
+        "apps/web/src/i18n/en/*.ts"
       ]
+    },
+    {
+      "path": "apps/web/index.html",
+      "includes": ["mystry_locale", "root.lang = locale"]
     },
     {
       "path": ".cursor/rules/project-knowledge.mdc",

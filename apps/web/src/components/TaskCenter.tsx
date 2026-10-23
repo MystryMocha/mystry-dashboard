@@ -3,14 +3,15 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { Download, FolderDown, Inbox, ListChecks, Package, RefreshCw, Rocket, X, type LucideIcon } from 'lucide-react';
 import type { TaskInfo } from '@mystry/shared';
+import { useI18n, type MessageKey } from '../i18n';
 import { useTaskCenter } from '../task-center-store';
 import { clampProgress } from './TaskProgress';
 
-const typeLabel: Record<TaskInfo['type'], string> = {
-  download: '下载核心',
-  extract: '解压文件',
-  deploy: '部署实例',
-  import: '导入服务端',
+const typeLabel: Record<TaskInfo['type'], MessageKey> = {
+  download: 'tasks.type.download',
+  extract: 'tasks.type.extract',
+  deploy: 'tasks.type.deploy',
+  import: 'tasks.type.import',
 };
 
 const typeIcon: Record<TaskInfo['type'], LucideIcon> = {
@@ -20,23 +21,20 @@ const typeIcon: Record<TaskInfo['type'], LucideIcon> = {
   import: FolderDown,
 };
 
-const statusLabel: Record<TaskInfo['status'], string> = {
-  pending: '排队中',
-  running: '进行中',
-  completed: '已完成',
-  failed: '失败',
+const statusLabel: Record<TaskInfo['status'], MessageKey> = {
+  pending: 'task.status.pending',
+  running: 'task.status.running',
+  completed: 'task.status.completed',
+  failed: 'task.status.failed',
 };
 
-function formatTime(iso: string | null): string {
-  if (!iso) return '';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
+const TASK_TIME_FORMAT: Intl.DateTimeFormatOptions = { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
 
 /** 顶栏的任务中心按钮，点击后像通知中心一样从右侧浮出任务列表与进度。 */
 export function TaskCenter() {
+  const { t, tp, fmt } = useI18n();
   const { tasks, error, loading, activeCount, lastSuccessAt, retry } = useTaskCenter();
+  const formatTime = (iso: string | null): string => (iso ? fmt.dateTime(iso, TASK_TIME_FORMAT) : '');
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDialogElement>(null);
@@ -64,14 +62,14 @@ export function TaskCenter() {
         ref={toggleRef}
         type="button"
         className="toolbar-button toolbar-button-labeled"
-        aria-label={open ? '关闭任务中心' : `打开任务中心，${activeCount} 个任务进行中`}
+        aria-label={open ? t('tasks.center.close') : tp('tasks.center.open', activeCount)}
         aria-expanded={open}
         aria-controls={drawerId}
         onClick={() => setOpen((value) => !value)}
-        title="任务中心"
+        title={t('tasks.center.title')}
       >
         <ListChecks size={18} aria-hidden="true" />
-        <span className="toolbar-label">任务中心</span>
+        <span className="toolbar-label">{t('tasks.center.title')}</span>
         {activeCount > 0 ? (
           <span className="toolbar-badge is-active" aria-hidden="true">{activeCount}</span>
         ) : tasks.length > 0 ? (
@@ -100,15 +98,15 @@ export function TaskCenter() {
       >
         <div className="drawer-header">
           <div className="drawer-title-group">
-            <h2 id={titleId} className="drawer-title">任务中心</h2>
-            {activeCount > 0 && <span className="count-badge is-accent">{activeCount} 进行中</span>}
+            <h2 id={titleId} className="drawer-title">{t('tasks.center.title')}</h2>
+            {activeCount > 0 && <span className="count-badge is-accent">{t('tasks.center.activeBadge', { count: fmt.number(activeCount) })}</span>}
           </div>
           <div className="drawer-tools">
             <button
               className="btn btn-icon btn-plain"
               type="button"
-              title="刷新任务"
-              aria-label="刷新任务"
+              title={t('tasks.center.refresh')}
+              aria-label={t('tasks.center.refresh')}
               onClick={() => retry()}
             >
               <RefreshCw size={15} aria-hidden="true" />
@@ -116,8 +114,8 @@ export function TaskCenter() {
             <button
               className="btn btn-icon btn-plain"
               type="button"
-              title="关闭"
-              aria-label="关闭任务中心"
+              title={t('action.close')}
+              aria-label={t('tasks.center.close')}
               onClick={closeDrawer}
             >
               <X size={17} aria-hidden="true" />
@@ -129,8 +127,8 @@ export function TaskCenter() {
           {stale && (
             <div className="callout callout-danger">
               <div>
-                <strong>状态可能已过期：{error}</strong>
-                {lastSuccessAt && <p>上次成功同步：{formatTime(lastSuccessAt)}</p>}
+                <strong>{t('tasks.center.stale', { error })}</strong>
+                {lastSuccessAt && <p>{t('tasks.center.lastSync', { time: formatTime(lastSuccessAt) })}</p>}
               </div>
             </div>
           )}
@@ -138,15 +136,15 @@ export function TaskCenter() {
           {loading && (
             <p className="drawer-hint">
               <span className="spinner spinner-sm" aria-hidden="true" />
-              正在读取任务列表…
+              {t('tasks.center.loading')}
             </p>
           )}
 
           {!loading && !error && tasks.length === 0 && (
             <div className="empty-state empty-state-compact">
               <span className="empty-icon" aria-hidden="true"><Inbox size={26} /></span>
-              <h3>暂无任务</h3>
-              <p>开始部署或导入后，进度会显示在这里。</p>
+              <h3>{t('tasks.center.empty.title')}</h3>
+              <p>{t('tasks.center.empty.body')}</p>
             </div>
           )}
 
@@ -157,14 +155,16 @@ export function TaskCenter() {
               <article key={task.id} className={`task-card status-${task.status}`}>
                 <div className="task-card-head">
                   <span className="task-card-icon" aria-hidden="true"><Icon size={16} /></span>
-                  <span className="task-card-title">{typeLabel[task.type]}</span>
+                  <span className="task-card-title">{t(typeLabel[task.type])}</span>
                   <span className="task-card-status">
-                    {task.status === 'running' ? `${task.progress}% 进行中` : statusLabel[task.status]}
+                    {task.status === 'running'
+                      ? t('tasks.card.runningProgress', { percent: fmt.percent(task.progress, 0) })
+                      : t(statusLabel[task.status])}
                   </span>
                 </div>
 
                 {active && (
-                  <div className="progress" role="progressbar" aria-label={`${typeLabel[task.type]}进度`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clampProgress(task.progress)}>
+                  <div className="progress" role="progressbar" aria-label={t('tasks.card.progressLabel', { type: t(typeLabel[task.type]) })} aria-valuemin={0} aria-valuemax={100} aria-valuenow={clampProgress(task.progress)}>
                     <div className="progress-fill" style={{ width: `${clampProgress(task.progress)}%` }} />
                   </div>
                 )}
@@ -176,7 +176,7 @@ export function TaskCenter() {
                   <time>{formatTime(task.createdAt)}</time>
                   {task.result?.instanceId && (task.status === 'completed' || task.status === 'failed') && (
                     <Link to={`/instances/${task.result.instanceId}`} onClick={closeDrawer} className="link">
-                      查看实例 →
+                      {t('tasks.card.viewInstance')}
                     </Link>
                   )}
                 </div>

@@ -1,10 +1,13 @@
 import { useRef, useState } from 'react';
 import { BrandMark } from '../components/BrandMark';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../auth';
 import { errorMessage } from '../errors';
+import { useI18n } from '../i18n';
 
 export function LoginPage() {
+  const { t } = useI18n();
   const { needsSetup, statusError, login, setup, refresh } = useAuth();
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
@@ -40,20 +43,21 @@ export function LoginPage() {
     }
   }
 
-  const footer = <p className="login-footer">Mystry Dashboard v{__APP_VERSION__} · Minecraft Java 服务端管理面板</p>;
+  const footer = <p className="login-footer">{t('login.footer', { version: __APP_VERSION__ })}</p>;
 
   if (statusError) {
     return (
       <div className="login-page">
         <div className="login-appearance">
+          <LanguageToggle placement="login" />
           <ThemeToggle placement="login" />
         </div>
         <div className="login-stack">
           <BrandMark size="lg" />
-          <h1 className="login-title">面板服务不可用</h1>
+          <h1 className="login-title">{t('login.unavailable.title')}</h1>
           <p className="callout callout-danger" role="alert">{statusError}</p>
           <button className="btn btn-primary btn-lg btn-block" type="button" disabled={checking} onClick={() => void recheck()}>
-            {checking ? '正在检查…' : '重新检查'}
+            {checking ? t('login.unavailable.checking') : t('login.unavailable.recheck')}
           </button>
           {footer}
         </div>
@@ -64,15 +68,16 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <div className="login-appearance">
+        <LanguageToggle placement="login" />
         <ThemeToggle placement="login" />
       </div>
       <div className="login-stack">
         <BrandMark size="lg" />
-        <h1 className="login-title">{needsSetup ? '初始化管理员' : '登录面板'}</h1>
+        <h1 className="login-title">{needsSetup ? t('login.setup.title') : t('login.signin.title')}</h1>
         <p className="login-subtitle">
           {needsSetup
-            ? '首次启动，请创建管理员账号。'
-            : '使用管理员账号登录 Mystry Dashboard。'}
+            ? t('login.setup.subtitle')
+            : t('login.signin.subtitle')}
         </p>
 
         <form className="login-form" onSubmit={onSubmit}>
@@ -86,7 +91,7 @@ export function LoginPage() {
                 placeholder=" "
                 required
               />
-              <label htmlFor="username">用户名</label>
+              <label htmlFor="username">{t('login.form.username')}</label>
             </div>
             {needsSetup && (
               <div className="float-field">
@@ -102,7 +107,7 @@ export function LoginPage() {
                   aria-describedby="setup-token-help"
                   required
                 />
-                <label htmlFor="setup-token">初始化令牌</label>
+                <label htmlFor="setup-token">{t('login.form.setupToken')}</label>
               </div>
             )}
             <div className="float-field">
@@ -117,22 +122,22 @@ export function LoginPage() {
                 required
                 minLength={needsSetup ? 12 : 1}
               />
-              <label htmlFor="password">密码</label>
+              <label htmlFor="password">{t('login.form.password')}</label>
             </div>
           </div>
 
           {needsSetup && (
             <div className="login-notes">
               <p id="setup-token-help">
-                用启动器打开面板时，令牌已自动复制到剪贴板，按 Ctrl+V 粘贴即可。剪贴板里没有时，请打开面板配置文件（便携版和 Linux 为 config/panel.env，Windows 源码版为 .env），复制 SETUP_TOKEN 的值。
+                {t('login.form.setupTokenHelp')}
               </p>
-              <p id="password-help">密码至少 12 个字符，请牢记，面板暂不支持找回密码。</p>
+              <p id="password-help">{t('login.form.passwordHelp')}</p>
             </div>
           )}
 
           {error && <p className="callout callout-danger" role="alert">{error}</p>}
           <button className="btn btn-primary btn-lg btn-block" type="submit" disabled={busy}>
-            {busy ? '处理中…' : needsSetup ? '创建并进入' : '登录'}
+            {busy ? t('login.submit.busy') : needsSetup ? t('login.submit.setup') : t('login.submit.signin')}
           </button>
         </form>
         {footer}

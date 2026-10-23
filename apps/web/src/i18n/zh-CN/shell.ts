@@ -1,0 +1,37 @@
+import type en from '../en/shell';
+
+/** 应用外壳（侧栏、工具栏、底部标签栏、外观与语言弹层、启动与异常页）文案（简体中文）。 */
+export default {
+  'shell.pageTitle.workspace': '实例工作台',
+  'shell.pageTitle.fallback': '管理控制台',
+  'shell.loading.page': '页面加载中…',
+  'shell.nav.label': '主导航',
+  'shell.nav.open': '打开导航菜单',
+  'shell.nav.close': '关闭导航菜单',
+  'shell.tabBar.label': '快捷导航',
+  'shell.tabBar.overview': '总览',
+  'shell.tabBar.deploy': '部署',
+  'shell.tabBar.import': '导入',
+  'shell.tabBar.machine': '本机',
+  'shell.user.role': '管理员',
+  'shell.user.signOut': '退出登录',
+  'shell.error.title': '页面出现异常',
+  'shell.error.reload': '刷新页面',
+
+  'appearance.title': '外观',
+  'appearance.accent': '强调色',
+  'appearance.auto': '自动',
+  'appearance.light': '浅色',
+  'appearance.dark': '深色',
+  'appearance.button': '外观设置，当前为{appearance}外观，{accent}强调色',
+  'accent.blue': '蓝色',
+  'accent.purple': '紫色',
+  'accent.pink': 'Mystry 粉',
+  'accent.green': '绿色',
+  'accent.graphite': '石墨',
+
+  'language.title': '语言',
+  'language.auto': '自动',
+  'language.auto.hint': '跟随浏览器语言，当前为{language}。',
+  'language.button': '语言设置，当前为{language}',
+} satisfies Record<keyof typeof en, string>;

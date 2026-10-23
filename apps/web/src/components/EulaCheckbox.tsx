@@ -1,3 +1,5 @@
+import { useI18n } from '../i18n';
+
 const MINECRAFT_EULA_URL = 'https://aka.ms/MinecraftEULA';
 
 /** 部署、导入、空实例和实例设置共用的 EULA 同意勾选框；默认不勾选，必须由用户主动同意。 */
@@ -10,6 +12,7 @@ export function EulaCheckbox({
   disabled?: boolean;
   onChange: (checked: boolean) => void;
 }) {
+  const { rich } = useI18n();
   return (
     <label className="checkbox-field">
       <input
@@ -19,11 +22,13 @@ export function EulaCheckbox({
         onChange={(e) => onChange(e.target.checked)}
       />
       <span>
-        我已阅读并同意{' '}
-        <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" className="link">
-          Minecraft EULA
-        </a>
-        （面板会据此写入 eula.txt）
+        {rich('eula.agree', {
+          link: (chunk) => (
+            <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" className="link">
+              {chunk}
+            </a>
+          ),
+        })}
       </span>
     </label>
   );

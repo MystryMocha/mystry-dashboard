@@ -1,14 +1,19 @@
 import type { InstanceInfo } from '@mystry/shared';
+import type { MessageKey } from './i18n';
 
 type InstanceStatus = InstanceInfo['status'];
 
-export const instanceStatusLabel: Record<string, string> = {
-  stopped: '已停止',
-  starting: '启动中',
-  running: '运行中',
-  stopping: '停止中',
-  crashed: '已崩溃',
-};
+/** 实例状态对应的术语表键；未知状态返回 null，由调用方原样显示。 */
+export function instanceStatusKey(status: string): MessageKey | null {
+  switch (status) {
+    case 'stopped': return 'instance.status.stopped';
+    case 'starting': return 'instance.status.starting';
+    case 'running': return 'instance.status.running';
+    case 'stopping': return 'instance.status.stopping';
+    case 'crashed': return 'instance.status.crashed';
+    default: return null;
+  }
+}
 
 export function canStartInstance(status: InstanceStatus): boolean {
   return status === 'stopped' || status === 'crashed';

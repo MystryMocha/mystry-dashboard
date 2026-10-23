@@ -202,8 +202,10 @@ DATA_DIR/
 | `src/App.tsx` | 路由与侧栏布局 |
 | `src/auth.tsx` | 登录态、setup 检测 |
 | `src/api.ts` | `fetch` 封装、实例接口路径编码、实例启停、任务轮询、认证下载 |
-| `src/errors.ts` | 错误文案与中止判断 |
-| `src/instance-status.ts` | 实例状态文案与可执行操作判断 |
+| `src/errors.ts` | 异常转可展示文本与中止判断 |
+| `src/instance-status.ts` | 实例状态对应的术语表键与可执行操作判断 |
+| `src/i18n/` | 多语言：语言检测与切换（`locale.ts`）、`useI18n()` 与 Intl 格式化（`index.ts`）、按区域拆分的 `en/`、`zh-CN/`、`zh-TW/` 文案表 |
+| `src/components/LanguageToggle.tsx`、`ThemeToggle.tsx` | 工具栏与登录页的语言、外观弹层（共用 `hooks/usePopover.ts`） |
 | `src/hooks/*` | 统一间隔的页面轮询（隐藏时暂停）、实例操作、未保存修改拦截、原生 dialog 开关、按 key 缓存的元数据加载 |
 | `src/pages/*` | 各功能页 |
 | `src/components/FilesTab.tsx` | 实例文件管理（列表、上传、编辑、重命名、删除、下载） |

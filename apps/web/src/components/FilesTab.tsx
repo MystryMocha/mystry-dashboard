@@ -4,6 +4,7 @@ import type { FileEntry } from '@mystry/shared';
 import { ApiError, api, downloadAuthenticated, instanceApi } from '../api';
 import { errorMessage, isAbortError } from '../errors';
 import { useDialogOpen } from '../hooks/useDialogOpen';
+import { useI18n, type MessageKey } from '../i18n';
 import { ActionMenu, type ActionMenuItem } from './ActionMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -20,34 +21,19 @@ function parentOf(relativePath: string): string {
   return parts.join('/');
 }
 
-function isValidRenameName(name: string): string | null {
+/** 校验同目录名称，返回错误文案键；folder 为 true 时使用「文件夹名称」的提示。 */
+function validateEntryName(name: string, folder = false): MessageKey | null {
   const trimmed = name.trim();
-  if (!trimmed) return '名称不能为空';
-  if (trimmed.includes('/') || trimmed.includes('\\')) return '名称不能包含路径分隔符';
-  return null;
-}
-
-function formatSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes < 0) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let value = bytes / 1024;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
+  if (!trimmed) return folder ? 'files.validation.folderNameEmpty' : 'files.validation.nameEmpty';
+  if (trimmed.includes('/') || trimmed.includes('\\')) {
+    return folder ? 'files.validation.folderNameSeparator' : 'files.validation.nameSeparator';
   }
-  return `${value >= 100 ? value.toFixed(0) : value.toFixed(1)} ${units[unit]}`;
-}
-
-function formatModified(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return null;
 }
 
 /** 实例文件管理。切换实例时由上层按实例 ID 重新挂载，这里不处理实例变化。 */
 export function FilesTab({ instanceId }: { instanceId: string }) {
+  const { t, fmt } = useI18n();
   const [path, setPath] = useState('');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -231,7 +217,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       await downloadAuthenticated(instanceId, file.path, controller.signal);
     } catch (err) {
       if (controller.signal.aborted || isAbortError(err)) return;
-      setError(err instanceof ApiError && err.status === 429 ? '下载繁忙，请稍后重试' : errorMessage(err));
+      setError(err instanceof ApiError && err.status === 429 ? t('files.download.busy') : errorMessage(err));
     } finally {
       downloadControllersRef.current.delete(controller);
       setBusyPath((current) => (current === file.path ? null : current));
@@ -246,14 +232,14 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
 
   async function confirmRename() {
     if (!renameTarget) return;
-    const validation = isValidRenameName(renameName);
+    const validation = validateEntryName(renameName);
     if (validation) {
-      setRenameError(validation);
+      setRenameError(t(validation));
       return;
     }
     const newName = renameName.trim();
     if (newName === renameTarget.name) {
-      setRenameError('新名称与旧名称相同');
+      setRenameError(t('files.rename.sameName'));
       return;
     }
     const parentPath = parentOf(renameTarget.path);
@@ -298,9 +284,9 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   }
 
   async function createDir() {
-    const validation = isValidRenameName(newDir);
+    const validation = validateEntryName(newDir, true);
     if (validation) {
-      setNewDirError(validation.replace('名称', '文件夹名称'));
+      setNewDirError(t(validation));
       return;
     }
     const target = path ? `${path}/${newDir.trim()}` : newDir.trim();
@@ -328,7 +314,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     if (!f.isDirectory) {
       items.push({
         key: 'download',
-        label: busyPath === f.path ? '下载中…' : '下载',
+        label: busyPath === f.path ? t('files.menu.downloading') : t('action.download'),
         icon: <Download size={14} />,
         disabled: busyPath === f.path || deleting,
         onSelect: () => void download(f),
@@ -337,7 +323,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     if (canEditFile(f)) {
       items.push({
         key: 'edit',
-        label: '编辑',
+        label: t('action.edit'),
         icon: <Pencil size={14} />,
         disabled: deleting,
         onSelect: () => void startEdit(f),
@@ -346,14 +332,14 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     items.push(
       {
         key: 'rename',
-        label: '重命名',
+        label: t('action.rename'),
         icon: <TextCursorInput size={14} />,
         disabled: busyPath === f.path || renaming || deleting,
         onSelect: () => startRename(f),
       },
       {
         key: 'delete',
-        label: '删除',
+        label: t('action.delete'),
         icon: <Trash2 size={14} />,
         danger: true,
         disabled: deleting,
@@ -370,21 +356,21 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
           <button
             className="btn btn-icon"
             type="button"
-            title="上级目录"
-            aria-label="上级目录"
+            title={t('files.nav.parent')}
+            aria-label={t('files.nav.parent')}
             onClick={() => changePath(parentOf(path))}
             disabled={!path}
           >
             <ChevronLeft size={18} aria-hidden="true" />
           </button>
-          <nav className="breadcrumbs" aria-label="当前路径">
+          <nav className="breadcrumbs" aria-label={t('files.nav.breadcrumbs')}>
             <button
               type="button"
               className="breadcrumb"
               aria-current={segments.length === 0 ? 'page' : undefined}
               onClick={() => changePath('')}
             >
-              实例根目录
+              {t('files.nav.root')}
             </button>
             {segments.map((segment, index) => {
               const target = segments.slice(0, index + 1).join('/');
@@ -409,8 +395,8 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
           <button
             className="btn btn-icon"
             type="button"
-            title="刷新"
-            aria-label="刷新文件列表"
+            title={t('action.refresh')}
+            aria-label={t('files.toolbar.refreshLabel')}
             disabled={loading}
             onClick={() => void load()}
           >
@@ -418,7 +404,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
           </button>
           <button className="btn" type="button" onClick={() => setNewDirOpen(true)}>
             <FolderPlus size={15} aria-hidden="true" />
-            新建文件夹
+            {t('files.toolbar.newFolder')}
           </button>
           <button
             className="btn btn-primary"
@@ -427,7 +413,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
             onClick={() => uploadInputRef.current?.click()}
           >
             <Upload size={15} aria-hidden="true" />
-            {uploading ? '上传中…' : '上传'}
+            {uploading ? t('files.toolbar.uploading') : t('action.upload')}
           </button>
           <input ref={uploadInputRef} type="file" hidden onChange={(e) => void upload(e)} />
         </div>
@@ -436,35 +422,35 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       {error && (
         <div className="callout callout-danger" role="alert">
           <p>
-            {error}{loaded ? ' 当前继续显示上次成功读取的文件列表。' : ''}
+            {loaded ? t('files.list.errorWithStale', { error }) : error}
           </p>
           <button className="btn btn-sm" type="button" disabled={loading} onClick={() => void load()}>
-            {loading ? '正在重试…' : '重新读取'}
+            {loading ? t('files.list.retrying') : t('files.list.reload')}
           </button>
         </div>
       )}
-      {saved && <p className="callout callout-success" role="status">文件已保存。</p>}
+      {saved && <p className="callout callout-success" role="status">{t('files.list.saved')}</p>}
 
       {!loaded ? (
         loading ? (
           <div className="page-loading" role="status" aria-live="polite">
             <span className="spinner" aria-hidden="true" />
-            正在读取文件列表…
+            {t('files.list.loading')}
           </div>
         ) : null
       ) : files.length === 0 ? (
         <div className="empty-state card" role="status">
           <span className="empty-icon" aria-hidden="true"><Folder size={28} /></span>
-          <h3>当前目录为空。</h3>
-          <p>可以上传文件，或新建一个文件夹。</p>
+          <h3>{t('files.empty.title')}</h3>
+          <p>{t('files.empty.body')}</p>
         </div>
       ) : (
         <ul className={`file-list list-group${loading ? ' is-refreshing' : ''}`} aria-busy={loading}>
           {files.map((f) => {
             const Icon = f.isDirectory ? Folder : canEditFile(f) ? FileText : File;
             const meta = f.isDirectory
-              ? `文件夹 · ${formatModified(f.modifiedAt)}`
-              : `${formatSize(f.size)} · ${formatModified(f.modifiedAt)}`;
+              ? t('files.row.folderMeta', { modified: fmt.dateTime(f.modifiedAt) })
+              : `${fmt.fileSize(f.size)} · ${fmt.dateTime(f.modifiedAt)}`;
             const body = (
               <>
                 <span className={`file-icon ${f.isDirectory ? 'is-dir' : 'is-file'}`} aria-hidden="true">
@@ -472,26 +458,26 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
                 </span>
                 <span className="file-text">
                   <span className="file-name">{f.name}</span>
-                  <span className="file-meta">{busyPath === f.path ? '正在准备下载…' : meta}</span>
+                  <span className="file-meta">{busyPath === f.path ? t('files.row.preparingDownload') : meta}</span>
                 </span>
               </>
             );
             return (
               <li key={f.path} className="file-row">
                 {f.isDirectory ? (
-                  <button className="file-main" type="button" onClick={() => changePath(f.path)} title={`打开 ${f.name}`}>
+                  <button className="file-main" type="button" onClick={() => changePath(f.path)} title={t('files.row.open', { name: f.name })}>
                     {body}
                     <ChevronRight size={16} aria-hidden="true" className="file-chevron" />
                   </button>
                 ) : canEditFile(f) ? (
-                  <button className="file-main" type="button" onClick={() => void startEdit(f)} title={`编辑 ${f.name}`}>
+                  <button className="file-main" type="button" onClick={() => void startEdit(f)} title={t('files.row.edit', { name: f.name })}>
                     {body}
                   </button>
                 ) : (
                   <span className="file-main">{body}</span>
                 )}
                 <div className="file-actions">
-                  <ActionMenu label={`${f.name} 的操作`} items={menuItems(f)} />
+                  <ActionMenu label={t('files.row.actions', { name: f.name })} items={menuItems(f)} />
                 </div>
               </li>
             );
@@ -515,18 +501,18 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
         <div className="file-edit-dialog-panel">
           <header className="file-edit-dialog-header">
             <div>
-              <h2 id="file-edit-dialog-title">编辑文件</h2>
+              <h2 id="file-edit-dialog-title">{t('files.edit.title')}</h2>
               <p className="file-edit-dialog-path">{editPath}</p>
             </div>
-            <button className="btn btn-plain" type="button" aria-label="关闭编辑" onClick={closeEditor}>
-              关闭
+            <button className="btn btn-plain" type="button" aria-label={t('files.edit.closeLabel')} onClick={closeEditor}>
+              {t('action.close')}
             </button>
           </header>
           {editError && <p className="callout callout-danger file-edit-dialog-error">{editError}</p>}
           {loadingEdit ? (
             <div className="page-loading file-edit-dialog-loading" role="status">
               <span className="spinner" aria-hidden="true" />
-              加载中…
+              {t('common.loading')}
             </div>
           ) : (
             <textarea
@@ -534,12 +520,12 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
               value={content}
               onChange={(e) => setContent(e.target.value)}
               spellCheck={false}
-              aria-label={`文件内容：${editPath ?? ''}`}
+              aria-label={t('files.edit.contentLabel', { path: editPath ?? '' })}
             />
           )}
           <footer className="file-edit-dialog-footer">
             <button className="btn" type="button" onClick={closeEditor}>
-              取消
+              {t('action.cancel')}
             </button>
             <button
               className="btn btn-primary"
@@ -547,7 +533,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
               disabled={saving || loadingEdit || !editPath}
               onClick={() => void saveFile()}
             >
-              {saving ? '保存中…' : '保存'}
+              {saving ? t('action.saving') : t('action.save')}
             </button>
           </footer>
         </div>
@@ -574,12 +560,12 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
           }}
         >
           <h2 id="file-rename-dialog-title" className="confirm-dialog-title">
-            重命名
+            {t('action.rename')}
           </h2>
           <div className="confirm-dialog-body">
-            <p>仅同目录改名，不可包含路径分隔符。</p>
+            <p>{t('files.rename.hint')}</p>
             <div className="field">
-              <label htmlFor="file-rename-input">新名称</label>
+              <label htmlFor="file-rename-input">{t('files.rename.newName')}</label>
               <input
                 id="file-rename-input"
                 value={renameName}
@@ -593,10 +579,10 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
           </div>
           <footer className="confirm-dialog-footer">
             <button className="btn" type="button" disabled={renaming} onClick={closeRename}>
-              取消
+              {t('action.cancel')}
             </button>
             <button className="btn btn-primary" type="submit" disabled={renaming || !renameTarget}>
-              {renaming ? '重命名中…' : '确认'}
+              {renaming ? t('files.rename.renaming') : t('action.confirm')}
             </button>
           </footer>
         </form>
@@ -623,17 +609,17 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
           }}
         >
           <h2 id="file-mkdir-dialog-title" className="confirm-dialog-title">
-            新建文件夹
+            {t('files.toolbar.newFolder')}
           </h2>
           <div className="confirm-dialog-body">
-            <p>将在「/{path}」下创建。</p>
+            <p>{t('files.mkdir.location', { path })}</p>
             <div className="field">
-              <label htmlFor="file-mkdir-input">文件夹名称</label>
+              <label htmlFor="file-mkdir-input">{t('files.mkdir.name')}</label>
               <input
                 id="file-mkdir-input"
                 value={newDir}
                 onChange={(e) => setNewDir(e.target.value)}
-                placeholder="例如 plugins"
+                placeholder={t('files.mkdir.placeholder')}
                 autoComplete="off"
                 autoFocus
                 disabled={creatingDir}
@@ -643,10 +629,10 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
           </div>
           <footer className="confirm-dialog-footer">
             <button className="btn" type="button" disabled={creatingDir} onClick={closeNewDir}>
-              取消
+              {t('action.cancel')}
             </button>
             <button className="btn btn-primary" type="submit" disabled={creatingDir}>
-              {creatingDir ? '创建中…' : '创建'}
+              {creatingDir ? t('files.mkdir.creating') : t('files.mkdir.create')}
             </button>
           </footer>
         </form>
@@ -654,23 +640,25 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title={deleteTarget?.isDirectory ? `删除文件夹「${deleteTarget.name}」？` : `删除文件「${deleteTarget?.name ?? ''}」？`}
+        title={deleteTarget?.isDirectory
+          ? t('files.delete.folderTitle', { name: deleteTarget.name })
+          : t('files.delete.fileTitle', { name: deleteTarget?.name ?? '' })}
         description={
           <>
             <p>
               {deleteTarget?.isDirectory
-                ? `将递归删除目录「/${deleteTarget.path}」及其中所有文件，且无法恢复。`
-                : `将删除文件「/${deleteTarget?.path ?? ''}」，且无法恢复。`}
+                ? t('files.delete.folderBody', { path: deleteTarget.path })
+                : t('files.delete.fileBody', { path: deleteTarget?.path ?? '' })}
             </p>
             {deleting && (
               <p role="status" aria-live="polite">
-                {deleteTarget?.isDirectory ? '正在删除文件夹…' : '正在删除文件…'}
+                {deleteTarget?.isDirectory ? t('files.delete.deletingFolder') : t('files.delete.deletingFile')}
               </p>
             )}
             {deleteError && <p className="error">{deleteError}</p>}
           </>
         }
-        confirmLabel="确认删除"
+        confirmLabel={t('files.delete.confirm')}
         danger
         busy={deleting}
         onConfirm={() => void confirmRemove()}

@@ -12,21 +12,24 @@ import {
   createConsoleColorizeState,
   flushConsoleColorize,
 } from '../console-colorize';
+import { t as translateNow, tp as translatePluralNow, useI18n, type MessageKey } from '../i18n';
 
 type Props = {
   instanceId: string;
   canSend?: boolean;
 };
 
-const QUICK_COMMANDS = [
-  { label: 'list', desc: '玩家列表', cmd: 'list' },
-  { label: 'save-all', desc: '保存世界', cmd: 'save-all' },
-  { label: 'tps', desc: '刻率性能', cmd: 'tps' },
-  { label: 'whitelist list', desc: '白名单', cmd: 'whitelist list' },
-  { label: 'help', desc: '命令帮助', cmd: 'help' },
+// 命令本身是 Minecraft 命令，不翻译；说明存文案键，渲染时再取当前语言。
+const QUICK_COMMANDS: { label: string; descKey: MessageKey; cmd: string }[] = [
+  { label: 'list', descKey: 'console.quick.list', cmd: 'list' },
+  { label: 'save-all', descKey: 'console.quick.saveAll', cmd: 'save-all' },
+  { label: 'tps', descKey: 'console.quick.tps', cmd: 'tps' },
+  { label: 'whitelist list', descKey: 'console.quick.whitelist', cmd: 'whitelist list' },
+  { label: 'help', descKey: 'console.quick.help', cmd: 'help' },
 ];
 
 export function ConsolePanel({ instanceId, canSend = true }: Props) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -102,6 +105,10 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
       }
     };
 
+    // 终端连接副作用只随实例重建；写入终端的提示用模块级 t()，按写入时的界面语言取文案，
+    // 避免把 t 放进依赖导致切换语言时重建终端并断开 WebSocket。
+    const panelPrefix = () => translateNow('console.prefix.panel');
+
     const writeSystemLine = (line: string) => {
       const rest = flushConsoleColorize(colorState);
       if (rest) term.write(rest);
@@ -113,7 +120,10 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
       if (disposed) return;
       const delay = RETRY_DELAYS_MS[Math.min(retryAttempt, RETRY_DELAYS_MS.length - 1)];
       retryAttempt += 1;
-      writeSystemLine(`[面板] ${reason}，${Math.round(delay / 1000)} 秒后重连…`);
+      writeSystemLine(translatePluralNow('console.system.reconnecting', Math.round(delay / 1000), {
+        prefix: panelPrefix(),
+        reason,
+      }));
       retryTimer = setTimeout(() => void connect(), delay);
     };
 
@@ -130,7 +140,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
 
         ws.onopen = () => {
           if (disposed) return;
-          if (retryAttempt > 0) writeSystemLine('[面板] 控制台已重新连接');
+          if (retryAttempt > 0) writeSystemLine(translateNow('console.system.reconnected', { prefix: panelPrefix() }));
           retryAttempt = 0;
           setConnected(true);
         };
@@ -145,7 +155,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
               writeColored(msg.data);
             }
             if (msg.type === 'error') {
-              writeSystemLine(`[错误] ${msg.data}`);
+              writeSystemLine(`${translateNow('console.prefix.error')} ${msg.data}`);
             }
           } catch {
             writeColored(String(ev.data));
@@ -155,7 +165,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
         ws.onclose = () => {
           if (disposed) return;
           setConnected(false);
-          scheduleReconnect('控制台连接已断开');
+          scheduleReconnect(translateNow('console.system.disconnected'));
         };
       } catch (err) {
         if (disposed || isAbortError(err)) return;
@@ -243,7 +253,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
     const requestId = ++copyRequestRef.current;
     if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
     const term = termRef.current;
-    let message = '暂无可复制的日志。';
+    let message = t('console.copy.empty');
     try {
       term?.selectAll();
       const text = term?.getSelection() ?? '';
@@ -251,10 +261,10 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
       if (text.trim()) {
         if (!navigator.clipboard?.writeText) throw new Error('剪贴板不可用');
         await navigator.clipboard.writeText(text);
-        message = '日志已复制。';
+        message = t('console.copy.done');
       }
     } catch {
-      message = '复制失败：浏览器剪贴板不可用或权限被拒绝，请手动选择日志并复制。';
+      message = t('console.copy.failed');
     }
     if (requestId !== copyRequestRef.current) return;
     setCopyMessage(message);
@@ -269,14 +279,14 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
         <div className="console-header-bar">
           <span className={`console-status ${connectionTone}`}>
             <span className="status-dot" aria-hidden="true" />
-            <span>{connected ? '实时日志 · 已连接' : canSend ? '控制台正在连接…' : '实例未运行'}</span>
+            <span>{connected ? t('console.status.connected') : canSend ? t('console.status.connecting') : t('console.status.offline')}</span>
           </span>
           <div className="console-tools">
             <button
               className="console-tool"
               type="button"
-              title="清空屏幕"
-              aria-label="清空屏幕"
+              title={t('console.tool.clear')}
+              aria-label={t('console.tool.clear')}
               onClick={clearScreen}
             >
               <Eraser size={14} aria-hidden="true" />
@@ -284,11 +294,11 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
             <button
               className="console-tool"
               type="button"
-              title="复制全部输出"
+              title={t('console.tool.copyTitle')}
               onClick={() => void copyAll()}
             >
               <Copy size={13} aria-hidden="true" />
-              复制日志
+              {t('console.tool.copy')}
             </button>
           </div>
         </div>
@@ -305,21 +315,23 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={onKeyDown}
             disabled={!inputEnabled}
-            placeholder={inputEnabled ? '输入控制台命令（如 list、say Hello、op 玩家名），按回车发送' : canSend ? '连接中…' : '实例已停止，启动后可发送命令'}
+            placeholder={inputEnabled
+              ? t('console.input.placeholder')
+              : canSend ? t('console.input.placeholderConnecting') : t('console.input.placeholderStopped')}
             autoComplete="off"
             spellCheck={false}
-            aria-label="控制台命令"
+            aria-label={t('console.input.label')}
           />
           <button className="btn btn-primary btn-sm" type="submit" disabled={!inputEnabled || !command.trim()}>
             <Send size={13} aria-hidden="true" />
-            发送
+            {t('action.send')}
           </button>
         </form>
       </div>
 
       {/* 快捷命令按钮栏 */}
-      <div className="quick-cmd-bar" role="group" aria-label="常用命令">
-        <span className="quick-cmd-label">常用命令</span>
+      <div className="quick-cmd-bar" role="group" aria-label={t('console.quick.label')}>
+        <span className="quick-cmd-label">{t('console.quick.label')}</span>
         {QUICK_COMMANDS.map((item) => (
           <button
             key={item.cmd}
@@ -327,10 +339,10 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
             className="chip"
             disabled={!inputEnabled}
             onClick={() => sendCommand(item.cmd)}
-            title={`向服务器发送 /${item.cmd}`}
+            title={t('console.quick.sendTitle', { command: item.cmd })}
           >
             <span className="chip-mono">{item.label}</span>
-            <span className="chip-desc">{item.desc}</span>
+            <span className="chip-desc">{t(item.descKey)}</span>
           </button>
         ))}
       </div>

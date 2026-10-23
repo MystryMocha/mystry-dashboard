@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, instanceApi } from '../api';
 import { errorMessage } from '../errors';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
+import { useI18n, type MessageKey } from '../i18n';
 import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 
 /**
@@ -13,16 +14,17 @@ import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 
 type FieldType = 'text' | 'number' | 'boolean' | 'select';
 
+// 属性键名（如 max-players）是技术名不翻译；标签、说明与选项名存文案键，渲染时再取当前语言。
 interface FieldMeta {
   key: string;
-  label: string;
-  desc: string;
+  labelKey: MessageKey;
+  descKey: MessageKey;
   type: FieldType;
-  options?: { value: string; label: string }[];
+  options?: { value: string; labelKey: MessageKey }[];
 }
 
 interface GroupMeta {
-  title: string;
+  titleKey: MessageKey;
   fields: FieldMeta[];
 }
 
@@ -34,59 +36,59 @@ function arePropertiesEqual(left: Record<string, string>, right: Record<string, 
 
 const GROUPS: GroupMeta[] = [
   {
-    title: '基础设置',
+    titleKey: 'config.group.basic',
     fields: [
-      { key: 'motd', label: '服务器简介', desc: '显示在多人游戏服务器列表中的介绍文字。', type: 'text' },
-      { key: 'server-port', label: '服务器端口', desc: '默认 25565；修改后玩家需要使用新端口连接。', type: 'number' },
-      { key: 'max-players', label: '最大在线人数', desc: '允许同时在线的玩家数量上限。', type: 'number' },
+      { key: 'motd', labelKey: 'config.field.motd.label', descKey: 'config.field.motd.desc', type: 'text' },
+      { key: 'server-port', labelKey: 'config.field.serverPort.label', descKey: 'config.field.serverPort.desc', type: 'number' },
+      { key: 'max-players', labelKey: 'config.field.maxPlayers.label', descKey: 'config.field.maxPlayers.desc', type: 'number' },
       {
-        key: 'difficulty', label: '难度', desc: '影响怪物伤害与饥饿等生存压力。', type: 'select',
+        key: 'difficulty', labelKey: 'config.field.difficulty.label', descKey: 'config.field.difficulty.desc', type: 'select',
         options: [
-          { value: 'peaceful', label: '和平' },
-          { value: 'easy', label: '简单' },
-          { value: 'normal', label: '普通' },
-          { value: 'hard', label: '困难' },
+          { value: 'peaceful', labelKey: 'config.option.difficulty.peaceful' },
+          { value: 'easy', labelKey: 'config.option.difficulty.easy' },
+          { value: 'normal', labelKey: 'config.option.difficulty.normal' },
+          { value: 'hard', labelKey: 'config.option.difficulty.hard' },
         ],
       },
       {
-        key: 'gamemode', label: '默认游戏模式', desc: '新玩家进入时的游戏模式。', type: 'select',
+        key: 'gamemode', labelKey: 'config.field.gamemode.label', descKey: 'config.field.gamemode.desc', type: 'select',
         options: [
-          { value: 'survival', label: '生存' },
-          { value: 'creative', label: '创造' },
-          { value: 'adventure', label: '冒险' },
-          { value: 'spectator', label: '旁观' },
+          { value: 'survival', labelKey: 'config.option.gamemode.survival' },
+          { value: 'creative', labelKey: 'config.option.gamemode.creative' },
+          { value: 'adventure', labelKey: 'config.option.gamemode.adventure' },
+          { value: 'spectator', labelKey: 'config.option.gamemode.spectator' },
         ],
       },
-      { key: 'force-gamemode', label: '强制默认游戏模式', desc: '开启后，玩家每次进入都会被重置为默认游戏模式。', type: 'boolean' },
+      { key: 'force-gamemode', labelKey: 'config.field.forceGamemode.label', descKey: 'config.field.forceGamemode.desc', type: 'boolean' },
     ],
   },
   {
-    title: '多人与权限',
+    titleKey: 'config.group.multiplayer',
     fields: [
-      { key: 'online-mode', label: '正版验证（在线模式）', desc: '开启后仅允许正版账号登录。关闭可允许离线账号进入，但任何人都能冒用任意用户名，存在安全风险。', type: 'boolean' },
-      { key: 'white-list', label: '启用白名单', desc: '开启后仅白名单内的玩家可以进入服务器。', type: 'boolean' },
-      { key: 'pvp', label: '玩家对战（PVP）', desc: '关闭后玩家之间无法造成伤害。', type: 'boolean' },
-      { key: 'allow-flight', label: '允许飞行', desc: '开启后容忍飞行，避免使用鞘翅或飞行模组时被误判踢出。', type: 'boolean' },
-      { key: 'op-permission-level', label: 'OP 权限等级', desc: '1-4，4 为最高，可执行全部管理命令。', type: 'number' },
+      { key: 'online-mode', labelKey: 'config.field.onlineMode.label', descKey: 'config.field.onlineMode.desc', type: 'boolean' },
+      { key: 'white-list', labelKey: 'config.field.whiteList.label', descKey: 'config.field.whiteList.desc', type: 'boolean' },
+      { key: 'pvp', labelKey: 'config.field.pvp.label', descKey: 'config.field.pvp.desc', type: 'boolean' },
+      { key: 'allow-flight', labelKey: 'config.field.allowFlight.label', descKey: 'config.field.allowFlight.desc', type: 'boolean' },
+      { key: 'op-permission-level', labelKey: 'config.field.opPermissionLevel.label', descKey: 'config.field.opPermissionLevel.desc', type: 'number' },
     ],
   },
   {
-    title: '世界',
+    titleKey: 'config.group.world',
     fields: [
-      { key: 'level-name', label: '世界文件夹名称', desc: '更换后会生成或加载另一个世界文件夹。', type: 'text' },
-      { key: 'level-seed', label: '世界种子', desc: '留空则随机生成；仅对新生成的世界生效。', type: 'text' },
-      { key: 'allow-nether', label: '开启下界', desc: '关闭后下界传送门将无法使用。', type: 'boolean' },
-      { key: 'spawn-monsters', label: '生成怪物', desc: '和平难度下此项无效。', type: 'boolean' },
-      { key: 'spawn-animals', label: '生成动物', desc: '控制动物是否自然生成。', type: 'boolean' },
-      { key: 'spawn-protection', label: '出生点保护半径', desc: '非 OP 玩家无法在此半径（方块数）内破坏，0 表示关闭。', type: 'number' },
+      { key: 'level-name', labelKey: 'config.field.levelName.label', descKey: 'config.field.levelName.desc', type: 'text' },
+      { key: 'level-seed', labelKey: 'config.field.levelSeed.label', descKey: 'config.field.levelSeed.desc', type: 'text' },
+      { key: 'allow-nether', labelKey: 'config.field.allowNether.label', descKey: 'config.field.allowNether.desc', type: 'boolean' },
+      { key: 'spawn-monsters', labelKey: 'config.field.spawnMonsters.label', descKey: 'config.field.spawnMonsters.desc', type: 'boolean' },
+      { key: 'spawn-animals', labelKey: 'config.field.spawnAnimals.label', descKey: 'config.field.spawnAnimals.desc', type: 'boolean' },
+      { key: 'spawn-protection', labelKey: 'config.field.spawnProtection.label', descKey: 'config.field.spawnProtection.desc', type: 'number' },
     ],
   },
   {
-    title: '性能',
+    titleKey: 'config.group.performance',
     fields: [
-      { key: 'view-distance', label: '视距（区块）', desc: '玩家可见的区块范围，越大越耗内存与带宽，默认 10。', type: 'number' },
-      { key: 'simulation-distance', label: '模拟距离（区块）', desc: '实体与方块实际更新的范围，默认 10；较低版本核心可能不存在此项。', type: 'number' },
-      { key: 'network-compression-threshold', label: '网络压缩阈值', desc: '数据包超过该字节数才压缩，-1 表示关闭压缩。', type: 'number' },
+      { key: 'view-distance', labelKey: 'config.field.viewDistance.label', descKey: 'config.field.viewDistance.desc', type: 'number' },
+      { key: 'simulation-distance', labelKey: 'config.field.simulationDistance.label', descKey: 'config.field.simulationDistance.desc', type: 'number' },
+      { key: 'network-compression-threshold', labelKey: 'config.field.networkCompressionThreshold.label', descKey: 'config.field.networkCompressionThreshold.desc', type: 'number' },
     ],
   },
 ];
@@ -95,6 +97,7 @@ const KNOWN_KEYS = new Set(GROUPS.flatMap((group) => group.fields.map((field) =>
 
 /** 切换实例时由上层按实例 ID 重新挂载。 */
 export function ConfigTab({ instanceId }: { instanceId: string }) {
+  const { t, tp } = useI18n();
   const [props, setProps] = useState<Record<string, string>>({});
   const [originalProps, setOriginalProps] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
@@ -157,8 +160,8 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
     return (
       <div className={`list-row config-row config-row-${field.type}`} key={field.key}>
         <div className="list-row-text">
-          <label htmlFor={inputId} className="list-row-title">{field.label}</label>
-          <p className="list-row-desc" id={descId}>{field.desc}</p>
+          <label htmlFor={inputId} className="list-row-title">{t(field.labelKey)}</label>
+          <p className="list-row-desc" id={descId}>{t(field.descKey)}</p>
         </div>
         <div className="list-row-control">
           {field.type === 'boolean' ? (
@@ -182,11 +185,11 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
               onChange={(e) => setValue(field.key, e.target.value)}
             >
               <option value="" disabled>
-                请选择
+                {t('config.select.placeholder')}
               </option>
               {field.options?.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.labelKey)}
                 </option>
               ))}
             </select>
@@ -208,25 +211,25 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
 
   return (
     <div className="form-stack config-workspace">
-      <p className="section-lead">编辑 server.properties（修改后需重启实例生效）。</p>
+      <p className="section-lead">{t('config.lead')}</p>
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
       {!loaded && !error && (
         <div className="page-loading" role="status">
           <span className="spinner" aria-hidden="true" />
-          正在读取配置…
+          {t('config.loading')}
         </div>
       )}
 
       {GROUPS.map((group) => (
-        <section className="form-section" key={group.title}>
-          <h3 className="form-section-title">{group.title}</h3>
+        <section className="form-section" key={group.titleKey}>
+          <h3 className="form-section-title">{t(group.titleKey)}</h3>
           <div className="list-group">{group.fields.map(renderField)}</div>
         </section>
       ))}
 
       {advancedKeys.length > 0 && (
         <details className="disclosure config-advanced">
-          <summary>高级选项（{advancedKeys.length} 项未收录配置）</summary>
+          <summary>{tp('config.advanced.summary', advancedKeys.length)}</summary>
           <div className="list-group">
             {advancedKeys.map((key) => {
               const inputId = `server-property-${key}`;
@@ -253,18 +256,19 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
 
       <div className="action-bar">
         <span className="action-bar-status" role="status" aria-live="polite">
-          {dirty ? '有未保存的修改，离开页面会丢失。' : saved ? '已保存，重启实例后生效。' : '修改后需重启实例生效。'}
+          {dirty ? t('config.status.dirty') : saved ? t('config.status.saved') : t('config.status.idle')}
         </span>
         <button className="btn btn-primary" type="button" disabled={!loaded || !dirty || saving} onClick={() => void save()}>
-          {saving ? '保存中…' : '保存配置'}
+          {saving ? t('action.saving') : t('config.save')}
         </button>
       </div>
 
       <UnsavedChangesDialog
         blocker={blocker}
         saving={saving}
-        subject="配置"
-        description="离开配置页会丢失尚未保存的 server.properties 修改。"
+        title={t('config.unsaved.title')}
+        savingTitle={t('config.unsaved.savingTitle')}
+        description={t('config.unsaved.description')}
       />
     </div>
   );
