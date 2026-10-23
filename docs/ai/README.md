@@ -18,7 +18,9 @@
 | 修改 API、共享字段或 JSON Schema | [变更手册](change-playbooks.md)、[验证矩阵](verification.md) |
 | 修改文件、路径、上传、下载或 ZIP | [安全禁区](guardrails.md)、[变更手册](change-playbooks.md) |
 | 修改进程、控制台、任务或关闭流程 | [当前状态](current-state.md)、[变更手册](change-playbooks.md) |
-| 修改 UI、交互或用户文案 | [变更手册](change-playbooks.md)、[验证矩阵](verification.md) |
+| 修改 UI、交互或用户文案 | [变更手册](change-playbooks.md)、[验证矩阵](verification.md)、[设计系统](../design-system.md)、[多语言规范](../localization.md) |
+| 设计新页面、组件或样式 | [设计系统](../design-system.md)（以 `apps/web/src/styles.css` 为准） |
+| 新增界面语言或从右到左布局 | [多语言规范](../localization.md)、[架构决策](decisions.md) D-021 |
 | 修改数据库、实例目录或节点模型 | [架构决策](decisions.md)、[安全禁区](guardrails.md) |
 | 审查提交、功能声明或历史问题 | [已知误区](known-failures.md)、[验证矩阵](verification.md) |
 | 修改配置、路由、脚本或知识库 | [机器事实](project-facts.json)、[验证矩阵](verification.md) |

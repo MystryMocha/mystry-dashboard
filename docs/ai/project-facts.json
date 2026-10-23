@@ -129,7 +129,9 @@
     "docs/ai/change-playbooks.md",
     "docs/ai/verification.md",
     "docs/ai/known-failures.md",
-    "docs/ai/decisions.md"
+    "docs/ai/decisions.md",
+    "docs/design-system.md",
+    "docs/localization.md"
   ],
   "sourcePaths": [
     "apps/server/src/config.ts",
@@ -182,6 +184,10 @@
         ".slim/deepwork/**",
         "apps/web/src/i18n/en/*.ts"
       ]
+    },
+    {
+      "path": "docs/ai/README.md",
+      "includes": ["../design-system.md", "../localization.md"]
     },
     {
       "path": "apps/web/index.html",
