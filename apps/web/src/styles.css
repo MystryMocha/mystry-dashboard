@@ -1403,7 +1403,8 @@ input[type='radio'] {
 .console-input::placeholder { color: #8e8e93; font-family: var(--font); }
 
 .quick-cmd-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.quick-cmd-label { margin-right: 2px; font-size: 13px; font-weight: 600; color: var(--label-2); }
+/* 窄屏命令栏不换行横向滚动时，标签和命令按钮一样不收缩，避免中文被挤成竖排。 */
+.quick-cmd-label { flex-shrink: 0; margin-right: 2px; font-size: 13px; font-weight: 600; color: var(--label-2); white-space: nowrap; }
 
 /* ========== 文件管理 ========== */
 .files-workspace { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
