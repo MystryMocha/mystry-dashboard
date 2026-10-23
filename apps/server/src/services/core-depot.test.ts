@@ -9,11 +9,17 @@ import { once, EventEmitter, getEventListeners } from 'node:events';
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { PassThrough } from 'node:stream';
-import type { DeployCoreInput } from '@mystry/shared';
+import type { DeployCoreInput, PanelMessage, ServerMessageKey } from '@mystry/shared';
+import { PanelError } from '../utils/errors.js';
 
 process.env.JWT_SECRET = randomBytes(32).toString('hex');
 process.env.SETUP_TOKEN = randomBytes(32).toString('hex');
 process.env.LAUNCHER_TOKEN = randomBytes(32).toString('hex');
+
+/** 断言为可翻译错误且消息键一致（不依赖具体语言的文案）。 */
+function hasMessageKey(error: unknown, key: ServerMessageKey): boolean {
+  return error instanceof PanelError && error.messageKey === key;
+}
 
 test('Paper 缓存键使用解析后的 build，旧 latest 键不会命中', async () => {
   const { buildResolvedCoreCacheBasename } = await import('./core-metadata.js');
@@ -43,7 +49,11 @@ test('Paper 未指定构建时取最新稳定版，指定的构建不存在时�
   ]));
   assert.equal((await resolvePaperDownload('1.21.1')).build, 42);
   assert.equal((await resolvePaperDownload('1.21.1', 43)).build, 43);
-  await assert.rejects(resolvePaperDownload('1.21.1', 99), /Paper 1\.21\.1 没有构建 #99/);
+  await assert.rejects(resolvePaperDownload('1.21.1', 99), (error) => {
+    assert.ok(hasMessageKey(error, 'server.deploy.paperBuildNotFound'));
+    assert.deepEqual((error as PanelError).params, { version: '1.21.1', build: 99 });
+    return true;
+  });
 });
 
 test('Forge 和 NeoForge JVM 参数文件可由 Java argfile 规则往返解析', async (t) => {
@@ -95,7 +105,7 @@ test('下载开始前取消：保留超时原因，不发请求、不创建临�
   const { downloadToFile } = await import('./core-download.js');
   const fetchMock = t.mock.method(globalThis, 'fetch', async () => { throw new Error('不应请求'); });
   const controller = new AbortController();
-  const reason = new Error('任务执行超时');
+  const reason = new PanelError('server.tasks.timeout');
   controller.abort(reason);
   await assert.rejects(downloadToFile('http://unused.invalid', path.join(dir, 'core.jar'), undefined, controller.signal), (error) => error === reason);
   assert.equal(fetchMock.mock.callCount(), 0);
@@ -109,7 +119,7 @@ test('流式下载中取消：关闭响应、删除 part，保留已有完整缓
   const dest = path.join(dir, 'core.jar');
   fs.writeFileSync(dest, '原有完整缓存');
   const controller = new AbortController();
-  const reason = new Error('任务已取消');
+  const reason = new PanelError('server.tasks.aborted');
   const result = assert.rejects(downloadToFile(url, dest, () => controller.abort(reason), controller.signal), (error) => error === reason);
   await result;
   await waitUntil(() => responses[0]?.destroyed === true);
@@ -127,12 +137,12 @@ test('缓存并发：仅下载一次，单个等待者取消不会中断其他�
   const second = new AbortController();
   const progress1: number[] = [];
   const progress2: number[] = [];
-  const p1 = assert.rejects(ensureCoreCache(url, dest, (p) => progress1.push(p), first.signal), /任务已取消/);
+  const p1 = assert.rejects(ensureCoreCache(url, dest, (p) => progress1.push(p), first.signal), (error) => hasMessageKey(error, 'server.tasks.aborted'));
   const p2 = ensureCoreCache(url, dest, (p) => progress2.push(p), second.signal);
   await waitUntil(() => progress1.length > 0 && progress2.length > 0);
   assert.equal(responses.length, 1);
   assert.equal(fs.existsSync(dest), false, '下载完成之前最终缓存不可见');
-  first.abort(new Error('任务已取消'));
+  first.abort(new PanelError('server.tasks.aborted'));
   await p1;
   const canceledProgressCount = progress1.length;
   assert.equal(responses[0]!.destroyed, false);
@@ -156,10 +166,10 @@ test('缓存所有等待者取消：终止下载、清理 part，后续可重新
   const controllers = [new AbortController(), new AbortController()];
   let progressSeen = false;
   const results = controllers.map((controller) => assert.rejects(
-    ensureCoreCache(url, dest, () => { progressSeen = true; }, controller.signal), /任务已取消/,
+    ensureCoreCache(url, dest, () => { progressSeen = true; }, controller.signal), (error) => hasMessageKey(error, 'server.tasks.aborted'),
   ));
   await waitUntil(() => progressSeen);
-  controllers.forEach((controller) => controller.abort(new Error('任务已取消')));
+  controllers.forEach((controller) => controller.abort(new PanelError('server.tasks.aborted')));
   await Promise.all(results);
   await waitUntil(() => responses[0]?.destroyed === true && fs.readdirSync(dir).length === 0);
   const retry = ensureCoreCache(url, dest);
@@ -178,10 +188,10 @@ test('所有等待者取消后立刻重试：发起新下载，不继承别人�
   const controller = new AbortController();
   let progressSeen = false;
   const canceled = assert.rejects(
-    ensureCoreCache(url, dest, () => { progressSeen = true; }, controller.signal), /任务已取消/,
+    ensureCoreCache(url, dest, () => { progressSeen = true; }, controller.signal), (error) => hasMessageKey(error, 'server.tasks.aborted'),
   );
   await waitUntil(() => progressSeen);
-  controller.abort(new Error('任务已取消'));
+  controller.abort(new PanelError('server.tasks.aborted'));
   await canceled;
   // 不等旧下载收尾就重试：旧下载此时可能还没从合并表中移除。
   const retry = ensureCoreCache(url, dest);
@@ -230,7 +240,11 @@ test('安装器退出：零退出成功，非零和启动错误失败，清理�
     const controller = new AbortController();
     const run = runInstaller('installer.jar', tempDir(t), 'java', controller.signal);
     const result = outcome === 'success' ? run : assert.rejects(run,
-      outcome === 'failure' ? /退出码 7.*\n.*安装失败/s : outcome === 'signal' ? /退出码 未知/ : /无法启动/);
+      outcome === 'failure'
+        ? (error) => hasMessageKey(error, 'server.deploy.installerExitCode') && /exited with code 7.*\n.*安装失败/s.test((error as Error).message)
+        : outcome === 'signal'
+          ? (error) => hasMessageKey(error, 'server.deploy.installerExitUnknown')
+          : /无法启动/);
     const child = children.at(-1)!;
     child.stderr.emit('data', Buffer.from('安装失败'));
     child.stdout.emit('error', new Error('EPIPE'));
@@ -243,12 +257,16 @@ test('安装器退出：零退出成功，非零和启动错误失败，清理�
   assert.equal(children.length, 4, '非网络失败不得重试');
 });
 
-test('安装器网络失败最多重试一次，保留最终中文诊断', async (t) => {
+test('安装器网络失败最多重试一次，保留最终诊断', async (t) => {
   const { children } = installerFixture(t);
   const { runInstaller } = await import('./core-installer.js');
   const controller = new AbortController();
-  const messages: string[] = [];
-  const result = assert.rejects(runInstaller('installer.jar', tempDir(t), 'java', controller.signal, (_p, message) => messages.push(message)), /已自动重试 1 次.*域名解析失败/);
+  const messages: PanelMessage[] = [];
+  const result = assert.rejects(
+    runInstaller('installer.jar', tempDir(t), 'java', controller.signal, (_p, message) => messages.push(message)),
+    (error) => hasMessageKey(error, 'server.deploy.installerDownloadFailed')
+      && /automatic retries: 1, DNS lookup failed/.test((error as Error).message),
+  );
   children[0]!.stderr.emit('data', Buffer.from('UnknownHostException'));
   children[0]!.emit('close', 1);
   await waitUntil(() => children.length === 2);
@@ -256,7 +274,7 @@ test('安装器网络失败最多重试一次，保留最终中文诊断', async
   children[1]!.emit('close', 1);
   await result;
   assert.equal(children.length, 2);
-  assert.ok(messages.some((message) => message.includes('自动重试')));
+  assert.ok(messages.some((message) => message.key === 'server.deploy.progress.installerRetrying'));
   assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
 });
 
@@ -269,7 +287,7 @@ test('安装器取消：等待退出才释放；缺少 close 时强杀兜底；�
   const { runInstaller } = await import('./core-installer.js');
   for (const sendsClose of [true, false]) {
     const controller = new AbortController();
-    const reason = new Error('任务执行超时');
+    const reason = new PanelError('server.tasks.timeout');
     let settled = false;
     const result = assert.rejects(runInstaller('installer.jar', tempDir(t), 'java', controller.signal).finally(() => { settled = true; }), (error) => error === reason);
     controller.abort(reason);
@@ -377,7 +395,10 @@ test('部署落地前失败或取消：清理 staging、不注册实例、不遗
     const task = await deployCore({ name: '失败清理', coreType, mcVersion: '1.21.1', loaderVersion: '1.0.0', installerVersion: '1.0.0' });
     await waitUntil(() => getTask(task.id)!.status === 'failed');
     await closing;
-    assert.match(getTask(task.id)!.error!, coreType === 'fabric' ? /任务已取消/ : /退出码 7/);
+    assert.equal(
+      getTask(task.id)!.errorI18n?.key,
+      coreType === 'fabric' ? 'server.tasks.aborted' : 'server.deploy.installerExitCode',
+    );
     assert.equal(getDb().prepare('SELECT count(*) AS count FROM instances').get()!.count, 0);
     assert.deepEqual(fs.readdirSync(path.join(dir, 'instances')), []);
     assert.equal(fs.existsSync(path.join(dir, '.mystry-staging', task.id)), false);

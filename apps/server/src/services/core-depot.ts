@@ -10,7 +10,7 @@ import { recordTaskStaging, runBackgroundTask } from './task-service.js';
 import { prepareTaskStaging, promoteTaskStagingToInstance, removeTaskStagingTree } from './task-staging-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
-import { throwIfAborted } from '../utils/errors.js';
+import { PanelError, throwIfAborted } from '../utils/errors.js';
 import { ensureCoreCache, isUsableCoreCache } from './core-download.js';
 import { runInstaller, writeUserJvmArgs } from './core-installer.js';
 import {
@@ -34,7 +34,7 @@ export async function deployCore(input: DeployCoreInput) {
   };
   return runBackgroundTask(
     'deploy',
-    `正在部署 ${input.coreType} ${input.mcVersion}`,
+    { key: 'server.deploy.progress.deploying', params: { coreType: input.coreType, mcVersion: input.mcVersion } },
     async (taskId, signal, report) => {
       let instanceId: string | null = null;
       let stagingToken: string | null = null;
@@ -55,7 +55,7 @@ export async function deployCore(input: DeployCoreInput) {
         const usesInstaller = input.coreType === 'forge' || input.coreType === 'neoforge';
         if (input.coreType === 'forge' || input.coreType === 'neoforge') {
           throwIfAborted(signal);
-          report(5, '解析 Forge/NeoForge 版本…');
+          report(5, { key: 'server.deploy.progress.resolvingLoader' });
           let loaderVersion = input.loaderVersion;
           if (!loaderVersion) {
             const loaders =
@@ -65,7 +65,7 @@ export async function deployCore(input: DeployCoreInput) {
             loaderVersion = loaders[0];
           }
           if (!loaderVersion) {
-            throw new Error(`${input.coreType} ${input.mcVersion} 没有可用版本`);
+            throw new PanelError('server.deploy.loaderNoVersions', { coreType: input.coreType, mcVersion: input.mcVersion });
           }
 
           const installerUrl =
@@ -84,20 +84,20 @@ export async function deployCore(input: DeployCoreInput) {
 
           if (isUsableCoreCache(cachePath)) {
             throwIfAborted(signal);
-            report(20, '使用本地缓存的安装器…');
+            report(20, { key: 'server.deploy.progress.usingCachedInstaller' });
             fs.copyFileSync(cachePath, installerDest);
           } else {
             throwIfAborted(signal);
-            report(15, '下载安装器…');
+            report(15, { key: 'server.deploy.progress.downloadingInstaller' });
             await ensureCoreCache(installerUrl, cachePath, (ratio) => {
-              report(15 + ratio * 40, `下载安装器 ${(ratio * 100).toFixed(0)}%`);
+              report(15 + ratio * 40, { key: 'server.deploy.progress.downloadingInstallerPercent', params: { percent: Math.round(ratio * 100) } });
             }, signal);
             throwIfAborted(signal);
             fs.copyFileSync(cachePath, installerDest);
           }
 
           throwIfAborted(signal);
-          report(60, '运行 --installServer…');
+          report(60, { key: 'server.deploy.progress.runningInstaller' });
           writeUserJvmArgs(dir, input.jvmArgs || '-Xms1G -Xmx2G');
           const javaCommand = await resolveJavaRuntimeCommand(input.javaRuntimeId);
           await runInstaller(installerDest, dir, javaCommand, signal, (progress, message) => {
@@ -111,7 +111,7 @@ export async function deployCore(input: DeployCoreInput) {
           }
 
           throwIfAborted(signal);
-          report(85, '探测启动文件…');
+          report(85, { key: 'server.deploy.progress.detectingLaunch' });
           const argsFile = await findModLoaderArgsFile(dir, input.coreType, {
             maxDepth: config.modLoaderScanMaxDepth,
             maxEntries: config.modLoaderScanMaxEntries,
@@ -124,20 +124,20 @@ export async function deployCore(input: DeployCoreInput) {
           } else {
             const jar = detectJarFile(dir);
             if (!jar) {
-              throw new Error('安装已完成，但未找到可启动的服务端 jar 或启动参数文件');
+              throw new PanelError('server.deploy.launchTargetNotFound');
             }
             jarFile = jar;
           }
 
           writeEulaIfNeeded();
           throwIfAborted(signal);
-          report(95, '写入实例目录…');
+          report(95, { key: 'server.deploy.progress.writingInstance' });
         } else {
           // Vanilla / Paper / Fabric：直接下载 jar
           throwIfAborted(signal);
           const destJar = resolveSafePath(dir, 'server.jar');
 
-          report(5, '解析下载地址…');
+          report(5, { key: 'server.deploy.progress.resolvingUrl' });
 
           let downloadUrl: string;
           let cacheBasename: string;
@@ -165,22 +165,22 @@ export async function deployCore(input: DeployCoreInput) {
 
           if (isUsableCoreCache(cachePath)) {
             throwIfAborted(signal);
-            report(60, '使用本地缓存…');
+            report(60, { key: 'server.deploy.progress.usingCache' });
             fs.copyFileSync(cachePath, destJar);
           } else {
             throwIfAborted(signal);
-            report(15, '开始下载核心…');
+            report(15, { key: 'server.deploy.progress.startingDownload' });
             await ensureCoreCache(downloadUrl, cachePath, (ratio) => {
-              report(15 + ratio * 70, `下载中 ${(ratio * 100).toFixed(0)}%`);
+              report(15 + ratio * 70, { key: 'server.deploy.progress.downloading', params: { percent: Math.round(ratio * 100) } });
             }, signal);
             throwIfAborted(signal);
             fs.copyFileSync(cachePath, destJar);
           }
 
           throwIfAborted(signal);
-          report(95, '写入启动配置…');
+          report(95, { key: 'server.deploy.progress.writingConfig' });
           writeEulaIfNeeded();
-          report(97, '写入实例目录…');
+          report(97, { key: 'server.deploy.progress.writingInstance' });
           jarFile = 'server.jar';
         }
 
@@ -196,7 +196,7 @@ export async function deployCore(input: DeployCoreInput) {
           javaRuntimeId: input.javaRuntimeId ?? null,
         });
         completed = true;
-        if (usesInstaller) report(100, '部署完成');
+        if (usesInstaller) report(100, { key: 'server.deploy.progress.completed' });
         return { instanceId };
       } finally {
         if (!completed && instanceId) {

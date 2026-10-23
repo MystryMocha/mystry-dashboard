@@ -5,6 +5,7 @@ import { REMOTE_NODE_CREATION_ENABLED } from '@mystry/shared';
 import { getDb, type NodeRow } from '../db.js';
 import { nowIso } from '../utils/path.js';
 import { nodeRegistry } from './node-registry.js';
+import { PanelError } from '../utils/errors.js';
 
 /** 节点密钥使用 sha256 摘要存储：密钥本身是高熵随机串，无需 bcrypt 慢哈希 */
 function hashSecret(secret: string): string {
@@ -61,10 +62,10 @@ export function getNodeRow(id: string): NodeRow | null {
 /** 创建远程节点，返回节点信息与仅展示一次的密钥（供部署 Agent 时填入配置） */
 export function createNode(input: CreateNodeInput): NodeSecretResult {
   if (!REMOTE_NODE_CREATION_ENABLED) {
-    throw new Error('当前版本不支持创建远程节点');
+    throw new PanelError('server.system.remoteNodeCreationDisabled');
   }
   if (!input.name?.trim()) {
-    throw new Error('节点名称不能为空');
+    throw new PanelError('server.system.nodeNameRequired');
   }
   const id = nanoid(12);
   const now = nowIso();
@@ -80,9 +81,9 @@ export function createNode(input: CreateNodeInput): NodeSecretResult {
 
 export function updateNode(id: string, input: UpdateNodeInput): NodeInfo {
   const existing = getNodeRow(id);
-  if (!existing) throw new Error('节点不存在');
+  if (!existing) throw new PanelError('server.system.nodeNotFound');
   if (input.name !== undefined && !input.name.trim()) {
-    throw new Error('节点名称不能为空');
+    throw new PanelError('server.system.nodeNameRequired');
   }
   getDb()
     .prepare('UPDATE nodes SET name = ?, updated_at = ? WHERE id = ?')
@@ -94,13 +95,13 @@ export function deleteNode(id: string): void {
   const existing = getNodeRow(id);
   if (!existing) return;
   if (existing.is_local) {
-    throw new Error('本机节点不可删除');
+    throw new PanelError('server.system.localNodeDelete');
   }
   const { c } = getDb()
     .prepare('SELECT COUNT(*) as c FROM instances WHERE node_id = ?')
     .get(id) as { c: number };
   if (c > 0) {
-    throw new Error('该节点下还有实例，请先迁移或删除这些实例');
+    throw new PanelError('server.system.nodeHasInstances');
   }
   getDb().prepare('DELETE FROM nodes WHERE id = ?').run(id);
   nodeRegistry.markOffline(id);
@@ -109,9 +110,9 @@ export function deleteNode(id: string): void {
 /** 重置节点密钥；旧密钥立即失效，新密钥仅返回一次 */
 export function resetNodeSecret(id: string): NodeSecretResult {
   const existing = getNodeRow(id);
-  if (!existing) throw new Error('节点不存在');
+  if (!existing) throw new PanelError('server.system.nodeNotFound');
   if (existing.is_local) {
-    throw new Error('本机节点无需密钥');
+    throw new PanelError('server.system.localNodeNoSecret');
   }
   const secret = generateSecret();
   getDb()

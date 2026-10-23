@@ -12,7 +12,7 @@ import type {
   TaskInfo,
   TaskListResult,
 } from '@mystry/shared';
-import { isInstanceStopPendingResult } from '@mystry/shared';
+import { isInstanceStopPendingResult, isServerMessageKey, type PanelMessage, type PanelMessageParams } from '@mystry/shared';
 import { isAbortError } from './errors';
 import { t } from './i18n';
 
@@ -29,10 +29,22 @@ export function setToken(token: string | null): void {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** 服务端返回的消息键与参数；errorMessage() 据此按界面语言显示，缺失时显示英文原文。 */
+  messageI18n?: PanelMessage;
+  constructor(status: number, message: string, messageI18n?: PanelMessage) {
     super(message);
     this.status = status;
+    this.messageI18n = messageI18n;
   }
+}
+
+/** 从错误响应体读取消息键（{ error, code, params }）；未知键忽略，只显示英文原文。 */
+function responseMessage(data: unknown): PanelMessage | undefined {
+  if (typeof data !== 'object' || !data || !('code' in data) || !isServerMessageKey(data.code)) return undefined;
+  const params = 'params' in data && typeof data.params === 'object' && data.params
+    ? data.params as PanelMessageParams
+    : undefined;
+  return params ? { key: data.code, params } : { key: data.code };
 }
 
 /** 登录态失效事件：auth.tsx 监听后清空用户并自动跳回登录页。 */
@@ -79,7 +91,7 @@ export async function api<T>(
       typeof data === 'object' && data && 'error' in data
         ? String((data as { error: string }).error)
         : t('request.failed', { status: String(res.status) });
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, responseMessage(data));
   }
 
   return data as T;
@@ -215,10 +227,10 @@ export async function downloadAuthenticated(
       }
       if (status.status === 'reserved' || status.status === 'streaming') continue;
       if (status.status === 'failed') {
-        throw new Error(status.error || t('request.download.failed'));
+        throw Object.assign(new Error(status.error || t('request.download.failed')), { messageI18n: status.errorI18n });
       }
       if (status.status === 'expired') {
-        throw new Error(status.error || t('request.download.ticketExpired'));
+        throw Object.assign(new Error(status.error || t('request.download.ticketExpired')), { messageI18n: status.errorI18n });
       }
     }
   } catch (error) {
@@ -303,7 +315,7 @@ export async function controlInstance(
     { method: 'POST' },
   );
   if (isInstanceStopPendingResult(result)) {
-    throw new Error(result.error || t('request.stopPending'));
+    throw Object.assign(new Error(result.error || t('request.stopPending')), { messageI18n: result.errorI18n });
   }
 }
 
@@ -333,7 +345,10 @@ export async function pollTask(
     throwIfAborted(signal);
     onUpdate?.(task);
     if (task.status === 'completed') return task.result;
-    if (task.status === 'failed') throw new Error(task.error || t('request.taskFailed'));
+    if (task.status === 'failed') {
+      // 失败原因带消息键时由 errorMessage() 按界面语言显示。
+      throw Object.assign(new Error(task.error || t('request.taskFailed')), { messageI18n: task.errorI18n });
+    }
     await delay(TASK_POLL_INTERVAL_MS, signal);
   }
 }

@@ -2,18 +2,25 @@ import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 import { config } from '../config.js';
 import { resolveSafePath } from '../utils/path.js';
-import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
+import { parseJvmArgs, serializeJvmArgFile, type PanelMessage } from '@mystry/shared';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
-import { abortError } from '../utils/errors.js';
+import { abortError, PanelError } from '../utils/errors.js';
 
 const INSTALLER_MAX_ATTEMPTS = 2;
 
-class InstallerProcessError extends Error {
+/** 安装器进度回调：进度文字为消息键加参数，由任务记录后交给 Web 翻译。 */
+type InstallerReport = (progress: number, message: PanelMessage) => void;
+
+class InstallerProcessError extends PanelError {
   constructor(
     readonly exitCode: number | null,
     readonly output: string,
   ) {
-    super(`安装器退出码 ${exitCode ?? '未知'}\n${output}`);
+    // 安装器输出是 Java 原文，只作为参数附带，不做翻译。
+    super(
+      exitCode === null ? 'server.deploy.installerExitUnknown' : 'server.deploy.installerExitCode',
+      exitCode === null ? { output } : { exitCode, output },
+    );
     this.name = 'InstallerProcessError';
   }
 }
@@ -23,7 +30,8 @@ export function isRetryableInstallerFailure(output: string): boolean {
     || /(?:SocketTimeoutException|ConnectException|UnknownHostException|SSL(?:Handshake)?Exception)/i.test(output);
 }
 
-export function summarizeInstallerDownloadFailure(output: string, attempts: number): string {
+/** 把安装器的依赖下载失败输出归纳为可翻译的诊断消息。 */
+export function summarizeInstallerDownloadFailure(output: string, attempts: number): PanelMessage {
   const failedBlock = output.match(
     /These libraries failed to download\. Try again\.\s*([\s\S]*?)\s*There was an error during installation/i,
   )?.[1];
@@ -42,17 +50,22 @@ export function summarizeInstallerDownloadFailure(output: string, attempts: numb
     }
   }
 
-  let reason = '连接失败';
-  if (/SocketTimeoutException:\s*Read timed out/i.test(output)) reason = '读取超时';
-  else if (/UnknownHostException/i.test(output)) reason = '域名解析失败';
-  else if (/SSL(?:Handshake)?Exception/i.test(output)) reason = 'TLS 连接失败';
+  let reason: PanelMessage = { key: 'server.deploy.installerReason.connectFailed' };
+  if (/SocketTimeoutException:\s*Read timed out/i.test(output)) reason = { key: 'server.deploy.installerReason.readTimeout' };
+  else if (/UnknownHostException/i.test(output)) reason = { key: 'server.deploy.installerReason.dnsFailed' };
+  else if (/SSL(?:Handshake)?Exception/i.test(output)) reason = { key: 'server.deploy.installerReason.tlsFailed' };
 
-  const libraryText = failedLibraries?.length
-    ? `失败依赖：${failedLibraries.join('、')}；`
+  // 依赖坐标是安装器原文，各语言统一用逗号分隔。
+  const libraries: PanelMessage | string = failedLibraries?.length
+    ? { key: 'server.deploy.installerFailedLibraries', params: { libraries: failedLibraries.join(', ') } }
     : '';
-  const hostText = failedHost ? `${failedHost} ${reason}` : reason;
-  const retryText = attempts > 1 ? `已自动重试 ${attempts - 1} 次，` : '';
-  return `安装器下载依赖失败（${retryText}${hostText}）。${libraryText}请检查网络、代理或防火墙后重新部署。`;
+  const hostDetail: PanelMessage = failedHost
+    ? { key: 'server.deploy.installerHostReason', params: { host: failedHost, reason } }
+    : reason;
+  const detail: PanelMessage = attempts > 1
+    ? { key: 'server.deploy.installerRetried', params: { count: attempts - 1, detail: hostDetail } }
+    : hostDetail;
+  return { key: 'server.deploy.installerDownloadFailed', params: { detail, libraries } };
 }
 
 type InstallerProgressState = {
@@ -60,35 +73,45 @@ type InstallerProgressState = {
   completedDownloads: number;
 };
 
-function installerArtifactName(urlText: string): string {
+/** 从下载地址取文件名；取不到时返回 undefined，由调用方改用通用的「依赖文件」文案。 */
+function installerArtifactName(urlText: string): string | undefined {
   try {
     const pathname = new URL(urlText).pathname;
-    return decodeURIComponent(pathname.slice(pathname.lastIndexOf('/') + 1)) || '依赖文件';
+    return decodeURIComponent(pathname.slice(pathname.lastIndexOf('/') + 1)) || undefined;
   } catch {
-    return '依赖文件';
+    return undefined;
   }
 }
 
 function reportInstallerLine(
   line: string,
   state: InstallerProgressState,
-  report?: (progress: number, message: string) => void,
+  report?: InstallerReport,
 ): void {
   if (!report) return;
   const downloadUrl = line.match(/Downloading (?:library )?from (https?:\/\/\S+)/i)?.[1];
   if (downloadUrl) {
     state.progress = Math.min(83, state.progress + 1);
-    report(state.progress, `安装器正在下载 ${installerArtifactName(downloadUrl)}…`);
+    const name = installerArtifactName(downloadUrl);
+    report(
+      state.progress,
+      name
+        ? { key: 'server.deploy.progress.installerDownloading', params: { name } }
+        : { key: 'server.deploy.progress.installerDownloadingUnknown' },
+    );
     return;
   }
   if (/Download completed:/i.test(line)) {
     state.completedDownloads += 1;
     state.progress = Math.min(84, Math.max(state.progress, 60 + state.completedDownloads));
-    report(state.progress, `安装器已完成 ${state.completedDownloads} 个下载…`);
+    report(state.progress, {
+      key: 'server.deploy.progress.installerDownloadsDone',
+      params: { count: state.completedDownloads },
+    });
     return;
   }
   if (/Failed to establish connection to /i.test(line)) {
-    report(state.progress, '安装器下载遇到网络问题，正在继续处理…');
+    report(state.progress, { key: 'server.deploy.progress.installerNetworkIssue' });
   }
 }
 
@@ -98,7 +121,7 @@ function runInstallerAttempt(
   javaCommand: string,
   signal: AbortSignal,
   progressState: InstallerProgressState,
-  report?: (progress: number, message: string) => void,
+  report?: InstallerReport,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
@@ -210,7 +233,7 @@ export async function runInstaller(
   cwd: string,
   javaCommand: string,
   signal: AbortSignal,
-  report?: (progress: number, message: string) => void,
+  report?: InstallerReport,
 ): Promise<void> {
   const progressState: InstallerProgressState = { progress: 60, completedDownloads: 0 };
   for (let attempt = 1; attempt <= INSTALLER_MAX_ATTEMPTS; attempt += 1) {
@@ -221,14 +244,15 @@ export async function runInstaller(
       if (!(error instanceof InstallerProcessError) || signal.aborted) throw error;
       const retryable = isRetryableInstallerFailure(error.output);
       if (retryable && attempt < INSTALLER_MAX_ATTEMPTS) {
-        report?.(
-          progressState.progress,
-          `安装器下载不完整，正在自动重试（${attempt + 1}/${INSTALLER_MAX_ATTEMPTS}）…`,
-        );
+        report?.(progressState.progress, {
+          key: 'server.deploy.progress.installerRetrying',
+          params: { attempt: attempt + 1, max: INSTALLER_MAX_ATTEMPTS },
+        });
         continue;
       }
       if (retryable) {
-        throw new Error(summarizeInstallerDownloadFailure(error.output, attempt));
+        const summary = summarizeInstallerDownloadFailure(error.output, attempt);
+        throw new PanelError(summary.key, summary.params);
       }
       throw error;
     }

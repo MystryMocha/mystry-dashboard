@@ -22,7 +22,7 @@ import { processManager } from './process-manager.js';
 import { nodeExists } from './node-service.js';
 import { getJavaRuntime } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
-import { errorMessage } from '../utils/errors.js';
+import { errorParam, PanelError } from '../utils/errors.js';
 
 const DEFAULT_JVM_ARGS = '-Xms1G -Xmx2G';
 
@@ -31,7 +31,7 @@ function assertValidJavaRuntime(javaRuntimeId: string | null | undefined): void 
   if (javaRuntimeId === null || javaRuntimeId === undefined) return;
   const runtime = getJavaRuntime(javaRuntimeId);
   if (!runtime || !runtime.available) {
-    throw new Error('所选 Java 运行时不存在或不可用，请重新探测后再选择');
+    throw new PanelError('server.instance.javaRuntimeInvalid');
   }
 }
 
@@ -104,10 +104,10 @@ type PreparedInstanceInput = { nodeId: string; jvmArgs: string };
 function prepareInstanceInput(input: CreateInstanceInput): PreparedInstanceInput {
   const nodeId = input.nodeId?.trim() || LOCAL_NODE_ID;
   if (!nodeExists(nodeId)) {
-    throw new Error('所选节点不存在');
+    throw new PanelError('server.instance.selectedNodeNotFound');
   }
   if (nodeId !== LOCAL_NODE_ID) {
-    throw new Error('当前版本不支持在远程节点上创建实例');
+    throw new PanelError('server.instance.remoteNodeUnsupported');
   }
   assertValidJavaRuntime(input.javaRuntimeId);
   const jvmArgs = normalizeAndAssertJvmArgs(input.jvmArgs ?? DEFAULT_JVM_ARGS, {
@@ -147,7 +147,7 @@ function insertInstanceRow(
       now,
     );
   if (Number(result.changes) !== 1) {
-    throw new Error('创建实例失败：数据库未写入实例记录');
+    throw new PanelError('server.instance.createDbFailed');
   }
 }
 
@@ -166,16 +166,14 @@ export function createInstance(input: CreateInstanceInput): InstanceInfo {
     directoryCreatedByCall = !existedBefore;
     assertSafeInstanceRoot(dir);
     if (fs.readdirSync(dir).length > 0) {
-      throw new Error('默认实例目录必须为空，拒绝接管已有目录');
+      throw new PanelError('server.instance.defaultDirNotEmpty');
     }
     writeOwnershipMarker(id, dir, ownershipMarker);
     markerWritten = true;
     fs.accessSync(dir, fs.constants.W_OK);
   } catch (err) {
     cleanupCreatedDirectory(id, dir, ownershipMarker, markerWritten, directoryCreatedByCall);
-    throw new Error(
-      `无法创建或写入安装目录：${dir}（${errorMessage(err)}）`,
-    );
+    throw new PanelError('server.instance.createDirFailed', { dir, reason: errorParam(err) });
   }
 
   try {
@@ -193,12 +191,12 @@ export function registerPromotedInstance(id: string, input: CreateInstanceInput)
   const prepared = prepareInstanceInput(input);
   const dir = defaultInstanceDir(id);
   if (!fs.existsSync(dir)) {
-    throw new Error('实例目录不存在，无法注册实例');
+    throw new PanelError('server.instance.registerDirMissing');
   }
   assertSafeInstanceRoot(dir);
   const entries = fs.readdirSync(dir);
   if (entries.length === 0) {
-    throw new Error('实例目录为空，无法注册实例');
+    throw new PanelError('server.instance.registerDirEmpty');
   }
 
   const ownershipMarker = nanoid(32);
@@ -217,7 +215,7 @@ export function registerPromotedInstance(id: string, input: CreateInstanceInput)
 
 export function updateInstance(id: string, input: UpdateInstanceInput): InstanceInfo {
   const existing = getInstanceRow(id);
-  if (!existing) throw new Error('实例不存在');
+  if (!existing) throw new PanelError('server.instance.notFound');
   assertValidJavaRuntime(input.javaRuntimeId);
   const normalizedJvmArgs = normalizeAndAssertJvmArgs(input.jvmArgs ?? existing.jvm_args, {
     coreType: existing.core_type as InstanceInfo['coreType'],
@@ -258,7 +256,7 @@ export function updateInstance(id: string, input: UpdateInstanceInput): Instance
 export async function deleteInstance(id: string): Promise<void> {
   return processManager.runExclusive(id, async () => {
     if (processManager.isRunning(id)) {
-      throw new Error('请先停止实例再删除');
+      throw new PanelError('server.instance.deleteRunning');
     }
     const row = getInstanceRow(id);
     if (!row) return;
@@ -276,7 +274,7 @@ export async function deleteInstance(id: string): Promise<void> {
     }
     const result = getDb().prepare('DELETE FROM instances WHERE id = ?').run(id);
     if (Number(result.changes) !== 1) {
-      throw new Error('删除实例失败：数据库记录未删除');
+      throw new PanelError('server.instance.deleteDbFailed');
     }
     processManager.forget(id);
   });
@@ -289,25 +287,23 @@ export async function adoptManagedDirectory(id: string): Promise<InstanceInfo> {
 
 function adoptManagedDirectoryWithinLock(id: string): InstanceInfo {
   if (processManager.isRunning(id)) {
-    throw new Error('请先停止实例再接管目录');
+    throw new PanelError('server.instance.adoptRunning');
   }
 
   const row = getInstanceRow(id);
-  if (!row) throw new Error('实例不存在');
+  if (!row) throw new PanelError('server.instance.notFound');
   if (row.install_path === null) {
-    throw new Error('实例已经是面板托管目录，无需接管');
+    throw new PanelError('server.instance.adoptAlreadyManaged');
   }
 
   const dir = defaultInstanceDir(id);
   try {
     assertSafeInstanceRoot(dir);
     if (fs.readdirSync(dir).length === 0) {
-      throw new Error('默认实例目录不能为空');
+      throw new PanelError('server.instance.adoptDirEmpty');
     }
   } catch (err) {
-    throw new Error(
-      `无法接管面板托管目录：${errorMessage(err)}`,
-    );
+    throw new PanelError('server.instance.adoptDirFailed', { reason: errorParam(err) });
   }
 
   let ownershipMarker: string;
@@ -316,7 +312,7 @@ function adoptManagedDirectoryWithinLock(id: string): InstanceInfo {
     const marker = inspectOwnershipMarker(id, dir);
     if (marker.exists) {
       if (marker.marker === null) {
-        throw new Error('无法接管实例目录：目录中的面板标记文件无效或属于其他实例');
+        throw new PanelError('server.instance.adoptMarkerInvalid');
       }
       ownershipMarker = marker.marker;
     } else {
@@ -336,7 +332,7 @@ function adoptManagedDirectoryWithinLock(id: string): InstanceInfo {
       )
       .run('java', ownershipMarker, nowIso(), id);
     if (Number(result.changes) !== 1) {
-      throw new Error('接管失败：实例状态已变化，请重试');
+      throw new PanelError('server.instance.adoptStateChanged');
     }
   } catch (err) {
     if (markerWrittenByCall) {

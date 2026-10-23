@@ -21,7 +21,7 @@ import {
 import { assertUploadPath, removeUploadTemp } from './upload-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { safeExtract } from './zip-service.js';
-import { throwIfAborted } from '../utils/errors.js';
+import { PanelError, throwIfAborted } from '../utils/errors.js';
 
 /** 若解压后只有一层目录，则上移内容到实例根目录。 */
 function flattenSingleRoot(
@@ -42,7 +42,7 @@ function flattenSingleRoot(
     throwIfAborted(signal);
     const source = path.join(nested, name);
     const target = path.join(dir, name);
-    if (fs.existsSync(target)) throw new Error(`ZIP 根目录存在重复路径：${name}`);
+    if (fs.existsSync(target)) throw new PanelError('server.imports.zip.duplicateRootPath', { name });
     fs.renameSync(source, target);
   }
   fs.rmSync(nested, { recursive: true, force: true });
@@ -67,7 +67,7 @@ export async function importZipPackage(options: {
     }),
   };
   try {
-    return await runBackgroundTask('import', '正在导入安装包…', async (taskId, signal, report) => {
+    return await runBackgroundTask('import', { key: 'server.imports.zip.task.queued' }, async (taskId, signal, report) => {
       let instanceId: string | null = null;
       let stagingToken: string | null = null;
       let completed = false;
@@ -84,12 +84,12 @@ export async function importZipPackage(options: {
         recordTaskStaging(taskId, instanceId, stagingToken);
         const staging = prepareTaskStaging(taskId, instanceId, stagingToken);
         throwIfAborted(signal);
-        report(20, '流式解压安装包…');
+        report(20, { key: 'server.imports.zip.progress.extracting' });
         await safeExtract(zipPath, staging, signal);
         flattenSingleRoot(staging, signal, stagingMarker);
 
         throwIfAborted(signal);
-        report(70, '校验实例文件…');
+        report(70, { key: 'server.imports.zip.progress.validating' });
         const launchTarget = await detectServerLaunchTarget(staging, {
           maxDepth: config.modLoaderScanMaxDepth,
           maxEntries: config.modLoaderScanMaxEntries,
@@ -97,17 +97,17 @@ export async function importZipPackage(options: {
           signal,
         });
         if (!launchTarget) {
-          throw new Error('安装包中未找到可用的服务端 jar 或 Forge/NeoForge 启动参数文件');
+          throw new PanelError('server.imports.zip.noLaunchTarget');
         }
 
         throwIfAborted(signal);
-        report(85, '写入实例目录…');
+        report(85, { key: 'server.imports.progress.writingInstance' });
         promoteTaskStagingToInstance(taskId, instanceId);
         // promote 之后目录已在 instances/<id>，不得再因超时/关闭中止，必须继续注册。
         const dir = path.join(config.instancesDir, instanceId);
         assertSafeInstanceRoot(dir);
 
-        report(90, '注册实例…');
+        report(90, { key: 'server.imports.progress.registering' });
         registerPromotedInstance(instanceId, {
           name: options.name,
           coreType: options.coreType ?? launchTarget.coreType,
@@ -123,7 +123,7 @@ export async function importZipPackage(options: {
           fs.writeFileSync(resolveSafePath(dir, 'eula.txt'), 'eula=true\n', 'utf8');
         }
 
-        report(100, '导入完成');
+        report(100, { key: 'server.imports.zip.progress.done' });
         return { instanceId };
       } finally {
         if (!completed && instanceId && stagingToken) {

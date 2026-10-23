@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { loginBodySchema, setupBodySchema, type LoginInput, type SetupInput } from '@mystry/shared';
 import { needsSetup, setupAdmin, verifyLogin, getUserById } from '../services/auth-service.js';
 import { config } from '../config.js';
-import { errorMessage } from '../utils/errors.js';
+import { errorBody, panelErrorBody, PanelError } from '../utils/errors.js';
 import { createLoginFailureLimiter, createRateLimitHook, tokenMatches } from '../services/security-service.js';
 
 export type JwtUser = { id: string; username: string };
@@ -37,18 +37,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       if (!tokenMatches(req.headers['x-setup-token'], config.setupToken)) {
-        return reply.code(401).send({ error: '初始化令牌无效' });
+        return reply.code(401).send(panelErrorBody('server.auth.invalidSetupToken'));
       }
       if (req.validationError) {
-        return reply.code(400).send({ error: '用户名或密码格式不正确' });
+        return reply.code(400).send(panelErrorBody('server.auth.invalidCredentialFormat'));
       }
       try {
         const user = setupAdmin(req.body.username, req.body.password);
         const token = await reply.jwtSign(user, { expiresIn: config.jwtExpiresIn });
         return { token, user };
       } catch (err) {
-        const message = errorMessage(err);
-        return reply.code(message === '管理员已初始化' ? 409 : 400).send({ error: message });
+        const alreadyInitialized = err instanceof PanelError && err.messageKey === 'server.auth.alreadyInitialized';
+        return reply.code(alreadyInitialized ? 409 : 400).send(errorBody(err));
       }
     },
   );
@@ -61,13 +61,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       if (req.validationError) {
-        return reply.code(400).send({ error: '用户名或密码格式不正确' });
+        return reply.code(400).send(panelErrorBody('server.auth.invalidCredentialFormat'));
       }
       if (loginFailureLimit.isBlocked(req, reply, req.body.username)) return reply;
       const user = verifyLogin(req.body.username, req.body.password);
       if (!user) {
         loginFailureLimit.recordFailure(req, reply, req.body.username);
-        return reply.code(401).send({ error: '用户名或密码错误' });
+        return reply.code(401).send(panelErrorBody('server.auth.invalidCredentials'));
       }
       loginFailureLimit.reset(req, req.body.username);
       const token = await reply.jwtSign(user, { expiresIn: config.jwtExpiresIn });
@@ -78,7 +78,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/auth/me', { preHandler: [app.authenticate] }, async (req, reply) => {
     const user = getUserById(req.user.id);
     if (!user) {
-      return reply.code(401).send({ error: '登录已失效，请重新登录' });
+      return reply.code(401).send(panelErrorBody('server.common.unauthorized'));
     }
     return { user };
   });
@@ -89,7 +89,7 @@ export function registerAuthHooks(app: FastifyInstance): void {
     try {
       await req.jwtVerify();
     } catch {
-      return reply.code(401).send({ error: '登录已失效，请重新登录' });
+      return reply.code(401).send(panelErrorBody('server.common.unauthorized'));
     }
   });
 }

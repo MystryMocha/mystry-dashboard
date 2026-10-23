@@ -90,7 +90,11 @@ test('ZIP 导入预览执行所有者、容量、过期、重启和确认生命�
     const newPath = writePreviewZip('new.zip');
     const newPreview = await previewService.createImportPreview({ userId: 'replace', fileName: 'new.zip', zipPath: newPath });
     assert.equal(fs.existsSync(oldPath), false);
-    assert.throws(() => previewService.getImportPreview(oldPreview.id, 'replace'), /不存在/);
+    assert.throws(
+      () => previewService.getImportPreview(oldPreview.id, 'replace'),
+      (error: unknown) => error instanceof previewService.ImportPreviewHttpError
+        && error.messageKey === 'server.imports.preview.notFound',
+    );
     assert.equal(previewService.getImportPreview(newPreview.id, 'replace').fileName, 'new.zip');
     previewService.cancelImportPreview(newPreview.id, 'replace');
   });
@@ -163,13 +167,13 @@ test('ZIP 导入预览执行所有者、容量、过期、重启和确认生命�
       zipPath: writePreviewZip('queue-full.zip'),
     });
     const waitForAbort = async (_taskId: string, signal: AbortSignal) => new Promise<void>((_resolve, reject) => {
-      const rejectWithReason = () => reject(signal.reason instanceof Error ? signal.reason : new Error('任务已取消'));
+      const rejectWithReason = () => reject(signal.reason instanceof Error ? signal.reason : new Error('aborted'));
       if (signal.aborted) rejectWithReason();
       else signal.addEventListener('abort', rejectWithReason, { once: true });
     });
-    await taskService.runBackgroundTask('download', '占用运行槽', waitForAbort);
-    await taskService.runBackgroundTask('download', '占用队列一', waitForAbort);
-    await taskService.runBackgroundTask('download', '占用队列二', waitForAbort);
+    await taskService.runBackgroundTask('download', { key: 'server.tasks.queued' }, waitForAbort);
+    await taskService.runBackgroundTask('download', { key: 'server.tasks.queued' }, waitForAbort);
+    await taskService.runBackgroundTask('download', { key: 'server.tasks.queued' }, waitForAbort);
     await assert.rejects(
       () => previewService.confirmImportPreview(preview.id, 'queue-full', { name: '队列满重试' }),
       (error: unknown) => error instanceof taskService.TaskCapacityError,

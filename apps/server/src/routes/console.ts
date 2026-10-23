@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
-import type { ConsoleMessage, InstanceStatus } from '@mystry/shared';
+import {
+  renderPanelMessage,
+  type ConsoleMessage,
+  type InstanceStatus,
+  type PanelMessageParams,
+  type ServerMessageKey,
+} from '@mystry/shared';
 import { config } from '../config.js';
-import { errorMessage } from '../utils/errors.js';
+import { errorMessage, panelErrorBody, toPanelMessage } from '../utils/errors.js';
 import { processManager } from '../services/process-manager.js';
 import { getInstance } from '../services/instance-service.js';
 import { issueConsoleTicket, consumeConsoleTicket } from '../services/console-ticket-service.js';
@@ -43,7 +49,7 @@ function terminateSocketLater(socket: ConsoleSocket): void {
       if (socket.terminate) {
         socket.terminate();
       } else {
-        socket.close(1000, '控制台连接关闭超时');
+        socket.close(1000, 'Console connection close timed out');
       }
     } catch {
       // 连接可能已经由底层关闭。
@@ -65,7 +71,7 @@ function sendSocketMessage(
   const message = JSON.stringify(payload);
   const messageBytes = Buffer.byteLength(message, 'utf8');
   if (messageBytes > maxOutgoingMessageBytes || socket.bufferedAmount + messageBytes > maxSocketBufferedBytes) {
-    closeSocket(socket, 1009, '控制台发送缓冲过大');
+    closeSocket(socket, 1009, 'Console send buffer too large');
     terminateSocketLater(socket);
     return false;
   }
@@ -73,10 +79,17 @@ function sendSocketMessage(
     socket.send(message);
     return true;
   } catch {
-    closeSocket(socket, 1011, '控制台连接发送失败');
+    closeSocket(socket, 1011, 'Console send failed');
     terminateSocketLater(socket);
     return false;
   }
+}
+
+/** 控制台错误帧：data 为英文文本，code / params 供 Web 按当前语言翻译。 */
+function errorFrame(key: ServerMessageKey, params?: PanelMessageParams): ConsoleMessage {
+  const frame: ConsoleMessage = { type: 'error', data: renderPanelMessage({ key, params }), code: key };
+  if (params) frame.params = params;
+  return frame;
 }
 
 function rawMessageToString(raw: unknown): string {
@@ -102,7 +115,7 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/console-ticket',
     { preHandler: [app.authenticate] },
     async (req, reply) => {
-      if (!getInstance(req.params.id)) return reply.code(404).send({ error: '实例不存在' });
+      if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.instance.notFound'));
       return issueConsoleTicket(req.user.id, req.params.id);
     },
   );
@@ -112,7 +125,7 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
     { websocket: true },
     async (socket, req) => {
       if (activeConsoleConnections >= config.maxConsoleConnections) {
-        closeSocket(socket, 1013, '控制台连接数已达上限，请稍后重试');
+        closeSocket(socket, 1013, 'Too many console connections');
         terminateSocketLater(socket);
         return;
       }
@@ -129,26 +142,26 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
       socket.on('close', releaseConnection);
       socket.on('error', () => {
         // 仅在 close 后释放计数，避免 error 先于 close 时低估活动连接数。
-        closeSocket(socket, 1011, '控制台连接异常');
+        closeSocket(socket, 1011, 'Console connection error');
         terminateSocketLater(socket);
       });
 
       try {
         const ticket = req.query.ticket;
         if (!ticket) {
-          sendSocketMessage(socket, { type: 'error', data: '缺少控制台连接凭证，请刷新页面后重试' });
+          sendSocketMessage(socket, errorFrame('server.instance.consoleTicketMissing'));
           closeSocket(socket);
           terminateSocketLater(socket);
           return;
         }
         if (!consumeConsoleTicket(ticket, req.params.id)) {
-          sendSocketMessage(socket, { type: 'error', data: '控制台连接凭证无效或已过期，请刷新页面后重试' });
+          sendSocketMessage(socket, errorFrame('server.instance.consoleTicketInvalid'));
           closeSocket(socket);
           terminateSocketLater(socket);
           return;
         }
       } catch {
-        sendSocketMessage(socket, { type: 'error', data: '登录已失效，请重新登录' });
+        sendSocketMessage(socket, errorFrame('server.common.unauthorized'));
         closeSocket(socket);
         terminateSocketLater(socket);
         return;
@@ -156,7 +169,7 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
 
       const instanceId = req.params.id;
       if (!getInstance(instanceId)) {
-        sendSocketMessage(socket, { type: 'error', data: '实例不存在' });
+        sendSocketMessage(socket, errorFrame('server.instance.notFound'));
         closeSocket(socket);
         terminateSocketLater(socket);
         return;
@@ -185,7 +198,7 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
       const onOutput = (id: string, text: string) => {
         if (id !== instanceId) return;
         if (Buffer.byteLength(text, 'utf8') > maxConsoleChunkBytes) {
-          closeSocket(socket, 1009, '控制台输出消息过大');
+          closeSocket(socket, 1009, 'Console output message too large');
           return;
         }
         sendSocketMessage(socket, { type: 'output', data: text });
@@ -205,8 +218,8 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
       socket.on('message', (raw) => {
         try {
           if (rawMessageByteLength(raw) > maxIncomingMessageBytes) {
-            sendSocketMessage(socket, { type: 'error', data: `控制台消息超过大小限制（${maxIncomingMessageBytes} 字节）` });
-            closeSocket(socket, 1009, '控制台消息过大');
+            sendSocketMessage(socket, errorFrame('server.instance.consoleMessageTooLarge', { limit: maxIncomingMessageBytes }));
+            closeSocket(socket, 1009, 'Console message too large');
             return;
           }
           const rawText = rawMessageToString(raw);
@@ -219,17 +232,17 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
             commandCount = 0;
           }
           if (commandCount >= config.maxConsoleCommandsPerWindow) {
-            sendSocketMessage(socket, { type: 'error', data: '发送命令过于频繁，请稍后重试' });
-            closeSocket(socket, 1008, '发送命令过于频繁');
+            sendSocketMessage(socket, errorFrame('server.instance.consoleCommandRateLimited'));
+            closeSocket(socket, 1008, 'Commands sent too often');
             return;
           }
           commandCount += 1;
           processManager.sendCommand(instanceId, msg.data);
         } catch (err) {
-          sendSocketMessage(socket, {
-            type: 'error',
-            data: errorMessage(err),
-          });
+          const message = toPanelMessage(err);
+          sendSocketMessage(socket, message
+            ? errorFrame(message.key, message.params)
+            : { type: 'error', data: errorMessage(err) });
         }
       });
 

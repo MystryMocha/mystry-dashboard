@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { nanoid } from 'nanoid';
-import type { TaskInfo } from '@mystry/shared';
+import { isPanelMessage, renderPanelMessage, type PanelMessage, type TaskInfo } from '@mystry/shared';
 import { config } from '../config.js';
 import { getDb, type TaskRow } from '../db.js';
 import { nowIso } from '../utils/path.js';
@@ -10,22 +10,22 @@ import {
   stagingMarkerMatches,
   taskStagingDir,
 } from './task-staging-service.js';
-import { errorMessage, hasErrorCode } from '../utils/errors.js';
+import { errorMessage, hasErrorCode, PanelError, toPanelMessage } from '../utils/errors.js';
 
-export class TaskCapacityError extends Error {
+export class TaskCapacityError extends PanelError {
   readonly code = 'TASK_CAPACITY';
 
   constructor() {
-    super('排队的任务过多，请稍后重试');
+    super('server.tasks.capacity');
     this.name = 'TaskCapacityError';
   }
 }
 
-export class TaskShuttingDownError extends Error {
+export class TaskShuttingDownError extends PanelError {
   readonly code = 'TASK_SHUTTING_DOWN';
 
   constructor() {
-    super('面板正在关闭，不再接受新任务');
+    super('server.tasks.shuttingDown');
     this.name = 'TaskShuttingDownError';
   }
 }
@@ -43,7 +43,7 @@ export function isTaskShuttingDownError(error: unknown): error is TaskShuttingDo
 type TaskWorker = (
   taskId: string,
   signal: AbortSignal,
-  report: (progress: number, msg: string) => void,
+  report: (progress: number, msg: PanelMessage) => void,
 ) => Promise<{ instanceId?: string } | void>;
 
 type QueuedTask = {
@@ -62,15 +62,44 @@ type TaskResultPayload = {
   stagingToken?: string;
 };
 
+/** 读取多语言消息列；内容损坏或键已不存在时忽略，退回显示原文。 */
+function parseMessageColumn(value: string | null): PanelMessage | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return isPanelMessage(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** 任务文本：可翻译消息同时写英文原文与键；纯文本（原始错误或旧调用）只写原文。 */
+export type TaskText = PanelMessage | string;
+
+function textColumns(value: TaskText): [text: string, i18n: string | null] {
+  return typeof value === 'string'
+    ? [value, null]
+    : [renderPanelMessage(value), JSON.stringify(value)];
+}
+
+/** 失败原因：可翻译错误保留键，其余取英文或原始文本。 */
+function failureText(error: unknown): TaskText {
+  return toPanelMessage(error) ?? errorMessage(error);
+}
+
 function rowToTask(row: TaskRow): TaskInfo {
+  const messageI18n = parseMessageColumn(row.message_i18n);
+  const errorI18n = parseMessageColumn(row.error_i18n);
   return {
     id: row.id,
     type: row.type as TaskInfo['type'],
     status: row.status as TaskInfo['status'],
     progress: row.progress,
     message: row.message,
+    ...(messageI18n ? { messageI18n } : {}),
     result: row.result_json ? JSON.parse(row.result_json) : undefined,
     error: row.error ?? undefined,
+    ...(errorI18n ? { errorI18n } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -85,15 +114,15 @@ function parseTaskResult(row: TaskRow): TaskResultPayload | null {
   }
 }
 
-export function createTask(type: TaskInfo['type'], message = '排队中'): TaskInfo {
+export function createTask(type: TaskInfo['type'], message: TaskText = { key: 'server.tasks.queued' }): TaskInfo {
   const id = nanoid(12);
   const now = nowIso();
   getDb()
     .prepare(
-      `INSERT INTO tasks (id, type, status, phase, progress, message, result_json, error, created_at, updated_at)
-       VALUES (?, ?, 'pending', NULL, 0, ?, NULL, NULL, ?, ?)`,
+      `INSERT INTO tasks (id, type, status, phase, progress, message, message_i18n, result_json, error, error_i18n, created_at, updated_at)
+       VALUES (?, ?, 'pending', NULL, 0, ?, ?, NULL, NULL, NULL, ?, ?)`,
     )
-    .run(id, type, message, now, now);
+    .run(id, type, ...textColumns(message), now, now);
   return getTask(id)!;
 }
 
@@ -111,13 +140,19 @@ export function listTasks(limit = 50): TaskInfo[] {
   return rows.map(rowToTask);
 }
 
+export type TaskPatch = Partial<Pick<TaskInfo, 'status' | 'progress' | 'result'>> & {
+  message?: TaskText;
+  /** null 表示清除失败原因。 */
+  error?: TaskText | null;
+};
+
 export function updateTask(
   id: string,
-  patch: Partial<Pick<TaskInfo, 'status' | 'progress' | 'message' | 'result' | 'error'>>,
+  patch: TaskPatch,
   options?: { phase?: string | null },
 ): TaskInfo {
   const existing = getTask(id);
-  if (!existing) throw new Error('任务不存在');
+  if (!existing) throw new PanelError('server.tasks.notFound');
   const row = getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id) as TaskRow;
   const now = nowIso();
   const phase = options?.phase !== undefined ? options.phase : row.phase;
@@ -128,8 +163,10 @@ export function updateTask(
         phase = ?,
         progress = ?,
         message = ?,
+        message_i18n = ?,
         result_json = ?,
         error = ?,
+        error_i18n = ?,
         updated_at = ?
       WHERE id = ?`,
     )
@@ -137,13 +174,17 @@ export function updateTask(
       patch.status ?? existing.status,
       phase,
       patch.progress ?? existing.progress,
-      patch.message ?? existing.message,
+      ...(patch.message !== undefined ? textColumns(patch.message) : [row.message, row.message_i18n]),
       patch.result !== undefined
         ? JSON.stringify(patch.result)
         : existing.result
           ? JSON.stringify(existing.result)
           : null,
-      patch.error !== undefined ? patch.error : (existing.error ?? null),
+      ...(patch.error === null
+        ? [null, null]
+        : patch.error !== undefined
+          ? textColumns(patch.error)
+          : [row.error, row.error_i18n]),
       now,
       id,
     );
@@ -172,7 +213,7 @@ export type InterruptedTaskRecovery = {
   stagingCleanupFailures: number;
 };
 
-function tryCleanInterruptedStaging(row: TaskRow): { cleaned: boolean; cleanupError: string | null } {
+function tryCleanInterruptedStaging(row: TaskRow): { cleaned: boolean; cleanupError: TaskText | null } {
   const result = parseTaskResult(row);
   if (!result?.instanceId || !result.stagingToken) {
     return { cleaned: false, cleanupError: null };
@@ -188,7 +229,7 @@ function tryCleanInterruptedStaging(row: TaskRow): { cleaned: boolean; cleanupEr
     token: result.stagingToken,
   };
   if (!stagingMarkerMatches(stagingPath, marker)) {
-    return { cleaned: false, cleanupError: '临时目录中的任务标记与任务记录不匹配，已跳过自动清理' };
+    return { cleaned: false, cleanupError: { key: 'server.tasks.stagingMarkerMismatch' } };
   }
   try {
     removeTaskStagingTree(row.id, result.instanceId, config.dataDir);
@@ -196,7 +237,7 @@ function tryCleanInterruptedStaging(row: TaskRow): { cleaned: boolean; cleanupEr
   } catch (error) {
     return {
       cleaned: false,
-      cleanupError: errorMessage(error),
+      cleanupError: failureText(error),
     };
   }
 }
@@ -213,9 +254,13 @@ export function recoverInterruptedTasks(): InterruptedTaskRecovery {
   let stagingCleanupFailures = 0;
   const update = getDb().prepare(
     `UPDATE tasks
-     SET status = 'failed', phase = 'failed', message = '已中断', error = ?, result_json = ?, updated_at = ?
+     SET status = 'failed', phase = 'failed', message = ?, message_i18n = ?, error = ?, error_i18n = ?,
+       result_json = ?, updated_at = ?
      WHERE id = ?`,
   );
+  const markFailed = (error: TaskText, resultJson: string | null, id: string) => {
+    update.run(...textColumns({ key: 'server.tasks.interrupted' }), ...textColumns(error), resultJson, nowIso(), id);
+  };
 
   for (const row of rows) {
     const result = parseTaskResult(row);
@@ -228,18 +273,19 @@ export function recoverInterruptedTasks(): InterruptedTaskRecovery {
     }
 
     // 最终实例目录或数据库记录一律保留，即使任务未完成。
+    const cleanupFailed: TaskText | null = stagingCleanup.cleanupError
+      ? { key: 'server.tasks.restartCleanupFailed', params: { reason: stagingCleanup.cleanupError } }
+      : null;
     if (instanceId && getInstanceRow(instanceId)) {
-      const error = stagingCleanup.cleanupError
-        ? `面板重启，未完成的任务无法恢复；临时目录清理失败：${stagingCleanup.cleanupError}`
-        : '面板重启，内存任务无法恢复；已保留实例目录，请重新提交或手动检查任务状态';
-      update.run(error, row.result_json, nowIso(), row.id);
+      markFailed(cleanupFailed ?? { key: 'server.tasks.restartLostKeptInstance' }, row.result_json, row.id);
       continue;
     }
 
-    const error = stagingCleanup.cleanupError
-      ? `面板重启，未完成的任务无法恢复；临时目录清理失败：${stagingCleanup.cleanupError}`
-      : '面板重启，内存任务无法恢复，请重新提交';
-    update.run(error, stagingCleanup.cleaned ? null : row.result_json, nowIso(), row.id);
+    markFailed(
+      cleanupFailed ?? { key: 'server.tasks.restartLost' },
+      stagingCleanup.cleaned ? null : row.result_json,
+      row.id,
+    );
   }
 
   return { interrupted: rows.length, cleanedStaging, stagingCleanupFailures };
@@ -270,10 +316,10 @@ async function executeTask(item: QueuedTask, controller: AbortController): Promi
   let failed = false;
 
   try {
-    updateTask(item.task.id, { status: 'running', message: item.task.message }, { phase: 'staging' });
+    updateTask(item.task.id, { status: 'running', message: item.task.messageI18n ?? item.task.message }, { phase: 'staging' });
     const timeout = setTimeout(() => {
       timedOut = true;
-      controller.abort(new Error('任务执行超时'));
+      controller.abort(new PanelError('server.tasks.timeout'));
     }, config.taskTimeoutMs);
 
     try {
@@ -297,26 +343,22 @@ async function executeTask(item: QueuedTask, controller: AbortController): Promi
   }
 
   if (failed) {
-    const error = timedOut
-      ? '任务执行超时'
-      : failure instanceof Error
-        ? failure.message
-        : String(failure);
-    updateTask(item.task.id, { status: 'failed', message: '失败', error }, { phase: 'failed' });
+    const error: TaskText = timedOut ? { key: 'server.tasks.timeout' } : failureText(failure);
+    updateTask(item.task.id, { status: 'failed', message: { key: 'server.tasks.failed' }, error }, { phase: 'failed' });
     return;
   }
 
   updateTask(item.task.id, {
     status: 'completed',
     progress: 100,
-    message: '完成',
+    message: { key: 'server.tasks.completed' },
     result: result ?? undefined,
   }, { phase: 'completed' });
 }
 
 export async function runBackgroundTask(
   type: TaskInfo['type'],
-  message: string,
+  message: PanelMessage,
   worker: TaskWorker,
 ): Promise<TaskInfo> {
   if (shuttingDown) {
@@ -345,14 +387,14 @@ export async function shutdownTasks(): Promise<void> {
     const item = taskQueue.shift()!;
     updateTask(item.task.id, {
       status: 'failed',
-      message: '已取消',
-      error: '面板正在关闭，任务已取消',
+      message: { key: 'server.tasks.cancelled' },
+      error: { key: 'server.tasks.cancelledByShutdown' },
     }, { phase: 'failed' });
   }
 
   for (const controller of runningControllers.values()) {
     if (!controller.signal.aborted) {
-      controller.abort(new Error('任务已取消'));
+      controller.abort(new PanelError('server.tasks.aborted'));
     }
   }
 

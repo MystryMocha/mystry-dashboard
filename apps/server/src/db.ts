@@ -68,8 +68,12 @@ export type TaskRow = {
   phase: string | null;
   progress: number;
   message: string;
+  /** 进度消息键与参数（JSON）；旧库与旧任务为 NULL，此时只显示 message 原文 */
+  message_i18n: string | null;
   result_json: string | null;
   error: string | null;
+  /** 失败原因消息键与参数（JSON）；旧任务或无法归类的原始错误为 NULL */
+  error_i18n: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -192,6 +196,13 @@ export function initDb(): void {
   }
   taskCols = db.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>;
   migrateLegacyTaskPhases(taskCols);
+  // 多语言任务消息：只新增可空列，旧任务保持 NULL 并继续显示原有文本。
+  if (!taskCols.some((c) => c.name === 'message_i18n')) {
+    db.exec('ALTER TABLE tasks ADD COLUMN message_i18n TEXT');
+  }
+  if (!taskCols.some((c) => c.name === 'error_i18n')) {
+    db.exec('ALTER TABLE tasks ADD COLUMN error_i18n TEXT');
+  }
 
   // 索引必须放在列迁移之后，旧库缺列时 CREATE INDEX 会失败。
   db.exec(`

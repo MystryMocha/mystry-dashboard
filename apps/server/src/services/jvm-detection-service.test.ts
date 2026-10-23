@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { renderPanelMessage } from '@mystry/shared';
+import { PanelError } from '../utils/errors.js';
+
+const hasMessageKey = (key: string) => (error: unknown) => error instanceof PanelError && error.messageKey === key;
 
 process.env.JWT_SECRET = 'a'.repeat(64);
 process.env.SETUP_TOKEN = 'b'.repeat(64);
@@ -71,7 +75,8 @@ test('目录检测只读取根目录普通 user_jvm_args.txt', async (t) => {
   fs.writeFileSync(path.join(root, 'user_jvm_args.txt'), 'x'.repeat(64 * 1024 + 1));
   const oversized = detectJvmConfigFile(root);
   assert.equal(oversized?.canonicalArgs, null);
-  assert.match(oversized?.issues[0]?.message ?? '', /64 KiB/);
+  assert.equal(oversized?.issues[0]?.key, 'server.imports.jvmFile.tooLarge');
+  assert.equal(oversized?.issues[0]?.message, renderPanelMessage({ key: 'server.imports.jvmFile.tooLarge' }));
 });
 
 test('ZIP 检测支持单一顶层目录并拒绝危险中央目录', async (t) => {
@@ -101,36 +106,36 @@ test('ZIP 检测支持单一顶层目录并拒绝危险中央目录', async (t) 
   ]);
   const oversizedResult = await inspectZipJvmConfig(oversized);
   assert.equal(oversizedResult?.canonicalArgs, null);
-  assert.match(oversizedResult?.issues[0]?.message ?? '', /64 KiB/);
+  assert.equal(oversizedResult?.issues[0]?.message, renderPanelMessage({ key: 'server.files.zip.jvmArgsTooLarge' }));
 
   const duplicate = writeZip('duplicate.zip', [
     { name: 'user_jvm_args.txt', contents: '-Xms1G' },
     { name: 'user_jvm_args.txt', contents: '-Xmx2G' },
   ]);
-  await assert.rejects(() => inspectZipJvmConfig(duplicate), /重复条目/);
+  await assert.rejects(() => inspectZipJvmConfig(duplicate), hasMessageKey('server.files.zip.duplicateEntry'));
 
   const symlinkMode = ((0xa000 | 0o777) << 16) >>> 0;
   const linked = writeZip('link.zip', [
     { name: 'user_jvm_args.txt', contents: 'target', externalAttributes: symlinkMode },
   ]);
-  await assert.rejects(() => inspectZipJvmConfig(linked), /链接或特殊文件/);
+  await assert.rejects(() => inspectZipJvmConfig(linked), hasMessageKey('server.files.zip.linkEntry'));
 
   const zip64 = createStoredZip([{ name: 'server.jar', contents: 'jar' }]);
   zip64.writeUInt16LE(0xffff, zip64.length - 22 + 10);
   const zip64Path = path.join(root, 'zip64.zip');
   fs.writeFileSync(zip64Path, zip64);
-  await assert.rejects(() => inspectZipJvmConfig(zip64Path), /ZIP64/);
+  await assert.rejects(() => inspectZipJvmConfig(zip64Path), hasMessageKey('server.files.zip.zip64Unsupported'));
 
   const tooManyEntries = createStoredZip([{ name: 'server.jar', contents: 'jar' }]);
   tooManyEntries.writeUInt16LE(10_001, tooManyEntries.length - 22 + 8);
   tooManyEntries.writeUInt16LE(10_001, tooManyEntries.length - 22 + 10);
   const tooManyEntriesPath = path.join(root, 'too-many-entries.zip');
   fs.writeFileSync(tooManyEntriesPath, tooManyEntries);
-  await assert.rejects(() => inspectZipJvmConfig(tooManyEntriesPath), /条目数量超过限制/);
+  await assert.rejects(() => inspectZipJvmConfig(tooManyEntriesPath), hasMessageKey('server.files.zip.tooManyEntries'));
 
   const splitZip = createStoredZip([{ name: 'server.jar', contents: 'jar' }]);
   splitZip.writeUInt16LE(1, splitZip.length - 22 + 4);
   const splitZipPath = path.join(root, 'split.zip');
   fs.writeFileSync(splitZipPath, splitZip);
-  await assert.rejects(() => inspectZipJvmConfig(splitZipPath), /分卷 ZIP/);
+  await assert.rejects(() => inspectZipJvmConfig(splitZipPath), hasMessageKey('server.files.zip.multiVolumeUnsupported'));
 });

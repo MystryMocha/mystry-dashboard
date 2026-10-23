@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import test from 'node:test';
+import { renderPanelMessage, type PanelMessage } from '@mystry/shared';
 
 process.env.JWT_SECRET = 'a'.repeat(64);
 process.env.SETUP_TOKEN = 'b'.repeat(64);
@@ -116,6 +117,8 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-zip-boundaries-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { inspectZipJvmConfig, safeExtract } = await import('./zip-service.js');
+  const { PanelError } = await import('../utils/errors.js');
+  const hasMessageKey = (key: string) => (error: unknown) => error instanceof PanelError && error.messageKey === key;
   const jvmArgs = '-Xms1G\n-Xmx2G\n';
   let sequence = 0;
   const fixture = (zip: Buffer) => {
@@ -138,13 +141,35 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
     });
   }
 
-  const corruptions: Array<{ name: string; mutate: (zip: Buffer) => void; error: RegExp }> = [
-    { name: '本地文件头损坏', mutate: (zip) => { zip.writeUInt32LE(0, 0); }, error: /ZIP 条目头非法/ },
-    { name: '条目数据越界', mutate: (zip) => { zip.writeUInt16LE(0xffff, 28); }, error: /ZIP 条目数据越界/ },
-    { name: '压缩方式不支持', mutate: (zip) => { zip.writeUInt16LE(99, centralOffset(zip) + 10); }, error: /不支持的压缩方式/ },
-    { name: '解压大小不匹配', mutate: (zip) => { zip.writeUInt32LE(Buffer.byteLength(jvmArgs) + 1, centralOffset(zip) + 24); }, error: /解压大小不匹配/ },
+  // preview：预览诊断的英文文本（诊断项只有文本）；extractKey：解压时抛出的消息键。
+  const entryName = { name: 'user_jvm_args.txt' };
+  const corruptions: Array<{ name: string; mutate: (zip: Buffer) => void; preview: PanelMessage; extractKey: string }> = [
+    {
+      name: '本地文件头损坏',
+      mutate: (zip) => { zip.writeUInt32LE(0, 0); },
+      preview: { key: 'server.files.zip.localHeaderInvalid', params: entryName },
+      extractKey: 'server.files.zip.localHeaderInvalid',
+    },
+    {
+      name: '条目数据越界',
+      mutate: (zip) => { zip.writeUInt16LE(0xffff, 28); },
+      preview: { key: 'server.files.zip.entryDataOutOfRange', params: entryName },
+      extractKey: 'server.files.zip.entryDataOutOfRange',
+    },
+    {
+      name: '压缩方式不支持',
+      mutate: (zip) => { zip.writeUInt16LE(99, centralOffset(zip) + 10); },
+      preview: { key: 'server.files.zip.jvmArgsUnsupportedCompression', params: { method: 99 } },
+      extractKey: 'server.files.zip.unsupportedCompression',
+    },
+    {
+      name: '解压大小不匹配',
+      mutate: (zip) => { zip.writeUInt32LE(Buffer.byteLength(jvmArgs) + 1, centralOffset(zip) + 24); },
+      preview: { key: 'server.files.zip.jvmArgsSizeMismatch' },
+      extractKey: 'server.files.zip.entrySizeMismatch',
+    },
   ];
-  for (const { name, mutate, error } of corruptions) {
+  for (const { name, mutate, preview: expectedPreview, extractKey } of corruptions) {
     await t.test(`${name} 时预览返回诊断、解压清理半成品`, async () => {
       const zip = createZip([{ name: 'user_jvm_args.txt', contents: jvmArgs }]);
       mutate(zip);
@@ -152,8 +177,8 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
       const preview = await inspectZipJvmConfig(zipPath);
       assert.equal(preview?.canonicalArgs, null);
       assert.equal(preview?.issues[0]?.code, 'ZIP_ARGFILE_ERROR');
-      assert.match(preview?.issues[0]?.message ?? '', error);
-      await assert.rejects(() => safeExtract(zipPath, destDir), error);
+      assert.equal(preview?.issues[0]?.message, renderPanelMessage(expectedPreview));
+      await assert.rejects(() => safeExtract(zipPath, destDir), hasMessageKey(extractKey));
       assert.equal(fs.existsSync(destDir), false);
       assert.equal(fs.existsSync(zipPath), true);
     });
@@ -165,14 +190,14 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
     const { zipPath } = fixture(zip);
     const preview = await inspectZipJvmConfig(zipPath);
     assert.equal(preview?.canonicalArgs, null);
-    assert.match(preview?.issues[0]?.message ?? '', /超过 64 KiB/);
+    assert.equal(preview?.issues[0]?.message, renderPanelMessage({ key: 'server.files.zip.jvmArgsTooLarge' }));
   });
 
   await t.test('开始前取消时保留超时原因并清理解压目录', async () => {
     const { zipPath, destDir } = fixture(createZip([{ name: 'server.jar', contents: 'jar' }]));
     const controller = new AbortController();
-    controller.abort(new Error('任务执行超时'));
-    await assert.rejects(() => safeExtract(zipPath, destDir, controller.signal), /任务执行超时/);
+    controller.abort(new PanelError('server.tasks.timeout'));
+    await assert.rejects(() => safeExtract(zipPath, destDir, controller.signal), hasMessageKey('server.tasks.timeout'));
     assert.equal(fs.existsSync(destDir), false);
     assert.equal(fs.existsSync(zipPath), true);
   });
@@ -184,10 +209,10 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
     let source: fs.ReadStream | undefined;
     t.mock.method(fs, 'createReadStream', (...args: Parameters<typeof createReadStream>) => {
       source = createReadStream(...args);
-      source.once('data', () => controller.abort(new Error('任务已取消')));
+      source.once('data', () => controller.abort(new PanelError('server.tasks.cancelled')));
       return source;
     });
-    await assert.rejects(() => safeExtract(zipPath, destDir, controller.signal), /任务已取消/);
+    await assert.rejects(() => safeExtract(zipPath, destDir, controller.signal), hasMessageKey('server.tasks.cancelled'));
     assert.equal(source?.destroyed, true);
     assert.equal(fs.existsSync(destDir), false);
     assert.equal(fs.existsSync(zipPath), true);
@@ -234,7 +259,10 @@ test('ZIP 外层目录内的伪造 staging marker 应被拒绝', async (t) => {
   }
 
   assert.equal(completedTask?.status, 'failed');
-  assert.match(completedTask?.error ?? '', /ZIP 根目录存在重复路径：\.mystry-staging-marker\.json/);
+  assert.deepEqual(completedTask?.errorI18n, {
+    key: 'server.imports.zip.duplicateRootPath',
+    params: { name: STAGING_MARKER_FILE },
+  });
   const instanceId = completedTask?.result?.instanceId;
   if (typeof instanceId === 'string') {
     assert.equal(fs.existsSync(defaultInstanceDir(instanceId)), false);

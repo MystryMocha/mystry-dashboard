@@ -3,7 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Writable } from 'node:stream';
-import type { InstanceStatus } from '@mystry/shared';
+import { renderPanelMessage, type InstanceStatus, type ServerMessageKey } from '@mystry/shared';
 import type { InstanceRow } from '../db.js';
 import { config } from '../config.js';
 import { assertSafeInstanceRoot, resolveDirFromRow, resolveSafePath } from '../utils/path.js';
@@ -12,7 +12,7 @@ import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
 import { ensureServerPropertiesDefaults } from './config-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
-import { errorMessage } from '../utils/errors.js';
+import { errorMessage, PanelError } from '../utils/errors.js';
 
 const { maxCommandBytes, maxConsoleBufferBytes, maxConsoleChunkBytes, maxConsoleStdinBytes } = config;
 
@@ -25,20 +25,20 @@ function getStopGraceMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultStopGraceMs;
 }
 
-export class InstanceOperationConflictError extends Error {
+export class InstanceOperationConflictError extends PanelError {
   readonly code = 'INSTANCE_OPERATION_CONFLICT' as const;
 
-  constructor(message: string) {
-    super(message);
+  constructor(key: ServerMessageKey) {
+    super(key);
     this.name = 'InstanceOperationConflictError';
   }
 }
 
-export class InstanceStopPendingError extends Error {
+export class InstanceStopPendingError extends PanelError {
   readonly code = 'INSTANCE_STOP_PENDING' as const;
 
-  constructor(message = '实例仍在停止中，请等待或选择强制停止') {
-    super(message);
+  constructor(key: ServerMessageKey = 'server.instance.stopPending') {
+    super(key);
     this.name = 'InstanceStopPendingError';
   }
 }
@@ -181,7 +181,7 @@ export class ProcessManager extends EventEmitter {
 
   async start(instance: InstanceRow): Promise<void> {
     if (this.shuttingDown) {
-      throw new Error('面板正在关闭，无法启动实例');
+      throw new PanelError('server.instance.startShuttingDown');
     }
     return this.withInstanceOperation(instance.id, () => this.startWithinLock(instance));
   }
@@ -224,34 +224,34 @@ export class ProcessManager extends EventEmitter {
   sendCommand(instanceId: string, command: string): void {
     const managed = this.processes.get(instanceId);
     if (!managed || managed.status === 'stopped' || !managed.child) {
-      throw new Error('实例未在运行，无法发送命令');
+      throw new PanelError('server.instance.commandNotRunning');
     }
 
     if (typeof command !== 'string' || command.trim().length === 0) {
-      throw new Error('命令不能为空');
+      throw new PanelError('server.instance.commandEmpty');
     }
     if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/.test(command)) {
-      throw new Error('命令不能包含换行或控制字符');
+      throw new PanelError('server.instance.commandControlChars');
     }
     const commandBytes = Buffer.byteLength(command, 'utf8');
     if (commandBytes > maxCommandBytes) {
-      throw new Error(`命令超过大小限制（${maxCommandBytes} 字节）`);
+      throw new PanelError('server.instance.commandTooLarge', { limit: maxCommandBytes });
     }
 
     const line = `${command}\n`;
     const lineBytes = Buffer.byteLength(line, 'utf8');
     if (lineBytes > maxCommandBytes + 1) {
-      throw new Error(`命令超过大小限制（${maxCommandBytes} 字节）`);
+      throw new PanelError('server.instance.commandTooLarge', { limit: maxCommandBytes });
     }
     if (managed.stdinBackpressured) {
-      throw new Error('控制台输入缓冲繁忙，请稍后重试');
+      throw new PanelError('server.instance.stdinBusy');
     }
     const stdin = managed.child.stdin;
     if (!managed.stdinAvailable || stdin.writableEnded || stdin.destroyed || !stdin.writable) {
-      throw new Error('实例输入流不可用');
+      throw new PanelError('server.instance.stdinUnavailable');
     }
     if (stdin.writableLength + lineBytes > maxConsoleStdinBytes) {
-      throw new Error(`控制台输入缓冲超过大小限制（${maxConsoleStdinBytes} 字节）`);
+      throw new PanelError('server.instance.stdinTooLarge', { limit: maxConsoleStdinBytes });
     }
     try {
       const accepted = stdin.write(line);
@@ -261,7 +261,7 @@ export class ProcessManager extends EventEmitter {
     } catch {
       managed.stdinAvailable = false;
       managed.stdinBackpressured = true;
-      throw new Error('命令写入失败，实例输入流不可用');
+      throw new PanelError('server.instance.commandWriteFailed');
     }
   }
 
@@ -272,7 +272,7 @@ export class ProcessManager extends EventEmitter {
   /** 实例记录删除后同步清理当前进程内保留的终态与控制台历史。 */
   forget(instanceId: string): void {
     if (this.processes.has(instanceId)) {
-      throw new Error('运行中的实例不能清理进程状态');
+      throw new PanelError('server.instance.forgetRunning');
     }
     this.snapshots.delete(instanceId);
   }
@@ -303,10 +303,10 @@ export class ProcessManager extends EventEmitter {
 
   private async startWithinLock(instance: InstanceRow): Promise<void> {
     if (this.shuttingDown) {
-      throw new Error('面板正在关闭，无法启动实例');
+      throw new PanelError('server.instance.startShuttingDown');
     }
     if (this.isRunning(instance.id)) {
-      throw new InstanceOperationConflictError('实例已在运行或正在启停');
+      throw new InstanceOperationConflictError('server.instance.alreadyRunning');
     }
 
     const cwd = resolveDirFromRow(instance);
@@ -328,18 +328,18 @@ export class ProcessManager extends EventEmitter {
       const argsRel = instance.jar_file.slice('@args:'.length);
       const argsAbs = resolveSafePath(cwd, argsRel);
       if (!fs.existsSync(argsAbs)) {
-        throw new Error(`找不到 Forge/NeoForge 启动参数文件：${argsRel}，请重新部署该实例`);
+        throw new PanelError('server.instance.forgeArgsMissing', { path: argsRel });
       }
       const safeArgsRel = path.relative(cwd, argsAbs).replace(/\\/g, '/');
       const userJvm = resolveSafePath(cwd, 'user_jvm_args.txt');
       fs.writeFileSync(userJvm, `${serializeJvmArgFile(jvmArgs)}\n`, 'utf8');
       args = ['@user_jvm_args.txt', `@${safeArgsRel}`, 'nogui'];
     } else if (instance.jar_file === '@modloader') {
-      throw new Error('Forge/NeoForge 尚未完成安装，请重新部署，或在任务中心查看安装失败原因');
+      throw new PanelError('server.instance.modloaderNotInstalled');
     } else {
       const jarPath = resolveSafePath(cwd, instance.jar_file);
       if (!fs.existsSync(jarPath)) {
-        throw new Error(`找不到服务端 jar：${instance.jar_file}`);
+        throw new PanelError('server.instance.jarMissing', { jar: instance.jar_file });
       }
       const safeJarRel = path.relative(cwd, jarPath).replace(/\\/g, '/');
       args = [...jvmArgs, '-jar', safeJarRel, 'nogui'];
@@ -360,7 +360,7 @@ export class ProcessManager extends EventEmitter {
     try {
       const javaCommand = await this.resolveJavaCommand(instance.java_runtime_id);
       if (this.shuttingDown) {
-        throw new Error('面板正在关闭，已取消启动');
+        throw new PanelError('server.instance.startCancelledShuttingDown');
       }
       ensureServerPropertiesDefaults(instance.id);
       const child = this.spawnMinecraft(javaCommand, args, {
@@ -393,7 +393,12 @@ export class ProcessManager extends EventEmitter {
 
       child.on('error', (err) => {
         if (this.processes.get(instance.id) !== managed) return;
-        this.appendOutput(instance.id, `\n[面板] 进程启动失败：${err.message}\n`);
+        // 控制台日志写英文整行，Web 识别该句式后按当前语言改写显示。
+        const line = renderPanelMessage({
+          key: 'server.instance.consoleProcessStartFailed',
+          params: { reason: err.message },
+        });
+        this.appendOutput(instance.id, `\n${line}\n`);
         this.archiveProcess(instance.id, managed, 'crashed');
       });
 
@@ -401,10 +406,12 @@ export class ProcessManager extends EventEmitter {
         if (this.processes.get(instance.id) !== managed) return;
         const wasStopping = managed.status === 'stopping';
         const status = wasStopping ? 'stopped' : 'crashed';
-        this.appendOutput(
-          instance.id,
-          `\n[面板] 进程已退出（退出码 ${code ?? '无'}，信号 ${signal ?? '无'}）\n`,
-        );
+        const none = renderPanelMessage({ key: 'server.instance.consoleNone' });
+        const line = renderPanelMessage({
+          key: 'server.instance.consoleProcessExited',
+          params: { code: code ?? none, signal: signal ?? none },
+        });
+        this.appendOutput(instance.id, `\n${line}\n`);
         this.archiveProcess(instance.id, managed, status);
       });
     } catch (error) {
@@ -417,10 +424,10 @@ export class ProcessManager extends EventEmitter {
   private async stopWithinLock(instanceId: string, force: boolean): Promise<void> {
     const managed = this.processes.get(instanceId);
     if (!managed) {
-      throw new Error('实例未在运行');
+      throw new PanelError('server.instance.notRunning');
     }
     if (!managed.child) {
-      throw new InstanceOperationConflictError('实例正在启动中，请稍后再试');
+      throw new InstanceOperationConflictError('server.instance.stillStarting');
     }
 
     const child = managed.child;
@@ -431,7 +438,7 @@ export class ProcessManager extends EventEmitter {
       child.kill('SIGKILL');
       const outcome = await waitForChildExit(child, getStopGraceMs());
       if (outcome === 'timeout' && this.processes.get(instanceId) === managed) {
-        throw new InstanceStopPendingError('实例仍在强制终止中，请稍候');
+        throw new InstanceStopPendingError('server.instance.forceStopPending');
       }
       return;
     }
@@ -439,7 +446,7 @@ export class ProcessManager extends EventEmitter {
     // 先确认输入流可用，再进入 stopping，避免校验失败时实例永久卡在 stopping。
     const stdin = child.stdin;
     if (!managed.stdinAvailable || stdin.writableEnded || stdin.destroyed || !stdin.writable) {
-      throw new Error('实例输入流不可用，无法发送停止命令');
+      throw new PanelError('server.instance.stopStdinUnavailable');
     }
 
     managed.status = 'stopping';
@@ -452,7 +459,7 @@ export class ProcessManager extends EventEmitter {
       managed.stdinBackpressured = true;
       managed.status = 'running';
       this.emitStatus(instanceId, 'running');
-      throw new Error('停止命令写入失败');
+      throw new PanelError('server.instance.stopWriteFailed');
     }
 
     const outcome = await waitForChildExit(child, getStopGraceMs());

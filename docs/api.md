@@ -8,7 +8,17 @@ Authorization: Bearer <token>
 
 带请求体的接口使用 JSON，请求头为 `Content-Type: application/json`；启动、停止这类没有请求体的 POST 不要带 `Content-Type`，或者发送 `{}`。其他 `Content-Type` 会返回 **415**。
 
-错误响应通常为 JSON：`{ "error": "说明" }`。
+错误响应为 JSON：
+
+```json
+{ "error": "Instance not found.", "code": "server.instance.notFound", "params": { "id": "abc" } }
+```
+
+- `error`：渲染好的**英文**说明，脚本和旧客户端可直接显示。
+- `code` / `params`：面板自身产生的错误带有稳定的消息键与参数（键以 `server.` 开头，定义在 `packages/shared/src/messages/`）。Web 界面按当前语言（English / 简体中文 / 繁體中文）用同一个键翻译，缺键时显示 `error`。参数值可以是文本、数字，或另一条 `{ key, params }` 消息（例如失败原因）。
+- Node.js 系统错误、Java 或网络库返回的原始文本没有 `code`，`error` 原样返回。
+- 实例启停、删除、接管冲突（409）的 `code` 也是消息键（如 `server.instance.alreadyRunning`），不再是 `INSTANCE_OPERATION_CONFLICT`。
+- 请求体校验失败（Fastify / AJV）返回 400，`code` 为 `server.common.invalidRequest`，`params.detail` 为英文校验说明。
 
 ## 总览性能监测
 
@@ -17,7 +27,7 @@ Authorization: Bearer <token>
 - `sampledAt`：采样时间；`cpuPercent`：整机 CPU 使用率，首次采样为 `null`。
 - `memory`：主机 `usedBytes` / `totalBytes`；`disk`：数据根所在磁盘的 `availableBytes` / `totalBytes`，读取失败为 `null`。
 - `instances`：以实例 ID 为键，包含 `cpuPercent`、`memoryBytes` 与 `state`（`ready` / `collecting` / `unavailable`）。仅采集面板持有的活进程，调用方不能指定 PID 或路径。
-- `warnings`：CPU 或内存连续采样至少 30 秒达到 90% 时提示；磁盘可用空间低于 5 GiB 或 10% 时提示。
+- `warnings`：CPU 或内存连续采样至少 30 秒达到 90% 时提示；磁盘可用空间低于 5 GiB 或 10% 时提示。文本为英文，`warningsI18n` 按相同顺序给出对应的消息键，供界面翻译。
 
 CPU 按整机逻辑核总容量归一至 0–100%；进程内存是驻留内存，与 JVM 堆内存上限 Xmx 不同。进程指标目前只支持 Windows 和 Linux，其他平台为 `unavailable`。空值不表示零占用。快照缓存 4 秒，并发请求合并；无历史存储，页面每 5 秒刷新、隐藏时暂停。采样间隔超过 15 秒会重新累计持续告警时间。
 
@@ -95,7 +105,7 @@ Java 状态响应准确结构为：
 | POST | `/api/instances/:id/adopt-managed-directory` | 接管已复制到面板托管根目录的旧实例 |
 | DELETE | `/api/instances/:id` | 删除实例记录及面板托管的实例目录；旧版外部目录不会被访问或删除 |
 | POST | `/api/instances/:id/start` | 启动 |
-| POST | `/api/instances/:id/stop` | 停止；`?force=1` 强杀 |
+| POST | `/api/instances/:id/stop` | 停止；`?force=1` 强杀。普通停止超时仍在停止中时返回 **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
 | POST | `/api/instances/:id/restart` | 重启 |
 | POST | `/api/instances/:id/command` | Body：`{ command: string }`，发送控制台命令 |
 
@@ -222,7 +232,7 @@ Authorization: Bearer <token>
 
 提交前应停止原服务器。复制前的检查与限制见 [从本机文件夹导入](user-guide.md#从本机文件夹导入)。成功或失败都不会删除源目录；失败时会清理新建的半成品实例。
 
-目录根部存在普通 `user_jvm_args.txt` 时，来源信息可包含 `detectedJvmConfig`。文件最大 64 KiB；不读取子目录文件，不跟随链接，也不解析或执行 `.bat` / `.sh`。检测到参数后，Web 要求用户明确选择沿用、面板推荐或自定义；解析失败时 `canonicalArgs` 为 `null`，不能沿用。
+目录根部存在普通 `user_jvm_args.txt` 时，来源信息可包含 `detectedJvmConfig`。文件最大 64 KiB；不读取子目录文件，不跟随链接，也不解析或执行 `.bat` / `.sh`。检测到参数后，Web 要求用户明确选择沿用、面板推荐或自定义；解析失败时 `canonicalArgs` 为 `null`，不能沿用。`issues[]` 每项含稳定的 `code`、`severity` 和英文 `message`；共享 JVM 校验产生的诊断另带 `key`（`server.jvm.issue.*`）与 `params` 供界面翻译。
 
 ### ZIP 二阶段导入
 
@@ -280,6 +290,8 @@ ZIP 中的普通文件只支持存储和 Deflate 两种压缩方式；其他方�
 | `completed` | 成功，`result` 可能含 `instanceId` |
 | `failed` | 失败，`error` 为原因 |
 
+`message` 与 `error` 是英文文本；同时返回的 `messageI18n` / `errorI18n`（`{ key, params }`）供界面按语言翻译。升级前创建的任务没有这两个字段，`message` / `error` 可能是中文原文，按原样显示即可。数据库为此在 `tasks` 表新增可空列 `message_i18n`、`error_i18n`（启动时自动补列，无需手动迁移）。
+
 部署或导入提交成功后，即使暂时没有执行槽位，也会先返回 `pending` 任务；队列已满时返回 **429**。调用方应继续查询 `/api/tasks/:id`，直到 `completed` 或 `failed`；任务开始执行后超过 `TASK_TIMEOUT_MS` 会失败。排队不是失败，不要重复提交。
 
 ## 控制台 WebSocket
@@ -302,7 +314,7 @@ Authorization: Bearer <token>
 | `history` | `data`, `status?` | 连接时历史输出 |
 | `output` | `data` | 新日志片段 |
 | `status` | `status` | 状态变更 |
-| `error` | `data` | 错误说明 |
+| `error` | `data`, `code?`, `params?` | 错误说明：`data` 为英文文本，`code` / `params` 为可翻译的消息键与参数 |
 
 ### 客户端 → 服务端
 

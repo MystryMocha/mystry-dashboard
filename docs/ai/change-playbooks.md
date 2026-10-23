@@ -5,7 +5,7 @@
 1. 在 `packages/shared/src/index.ts` 增加或修改请求/响应类型。
 2. 需要 Fastify 运行时校验时同步 `packages/shared/src/schemas.ts`。
 3. 先运行 `npm.cmd run build -w @mystry/shared`。
-4. 在 `apps/server/src/services/` 实现业务逻辑，在 `routes/` 做认证、schema 和 HTTP 映射。
+4. 在 `apps/server/src/services/` 实现业务逻辑，在 `routes/` 做认证、schema 和 HTTP 映射。面向用户的错误和任务进度用 `PanelError` / `panelErrorBody` / `sendRouteError` 与 `server.*` 消息键，英文模板放 `packages/shared/src/messages/`，中文翻译放 `apps/web/src/i18n/zh-CN|zh-TW/server/`；不要在服务端写中文提示。
 5. 在 `apps/web/src/api.ts` 或对应页面接入，并提供用户可见入口、加载态和错误反馈。
 6. 同步 `docs/api.md`、当前状态及必要的架构决策。
 

@@ -3,7 +3,7 @@ import { isFileRenameConflictError } from './services/file-service.js';
 import { ImportPreviewHttpError } from './services/import-preview-service.js';
 import { isTaskCapacityError, isTaskShuttingDownError } from './services/task-service.js';
 import { isUploadCapacityError, isUploadTooLargeError } from './services/upload-service.js';
-import { errorMessage } from './utils/errors.js';
+import { errorBody, PanelError } from './utils/errors.js';
 
 /** 服务层已知错误对应的 HTTP 状态码；其余错误使用调用方给的默认状态码。 */
 export function routeErrorStatus(error: unknown, fallbackStatus = 400): number {
@@ -12,9 +12,11 @@ export function routeErrorStatus(error: unknown, fallbackStatus = 400): number {
   if (isTaskShuttingDownError(error)) return 503;
   if (isTaskCapacityError(error) || isUploadCapacityError(error)) return 429;
   if (isFileRenameConflictError(error)) return 409;
+  if (error instanceof PanelError && error.statusCode !== undefined) return error.statusCode;
   return fallbackStatus;
 }
 
 export function sendRouteError(reply: FastifyReply, error: unknown, fallbackStatus = 400) {
-  return reply.code(routeErrorStatus(error, fallbackStatus)).send({ error: errorMessage(error) });
+  // 可翻译错误带上消息键与参数，其余只返回原文。
+  return reply.code(routeErrorStatus(error, fallbackStatus)).send(errorBody(error));
 }

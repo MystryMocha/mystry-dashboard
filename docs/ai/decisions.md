@@ -29,7 +29,8 @@
 | D-018 | Adopted | 四个实例入口统一使用结构化 JVM 配置器，但数据库继续只保存规范化 `jvmArgs` 字符串 | 不引入 schema 迁移；共享包负责解析、预设和诊断，服务端在保存、任务入队和启动前复验；`jvm-config.ts`、`JvmSettingsEditor.tsx`、`jvm-validation-service.ts` |
 | D-019 | Adopted | Web 的 ZIP 导入使用“上传预检 → 确认配置 → 后台任务”二阶段内存预览；旧的一阶段 `POST /api/import` 已删除 | 在消费大文件前展示并确认检测到的 JVM 参数；预览随机 ID 绑定用户、限时限量、不写数据库且不跨重启，队列满不消费；`import-preview-service.ts`、`cores.ts`、`ImportPage.tsx` |
 | D-020 | Adopted | Web 界面参照 Apple HIG / Liquid Glass：毛玻璃只用于导航层，内容层用实色卡片；主题改为「外观（自动/浅色/深色）× 强调色」，替代原 Mystry / Codex / Grok 六主题 | 与系统深浅色一致、强调色可选且对比度按外观分别校准；旧 `mystry_theme` 在渲染前自动迁移，不丢用户选择；仍不加载外部字体与样式。`theme.ts`、`index.html`、`styles.css`、`ThemeToggle.tsx` |
-| D-021 | Adopted | Web 界面多语言：`en` 为默认与缺键回落语言，另有 `zh-CN`、`zh-TW`（台湾惯用词）；零依赖自研 `t` / 复数 / 富文本 / Intl 格式化，不引入 i18n 库；偏好 `auto`（跟随浏览器）/ `en` / `zh-CN` / `zh-TW` 存本机浏览器 | 不新增依赖与下载、首屏不闪烁（index.html 预写 `lang`）、键类型检查保证两种语言同步；服务端消息多语言（需错误码契约）暂不纳入，界面原样显示中文。`apps/web/src/i18n/`、`LanguageToggle.tsx`、`index.html` |
+| D-021 | Adopted | Web 界面多语言：`en` 为默认与缺键回落语言，另有 `zh-CN`、`zh-TW`（台湾惯用词）；零依赖自研 `t` / 复数 / 富文本 / Intl 格式化，不引入 i18n 库；偏好 `auto`（跟随浏览器）/ `en` / `zh-CN` / `zh-TW` 存本机浏览器 | 不新增依赖与下载、首屏不闪烁（index.html 预写 `lang`）、键类型检查保证两种语言同步；服务端消息多语言当时未纳入，已由 D-022 补上。`apps/web/src/i18n/`、`LanguageToggle.tsx`、`index.html` |
+| D-022 | Adopted | 服务端面向用户的消息只返回稳定消息键与参数，英文模板放 `@mystry/shared`，其他语言由 Web 翻译；响应保留英文 `error` 文本，任务新增 `message_i18n` / `error_i18n` 可空列 | 服务端不需要知道浏览器语言，脚本与旧客户端仍能读英文；旧任务原文兼容显示；不引入迁移框架，只做启动期补列。`packages/shared/src/messages/`、`apps/server/src/utils/errors.ts`、`task-service.ts`、`db.ts` |
 
 ## 更新规则
 

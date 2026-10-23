@@ -32,6 +32,7 @@ import {
   getImportPreview,
 } from '../services/import-preview-service.js';
 import { sendRouteError } from '../http-errors.js';
+import { panelErrorBody } from '../utils/errors.js';
 
 export async function coreRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
@@ -51,7 +52,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       if (req.validationError) {
-        return reply.code(400).send({ error: '不支持的核心类型' });
+        return reply.code(400).send(panelErrorBody('server.deploy.unsupportedCore'));
       }
       try {
         const versions = await listCoreVersions(req.params.type);
@@ -110,11 +111,11 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     Body: DeployCoreInput;
   }>('/api/cores/deploy', { attachValidation: true, schema: { body: deployCoreBodySchema } }, async (req, reply) => {
     if (req.validationError) {
-      return reply.code(400).send({ error: '部署参数包含不支持的字段或格式不正确' });
+      return reply.code(400).send(panelErrorBody('server.deploy.invalidParams'));
     }
     // schema 已保证字段齐全，这里只拦截纯空白名称和空版本号。
     if (!req.body.name.trim() || !req.body.mcVersion) {
-      return reply.code(400).send({ error: '缺少必要参数' });
+      return reply.code(400).send(panelErrorBody('server.deploy.missingParams'));
     }
     try {
       return await deployCore(req.body);
@@ -127,7 +128,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
 
   app.get<{ Params: { id: string } }>('/api/tasks/:id', async (req, reply) => {
     const task = getTask(req.params.id);
-    if (!task) return reply.code(404).send({ error: '任务不存在' });
+    if (!task) return reply.code(404).send(panelErrorBody('server.tasks.notFound'));
     return task;
   });
 
@@ -146,10 +147,10 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     { attachValidation: true, schema: { body: importExistingServerBodySchema } },
     async (req, reply) => {
       if (req.validationError) {
-        return reply.code(400).send({ error: '已有服务端导入参数包含不支持的字段或格式不正确' });
+        return reply.code(400).send(panelErrorBody('server.imports.existing.invalidParams'));
       }
       if (!req.body.name.trim()) {
-        return reply.code(400).send({ error: '实例名称不能为空' });
+        return reply.code(400).send(panelErrorBody('server.imports.nameRequired'));
       }
       try {
         return await importExistingServerDirectory({
@@ -170,22 +171,22 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     try {
       for await (const part of parts) {
         if (part.type !== 'file') {
-          return reply.code(400).send({ error: 'ZIP 预览只接受一个安装包文件' });
+          return reply.code(400).send(panelErrorBody('server.imports.zip.singleFileOnly'));
         }
         if (zipPath) {
           const discarded = await streamToUploadTemp(part.file, 'discard');
           removeUploadTemp(discarded);
-          return reply.code(400).send({ error: '只能上传一个 ZIP 安装包' });
+          return reply.code(400).send(panelErrorBody('server.imports.zip.oneArchiveOnly'));
         }
         fileName = part.filename || fileName;
         zipPath = await streamToUploadTemp(part.file, 'import-preview');
         if (part.file.truncated) {
           removeUploadTemp(zipPath);
           zipPath = null;
-          return reply.code(413).send({ error: '上传文件超过大小限制' });
+          return reply.code(413).send(panelErrorBody('server.imports.zip.tooLarge'));
         }
       }
-      if (!zipPath) return reply.code(400).send({ error: '请上传 ZIP 安装包' });
+      if (!zipPath) return reply.code(400).send(panelErrorBody('server.imports.zip.missing'));
       const preview = await createImportPreview({
         userId: req.user.id,
         fileName,
@@ -219,7 +220,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     { attachValidation: true, schema: { body: confirmZipImportBodySchema } },
     async (req, reply) => {
       if (req.validationError || !req.body.name.trim()) {
-        return reply.code(400).send({ error: 'ZIP 导入确认参数包含不支持的字段或格式不正确' });
+        return reply.code(400).send(panelErrorBody('server.imports.zip.invalidConfirmParams'));
       }
       try {
         return await confirmImportPreview(req.params.id, req.user.id, {

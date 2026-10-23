@@ -8,11 +8,15 @@ import {
   getLocale,
   setLocalePreference,
   t,
+  tm,
   translate,
+  translatePanelMessage,
   translateRich,
   useI18n,
 } from '../src/i18n';
 import { LanguageToggle } from '../src/components/LanguageToggle';
+import { ApiError } from '../src/api';
+import { errorMessage } from '../src/errors';
 
 type Table = Record<string, string>;
 const enFiles = import.meta.glob<{ default: Table }>('../src/i18n/en/*.ts', { eager: true });
@@ -100,4 +104,24 @@ test('切换语言写入 <html lang> 与本机存储，模块级 t() 与组件�
   act(() => setLocalePreference('en'));
   expect(getLocale()).toBe('en');
   expect(screen.getByRole('heading').textContent).toBe('Instances');
+});
+
+test('服务端消息：按键翻译、嵌套参数、无键时显示服务端原文', () => {
+  const nested = {
+    key: 'server.tasks.restartCleanupFailed' as const,
+    params: { reason: { key: 'server.tasks.stagingMarkerMismatch' as const } },
+  };
+  expect(translatePanelMessage('zh-CN', nested)).toBe('面板重启，未完成的任务无法恢复；临时目录清理失败：临时目录中的任务标记与任务记录不匹配，已跳过自动清理');
+  expect(translatePanelMessage('en', nested)).toMatch(/^The panel restarted .*: The task marker/);
+  expect(translatePanelMessage('zh-TW', { key: 'server.tasks.timeout' })).toBe('任務執行逾時');
+  // 旧任务没有键：原样显示存库的中文
+  expect(translatePanelMessage('en', undefined, '下载失败')).toBe('下载失败');
+
+  document.documentElement.lang = 'zh-CN';
+  expect(tm({ key: 'server.common.unauthorized' })).toBe('登录已失效，请重新登录');
+  const apiError = new ApiError(401, 'Your session has expired. Sign in again.', { key: 'server.common.unauthorized' });
+  expect(errorMessage(apiError)).toBe('登录已失效，请重新登录');
+  expect(errorMessage(new ApiError(500, 'ENOSPC: no space left on device'))).toBe('ENOSPC: no space left on device');
+  document.documentElement.lang = 'en';
+  expect(errorMessage(apiError)).toBe('Your session has expired. Sign in again.');
 });

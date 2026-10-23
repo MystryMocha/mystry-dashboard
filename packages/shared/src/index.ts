@@ -1,4 +1,7 @@
 import type { DetectedJvmConfig } from './jvm-config.js';
+import type { PanelMessage, PanelMessageParams, ServerMessageKey } from './messages/index.js';
+
+export * from './messages/index.js';
 
 /** 本机资源快照；空值表示尚无有效采样，不等同于零占用。 */
 export interface DashboardMetrics {
@@ -6,7 +9,10 @@ export interface DashboardMetrics {
   cpuPercent: number | null;
   memory: { usedBytes: number; totalBytes: number };
   disk: { availableBytes: number; totalBytes: number } | null;
+  /** 告警说明（英文文本） */
   warnings: string[];
+  /** 与 `warnings` 一一对应的可翻译消息；Web 按键判断告警种类并按当前语言显示 */
+  warningsI18n?: PanelMessage[];
   instances: Record<string, {
     cpuPercent: number | null;
     memoryBytes: number | null;
@@ -19,7 +25,10 @@ export type InstanceStatus = 'stopped' | 'starting' | 'running' | 'stopping' | '
 /** 普通停止宽限期过后进程仍在退出（HTTP 202） */
 export interface InstanceStopPendingResult {
   code: 'INSTANCE_STOP_PENDING';
+  /** 英文说明 */
   error: string;
+  /** `error` 对应的可翻译消息 */
+  errorI18n?: PanelMessage;
   status: 'stopping';
   stillStopping: true;
 }
@@ -146,8 +155,10 @@ export type FileDownloadTicketStatus =
 /** GET /api/instances/:id/files/download-ticket/:ticket/status 响应 */
 export interface FileDownloadTicketStatusResult {
   status: FileDownloadTicketStatus;
-  /** 占槽或开流失败时的中文说明 */
+  /** 占槽或开流失败时的说明（英文文本，或 Node.js 原始错误文本） */
   error?: string;
+  /** `error` 对应的可翻译消息；原始系统错误没有该字段 */
+  errorI18n?: PanelMessage;
 }
 
 export interface DeployCoreInput {
@@ -178,7 +189,10 @@ export interface ExistingServerSourceInfo {
   ready: boolean;
   /** 从 user_jvm_args.txt 检测出的参数；不存在该文件时省略。 */
   detectedJvmConfig?: DetectedJvmConfig;
+  /** 英文说明（不可导入原因或预检提示）；无法归类的系统错误为原文。 */
   error?: string;
+  /** `error` 的消息键与参数，Web 据此按界面语言显示；系统错误原文没有此字段。 */
+  errorI18n?: PanelMessage;
 }
 
 export interface ExistingServerSourceListResult {
@@ -268,9 +282,15 @@ export interface TaskInfo {
   type: 'download' | 'extract' | 'deploy' | 'import';
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
+  /** 英文进度文本；旧版本写入的任务可能是中文。 */
   message: string;
+  /** 进度消息键与参数，Web 据此按界面语言显示；旧任务没有此字段。 */
+  messageI18n?: PanelMessage;
   result?: { instanceId?: string; stagingToken?: string };
+  /** 英文失败原因；旧版本写入的任务可能是中文。 */
   error?: string;
+  /** 失败原因的消息键与参数；旧任务或无法归类的原始错误没有此字段。 */
+  errorI18n?: PanelMessage;
   createdAt: string;
   updatedAt: string;
 }
@@ -301,8 +321,12 @@ export interface AuthUser {
 
 export interface ConsoleMessage {
   type: 'output' | 'status' | 'error' | 'history';
+  /** `error` 帧为英文说明（或 Node.js 原始错误文本） */
   data: string;
   status?: InstanceStatus;
+  /** `error` 帧的消息键与参数，Web 据此按当前语言显示；原始系统错误没有该字段 */
+  code?: ServerMessageKey;
+  params?: PanelMessageParams;
 }
 
 export {
@@ -332,9 +356,11 @@ export type {
 
 export {
   JVM_PRESETS,
+  JvmArgsParseError,
   automaticInitialMemoryMiB,
   buildJvmArgs,
   firstJvmValidationError,
+  firstJvmValidationIssue,
   inspectJvmArgFile,
   inspectJvmArgs,
   parseJvmArgFile,

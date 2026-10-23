@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { config } from '../config.js';
 import { createRateLimitHook, tokenMatches } from '../services/security-service.js';
+import { panelErrorBody } from '../utils/errors.js';
 
 export type ShutdownSummary = {
   runningInstances: number;
@@ -37,13 +38,13 @@ export async function launcherRoutes(
     { preHandler: [strictLauncherLimit] },
     async (req, reply) => {
       if (!isLoopbackAddress(req.ip)) {
-        return reply.code(403).send({ error: '关闭接口仅允许本机访问' });
+        return reply.code(403).send(panelErrorBody('server.auth.launcherLocalOnly'));
       }
       if (!tokenMatches(req.headers['x-launcher-token'], config.launcherToken)) {
-        return reply.code(401).send({ error: '启动器令牌无效' });
+        return reply.code(401).send(panelErrorBody('server.auth.invalidLauncherToken'));
       }
       if (!options.prepareShutdown || !options.startShutdown) {
-        return reply.code(503).send({ error: '当前运行方式不支持启动器关闭' });
+        return reply.code(503).send(panelErrorBody('server.auth.launcherShutdownUnsupported'));
       }
 
       const summary = options.prepareShutdown();

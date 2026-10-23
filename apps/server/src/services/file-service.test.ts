@@ -40,7 +40,7 @@ test('目标已存在时同目录重命名应拒绝且不覆盖内容', async (t
 
   assert.throws(
     () => renamePath(inst.id, 'a.txt', 'b.txt'),
-    (err: unknown) => err instanceof Error && /已存在|冲突|目标/.test(err.message),
+    (err: unknown) => err instanceof Error && (err as { messageKey?: string }).messageKey === 'server.files.rename.conflict',
     'renamePath 不得静默覆盖已有 b.txt',
   );
   assert.equal(fs.readFileSync(path.join(root, 'b.txt'), 'utf8'), 'keep-b');
@@ -131,7 +131,10 @@ test('目录列表遇到符号链接或目录联接时拒绝访问', async (t) =
   fs.mkdirSync(path.join(root, 'plugins'));
   fs.symlinkSync(outside, path.join(root, 'plugins', 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
 
-  assert.throws(() => listFiles(inst.id, 'plugins'), /符号链接或目录联接/);
+  assert.throws(
+    () => listFiles(inst.id, 'plugins'),
+    (err: unknown) => (err as { messageKey?: string }).messageKey === 'server.files.dirContainsLink',
+  );
 });
 
 test('上传覆盖重命名失败时应恢复旧文件且清理临时文件', async (t) => {

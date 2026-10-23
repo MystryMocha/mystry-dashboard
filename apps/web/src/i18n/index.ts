@@ -7,6 +7,7 @@
  * React 组件用 `useI18n()` 订阅语言切换；非组件代码（如 api.ts）用模块级 `t()`，按调用时的语言取文案。
  */
 import { createElement, Fragment, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { renderPanelMessage, type PanelMessage } from '@mystry/shared';
 import en from './en';
 import zhCN from './zh-CN';
 import zhTW from './zh-TW';
@@ -39,6 +40,15 @@ function interpolate(template: string, params?: MessageParams): string {
 
 export function translate(locale: Locale, key: MessageKey, params?: MessageParams): string {
   return interpolate(lookup(locale, key) ?? key, params);
+}
+
+/**
+ * 服务端消息（键 + 参数，参数可嵌套另一条消息）按界面语言渲染。
+ * 没有消息键（旧任务、原始系统错误）时显示服务端给的文本 fallback；两者都没有时返回空字符串。
+ */
+export function translatePanelMessage(locale: Locale, message: PanelMessage | undefined, fallback?: string): string {
+  if (!message) return fallback ?? '';
+  return renderPanelMessage(message, (key) => lookup(locale, key));
 }
 
 const pluralRulesCache = new Map<Locale, Intl.PluralRules>();
@@ -140,6 +150,10 @@ export function tp(key: PluralKey, count: number, params?: MessageParams): strin
   return translatePlural(getLocale(), key, count, params);
 }
 
+export function tm(message: PanelMessage | undefined, fallback?: string): string {
+  return translatePanelMessage(getLocale(), message, fallback);
+}
+
 function subscribe(onChange: () => void): () => void {
   window.addEventListener(LOCALE_CHANGE_EVENT, onChange);
   return () => window.removeEventListener(LOCALE_CHANGE_EVENT, onChange);
@@ -153,6 +167,8 @@ export function useI18n() {
     t: (key: MessageKey, params?: MessageParams) => translate(locale, key, params),
     tp: (key: PluralKey, count: number, params?: MessageParams) => translatePlural(locale, key, count, params),
     rich: (key: MessageKey, tags: RichTags, params?: MessageParams) => translateRich(locale, key, tags, params),
+    /** 服务端消息：有键按当前语言翻译，没有键显示 fallback 原文。 */
+    tm: (message: PanelMessage | undefined, fallback?: string) => translatePanelMessage(locale, message, fallback),
     fmt: formatters(locale),
   }), [locale]);
 }

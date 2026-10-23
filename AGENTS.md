@@ -53,7 +53,7 @@ Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.2`）是
 - 数据库没有通用迁移框架。任何 schema 变更必须同时设计现有 `panel.db` 的兼容或一次性迁移。
 - 任务元数据在 SQLite，队列和 worker 在内存。进程重启不会续跑，而是把遗留 `pending` / `running` 标为失败。部署/导入任务可能排队并保持 `pending`；前端必须持续显示到 `completed` 或 `failed`。
 - 下载必须流式传输；浏览器端不得用 `res.blob()` 整体缓存大文件。
-- Web 界面支持多语言：`en` 为默认与缺键回落语言，另有 `zh-CN`、`zh-TW`（台湾惯用词，不是简繁转换）。用户可见文案只能写进 `apps/web/src/i18n/en/*.ts` 并同步补齐 `zh-CN/*.ts`、`zh-TW/*.ts`（类型检查强制两边键一致），组件里不得内联文案；状态词、通用动作和导航名以 `i18n/en/common.ts` 术语表为准。英文按钮/标题用 Title Case、说明用 sentence case；数字、日期、大小用 `useI18n().fmt`（Intl）。服务端返回的错误与任务进度消息当前仍只有中文，前端原样显示。新增/修改的代码注释使用中文。
+- Web 界面支持多语言：`en` 为默认与缺键回落语言，另有 `zh-CN`、`zh-TW`（台湾惯用词，不是简繁转换）。用户可见文案只能写进 `apps/web/src/i18n/en/*.ts` 并同步补齐 `zh-CN/*.ts`、`zh-TW/*.ts`（类型检查强制两边键一致），组件里不得内联文案；状态词、通用动作和导航名以 `i18n/en/common.ts` 术语表为准。英文按钮/标题用 Title Case、说明用 sentence case；数字、日期、大小用 `useI18n().fmt`（Intl）。服务端返回给用户的错误、任务进度和控制台错误必须用 `PanelError` / `panelErrorBody` / 任务 `report(progress, { key, params })` 返回 `server.*` 消息键：英文模板写在 `packages/shared/src/messages/<区域>.ts`，并在 `apps/web/src/i18n/zh-CN/server/`、`zh-TW/server/` 补翻译；响应的 `error` 文本默认英文。启动期终端日志不在此列。新增/修改的代码注释使用中文。
 - 设计或修改界面前读 [`docs/design-system.md`](docs/design-system.md)（毛玻璃只用于导航层、强调色只引用变量、组件类名）；各语言写作规则、新增语言与从右到左布局见 [`docs/localization.md`](docs/localization.md)。两者都以源码为准。
 - 无 ESLint/Prettier；与周围文件风格保持一致（TypeScript + ESM）。不要把 React Router 从已锁定的 `6.30.4` 升到 7。
 

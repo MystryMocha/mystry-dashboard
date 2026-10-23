@@ -2,7 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { config } from '../config.js';
 import { getDb } from '../db.js';
-import { hasErrorCode } from './errors.js';
+import { hasErrorCode, PanelError } from './errors.js';
 
 export const OWNERSHIP_MARKER_FILE = '.mystry-instance.json';
 
@@ -25,14 +25,14 @@ function isWithin(root: string, target: string): boolean {
  */
 export function assertSafeInstanceRoot(instanceRoot: string): string {
   const root = path.resolve(instanceRoot);
-  if (!fs.existsSync(root)) throw new Error('实例目录不存在');
+  if (!fs.existsSync(root)) throw new PanelError('server.files.instanceDirNotFound');
   const stat = fs.lstatSync(root);
   if (!stat.isDirectory() || stat.isSymbolicLink()) {
-    throw new Error('实例目录不能是符号链接或目录联接');
+    throw new PanelError('server.files.instanceDirIsLink');
   }
   const realRoot = fs.realpathSync(root);
   if (!isWithin(root, realRoot)) {
-    throw new Error('实例目录通过符号链接或目录联接指向了外部位置');
+    throw new PanelError('server.files.instanceDirEscapes');
   }
   return root;
 }
@@ -48,7 +48,7 @@ export function assertSafeDirectoryPath(targetPath: string): void {
     } catch (err) {
       if (!hasErrorCode(err, 'ENOENT')) throw err;
       const parent = path.dirname(probe);
-      if (parent === probe) throw new Error('找不到安全的目录父路径');
+      if (parent === probe) throw new PanelError('server.files.noSafeParent');
       probe = parent;
     }
   }
@@ -70,11 +70,11 @@ function assertNoSymlinkTraversal(root: string, target: string): void {
       throw err;
     }
     if (stat.isSymbolicLink()) {
-      throw new Error('非法路径：不允许通过符号链接或目录联接访问实例目录之外的文件');
+      throw new PanelError('server.files.path.linkTraversal');
     }
     const realCurrent = fs.realpathSync(current);
     if (!isWithin(current, realCurrent)) {
-      throw new Error('非法路径：路径通过符号链接或目录联接指向了实例目录之外');
+      throw new PanelError('server.files.path.linkEscapes');
     }
   }
 }
@@ -88,7 +88,7 @@ export function resolveSafePath(instanceRoot: string, relativePath = ''): string
   const target = path.resolve(root, cleaned);
   const relative = path.relative(root, target);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
-    throw new Error('非法路径：不允许访问实例目录之外的文件');
+    throw new PanelError('server.files.path.outside');
   }
   assertNoSymlinkTraversal(root, target);
   return target;
@@ -97,7 +97,7 @@ export function resolveSafePath(instanceRoot: string, relativePath = ''): string
 /** 默认安装目录：data/instances/<id> */
 export function defaultInstanceDir(instanceId: string): string {
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(instanceId)) {
-    throw new Error('实例 ID 非法');
+    throw new PanelError('server.files.instanceIdInvalid');
   }
   return path.join(config.instancesDir, instanceId);
 }
@@ -107,10 +107,10 @@ export function getInstanceDir(instanceId: string): string {
     .prepare('SELECT install_path FROM instances WHERE id = ?')
     .get(instanceId) as { install_path: string | null } | undefined;
   if (!row) {
-    throw new Error('实例不存在');
+    throw new PanelError('server.files.instanceNotFound');
   }
   if (row.install_path !== null) {
-    throw new Error('旧实例需要迁移到面板托管目录');
+    throw new PanelError('server.files.legacyInstallPath');
   }
   return assertSafeInstanceRoot(defaultInstanceDir(instanceId));
 }
@@ -121,7 +121,7 @@ export function resolveDirFromRow(row: {
   install_path: string | null;
 }): string {
   if (row.install_path !== null) {
-    throw new Error('旧实例需要迁移到面板托管目录');
+    throw new PanelError('server.files.legacyInstallPath');
   }
   return defaultInstanceDir(row.id);
 }

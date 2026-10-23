@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   JVM_PRESETS,
+  JvmArgsParseError,
   automaticInitialMemoryMiB,
   buildJvmArgs,
   inspectJvmArgFile,
@@ -27,7 +28,12 @@ test('JVM 参数解析保留引号、Windows 路径和 UNC 路径', () => {
   ]);
   assert.deepEqual(parseJvmArgs(serializeJvmArgs(parsed)), parsed);
   assert.deepEqual(parseJvmArgFile(serializeJvmArgFile(parsed)), parsed);
-  assert.throws(() => parseJvmArgs('-Xms1G "-Xmx2G'), /未闭合/);
+  assert.throws(
+    () => parseJvmArgs('-Xms1G "-Xmx2G'),
+    (error: unknown) => error instanceof JvmArgsParseError
+      && error.messageKey === 'server.jvm.issue.unclosedQuote'
+      && /unclosed quote/.test(error.message),
+  );
 });
 
 test('user_jvm_args.txt 忽略空行和注释并可规范化', () => {
@@ -88,6 +94,10 @@ test('冲突内存、GC 和面板负责的启动参数会阻止保存', () => {
   assert.equal(codes.has('XMS_COUNT'), true);
   assert.equal(codes.has('GC_CONFLICT'), true);
   assert.equal(codes.has('PANEL_OWNED_ARGUMENT'), true);
+  const panelOwned = issues.find((item) => item.code === 'PANEL_OWNED_ARGUMENT');
+  assert.equal(panelOwned?.key, 'server.jvm.issue.panelOwnedArgument');
+  assert.deepEqual(panelOwned?.params, { argument: '-jar' });
+  assert.equal(panelOwned?.message, "The panel manages -jar. You can't add it to JVM arguments.");
 
   const memoryOrder = validateJvmArgs('-Xms4G -Xmx2G');
   assert.equal(memoryOrder.some((item) => item.code === 'MEMORY_ORDER'), true);
@@ -105,6 +115,10 @@ test('预设限制与旧参数错误均保留为结构化诊断', () => {
   const mismatch = validateJvmArgs(paper, { coreType: 'forge', javaMajor: 22 });
   assert.equal(mismatch.some((item) => item.code === 'PRESET_CORE_MISMATCH'), true);
   assert.equal(mismatch.some((item) => item.code === 'PRESET_JAVA_MISMATCH'), true);
+  const coreMismatch = mismatch.find((item) => item.code === 'PRESET_CORE_MISMATCH');
+  assert.equal(coreMismatch?.key, 'server.jvm.issue.presetCoreMismatch');
+  assert.deepEqual(coreMismatch?.params, { preset: { key: 'server.jvm.preset.paperAikar' }, cores: 'paper' });
+  assert.equal(coreMismatch?.message, 'Paper Aikar only works with paper cores.');
   assert.equal(mismatch.some((item) => item.code === 'PAPER_MEMORY_LOW' && item.severity === 'warning'), true);
 
   const oldValue = '-Xms1G "-Xmx2G';
@@ -113,6 +127,12 @@ test('预设限制与旧参数错误均保留为结构化诊断', () => {
   assert.equal(inspected.canonicalArgs, null);
   assert.equal(inspected.extraArgs, oldValue);
   assert.equal(inspected.issues[0]?.code, 'PARSE_ERROR');
+  assert.equal(inspected.issues[0]?.key, 'server.jvm.issue.unclosedQuote');
+  // 每条诊断的 key 均为 server.jvm.issue.<code 的 camelCase>（解析错误除外，使用解析器给出的键）
+  for (const item of [...mismatch, ...validateJvmArgs('-Xms4G -Xmx2G')]) {
+    const camel = item.code.toLowerCase().replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+    assert.equal(item.key, `server.jvm.issue.${camel}`);
+  }
 });
 
 test('服务端在实例保存和任务入队前拒绝非法参数', async (t) => {
@@ -128,6 +148,7 @@ test('服务端在实例保存和任务入队前拒绝非法参数', async (t) =
   const { createInstance, getInstance, updateInstance } = await import('./instance-service.js');
   const { deployCore } = await import('./core-depot.js');
   const { getTaskActivity } = await import('./task-service.js');
+  const { PanelError } = await import('../utils/errors.js');
   initDb();
   t.after(() => {
     closeDb();
@@ -136,18 +157,18 @@ test('服务端在实例保存和任务入队前拒绝非法参数', async (t) =
 
   assert.throws(
     () => createInstance({ name: '非法内存', jvmArgs: '-Xms4G -Xmx2G' }),
-    /初始内存不能大于最大内存/,
+    (error: unknown) => error instanceof PanelError && error.messageKey === 'server.jvm.issue.memoryOrder',
   );
   const instance = createInstance({ name: '合法实例', jvmArgs: '-Xms1G -Xmx2G' });
   assert.throws(
     () => updateInstance(instance.id, { jvmArgs: '-Xms1G -Xmx2G -jar server.jar' }),
-    /由面板管理/,
+    (error: unknown) => error instanceof PanelError && error.messageKey === 'server.jvm.issue.panelOwnedArgument',
   );
   assert.equal(getInstance(instance.id)?.jvmArgs, '-Xms1G -Xmx2G');
   getDb().prepare('UPDATE instances SET jvm_args = ? WHERE id = ?').run('-Xmx2G', instance.id);
   assert.throws(
     () => updateInstance(instance.id, { name: '不能绕过旧参数错误' }),
-    /必须且只能包含一个 -Xms/,
+    (error: unknown) => error instanceof PanelError && error.messageKey === 'server.jvm.issue.xmsCount',
   );
   getDb().prepare('UPDATE instances SET jvm_args = ? WHERE id = ?').run('-Xms1G -Xmx2G', instance.id);
 
@@ -159,7 +180,7 @@ test('服务端在实例保存和任务入队前拒绝非法参数', async (t) =
       mcVersion: '1.21.1',
       jvmArgs: '-Xms1G -Xmx2G nogui',
     }),
-    /由面板管理/,
+    (error: unknown) => error instanceof PanelError && error.messageKey === 'server.jvm.issue.panelOwnedArgument',
   );
   assert.deepEqual(getTaskActivity(), activityBefore);
 });

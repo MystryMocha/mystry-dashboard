@@ -7,6 +7,7 @@ import type { JavaRuntimeInfo } from '@mystry/shared';
 import { getDb, type JavaRuntimeRow } from '../db.js';
 import { nowIso } from '../utils/path.js';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
+import { PanelError } from '../utils/errors.js';
 
 /**
  * Java 运行时注册表：
@@ -156,11 +157,11 @@ export async function resolveJavaRuntimeCommand(javaRuntimeId: string | null | u
   if (javaRuntimeId === null || javaRuntimeId === undefined) return 'java';
   const runtime = getJavaRuntime(javaRuntimeId);
   if (!runtime || !runtime.available) {
-    throw new Error('所选 Java 运行时不可用，请重新探测后再选择');
+    throw new PanelError('server.instance.javaRuntimeUnavailable');
   }
   if (!fs.existsSync(runtime.path)) {
     markRuntimeUnavailable(runtime.id);
-    throw new Error(`Java 运行时文件不存在：${runtime.path}，请重新探测后再选择`);
+    throw new PanelError('server.instance.javaRuntimeFileMissing', { path: runtime.path });
   }
 
   let realPath: string;
@@ -168,17 +169,17 @@ export async function resolveJavaRuntimeCommand(javaRuntimeId: string | null | u
     realPath = fs.realpathSync(runtime.path);
   } catch {
     markRuntimeUnavailable(runtime.id);
-    throw new Error(`无法解析 Java 运行时路径：${runtime.path}，请重新探测后再选择`);
+    throw new PanelError('server.instance.javaRuntimePathUnresolved', { path: runtime.path });
   }
   if (runtimeId(realPath) !== runtime.id) {
     markRuntimeUnavailable(runtime.id);
-    throw new Error('Java 运行时路径已变化，请重新探测后再选择');
+    throw new PanelError('server.instance.javaRuntimePathChanged');
   }
 
   const verified = await verifyJavaExecutable(realPath);
   if (!verified) {
     markRuntimeUnavailable(runtime.id);
-    throw new Error('所选 Java 运行时无法通过验证，请重新探测后再选择');
+    throw new PanelError('server.instance.javaRuntimeVerifyFailed');
   }
   getDb()
     .prepare(

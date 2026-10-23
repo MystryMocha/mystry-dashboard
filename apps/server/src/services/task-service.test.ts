@@ -97,7 +97,7 @@ test('worker 正常返回后即使任务已中止也保持成功', async (t) => 
     workerEntered = resolve;
   });
 
-  const task = await runBackgroundTask('import', 'verify success after abort', async () => {
+  const task = await runBackgroundTask('import', { key: 'server.tasks.queued' }, async () => {
     workerEntered();
     await new Promise((resolve) => setTimeout(resolve, 80));
     return { instanceId: inst.id };
@@ -110,4 +110,55 @@ test('worker 正常返回后即使任务已中止也保持成功', async (t) => 
   assert.equal(current?.status, 'completed');
   assert.equal(current?.result?.instanceId, inst.id);
   assert.ok(getInstanceRow(inst.id));
+});
+
+test('任务消息以键和参数存库，旧库自动补列且旧任务原文照常读取', async (t) => {
+  const dataRoot = prepareTempDataRoot(t);
+  // 模拟升级前的 panel.db：tasks 表没有 message_i18n / error_i18n，且已有一条中文旧任务。
+  const { DatabaseSync } = await import('node:sqlite');
+  const legacy = new DatabaseSync(path.join(dataRoot, 'panel.db'));
+  legacy.exec(`CREATE TABLE tasks (
+    id TEXT PRIMARY KEY, type TEXT NOT NULL, status TEXT NOT NULL, progress REAL NOT NULL DEFAULT 0,
+    message TEXT NOT NULL DEFAULT '', result_json TEXT, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+  )`);
+  legacy.prepare(
+    `INSERT INTO tasks (id, type, status, progress, message, error, created_at, updated_at)
+     VALUES ('legacy', 'deploy', 'failed', 100, '失败', '下载失败', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+  ).run();
+  legacy.close();
+
+  const { initDb, getDb } = await import('../db.js');
+  const { createTask, getTask, updateTask } = await import('./task-service.js');
+  const { PanelError } = await import('../utils/errors.js');
+  initDb();
+
+  const columns = (getDb().prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>).map((c) => c.name);
+  assert.ok(columns.includes('message_i18n') && columns.includes('error_i18n'), '旧库应自动补上两列');
+  const old = getTask('legacy');
+  assert.equal(old?.message, '失败');
+  assert.equal(old?.error, '下载失败');
+  assert.equal(old?.messageI18n, undefined);
+  assert.equal(old?.errorI18n, undefined);
+
+  const task = createTask('import');
+  assert.deepEqual(task.messageI18n, { key: 'server.tasks.queued' });
+  assert.equal(task.message, 'Queued');
+
+  const cleanup = new PanelError('server.tasks.stagingMarkerMismatch');
+  const failed = updateTask(task.id, {
+    status: 'failed',
+    message: { key: 'server.tasks.failed' },
+    error: { key: 'server.tasks.restartCleanupFailed', params: { reason: cleanup.toPanelMessage() } },
+  });
+  assert.equal(failed.message, 'Failed');
+  assert.deepEqual(failed.errorI18n, {
+    key: 'server.tasks.restartCleanupFailed',
+    params: { reason: { key: 'server.tasks.stagingMarkerMismatch' } },
+  });
+  assert.match(failed.error ?? '', /^The panel restarted .*Cleaning up its temporary folder failed: The task marker/);
+
+  // 原始文本错误只存原文，同时清掉旧的消息键。
+  const raw = updateTask(task.id, { error: 'ENOSPC: no space left on device' });
+  assert.equal(raw.error, 'ENOSPC: no space left on device');
+  assert.equal(raw.errorI18n, undefined);
 });

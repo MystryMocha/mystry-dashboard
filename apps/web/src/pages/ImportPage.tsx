@@ -40,7 +40,7 @@ function clearStoredPreview() {
 
 export function ImportPage() {
   const navigate = useNavigate();
-  const { t, rich, fmt } = useI18n();
+  const { t, tm, rich, fmt } = useI18n();
   const [mode, setMode] = useState<ImportMode>('directory');
   // 默认实例名按进入页面时的界面语言生成，之后由用户自行修改。
   const [name, setName] = useState(() => t('import.form.name.default'));
@@ -320,7 +320,7 @@ export function ImportPage() {
                             id: source.id,
                             target: source.launchTarget ?? t('import.directory.source.pendingCheck'),
                           })
-                          : t('import.directory.source.unavailable', { id: source.id, error: source.error ?? '' })}
+                          : t('import.directory.source.unavailable', { id: source.id, error: tm(source.errorI18n, source.error ?? '') })}
                       </option>
                     ))}
                   </select>
@@ -347,7 +347,7 @@ export function ImportPage() {
                   </p>
                 ) : null}
                 {selectedSource?.ready && selectedSource.error ? (
-                  <p className="field-help">{selectedSource.error}</p>
+                  <p className="field-help">{tm(selectedSource.errorI18n, selectedSource.error)}</p>
                 ) : null}
                 {sourcesError ? <p className="error">{t('import.directory.loadError', { error: sourcesError })}</p> : null}
               </div>

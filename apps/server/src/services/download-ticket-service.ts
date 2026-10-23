@@ -1,8 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import type {
-  FileDownloadTicketResult,
-  FileDownloadTicketStatus,
-  FileDownloadTicketStatusResult,
+import {
+  renderPanelMessage,
+  type FileDownloadTicketResult,
+  type FileDownloadTicketStatus,
+  type FileDownloadTicketStatusResult,
+  type PanelMessage,
 } from '@mystry/shared';
 import { config } from '../config.js';
 
@@ -22,8 +24,12 @@ type EndedTicket = {
   userId: string;
   status: 'expired' | 'consumed' | 'failed';
   error?: string;
+  errorI18n?: PanelMessage;
   expiresAt: number;
 };
+
+/** 票据失败原因：可翻译消息，或 Node.js 流的原始错误文本。 */
+export type DownloadTicketFailure = PanelMessage | string;
 
 /**
  * 已结束票据的短时 tombstone，让前端轮询在票据离开内存池后仍能拿到最终状态：
@@ -47,12 +53,18 @@ function clearReservedExpiry(record: DownloadTicketRecord): void {
   record.expiresTimer = null;
 }
 
+function failureFields(failure?: DownloadTicketFailure): Pick<EndedTicket, 'error' | 'errorI18n'> {
+  if (!failure) return {};
+  if (typeof failure === 'string') return { error: failure };
+  return { error: renderPanelMessage(failure), errorI18n: failure };
+}
+
 /** 释放槽位、移出内存池，并留下 tombstone。 */
 function endTicket(
   ticket: string,
   record: DownloadTicketRecord,
   status: EndedTicket['status'],
-  error?: string,
+  failure?: DownloadTicketFailure,
   now = Date.now(),
 ): void {
   clearReservedExpiry(record);
@@ -61,14 +73,14 @@ function endTicket(
   endedTickets.set(ticket, {
     userId: record.userId,
     status,
-    ...(error ? { error } : {}),
+    ...failureFields(failure),
     expiresAt: now + ENDED_TOMBSTONE_MS,
   });
 }
 
 function expireReservedTicket(ticket: string, record: DownloadTicketRecord, now = Date.now()): void {
   if (tickets.get(ticket) !== record || record.status !== 'reserved' || record.expiresAt > now) return;
-  endTicket(ticket, record, 'expired', '下载票据已过期', now);
+  endTicket(ticket, record, 'expired', { key: 'server.files.download.ticketExpired' }, now);
 }
 
 function scheduleReservedExpiry(ticket: string, record: DownloadTicketRecord): void {
@@ -129,6 +141,7 @@ export function getDownloadTicketStatus(
   return {
     status: ended.status,
     ...(ended.error ? { error: ended.error } : {}),
+    ...(ended.errorI18n ? { errorI18n: ended.errorI18n } : {}),
   };
 }
 
@@ -163,7 +176,7 @@ export function cancelReservedDownloadTicket(
   if (value.status === 'streaming') return 'streaming';
   if (value.status !== 'reserved') return 'not_found';
 
-  endTicket(ticket, value, 'failed', '下载已取消');
+  endTicket(ticket, value, 'failed', { key: 'server.files.download.cancelled' });
   return 'cancelled';
 }
 
@@ -173,10 +186,10 @@ export function completeDownloadStream(ticket: string): void {
   endTicket(ticket, value, 'consumed');
 }
 
-export function failDownloadStream(ticket: string, error: string): void {
+export function failDownloadStream(ticket: string, failure: DownloadTicketFailure): void {
   const value = tickets.get(ticket);
   if (!value) return;
-  endTicket(ticket, value, 'failed', error);
+  endTicket(ticket, value, 'failed', failure);
 }
 
 /** 测试专用：清空内存票据。 */
