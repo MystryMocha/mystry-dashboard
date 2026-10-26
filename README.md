@@ -1,96 +1,146 @@
 # Mystry Dashboard
 
-用浏览器管理本机上的多个 **Minecraft Java 服务端**：启停、实时控制台、文件与配置、一键部署和已有服务端导入。
+**English** · [简体中文](README.zh-CN.md)
 
-面板是独立的 Node.js 程序，不是客户端模组，无需安装 Fabric / Forge 来运行面板自身。
+A self-hosted web panel for running game servers on your own machine. Start and stop servers, watch the live console, edit files and settings, deploy a new server in a few clicks, and back it all up, from any browser.
 
-[快速开始](docs/getting-started.md) · [文档中心](docs/README.md) · [分步教程](docs/tutorials.md) · [界面导览](docs/product-intro/README.md) · [贡献指南](CONTRIBUTING.md)
+The first public preview supports **Minecraft: Java Edition** servers. Mystry Dashboard is a standalone Node.js app, not a client mod: you don't need Fabric or Forge to run the panel itself.
 
-## 功能
+[Screenshots](#screenshots) · [Quick start](#quick-start) · [Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md)
 
-| 能力 | 可以做什么 |
+> **Preview software.** The current version is `0.2.0-preview.2`. Expect rough edges, and read [Scope and limitations](#scope-and-limitations) before relying on it.
+
+## Features
+
+| Area | What you can do |
 |---|---|
-| 实例管理 | 创建、启动、停止、重启与删除本机实例，危险操作需确认 |
-| 控制台 | 查看实时日志、发送命令，断线后自动重连 |
-| 文件与配置 | 上传、流式下载、文本编辑、重命名，编辑 `server.properties` 与确认 EULA |
-| 部署与导入 | 部署 Vanilla / Paper / Fabric / Forge / NeoForge；ZIP 预检后导入，或复制接管同机已有服务端 |
-| Java 与 JVM | 探测本机 Java 运行时，统一配置内存、预设与高级参数 |
-| 任务与监测 | 全局任务队列；总览查看主机与实例进程资源，监测失败时提示数据过期 |
-| 界面与认证 | 首启创建管理员、JWT 登录；参照 Apple 设计风格的界面，支持自动/浅色/深色外观、五种强调色与手机/平板布局 |
+| Instances | Create, start, stop, restart and delete multiple servers on one machine. Restart, force stop and delete ask for confirmation. |
+| Console | Live server output with log-level colouring, send commands, and automatic reconnect after a dropped connection. |
+| Files and config | Upload, stream downloads, edit text files, rename, and edit `server.properties` through a grouped form. |
+| Quick deploy | Deploy Vanilla, Paper, Fabric, Forge or NeoForge. Paper and the latest stable version are preselected. |
+| Import | Upload a ZIP (checked before import) or copy in an existing server folder from the same machine. The original folder is left untouched. |
+| Backups | One-click backup of a whole server folder, even while it's running. Download, upload, delete and restore backups; a restore backs up the current files first by default. |
+| Java and JVM | Detect installed Java runtimes, get a warning when the Java version doesn't match the Minecraft version, and set memory with presets (including G1 and Aikar's flags) or custom arguments. |
+| Tasks and monitoring | A task center tracks deploys, imports and backups. The overview shows host CPU, memory and disk, plus CPU and memory for each server process. |
+| Interface | First-run admin setup and JWT sign-in. Apple-style design with auto, light and dark appearance, five accent colours, and layouts for phones and tablets. |
+| Languages | English (default), Simplified Chinese and Traditional Chinese, with automatic detection from your browser. Server errors and task progress are translated too. |
 
-### 使用边界
+### Supported games
 
-- 当前只管理内置本机节点 `local`，远程 Agent 与远程节点创建尚未开放。
-- 实例工作目录固定为最终数据根下的 `instances/<id>`；面板不提供全盘浏览或外部目录绑定。
-- 同机已有服务端需先停止，再复制到数据目录的 `imports/` 下导入，原目录保留；步骤见 [从本机文件夹导入](docs/user-guide.md#从本机文件夹导入)。
-- 任务可能排队；面板重启后，遗留任务会标记失败，不会自动续跑。
-- 当前没有完整的自动备份与恢复功能；操作方法见 [备份与迁移](docs/tutorials.md#教程-8备份与迁移)。
+| Game | Status |
+|---|---|
+| Minecraft: Java Edition | Supported in the preview |
+| Left 4 Dead 2 | Planned |
 
-## 快速开始
+## Screenshots
 
-先选择运行方式，再按 [初始化管理员](docs/getting-started.md#初始化管理员) 进入面板。
+![Instances overview](docs/product-intro/screenshots/02-dashboard.png)
 
-| 运行方式 | 环境要求 | 入口 |
+The screenshot above shows the Simplified Chinese interface from `0.2.0-preview.2`. More pages are in the [interface tour](docs/product-intro/README.md).
+
+## Quick start
+
+Pick how you want to run it, then [create the first admin account](docs/getting-started.md#初始化管理员).
+
+| Option | Requirements | How |
 |---|---|---|
-| 便携预览版 | 发布目标为 Windows x64 / Linux x64；包内自带 Node.js | [下载、校验与启动](docs/portable-release.md) |
-| Windows 源码管理器 | Node.js ≥ 22 | 双击仓库根目录 `PanelManager.cmd` |
-| Linux / WSL 源码管理器 | Node.js ≥ 22 | 运行下方命令 |
-| 手动开发 | Node.js ≥ 22，两个开发终端 | [安装与配置](docs/getting-started.md#手动安装与首次配置)、[开发指南](docs/development.md) |
+| Portable preview | Windows x64 or Linux x64. Node.js is bundled. | [Download, verify and start](docs/portable-release.md) |
+| Windows, from source | Node.js 22 or later | Double-click `PanelManager.cmd` in the repository root |
+| Linux / WSL, from source | Node.js 22 or later | See the commands below |
+| Manual development | Node.js 22 or later, two terminals | [Development guide](docs/development.md) |
 
-Windows PowerShell：
+Windows PowerShell:
 
 ```powershell
 .\PanelManager.cmd start
 ```
 
-Linux / WSL：
+Linux / WSL:
 
 ```bash
 chmod +x PanelManager.sh
 ./PanelManager.sh start
 ```
 
-源码管理器会检查环境、安装依赖、生成配置并构建启动。整合面板默认访问 `http://127.0.0.1:3000`；手动开发时访问 Vite 的 `http://127.0.0.1:5173`。
+The source launcher checks your environment, installs dependencies, generates a config file with random secrets, then builds and starts the panel. Open `http://127.0.0.1:3000` in your browser. During manual development, the Vite dev server runs at `http://127.0.0.1:5173`.
 
-Minecraft 服务端所需的 **Java 需要另行安装**。实例默认使用面板环境 PATH 中的 `java`，也可选择面板探测并验证的本机运行时。
+Launcher commands: `start`, `foreground`, `stop`, `restart`, `rebuild` (source only), `status`, `logs`, `open` and `help`. Running it without a command opens an interactive menu.
 
-### 便携预览版
+**Java is not included.** Install the Java version your Minecraft server needs. By default a server uses the `java` on the panel's `PATH`, or you can pick a runtime the panel has detected and verified.
 
-发布流程配置了 Windows x64 与 Linux x64 两个便携目标，包内包含 Node.js、生产依赖和前后端构建物。具体版本与资产以项目实际 Release 页面为准；平台限制、签名校验和升级步骤统一见 [便携预览版说明](docs/portable-release.md)。
+| Minecraft version | Recommended Java |
+|---|---|
+| 26.1 and later | 25 |
+| 1.20.5 to 1.21.x | 21 |
+| 1.17 to 1.20.4 | 17 |
+| 1.16.5 and earlier | 8 |
 
-### 生产部署
+### Portable preview
 
-已按 [快速开始](docs/getting-started.md#手动安装与首次配置) 完成依赖安装和密钥配置后，可手动构建并启动：
+The release workflow builds portable packages for Windows x64 and Linux x64. Each one bundles Node.js, production dependencies and the built panel, and ships with SHA-256 checksums, a GPG signature and an SBOM. Check the project's Releases page for what is actually published. Platform notes, verification and upgrade steps are in the [portable release guide](docs/portable-release.md).
 
-```powershell
-npm.cmd run build
-npm.cmd start
+### Production build from source
+
+After installing dependencies and setting up secrets (see [getting started](docs/getting-started.md)):
+
+```bash
+npm run build
+npm start
 ```
 
-Linux/macOS 将 `npm.cmd` 换成 `npm`。后端托管构建后的 Web 页面；配置文件位置、监听地址与资源限制见 [配置说明](docs/configuration.md)。
+On Windows PowerShell, use `npm.cmd` instead of `npm`. The server also serves the built web UI.
 
-## 数据与安全
+## Configuration
 
-最终数据根优先使用 `MYSTRY_DATA_DIR`，其次 `DATA_DIR`，默认是仓库或便携包下的 `data/`。文档中的 `DATA_DIR/...` 均表示最终解析后的数据根，其中的目录结构见 [配置说明](docs/configuration.md#数据目录)。
+Settings are read from a `.env` file. The launchers create one for you; for manual setup, copy [`.env.example`](.env.example).
 
-默认仅监听本机回环地址。面板具有实例文件读写与进程执行权限，对外访问前请阅读 [安全政策](SECURITY.md) 与 [配置说明](docs/configuration.md)。密钥及运行数据不得提交到仓库。
+| Variable | Default | Purpose |
+|---|---|---|
+| `HOST` / `PORT` | `127.0.0.1` / `3000` | Listen address |
+| `MYSTRY_DATA_DIR` or `DATA_DIR` | `data` | Data root (`MYSTRY_DATA_DIR` wins if both are set) |
+| `BACKUP_DIR` | `DATA_DIR/backups` | Where backups are stored |
+| `JWT_SECRET`, `SETUP_TOKEN`, `LAUNCHER_TOKEN` | generated by the launcher | Three different 64-character hex secrets |
 
-旧版外部目录的迁移步骤见 [旧版外部实例接管](docs/user-guide.md#旧版外部实例接管)；备份前先安全停止实例和面板。
+Upload sizes, timeouts, concurrency and other limits are all configurable. The full list is in [`.env.example`](.env.example) and the [configuration guide](docs/configuration.md).
 
-## 项目结构与开发
+## Scope and limitations
 
-| 路径 | 职责 |
+- Only the built-in local node (`local`) is available. Remote agents and remote nodes are not enabled yet.
+- Each server lives in `instances/<id>` under the data root. The panel does not browse the rest of your disk or bind to outside folders.
+- To import a server that's already on the machine, stop it and copy it into the data directory's `imports/` folder first. See [import from a local folder](docs/user-guide.md#从本机文件夹导入).
+- Tasks can queue. If the panel restarts, unfinished tasks are marked as failed and do not resume.
+- Backups cover one server folder at a time. There are no scheduled backups or retention rules yet, and the panel database (`panel.db`) is not included. See [backup and migration](docs/tutorials.md#教程-8备份与迁移).
+- There is one admin account. Sessions can't be listed or revoked, and there is no 2FA or role system yet.
+
+## Security
+
+The panel listens on `127.0.0.1` only by default. It can read and write server files and run processes, so read the [security policy](SECURITY.md) and the [configuration guide](docs/configuration.md) before exposing it to a network. Never commit `.env`, secrets or the `data/` folder. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
+## Project structure
+
+| Path | Contents |
 |---|---|
-| `apps/server/` | Fastify 5 API、`node:sqlite`、进程、文件与任务 |
-| `apps/web/` | React 19、Vite 6、React Router 6 与 xterm.js |
-| `packages/shared/` | 前后端共享类型与 JSON Schema |
-| `scripts/` | 启动器、验证和便携打包工具 |
-| `docs/` | 用户文档、开发参考与 AI 知识库 |
+| `apps/server/` | Fastify 5 API, `node:sqlite`, process, file, backup and task services |
+| `apps/web/` | React 19, Vite 6, React Router 6 and xterm.js |
+| `packages/shared/` | Types, JSON Schemas and server messages shared by both apps |
+| `scripts/` | Launchers, checks and portable packaging |
+| `docs/` | User docs, development reference and the AI knowledge base |
 
-从 [开发指南](docs/development.md) 了解构建和验证，从 [API 参考](docs/api.md) 与 [架构设计](docs/architecture.md) 查实现边界。AI 协作先读 [CLAUDE.md](CLAUDE.md)。
+Start with the [development guide](docs/development.md), then the [API reference](docs/api.md) and [architecture](docs/architecture.md). Run the full check suite with `npm run verify`. AI-assisted contributors should read [CLAUDE.md](CLAUDE.md) first.
 
-## 贡献与许可证
+> The detailed docs under `docs/` are currently written in Chinese.
 
-欢迎提交 Issue、Pull Request 和文档修正，请先阅读 [贡献指南](CONTRIBUTING.md) 与 [行为准则](CODE_OF_CONDUCT.md)。安全问题按 [SECURITY.md](SECURITY.md) 私下报告。
+## Roadmap
 
-项目采用 [MIT License](LICENSE)。版本历史见 [变更日志](CHANGELOG.md)。Minecraft 是 Microsoft / Mojang 的商标；本项目与 Mojang Studios、Microsoft 无官方关联。
+- Public Minecraft preview with portable Windows and Linux builds
+- Left 4 Dead 2 server support
+
+See the [changelog](CHANGELOG.md) for what has shipped.
+
+## Contributing
+
+Issues, pull requests and doc fixes are welcome. Please read the [contributing guide](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md) first.
+
+## License
+
+[MIT](LICENSE). Minecraft is a trademark of Microsoft / Mojang. This project is not affiliated with Mojang Studios or Microsoft.
