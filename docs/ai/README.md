@@ -1,7 +1,7 @@
 # AI 项目知识库
 
-这里保存面向 Codex、OpenCode、Cursor、Claude Code 的项目事实、决策和防错流程。根目录
-[`AGENTS.md`](../../AGENTS.md) 是唯一强制入口；本目录提供按任务加载的详细知识。
+这里保存面向 Claude Code 的项目事实、决策和防错流程。根目录
+[`CLAUDE.md`](../../CLAUDE.md) 是唯一强制入口；本目录提供按任务加载的详细知识。
 
 ## 读取规则
 
@@ -32,7 +32,6 @@
 - 可复现的误判或事故写入 [已知误区](known-failures.md)，说明预防和验证方法。
 - package、路由、环境变量或 AI 入口变化时，同步
   [project-facts.json](project-facts.json) 并运行 `npm.cmd run knowledge:check`。
-- `.slim/deepwork/**` 只保存本机历史草稿，禁止作为当前事实引用。
 
 ## 快速验证
 

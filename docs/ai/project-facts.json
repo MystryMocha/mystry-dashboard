@@ -176,8 +176,6 @@
     ".github/workflows/portable-release.yml"
   ],
   "aiEntrypoints": {
-    "codexAndOpenCode": "AGENTS.md",
-    "cursor": ".cursor/rules/project-knowledge.mdc",
     "claudeCode": "CLAUDE.md",
     "knowledgeIndex": "docs/ai/README.md"
   },
@@ -187,12 +185,11 @@
       "includes": ["/api/system/metrics", "MetricsService", "app.authenticate"]
     },
     {
-      "path": "AGENTS.md",
+      "path": "CLAUDE.md",
       "includes": [
-        "docs/ai/README.md",
+        "@docs/ai/README.md",
         "docs/ai/project-facts.json",
         "npm.cmd run verify",
-        ".slim/deepwork/**",
         "apps/web/src/i18n/en/*.ts"
       ]
     },
@@ -203,27 +200,6 @@
     {
       "path": "apps/web/index.html",
       "includes": ["mystry_locale", "root.lang = locale"]
-    },
-    {
-      "path": ".cursor/rules/project-knowledge.mdc",
-      "includes": [
-        "alwaysApply: true",
-        "@AGENTS.md",
-        "@docs/ai/README.md"
-      ]
-    },
-    {
-      "path": "CLAUDE.md",
-      "includes": [
-        "@AGENTS.md",
-        "@docs/ai/README.md"
-      ]
-    },
-    {
-      "path": ".ignore",
-      "includes": [
-        ".slim/deepwork/"
-      ]
     },
     {
       "path": "docs/architecture.md",

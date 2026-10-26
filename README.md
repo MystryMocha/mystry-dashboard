@@ -87,7 +87,7 @@ Linux/macOS 将 `npm.cmd` 换成 `npm`。后端托管构建后的 Web 页面；�
 | `scripts/` | 启动器、验证和便携打包工具 |
 | `docs/` | 用户文档、开发参考与 AI 知识库 |
 
-从 [开发指南](docs/development.md) 了解构建和验证，从 [API 参考](docs/api.md) 与 [架构设计](docs/architecture.md) 查实现边界。AI 协作先读 [AGENTS.md](AGENTS.md)。
+从 [开发指南](docs/development.md) 了解构建和验证，从 [API 参考](docs/api.md) 与 [架构设计](docs/architecture.md) 查实现边界。AI 协作先读 [CLAUDE.md](CLAUDE.md)。
 
 ## 贡献与许可证
 

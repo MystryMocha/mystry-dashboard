@@ -14,7 +14,7 @@ Mystry Dashboard 是独立的 Minecraft Java 服务端 Web 管理面板，在本
 | 修改代码或提交 PR | [开发指南](development.md) | [贡献指南](../CONTRIBUTING.md)、[验证矩阵](ai/verification.md) |
 | 接入接口或理解实现 | [API 参考](api.md) | [架构设计](architecture.md) |
 | 设计界面或撰写界面文案 | [设计系统](design-system.md) | [多语言规范](localization.md) |
-| 使用 AI 协助开发 | [项目开发规则](../AGENTS.md) | [AI 项目知识库](ai/README.md) |
+| 使用 AI 协助开发 | [项目开发规则](../CLAUDE.md) | [AI 项目知识库](ai/README.md) |
 | 快速浏览页面与功能 | [界面导览](product-intro/README.md) | [使用指南](user-guide.md) |
 
 首次使用建议按“快速开始 → 分步教程 → 使用指南”阅读。界面导览的截图反映拍摄时的界面，操作说明以正文和实际界面为准。

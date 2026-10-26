@@ -42,22 +42,13 @@ async function createFixture(t) {
       'apps/server/src/config.ts',
     ],
     aiEntrypoints: {
-      agents: 'AGENTS.md',
-      cursor: '.cursor/rules/project-knowledge.mdc',
+      claudeCode: 'CLAUDE.md',
       knowledge: 'docs/ai/README.md',
     },
     requiredContent: [
       {
-        path: 'AGENTS.md',
-        includes: ['docs/ai/README.md'],
-      },
-      {
-        path: '.cursor/rules/project-knowledge.mdc',
-        includes: ['alwaysApply: true', '@AGENTS.md', '@docs/ai/README.md'],
-      },
-      {
-        path: '.ignore',
-        includes: ['.slim/deepwork/'],
+        path: 'CLAUDE.md',
+        includes: ['@docs/ai/README.md'],
       },
     ],
   };
@@ -68,15 +59,9 @@ async function createFixture(t) {
     scripts,
   }, null, 2)}\n`);
   await write(root, 'docs/ai/project-facts.json', `${JSON.stringify(facts, null, 2)}\n`);
-  await write(root, 'AGENTS.md', '[知识库](docs/ai/README.md)\n');
+  await write(root, 'CLAUDE.md', '@docs/ai/README.md\n');
   await write(root, 'docs/ai/README.md', '[当前状态](current-state.md)\n');
   await write(root, 'docs/ai/current-state.md', '# 当前状态\n');
-  await write(
-    root,
-    '.cursor/rules/project-knowledge.mdc',
-    '---\nalwaysApply: true\n---\n@AGENTS.md\n@docs/ai/README.md\n',
-  );
-  await write(root, '.ignore', '.slim/deepwork/\n');
   await write(root, '.env.example', 'HOST=127.0.0.1\nPORT=3000\n');
   await write(
     root,
@@ -125,9 +110,9 @@ test('配置新增但未同步的环境变量会失败', async (t) => {
   assert.ok(errors.some((error) => error.includes('环境变量') && error.includes('NEW_LIMIT')));
 });
 
-test('Cursor 入口缺失会失败', async (t) => {
+test('Claude Code 入口缺失会失败', async (t) => {
   const root = await createFixture(t);
-  await fs.rm(path.join(root, '.cursor/rules/project-knowledge.mdc'));
+  await fs.rm(path.join(root, 'CLAUDE.md'));
   const errors = await checkProjectKnowledge(root);
-  assert.ok(errors.some((error) => error.includes('AI 入口') && error.includes('project-knowledge.mdc')));
+  assert.ok(errors.some((error) => error.includes('AI 入口') && error.includes('CLAUDE.md')));
 });

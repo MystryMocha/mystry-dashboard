@@ -257,20 +257,6 @@ export async function checkProjectKnowledge(root) {
     }
   }
 
-  const ignoreFile = path.join(root, '.ignore');
-  if (await exists(ignoreFile)) {
-    const ignoreLines = (await fs.readFile(ignoreFile, 'utf8'))
-      .split(/\r?\n/u)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    if (!ignoreLines.includes('.slim/deepwork/')) {
-      errors.push('.ignore 未排除 .slim/deepwork/');
-    }
-    if (ignoreLines.some((line) => line === '!.slim/deepwork/' || line === '!.slim/deepwork/**')) {
-      errors.push('.ignore 不得重新包含 .slim/deepwork/** 历史草稿');
-    }
-  }
-
   const markdownFiles = await collectMarkdownFiles(root);
   errors.push(...await findMarkdownLinkErrors(root, markdownFiles));
   return normalized(errors);
