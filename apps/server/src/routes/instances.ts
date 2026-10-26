@@ -11,13 +11,14 @@ import {
   listInstances,
   updateInstance,
 } from '../services/instance-service.js';
+import { deleteInstanceBackups } from '../services/backup-service.js';
 import {
   isInstanceOperationConflictError,
   isInstanceStopPendingError,
   processManager,
 } from '../services/process-manager.js';
 import { sendRouteError } from '../http-errors.js';
-import { errorBody, panelErrorBody, toPanelMessage } from '../utils/errors.js';
+import { errorBody, errorParam, panelErrorBody, PanelError, toPanelMessage } from '../utils/errors.js';
 
 const commandBodySchema = {
   type: 'object',
@@ -101,13 +102,24 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  app.delete<{ Params: { id: string } }>('/api/instances/:id', async (req, reply) => {
+  app.delete<{ Params: { id: string }; Querystring: { keepBackups?: string } }>('/api/instances/:id', async (req, reply) => {
     try {
       await deleteInstance(req.params.id);
-      return { ok: true };
     } catch (err) {
       return sendRouteError(reply, err);
     }
+    // 实例删除后备份在界面里再也找不到，默认一起删除；keepBackups=1 时留在 BACKUP_DIR 由用户自行处理。
+    if (req.query.keepBackups !== '1') {
+      try {
+        deleteInstanceBackups(req.params.id);
+      } catch (err) {
+        return sendRouteError(
+          reply,
+          new PanelError('server.backups.deleteWithInstanceFailed', { reason: errorParam(err) }, { statusCode: 500, cause: err }),
+        );
+      }
+    }
+    return { ok: true };
   });
 
   app.post<{ Params: { id: string } }>('/api/instances/:id/start', async (req, reply) => {

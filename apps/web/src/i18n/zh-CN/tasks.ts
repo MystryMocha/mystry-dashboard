@@ -6,6 +6,8 @@ export default {
   'tasks.type.extract': '解压文件',
   'tasks.type.deploy': '部署实例',
   'tasks.type.import': '导入服务端',
+  'tasks.type.backup': '备份服务器',
+  'tasks.type.restore': '还原备份',
 
   'tasks.center.title': '任务中心',
   'tasks.center.open_one': '打开任务中心，{count} 个任务进行中',

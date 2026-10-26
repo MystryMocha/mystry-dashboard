@@ -64,6 +64,8 @@ export default {
   'dashboard.forceStop.confirm': '确认强制停止',
   'dashboard.delete.title': '删除实例「{name}」？',
   'dashboard.delete.body': '将永久删除该实例目录及其全部文件（世界、配置、模组），此操作不可恢复。',
+  'dashboard.delete.deleteBackups': '同时删除该实例的备份',
+  'dashboard.delete.keepBackupsNote': '备份会留在面板数据目录的 backups 文件夹中，但不再显示在面板里。不需要时请到那里手动删除。',
   'dashboard.removeRecord.title': '移除实例记录「{name}」？',
   'dashboard.removeRecord.body': '仅移除面板中的实例记录，不会删除旧目录中的任何文件。',
   'dashboard.removeRecord.confirm': '移除记录',

@@ -31,7 +31,7 @@ Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.2`）是
 | `@mystry/server` | `apps/server` | Fastify 5 API、`node:sqlite`、进程/文件/任务 |
 | `@mystry/web` | `apps/web` | React 19 + Vite 管理界面 |
 
-服务端路由（均在 `apps/server/src/index.ts` 注册）：`auth`、`console`、`cores`、`files`、`instances`、`launcher`、`nodes`、`system`。
+服务端路由（均在 `apps/server/src/index.ts` 注册）：`auth`、`backups`、`console`、`cores`、`files`、`instances`、`launcher`、`nodes`、`system`。
 
 前端路由：`/login`、`/`（总览）、`/deploy`、`/import`、`/nodes`、`/instances/:id/*`。页面入口在 `apps/web/src/pages/`，HTTP 封装在 `apps/web/src/api.ts`。Vite 别名 `@` → `src/`。
 

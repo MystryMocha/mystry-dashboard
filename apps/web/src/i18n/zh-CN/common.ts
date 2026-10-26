@@ -52,6 +52,7 @@ export default {
   'instance.tab.console': '控制台',
   'instance.tab.files': '文件管理',
   'instance.tab.properties': '参数配置',
+  'instance.tab.backups': '备份',
   'instance.tab.settings': '实例设置',
 
   'empty.instances.title': '暂无 Minecraft 实例',

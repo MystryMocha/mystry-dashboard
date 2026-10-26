@@ -6,6 +6,8 @@ export default {
   'tasks.type.extract': '解壓縮檔案',
   'tasks.type.deploy': '部署實例',
   'tasks.type.import': '匯入伺服器',
+  'tasks.type.backup': '備份伺服器',
+  'tasks.type.restore': '還原備份',
 
   'tasks.center.title': '任務中心',
   'tasks.center.open_one': '開啟任務中心，{count} 個任務進行中',

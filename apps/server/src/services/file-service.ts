@@ -231,6 +231,11 @@ export function getAbsoluteFilePath(instanceId: string, relativePath: string): s
 type UploadReplaceOperations = {
   renameSync?: typeof fs.renameSync;
   unlinkSync?: typeof fs.unlinkSync;
+  /**
+   * 上传内容接收完、移入实例目录前同步调用；抛错则放弃本次上传。
+   * 接收大文件可能要几分钟，调用方用它重新检查期间是否开始了还原等互斥操作。
+   */
+  beforeCommit?: () => void;
 };
 
 function createUploadBackupPath(target: string): string {
@@ -260,6 +265,7 @@ export async function saveUploadedFile(
   const unlinkSync = replaceOperations.unlinkSync ?? fs.unlinkSync;
   let backup: string | null = null;
   try {
+    replaceOperations.beforeCommit?.();
     if (fs.existsSync(target)) {
       const existing = fs.lstatSync(target);
       if (existing.isSymbolicLink() || !existing.isFile()) {

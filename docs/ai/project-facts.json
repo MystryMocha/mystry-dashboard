@@ -19,6 +19,10 @@
       "register": "authRoutes"
     },
     {
+      "file": "backups.ts",
+      "register": "backupRoutes"
+    },
+    {
       "file": "console.ts",
       "register": "consoleRoutes"
     },
@@ -50,6 +54,8 @@
   "environmentVariables": [
     "AUTH_RATE_LIMIT_MAX",
     "AUTH_RATE_LIMIT_WINDOW_MS",
+    "BACKUP_DIR",
+    "BACKUP_TASK_TIMEOUT_MS",
     "CONSOLE_COMMAND_WINDOW_MS",
     "CONSOLE_TICKET_TTL_SECONDS",
     "CORE_DOWNLOAD_TIMEOUT_MS",
@@ -67,6 +73,7 @@
     "JWT_EXPIRES_IN",
     "JWT_SECRET",
     "LAUNCHER_TOKEN",
+    "MAX_BACKUP_UPLOAD_BYTES",
     "MAX_COMMAND_BYTES",
     "MAX_CONCURRENT_FILE_DOWNLOADS",
     "MAX_CONCURRENT_TASKS",

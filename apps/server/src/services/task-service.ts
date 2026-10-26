@@ -49,6 +49,12 @@ type TaskWorker = (
 type QueuedTask = {
   task: TaskInfo;
   worker: TaskWorker;
+  timeoutMs: number;
+};
+
+export type BackgroundTaskOptions = {
+  /** 单个任务的运行时限（从开始运行算起，不含排队），默认 TASK_TIMEOUT_MS。 */
+  timeoutMs?: number;
 };
 
 const taskQueue: QueuedTask[] = [];
@@ -320,7 +326,7 @@ async function executeTask(item: QueuedTask, controller: AbortController): Promi
     const timeout = setTimeout(() => {
       timedOut = true;
       controller.abort(new PanelError('server.tasks.timeout'));
-    }, config.taskTimeoutMs);
+    }, item.timeoutMs);
 
     try {
       result = await item.worker(item.task.id, controller.signal, (progress, msg) => {
@@ -360,6 +366,7 @@ export async function runBackgroundTask(
   type: TaskInfo['type'],
   message: PanelMessage,
   worker: TaskWorker,
+  options: BackgroundTaskOptions = {},
 ): Promise<TaskInfo> {
   if (shuttingDown) {
     throw new TaskShuttingDownError();
@@ -369,7 +376,7 @@ export async function runBackgroundTask(
   }
 
   const task = createTask(type, message);
-  taskQueue.push({ task, worker });
+  taskQueue.push({ task, worker, timeoutMs: options.timeoutMs ?? config.taskTimeoutMs });
   drainTaskQueue();
 
   return getTask(task.id)!;

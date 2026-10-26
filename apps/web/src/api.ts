@@ -1,4 +1,6 @@
 import type {
+  BackupInfo,
+  BackupListResult,
   ConfirmZipImportInput,
   ExistingServerSourceListResult,
   FileDownloadTicketResult,
@@ -174,23 +176,54 @@ export async function downloadAuthenticated(
   relativePath: string,
   signal?: AbortSignal,
 ): Promise<void> {
+  return downloadWithTicket(
+    instanceId,
+    () => api<FileDownloadTicketResult>(
+      instanceApi(instanceId, '/files/download-ticket'),
+      { method: 'POST', json: { path: relativePath } },
+    ),
+    (ticket) =>
+      instanceApi(instanceId, '/files/download')
+      + `?path=${encodeURIComponent(relativePath)}`
+      + `&ticket=${encodeURIComponent(ticket)}`,
+    signal,
+  );
+}
+
+/** 下载实例备份压缩包；与文件下载共用 ticket 状态与取消接口。 */
+export async function downloadBackup(
+  instanceId: string,
+  backupId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const backupPath = `/backups/${encodeURIComponent(backupId)}`;
+  return downloadWithTicket(
+    instanceId,
+    () => api<FileDownloadTicketResult>(
+      instanceApi(instanceId, `${backupPath}/download-ticket`),
+      { method: 'POST' },
+    ),
+    (ticket) => instanceApi(instanceId, `${backupPath}/download`) + `?ticket=${encodeURIComponent(ticket)}`,
+    signal,
+  );
+}
+
+async function downloadWithTicket(
+  instanceId: string,
+  issueTicket: () => Promise<FileDownloadTicketResult>,
+  buildUrl: (ticket: string) => string,
+  signal?: AbortSignal,
+): Promise<void> {
   throwIfAborted(signal);
   const popup = openDownloadPopup();
 
   let ticket: string | null = null;
   try {
-    const issued = await api<FileDownloadTicketResult>(
-      instanceApi(instanceId, '/files/download-ticket'),
-      { method: 'POST', json: { path: relativePath } },
-    );
+    const issued = await issueTicket();
     ticket = issued.ticket;
     throwIfAborted(signal);
 
-    const url =
-      instanceApi(instanceId, '/files/download')
-      + `?path=${encodeURIComponent(relativePath)}`
-      + `&ticket=${encodeURIComponent(ticket)}`;
-    popup.location.href = url;
+    popup.location.href = buildUrl(ticket);
 
     let statusPollDelayMs = DOWNLOAD_STATUS_POLL_INTERVAL_MS;
     for (;;) {
@@ -240,6 +273,36 @@ export async function downloadAuthenticated(
     popup.close();
     throw error;
   }
+}
+
+/** 实例备份列表，按创建时间从新到旧。 */
+export async function listBackups(instanceId: string, signal?: AbortSignal) {
+  const res = await api<BackupListResult>(instanceApi(instanceId, '/backups'), { signal });
+  return res.backups;
+}
+
+/** 创建一键备份任务；运行中的服务端会先暂停自动保存并刷盘。 */
+export async function createBackup(instanceId: string) {
+  return api<TaskInfo>(instanceApi(instanceId, '/backups'), { method: 'POST' });
+}
+
+/** 上传备份压缩包；服务端校验通过后才会出现在列表中。 */
+export async function uploadBackup(instanceId: string, file: File, signal?: AbortSignal) {
+  const form = new FormData();
+  form.append('file', file);
+  return api<BackupInfo>(instanceApi(instanceId, '/backups/upload'), { method: 'POST', body: form, signal });
+}
+
+/** 用指定备份覆盖实例目录；backupCurrent 为 true 时先把当前文件备份一份。 */
+export async function restoreBackup(instanceId: string, backupId: string, backupCurrent: boolean) {
+  return api<TaskInfo>(instanceApi(instanceId, `/backups/${encodeURIComponent(backupId)}/restore`), {
+    method: 'POST',
+    json: { backupCurrent },
+  });
+}
+
+export async function deleteBackup(instanceId: string, backupId: string) {
+  await api<unknown>(instanceApi(instanceId, `/backups/${encodeURIComponent(backupId)}`), { method: 'DELETE' });
 }
 
 /** 任务中心：拉取最近的任务列表（含排队/进行中和已结束任务）。 */

@@ -18,6 +18,7 @@
 - ZIP 导入采用二阶段预览：Web 先调用 `/api/import/previews` 流式上传并验证中央目录，只读取根目录或单一顶层目录中最大 64 KiB 的 `user_jvm_args.txt`；确认后同一临时 ZIP 才交给后台任务。预览随机 ID 按用户隔离、默认 30 分钟、每用户一个/全局两个，队列满保留，取消/过期/关闭/重启清理且不写数据库。旧的一阶段 `POST /api/import` 已删除。
 - 面板外已有服务端交接：只列出 `DATA_DIR/imports` 直接子目录，只读扫描并以后台任务复制到新托管实例；拒绝 symlink/junction、特殊文件、ownership marker、超配额和磁盘空间不足，源目录始终保留。
 - 实例目录内文件列表、上传、文本读写、删除、同目录重命名；目标已存在时重命名返回 `409` 且不覆盖。普通文件通过一次性 download ticket 流式下载（JWT 签发、并发槽预留、`GET` 状态查询、失败回传 SPA；禁止 `blob()` 整包缓存），Web 文件页提供下载与重命名入口。下载窗在用户手势中 `window.open` 且不把 `noopener` 放进 feature（避免现代浏览器返回 `null` 被误判为拦截），打开后再断开 `opener`。票据完成（`consumed`）或过期（`expired`）后保留 60 秒按用户隔离的内存 tombstone，状态查询返回终态而非 404，避免前端轮询把成功下载误判为过期。
+- 实例一键备份与还原（`routes/backups.ts`、`services/backup-service.ts`、`services/backup-archive.ts`，Web「备份」分段）：备份为整个实例目录的流式 tar.gz，末尾清单记录逐文件 SHA-256，存于 `BACKUP_DIR`（默认 `DATA_DIR/backups/<id>/`）。运行中备份用 `save-off` → `save-all flush`（等待服务端自己打印的 `Saved the game` / `Saved the world`，按日志行解析，聊天不算）→ 打包 → `save-on`，期间状态变化即取消；`session.lock` 不进入备份。还原要求已停服，默认先生成 `pre-restore` 备份，先校验并解压到 `.mystry-staging/<taskId>/`，在实例锁内整体换目录；换目录标记 `.mystry-restore-swap.json` 让启动时 `recoverInterruptedBackups()`（先于任务恢复）回滚或收尾；换目录后若清单里的启动文件存在，实例的 `jar_file` / `core_type` / `mc_version` 跟随清单。备份/还原任务用 `BACKUP_TASK_TIMEOUT_MS`（默认 6 小时）。删除实例默认一并删除 `BACKUP_DIR/<id>`（`?keepBackups=1` 保留）。备份/还原期间 `ProcessManager` 维护标记拒绝启动、重启、删除、接管；还原期间文件写接口返回 409（上传在写入实例目录前再检查一次）。备份下载复用下载 ticket（伪路径 `@backup/<id>`）。不含 `panel.db`，没有定时自动备份和保留策略。
 - 同 `DATA_DIR` 仅允许一个面板进程进入 `initDb` / 任务恢复：`.mystry-panel-lock/` 目录锁 + `owner.json`（存活 PID 拒绝启动；仅原 PID 不存在时可 quarantine 后接管）。
 - 部署/导入/ZIP 先写入 `DATA_DIR/.mystry-staging/<taskId>/<instanceId>`（marker 含 task/instance/token），校验通过后原子移动到 `instances/<id>`；崩溃恢复只清理 marker 匹配且任务未完成的 staging，**不会**因 `result.instanceId` 删除已注册实例或最终目录（见 D-016）。
 - 实例 start/stop/restart/delete/adopt 互斥：启停、删除与接管走同一把实例操作锁；start 在首个异步步骤前占位 `starting`；普通 stop 只写 `stop\n`，超时返回仍在停止中且**不**隐式 `SIGKILL`；`force=1` 为唯一强杀路径（UI 二次确认）。面板关闭先标记 `shuttingDown` 并等待未完成的实例操作；`start` 在 spawn 前若已关闭则取消，避免留下无主 Java。
@@ -70,7 +71,7 @@
 - 管理员认证使用浏览器 `localStorage` 中的 JWT；当前没有会话列表、撤销、2FA 或角色权限体系。
 - 数据库只有启动期兼容处理，没有通用、版本化迁移框架。
 - 实例默认使用面板进程 `PATH` 中的 `java`，也可绑定 `java_runtimes` 注册表中当前可用的运行时；绑定条目消失、路径变化或执行前验证失败时必须重新探测和选择。
-- 没有完整的自动备份/恢复、系统安装器、远程 Agent 执行协议或生产监控闭环。
+- 没有定时自动备份、备份保留策略和包含 `panel.db` 的整面板备份/恢复；也没有系统安装器、远程 Agent 执行协议或生产监控闭环。
 - 便携发布流水线已经实现，但 Windows x64 / Linux x64 runner 和公开 Release 的实际结果只能由对应 GitHub Actions 运行确认。Linux ARM64 与 macOS 打包能力仍在脚本中，不纳入本 Preview 公开发布。
 - 公开发布前须重新运行 `npm.cmd run audit:production`（拒绝 high/critical），并核对双平台最终压缩包 smoke、签名验证和人工验收。依赖审计结果、远程密钥配置与分支同步状态不由本页作实时保证。不得用 `--force` 贸然升到 React Router 7。
 

@@ -154,3 +154,22 @@ export const fileDownloadQuerySchema = {
     ticket: { type: 'string', minLength: 1, maxLength: 128 },
   },
 } as const;
+
+/** POST /api/instances/:id/backups/:backupId/restore 请求体 */
+export const restoreBackupBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    backupCurrent: { type: 'boolean' },
+  },
+} as const;
+
+/** GET /api/instances/:id/backups/:backupId/download 查询参数 */
+export const backupDownloadQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    /** 一次性下载 ticket；有 ticket 时可不带 JWT */
+    ticket: { type: 'string', minLength: 1, maxLength: 128 },
+  },
+} as const;

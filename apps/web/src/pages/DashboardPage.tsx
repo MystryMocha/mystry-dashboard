@@ -62,6 +62,7 @@ export function DashboardPage() {
   const [restartTarget, setRestartTarget] = useState<InstanceInfo | null>(null);
   const [forceStopTarget, setForceStopTarget] = useState<InstanceInfo | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InstanceInfo | null>(null);
+  const [deleteBackups, setDeleteBackups] = useState(true);
   const [emptyOpen, setEmptyOpen] = useState(false);
   const [emptyName, setEmptyName] = useState(() => t('dashboard.createEmpty.defaultName'));
   const [emptyJvm, setEmptyJvm] = useState('-Xms1G -Xmx2G');
@@ -117,8 +118,9 @@ export function DashboardPage() {
   async function confirmDelete() {
     if (!deleteTarget) return;
     const target = deleteTarget;
+    const query = !target.requiresMigration && !deleteBackups ? '?keepBackups=1' : '';
     setDeleteTarget(null);
-    await run(target.id, () => api(instanceApi(target.id), { method: 'DELETE' }));
+    await run(target.id, () => api(`${instanceApi(target.id)}${query}`, { method: 'DELETE' }));
   }
 
   async function confirmCreateEmpty() {
@@ -368,7 +370,10 @@ export function DashboardPage() {
                           !inst.requiresMigration && isProcessAlive(inst.status)
                             ? t('dashboard.card.menu.deleteRunning')
                             : undefined,
-                        onSelect: () => setDeleteTarget(inst),
+                        onSelect: () => {
+                          setDeleteBackups(true);
+                          setDeleteTarget(inst);
+                        },
                       },
                     ]}
                   />
@@ -455,7 +460,20 @@ export function DashboardPage() {
         description={
           deleteTarget?.requiresMigration
             ? t('dashboard.removeRecord.body')
-            : t('dashboard.delete.body')
+            : (
+              <>
+                <p>{t('dashboard.delete.body')}</p>
+                <label className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    checked={deleteBackups}
+                    onChange={(e) => setDeleteBackups(e.target.checked)}
+                  />
+                  <span>{t('dashboard.delete.deleteBackups')}</span>
+                </label>
+                {!deleteBackups && <p className="muted">{t('dashboard.delete.keepBackupsNote')}</p>}
+              </>
+            )
         }
         confirmLabel={deleteTarget?.requiresMigration ? t('dashboard.removeRecord.confirm') : t('action.deletePermanently')}
         danger

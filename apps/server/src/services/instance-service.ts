@@ -253,11 +253,22 @@ export function updateInstance(id: string, input: UpdateInstanceInput): Instance
   return getInstance(id)!;
 }
 
+/** 还原备份后同步面板记录的启动文件、核心类型与版本；调用方负责持有实例锁。 */
+export function updateInstanceServerFiles(
+  id: string,
+  input: { jarFile: string; coreType: string; mcVersion: string | null },
+): void {
+  getDb()
+    .prepare('UPDATE instances SET jar_file = ?, core_type = ?, mc_version = ?, updated_at = ? WHERE id = ?')
+    .run(input.jarFile, input.coreType, input.mcVersion, nowIso(), id);
+}
+
 export async function deleteInstance(id: string): Promise<void> {
   return processManager.runExclusive(id, async () => {
     if (processManager.isRunning(id)) {
       throw new PanelError('server.instance.deleteRunning');
     }
+    processManager.assertNotInMaintenance(id);
     const row = getInstanceRow(id);
     if (!row) return;
     if (row.install_path !== null) {
@@ -289,6 +300,7 @@ function adoptManagedDirectoryWithinLock(id: string): InstanceInfo {
   if (processManager.isRunning(id)) {
     throw new PanelError('server.instance.adoptRunning');
   }
+  processManager.assertNotInMaintenance(id);
 
   const row = getInstanceRow(id);
   if (!row) throw new PanelError('server.instance.notFound');

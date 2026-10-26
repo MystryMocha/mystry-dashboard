@@ -11,6 +11,7 @@ import instanceMessages from './instance';
 import consoleMessages from './console';
 import configMessages from './config';
 import filesMessages from './files';
+import backupsMessages from './backups';
 import tasksMessages from './tasks';
 import serverMessages from './server';
 
@@ -27,6 +28,7 @@ export default {
   ...consoleMessages,
   ...configMessages,
   ...filesMessages,
+  ...backupsMessages,
   ...tasksMessages,
   ...serverMessages,
 };

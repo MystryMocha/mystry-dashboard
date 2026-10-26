@@ -134,6 +134,8 @@ export class ProcessManager extends EventEmitter {
   private processes = new Map<string, ManagedProcess>();
   private snapshots = new Map<string, ProcessSnapshot>();
   private operationTails = new Map<string, Promise<void>>();
+  /** 备份/还原期间的实例维护标记：值为拒绝启动等操作时返回的消息键。 */
+  private maintenance = new Map<string, ServerMessageKey>();
   private shuttingDown = false;
 
   constructor(
@@ -192,6 +194,8 @@ export class ProcessManager extends EventEmitter {
 
   async restart(instance: InstanceRow): Promise<void> {
     return this.withInstanceOperation(instance.id, async () => {
+      // 先检查维护标记：否则重启会先停掉服务器，再因备份/还原拒绝启动。
+      this.assertNotInMaintenance(instance.id);
       if (this.isRunning(instance.id)) {
         await this.stopWithinLock(instance.id, false);
       }
@@ -277,6 +281,32 @@ export class ProcessManager extends EventEmitter {
     this.snapshots.delete(instanceId);
   }
 
+  /**
+   * 进入维护（备份或还原）：期间拒绝启动、重启、删除和接管；停止与控制台命令不受影响。
+   * 调用方应在 runExclusive 内检查状态后再调用，返回的函数用于结束维护，可重复调用。
+   */
+  beginMaintenance(instanceId: string, key: ServerMessageKey): () => void {
+    const existing = this.maintenance.get(instanceId);
+    if (existing) throw new InstanceOperationConflictError(existing);
+    this.maintenance.set(instanceId, key);
+    let ended = false;
+    return () => {
+      if (ended) return;
+      ended = true;
+      if (this.maintenance.get(instanceId) === key) this.maintenance.delete(instanceId);
+    };
+  }
+
+  /** 实例处于维护中时抛出冲突错误（消息说明是备份还是还原）。 */
+  assertNotInMaintenance(instanceId: string): void {
+    const key = this.maintenance.get(instanceId);
+    if (key) throw new InstanceOperationConflictError(key);
+  }
+
+  getMaintenance(instanceId: string): ServerMessageKey | null {
+    return this.maintenance.get(instanceId) ?? null;
+  }
+
   /** 删除/接管与启停共用同一把实例锁，避免并发拆掉正在启动的目录。 */
   runExclusive<T>(instanceId: string, operation: () => Promise<T>): Promise<T> {
     return this.withInstanceOperation(instanceId, operation);
@@ -308,6 +338,7 @@ export class ProcessManager extends EventEmitter {
     if (this.isRunning(instance.id)) {
       throw new InstanceOperationConflictError('server.instance.alreadyRunning');
     }
+    this.assertNotInMaintenance(instance.id);
 
     const cwd = resolveDirFromRow(instance);
     assertSafeInstanceRoot(cwd);

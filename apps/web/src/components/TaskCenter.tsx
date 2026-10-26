@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { Download, FolderDown, Inbox, ListChecks, Package, RefreshCw, Rocket, X, type LucideIcon } from 'lucide-react';
+import { Archive, Download, FolderDown, History, Inbox, ListChecks, Package, RefreshCw, Rocket, X, type LucideIcon } from 'lucide-react';
 import type { TaskInfo } from '@mystry/shared';
 import { useI18n, type MessageKey } from '../i18n';
 import { useTaskCenter } from '../task-center-store';
@@ -12,6 +12,8 @@ const typeLabel: Record<TaskInfo['type'], MessageKey> = {
   extract: 'tasks.type.extract',
   deploy: 'tasks.type.deploy',
   import: 'tasks.type.import',
+  backup: 'tasks.type.backup',
+  restore: 'tasks.type.restore',
 };
 
 const typeIcon: Record<TaskInfo['type'], LucideIcon> = {
@@ -19,6 +21,8 @@ const typeIcon: Record<TaskInfo['type'], LucideIcon> = {
   extract: Package,
   deploy: Rocket,
   import: FolderDown,
+  backup: Archive,
+  restore: History,
 };
 
 const statusLabel: Record<TaskInfo['status'], MessageKey> = {

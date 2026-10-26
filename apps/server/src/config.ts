@@ -31,6 +31,12 @@ function resolveDataDir(): string {
   return resolveFromHome(configured, homeDir);
 }
 
+/** 备份目录：BACKUP_DIR 未设置时为数据根下的 backups；相对值按 MYSTRY_HOME（或仓库根）解析。 */
+function resolveBackupDir(): string {
+  const configured = process.env.BACKUP_DIR?.trim();
+  return configured ? resolveFromHome(configured, homeDir) : path.join(resolveDataDir(), 'backups');
+}
+
 function parsePositiveInt(name: string, fallback: number): number {
   const value = Number(process.env[name] || fallback);
   if (!Number.isSafeInteger(value) || value <= 0) {
@@ -131,6 +137,9 @@ export const config = {
   get uploadDir() {
     return path.join(resolveDataDir(), 'uploads');
   },
+  get backupDir() {
+    return resolveBackupDir();
+  },
   maxJsonBodyBytes: parsePositiveInt('MAX_JSON_BODY_BYTES', 1048576),
   maxTextFileBytes: parsePositiveInt('MAX_TEXT_FILE_BYTES', 1048576),
   maxCommandBytes: parsePositiveInt('MAX_COMMAND_BYTES', 4096),
@@ -138,6 +147,8 @@ export const config = {
   maxConsoleChunkBytes: parsePositiveInt('MAX_CONSOLE_CHUNK_BYTES', 65536),
   /** 单个上传文件上限，默认 512MB */
   maxUploadBytes: parsePositiveInt('MAX_UPLOAD_BYTES', 512 * 1024 * 1024),
+  /** 上传备份文件上限，默认 10 GiB（世界存档通常远大于普通上传）。 */
+  maxBackupUploadBytes: parsePositiveInt('MAX_BACKUP_UPLOAD_BYTES', 10 * 1024 * 1024 * 1024),
   uploadIdleTimeoutMs: parsePositiveInt('UPLOAD_IDLE_TIMEOUT_MS', 30_000),
   maxConcurrentUploads: parsePositiveInt('MAX_CONCURRENT_UPLOADS', 1),
   /** ZIP 导入预览有效期与全局容量。 */
@@ -148,6 +159,8 @@ export const config = {
   maxConcurrentTasks: parsePositiveInt('MAX_CONCURRENT_TASKS', 1),
   maxQueuedTasks: parsePositiveInt('MAX_QUEUED_TASKS', 2),
   taskTimeoutMs: parsePositiveInt('TASK_TIMEOUT_MS', 1800000),
+  /** 备份与还原任务的运行时限，默认 6 小时：大世界打包、还原前备份与解压都算在一次任务里。 */
+  backupTaskTimeoutMs: parsePositiveInt('BACKUP_TASK_TIMEOUT_MS', 6 * 60 * 60 * 1000),
   maxCoreDownloadBytes: parsePositiveInt('MAX_CORE_DOWNLOAD_BYTES', 536870912),
   coreDownloadTimeoutMs: parsePositiveInt('CORE_DOWNLOAD_TIMEOUT_MS', 300000),
   httpRequestTimeoutMs: parsePositiveInt('HTTP_REQUEST_TIMEOUT_MS', 900_000),
