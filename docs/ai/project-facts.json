@@ -178,6 +178,7 @@
   "aiEntrypoints": {
     "codexAndOpenCode": "AGENTS.md",
     "cursor": ".cursor/rules/project-knowledge.mdc",
+    "claudeCode": "CLAUDE.md",
     "knowledgeIndex": "docs/ai/README.md"
   },
   "requiredContent": [
@@ -207,6 +208,13 @@
       "path": ".cursor/rules/project-knowledge.mdc",
       "includes": [
         "alwaysApply: true",
+        "@AGENTS.md",
+        "@docs/ai/README.md"
+      ]
+    },
+    {
+      "path": "CLAUDE.md",
+      "includes": [
         "@AGENTS.md",
         "@docs/ai/README.md"
       ]

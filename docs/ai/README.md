@@ -1,6 +1,6 @@
 # AI 项目知识库
 
-这里保存面向 Codex、OpenCode、Cursor 的项目事实、决策和防错流程。根目录
+这里保存面向 Codex、OpenCode、Cursor、Claude Code 的项目事实、决策和防错流程。根目录
 [`AGENTS.md`](../../AGENTS.md) 是唯一强制入口；本目录提供按任务加载的详细知识。
 
 ## 读取规则
