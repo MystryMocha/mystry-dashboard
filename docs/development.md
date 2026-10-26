@@ -2,7 +2,7 @@
 
 ## 前置步骤
 
-先阅读 [项目开发规则](../AGENTS.md)，运行 `git status --short --branch` 确认当前分支和已有修改。使用 Node.js ≥ 22，在仓库根目录执行命令。
+先阅读 [项目开发规则](../CLAUDE.md)，运行 `git status --short --branch` 确认当前分支和已有修改。使用 Node.js ≥ 22，在仓库根目录执行命令。
 
 首次运行须完成 [手动安装与密钥配置](getting-started.md#手动安装与首次配置)，然后分别运行 `npm.cmd run dev:server` 与 `npm.cmd run dev:web`。Windows PowerShell 使用 `npm.cmd`；下文 `npm` 示例适用于 Linux/macOS，脚本名相同。
 
@@ -86,7 +86,7 @@ npm run build -w @mystry/shared
 
 ## AI 项目知识库
 
-- 根目录 `AGENTS.md` 是 Codex、OpenCode、Cursor 的统一强制入口，详细资料位于 `docs/ai/`。
+- 根目录 `CLAUDE.md` 是 Claude Code 的强制入口，详细资料位于 `docs/ai/`。
 - 路由、环境变量、workspaces、入口或验证脚本变化时，必须同步 `docs/ai/project-facts.json`。
 - 当前事实、计划、已否决方案和历史故障必须分层记录，不得把旧计划当成已实现能力。
 - 快速检查：`npm run knowledge:check`；检查器负向测试：`npm run knowledge:test`。

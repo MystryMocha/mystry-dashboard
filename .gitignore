@@ -12,8 +12,6 @@ uploads/
 coverage/
 release/
 /sbom.cdx.json
-.slim/deepwork/
-.playwright-mcp/
 *.tsbuildinfo
 
 # Linux / WSL 源码启动器运行数据与日志
