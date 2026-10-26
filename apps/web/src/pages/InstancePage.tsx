@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Link, NavLink, Route, Routes, useParams } from 'react-router-dom';
 import {
+  Archive,
   ChevronLeft,
   Folder,
   Play,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { InstanceInfo } from '@mystry/shared';
 import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
+import { BackupsTab } from '../components/BackupsTab';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ConfigTab } from '../components/ConfigTab';
 import { ConsolePanel } from '../components/ConsolePanel';
@@ -363,6 +365,10 @@ export function InstancePage() {
             <Sliders size={15} aria-hidden="true" />
             <span>{t('instance.tab.properties')}</span>
           </NavLink>
+          <NavLink to={`/instances/${id}/backups`} className={hubTabClass}>
+            <Archive size={15} aria-hidden="true" />
+            <span>{t('instance.tab.backups')}</span>
+          </NavLink>
           <NavLink to={`/instances/${id}/settings`} className={hubTabClass}>
             <Settings size={15} aria-hidden="true" />
             <span>{t('instance.tab.settings')}</span>
@@ -378,6 +384,7 @@ export function InstancePage() {
             <Route index element={<ConsoleTab instance={instance} />} />
             <Route path="files" element={<FilesTab instanceId={instance.id} />} />
             <Route path="config" element={<ConfigTab instanceId={instance.id} />} />
+            <Route path="backups" element={<BackupsTab instance={instance} onRestored={() => void load()} />} />
             <Route path="settings" element={<SettingsTab instance={instance} onSaved={load} />} />
           </Routes>
         )}

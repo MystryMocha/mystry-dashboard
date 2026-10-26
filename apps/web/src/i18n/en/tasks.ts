@@ -4,6 +4,8 @@ export default {
   'tasks.type.extract': 'Extract Files',
   'tasks.type.deploy': 'Deploy Instance',
   'tasks.type.import': 'Import Server',
+  'tasks.type.backup': 'Back Up Server',
+  'tasks.type.restore': 'Restore Backup',
 
   'tasks.center.title': 'Task Center',
   'tasks.center.open_one': 'Open Task Center, {count} task in progress',

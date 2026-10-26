@@ -45,8 +45,13 @@ function tempPath(prefix: string): string {
   );
 }
 
-/** 将 multipart 流直接写入受控临时目录，不把上传内容聚合到内存。 */
-export async function streamToUploadTemp(input: Readable, prefix: string): Promise<string> {
+/** 将 multipart 流直接写入受控临时目录，不把上传内容聚合到内存。maxBytes 默认 MAX_UPLOAD_BYTES。 */
+export async function streamToUploadTemp(
+  input: Readable,
+  prefix: string,
+  options: { maxBytes?: number } = {},
+): Promise<string> {
+  const maxBytes = options.maxBytes ?? config.maxUploadBytes;
   if (activeUploads >= config.maxConcurrentUploads) throw new UploadCapacityError();
   activeUploads += 1;
   let target: string | null = null;
@@ -76,7 +81,7 @@ export async function streamToUploadTemp(input: Readable, prefix: string): Promi
     const counter = createByteCounter((chunkBytes) => {
       armIdleTimer();
       bytes += chunkBytes;
-      return bytes > config.maxUploadBytes ? new UploadTooLargeError() : undefined;
+      return bytes > maxBytes ? new UploadTooLargeError() : undefined;
     });
 
     armIdleTimer();

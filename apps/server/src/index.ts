@@ -12,6 +12,7 @@ import { registerFrontendAssets } from './frontend-assets.js';
 import { authRoutes, registerAuthHooks } from './routes/auth.js';
 import { instanceRoutes } from './routes/instances.js';
 import { fileRoutes } from './routes/files.js';
+import { backupRoutes } from './routes/backups.js';
 import { coreRoutes } from './routes/cores.js';
 import { consoleRoutes } from './routes/console.js';
 import { systemRoutes } from './routes/system.js';
@@ -33,6 +34,7 @@ import {
   acquirePanelDataLock,
   type PanelDataLock,
 } from './services/data-lock-service.js';
+import { recoverInterruptedBackups } from './services/backup-service.js';
 import {
   initializeImportPreviews,
   shutdownImportPreviews,
@@ -66,6 +68,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
   }
   try {
     initDb();
+    // 还原换目录现场必须先于任务恢复处理：任务恢复会清理 staging 目录。
+    const backupRecovery = recoverInterruptedBackups();
     const taskRecovery = recoverInterruptedTasks();
     const previewRecovery = initializeImportPreviews();
 
@@ -91,6 +95,9 @@ export async function buildApp(options: BuildAppOptions = {}) {
     keepAliveTimeout: config.httpKeepAliveTimeoutMs,
     ajv: { customOptions: { removeAdditional: false } },
   });
+  if (backupRecovery.restoresRolledBack > 0 || backupRecovery.restoresCompleted > 0 || backupRecovery.tempFilesRemoved > 0) {
+    app.log.warn(backupRecovery, '已处理上次面板进程中断的备份或还原');
+  }
   if (taskRecovery.interrupted > 0) {
     app.log.warn(taskRecovery, '已将上次面板进程遗留的任务标记为失败');
   }
@@ -176,6 +183,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
   await app.register(authRoutes);
   await app.register(instanceRoutes);
   await app.register(fileRoutes);
+  await app.register(backupRoutes);
   await app.register(coreRoutes);
   await app.register(consoleRoutes);
   await app.register(systemRoutes);

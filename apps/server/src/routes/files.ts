@@ -32,6 +32,7 @@ import {
   type DownloadTicketFailure,
 } from '../services/download-ticket-service.js';
 import { getInstance } from '../services/instance-service.js';
+import { processManager } from '../services/process-manager.js';
 import {
   previewServerPropertiesWrite,
   writeServerProperties,
@@ -92,6 +93,13 @@ const serverPropertiesBodySchema = {
   additionalProperties: { type: 'string', maxLength: maxTextFileBytes },
 } as const;
 
+/** 还原会整体替换实例目录，期间拒绝所有改写类文件操作，避免改动落在即将被替换的旧目录里。 */
+function rejectWhileRestoring(instanceId: string): void {
+  if (processManager.getMaintenance(instanceId) === 'server.backups.busyRestoring') {
+    throw new PanelError('server.backups.busyRestoring', undefined, { statusCode: 409 });
+  }
+}
+
 function validationMessage(reply: { code: (statusCode: number) => { send: (payload: unknown) => unknown } }, key: ServerMessageKey) {
   return reply.code(400).send(panelErrorBody(key));
 }
@@ -146,6 +154,88 @@ export function waitForDownloadStreamOpen(stream: EventEmitter): Promise<void> {
     stream.once('error', onError);
     stream.once('close', onClose);
   });
+}
+
+/**
+ * 流式发送文件：下载槽位与 ticket 状态在完成、失败、空闲超时或连接断开时各结算一次。
+ * activeTicket 结算后被置空，调用方的 catch 据此判断是否还需标记失败。
+ */
+export async function sendFileStream(
+  reply: FastifyReply,
+  abs: string,
+  downloadName: string,
+  activeTicket: { value: string | null },
+  releaseDownload: (() => void) | null,
+) {
+  const stream = fs.createReadStream(abs);
+  let responseStarted = false;
+  let cleaned = false;
+  function releaseResources(): void {
+    try {
+      reply.raw.setTimeout(0);
+    } catch {
+      // 响应可能已经关闭。
+    }
+    reply.raw.off('finish', finishSuccess);
+    reply.raw.off('close', onConnectionClosed);
+    stream.off('error', onStreamError);
+    stream.off('close', onStreamClosed);
+    if (!stream.destroyed) stream.destroy();
+  }
+  function finishSuccess(): void {
+    if (cleaned) return;
+    cleaned = true;
+    releaseDownload?.();
+    if (activeTicket.value) {
+      completeDownloadStream(activeTicket.value);
+      activeTicket.value = null;
+    }
+    releaseResources();
+  }
+  function finishFailure(reason: DownloadTicketFailure): void {
+    if (cleaned) return;
+    cleaned = true;
+    releaseDownload?.();
+    if (activeTicket.value) {
+      failDownloadStream(activeTicket.value, reason);
+      activeTicket.value = null;
+    }
+    releaseResources();
+  }
+  function onStreamError(error: Error): void {
+    // Node.js 流错误保留原文，无文本时使用可翻译的兜底消息。
+    finishFailure(error.message || { key: 'server.files.download.readFailed' });
+    if (responseStarted && !reply.raw.destroyed) {
+      reply.raw.destroy();
+    }
+  }
+  function onStreamClosed(): void {
+    if (stream.readableEnded) return;
+    finishFailure({ key: 'server.files.download.aborted' });
+    if (responseStarted && !reply.raw.destroyed) reply.raw.destroy();
+  }
+  function onConnectionClosed(): void {
+    if (!reply.raw.writableFinished) finishFailure({ key: 'server.files.download.aborted' });
+  }
+  stream.once('close', onStreamClosed);
+  stream.once('error', onStreamError);
+  reply.raw.once('finish', finishSuccess);
+  reply.raw.once('close', onConnectionClosed);
+  reply.raw.setTimeout(config.fileDownloadIdleTimeoutMs, () => {
+    if (cleaned) return;
+    finishFailure({ key: 'server.files.download.idleTimeout' });
+    if (!reply.raw.destroyed) reply.raw.destroy();
+  });
+  if (reply.raw.destroyed) {
+    finishFailure({ key: 'server.files.download.aborted' });
+    throw new PanelError('server.files.download.aborted');
+  }
+  await waitForDownloadStreamOpen(stream);
+  responseStarted = true;
+  return reply
+    .header('Content-Disposition', contentDispositionAttachment(downloadName))
+    .type('application/octet-stream')
+    .send(stream);
 }
 
 type DownloadTicketCancelRouteResult =
@@ -210,6 +300,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       if (req.validationError) return validationMessage(reply, 'server.files.validation.textBody');
       if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
+        rejectWhileRestoring(req.params.id);
         writeTextFile(req.params.id, req.body.path, req.body.content);
         return { ok: true };
       } catch (err) {
@@ -224,6 +315,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (req.validationError) return validationMessage(reply, 'server.files.validation.path');
       try {
+        rejectWhileRestoring(req.params.id);
         deletePath(req.params.id, req.query.path);
         return { ok: true };
       } catch (err) {
@@ -238,6 +330,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (req.validationError) return validationMessage(reply, 'server.files.validation.dirBody');
       try {
+        rejectWhileRestoring(req.params.id);
         mkdirPath(req.params.id, req.body.path);
         return { ok: true };
       } catch (err) {
@@ -252,6 +345,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (req.validationError) return validationMessage(reply, 'server.files.validation.renameBody');
       try {
+        rejectWhileRestoring(req.params.id);
         renamePath(req.params.id, req.body.from, req.body.to);
         return { ok: true };
       } catch (err) {
@@ -312,7 +406,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       if (req.validationError) return validationMessage(reply, 'server.files.validation.path');
       const ticketParam = req.query.ticket;
       const hasTicket = typeof ticketParam === 'string' && ticketParam.length > 0;
-      let activeTicket: string | null = hasTicket ? ticketParam : null;
+      const ticketRef = { value: hasTicket ? ticketParam : null };
       if (hasTicket) {
         const began = beginDownloadStream(ticketParam, req.params.id, req.query.path);
         if (!began) return reply.code(401).send(panelErrorBody('server.files.download.linkExpired'));
@@ -323,84 +417,16 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
         if (!hasTicket) {
           releaseDownload = acquireFileDownloadSlot();
         }
-        const stream = fs.createReadStream(abs);
-        let responseStarted = false;
-        let cleaned = false;
-        function releaseResources(): void {
-          try {
-            reply.raw.setTimeout(0);
-          } catch {
-            // 响应可能已经关闭。
-          }
-          reply.raw.off('finish', finishSuccess);
-          reply.raw.off('close', onConnectionClosed);
-          stream.off('error', onStreamError);
-          stream.off('close', onStreamClosed);
-          if (!stream.destroyed) stream.destroy();
-        }
-        function finishSuccess(): void {
-          if (cleaned) return;
-          cleaned = true;
-          releaseDownload?.();
-          if (activeTicket) {
-            completeDownloadStream(activeTicket);
-            activeTicket = null;
-          }
-          releaseResources();
-        }
-        function finishFailure(reason: DownloadTicketFailure): void {
-          if (cleaned) return;
-          cleaned = true;
-          releaseDownload?.();
-          if (activeTicket) {
-            failDownloadStream(activeTicket, reason);
-            activeTicket = null;
-          }
-          releaseResources();
-        }
-        function onStreamError(error: Error): void {
-          // Node.js 流错误保留原文，无文本时使用可翻译的兜底消息。
-          finishFailure(error.message || { key: 'server.files.download.readFailed' });
-          if (responseStarted && !reply.raw.destroyed) {
-            reply.raw.destroy();
-          }
-        }
-        function onStreamClosed(): void {
-          if (stream.readableEnded) return;
-          finishFailure({ key: 'server.files.download.aborted' });
-          if (responseStarted && !reply.raw.destroyed) reply.raw.destroy();
-        }
-        function onConnectionClosed(): void {
-          if (!reply.raw.writableFinished) finishFailure({ key: 'server.files.download.aborted' });
-        }
-        stream.once('close', onStreamClosed);
-        stream.once('error', onStreamError);
-        reply.raw.once('finish', finishSuccess);
-        reply.raw.once('close', onConnectionClosed);
-        reply.raw.setTimeout(config.fileDownloadIdleTimeoutMs, () => {
-          if (cleaned) return;
-          finishFailure({ key: 'server.files.download.idleTimeout' });
-          if (!reply.raw.destroyed) reply.raw.destroy();
-        });
-        if (reply.raw.destroyed) {
-          finishFailure({ key: 'server.files.download.aborted' });
-          throw new PanelError('server.files.download.aborted');
-        }
-        await waitForDownloadStreamOpen(stream);
-        responseStarted = true;
-        return reply
-          .header('Content-Disposition', contentDispositionAttachment(path.basename(abs)))
-          .type('application/octet-stream')
-          .send(stream);
+        return await sendFileStream(reply, abs, path.basename(abs), ticketRef, releaseDownload);
       } catch (err) {
-        if (activeTicket) {
+        if (ticketRef.value) {
           failDownloadStream(
-            activeTicket,
+            ticketRef.value,
             err instanceof Error
               ? toPanelMessage(err) ?? errorMessage(err)
               : { key: 'server.files.download.openFailed' },
           );
-          activeTicket = null;
+          ticketRef.value = null;
         }
         releaseDownload?.();
         if (isFileDownloadCapacityError(err)) {
@@ -419,6 +445,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       if (req.validationError) return validationMessage(reply, 'server.files.validation.dirPath');
       if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
+        rejectWhileRestoring(req.params.id);
         const file = await req.file();
         if (!file) return reply.code(400).send(panelErrorBody('server.files.upload.missing'));
         const saved = await saveUploadedFile(
@@ -426,6 +453,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
           req.query.path || '',
           file.filename,
           file.file,
+          { beforeCommit: () => rejectWhileRestoring(req.params.id) },
         );
         return { path: saved };
       } catch (err) {
@@ -451,6 +479,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       if (req.validationError) return validationMessage(reply, 'server.files.validation.serverProperties');
       try {
+        rejectWhileRestoring(req.params.id);
         assertTextFileWithinLimit(req.params.id, 'server.properties');
         const preview = previewServerPropertiesWrite(req.params.id, req.body);
         if (Buffer.byteLength(preview, 'utf8') > maxTextFileBytes) {

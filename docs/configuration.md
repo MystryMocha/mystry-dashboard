@@ -69,6 +69,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | `MAX_CONCURRENT_TASKS` | `1` | 同时执行的部署 / 导入任务数上限 |
 | `MAX_QUEUED_TASKS` | `2` | 等待执行的任务数上限 |
 | `TASK_TIMEOUT_MS` | `1800000` | 单个任务超时，30 分钟 |
+| `BACKUP_TASK_TIMEOUT_MS` | `21600000` | 备份与还原任务超时，6 小时；还原前备份与解压算在同一个任务里 |
 | `IMPORT_PREVIEW_TTL_SECONDS` | `1800` | 待确认 ZIP 导入预览有效期，默认 30 分钟 |
 | `MAX_IMPORT_PREVIEWS` | `2` | 全局同时保留的待确认 ZIP 预览上限；每个登录用户最多一个 |
 
@@ -103,6 +104,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `MAX_UPLOAD_BYTES` | `536870912` | 单个上传文件上限，512 MiB |
+| `MAX_BACKUP_UPLOAD_BYTES` | `10737418240` | 上传备份文件的上限，10 GiB；备份通常比普通上传大，单独设置 |
 | `MAX_ZIP_ENTRIES` | `10000` | ZIP 条目数上限 |
 | `MAX_ZIP_ENTRY_BYTES` | `1073741824` | 单个解压条目上限，1 GiB |
 | `MAX_ZIP_UNCOMPRESSED_BYTES` | `2147483648` | ZIP 解压后总大小上限，2 GiB |
@@ -130,6 +132,7 @@ ZIP 导入的预检结果暂存在 `uploads/.tmp-import-preview-*`，按登录�
 | `MYSTRY_HOME` | 源码为仓库根目录；便携版为包根目录 | 运行布局根目录；必须在启动 Node 前由进程环境设置 |
 | `MYSTRY_CONFIG_PATH` | 源码为 `.env`；便携版为 `config/panel.env` | 配置文件路径；相对值相对于 `MYSTRY_HOME` |
 | `MYSTRY_DATA_DIR` | 未设置时使用 `DATA_DIR` | 优先级高于 `DATA_DIR`；相对值相对于 `MYSTRY_HOME` |
+| `BACKUP_DIR` | `DATA_DIR/backups` | 实例备份目录；相对值相对于 `MYSTRY_HOME`。可放到另一块磁盘，但不能位于 `instances`、`imports`、`uploads` 或 `.mystry-staging` 之内，也不能包含整个数据目录 |
 
 ### 启动器语言
 
@@ -149,6 +152,7 @@ ZIP 导入的预检结果暂存在 `uploads/.tmp-import-preview-*`，按登录�
 | `imports/<目录名>/` | 同机已有服务端交接区；只作为复制源，不是实例工作目录 |
 | `cache/cores/` | 核心 jar 下载缓存 |
 | `uploads/` | 上传临时目录；`.tmp-import-preview-*` 为不跨重启保留的待确认 ZIP |
+| `backups/<id>/` | 实例备份（未设置 `BACKUP_DIR` 时）：每份备份是一个 `.tar.gz` 和同名 `.json` 元数据 |
 
 无论最终数据目录来自 `MYSTRY_DATA_DIR` 还是 `DATA_DIR`，实例始终只能位于该目录的 `instances/<id>`。部署、导入、创建和启动都使用这一目录；不支持自定义实例安装目录，也不提供从整台机器选择目录的功能。实例文件 API 的路径只是相对于该实例根目录的逻辑路径。
 

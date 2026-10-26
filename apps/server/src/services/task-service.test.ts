@@ -112,6 +112,32 @@ test('worker 正常返回后即使任务已中止也保持成功', async (t) => 
   assert.ok(getInstanceRow(inst.id));
 });
 
+test('runBackgroundTask 的 timeoutMs 覆盖全局 TASK_TIMEOUT_MS', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { config } = await import('../config.js');
+  const { runBackgroundTask, getTask, resetTaskRuntimeForTests } = await import('./task-service.js');
+  t.after(() => {
+    resetTaskRuntimeForTests();
+  });
+  initDb();
+  assert.ok(config.taskTimeoutMs > 1000, '前置：全局超时远大于本用例的时限');
+
+  const task = await runBackgroundTask('backup', { key: 'server.tasks.queued' }, (_taskId, signal) => (
+    new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    })
+  ), { timeoutMs: 30 });
+
+  let current = getTask(task.id);
+  for (let attempt = 0; attempt < 200 && current?.status !== 'failed'; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    current = getTask(task.id);
+  }
+  assert.equal(current?.status, 'failed');
+  assert.equal(current?.errorI18n?.key, 'server.tasks.timeout');
+});
+
 test('任务消息以键和参数存库，旧库自动补列且旧任务原文照常读取', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   // 模拟升级前的 panel.db：tasks 表没有 message_i18n / error_i18n，且已有一条中文旧任务。

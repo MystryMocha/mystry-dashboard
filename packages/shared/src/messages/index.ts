@@ -4,6 +4,7 @@
  * 键统一以 `server.<区域>.` 开头，避免与 Web 自身文案键重名。
  */
 import { AUTH_MESSAGES } from './auth.js';
+import { BACKUPS_MESSAGES } from './backups.js';
 import { COMMON_MESSAGES } from './common.js';
 import { DEPLOY_MESSAGES } from './deploy.js';
 import { FILES_MESSAGES } from './files.js';
@@ -15,6 +16,7 @@ import { TASKS_MESSAGES } from './tasks.js';
 
 export {
   AUTH_MESSAGES,
+  BACKUPS_MESSAGES,
   COMMON_MESSAGES,
   DEPLOY_MESSAGES,
   FILES_MESSAGES,
@@ -35,6 +37,7 @@ export const SERVER_MESSAGES = {
   ...SYSTEM_MESSAGES,
   ...TASKS_MESSAGES,
   ...JVM_MESSAGES,
+  ...BACKUPS_MESSAGES,
 } as const;
 
 export type ServerMessageKey = keyof typeof SERVER_MESSAGES;

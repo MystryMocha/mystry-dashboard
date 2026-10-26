@@ -209,6 +209,39 @@ test('上传覆盖成功时应替换内容且不遗留备份文件', async (t) =
   );
 });
 
+test('上传接收完后 beforeCommit 拒绝时不写入实例目录并清理临时文件', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { config } = await import('../config.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { saveUploadedFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'upload-before-commit' });
+  const root = defaultInstanceDir(inst.id);
+  fs.writeFileSync(path.join(root, 'server.jar'), 'old-content');
+  let calls = 0;
+
+  await assert.rejects(
+    saveUploadedFile(inst.id, '', 'server.jar', Readable.from('new-content'), {
+      beforeCommit() {
+        calls += 1;
+        throw new Error('restore started');
+      },
+    }),
+    /restore started/,
+  );
+
+  assert.equal(calls, 1);
+  assert.equal(fs.readFileSync(path.join(root, 'server.jar'), 'utf8'), 'old-content');
+  assert.equal(
+    fs.existsSync(config.uploadDir)
+      && fs.readdirSync(config.uploadDir).some((entry) => entry.startsWith('.tmp-file-')),
+    false,
+  );
+});
+
 test('上传覆盖后备份清理失败仍应返回成功并保留可识别备份', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');

@@ -277,16 +277,58 @@ export function recommendedJavaMajor(mcVersion: string | null | undefined): numb
   return 8;
 }
 
+/** 备份来源：手动创建、还原前自动创建，或从文件上传。 */
+export type BackupSource = 'manual' | 'pre-restore' | 'upload';
+
+/** 一份实例备份（DATA_DIR/backups/<实例 ID>/<备份 ID>.tar.gz 及其元数据）。 */
+export interface BackupInfo {
+  /** 形如 20261026-054200-ab12cd 的备份 ID，同时是文件名主体。 */
+  id: string;
+  /** 备份所属（存放在其下）的实例 ID。 */
+  instanceId: string;
+  /** 备份时的实例名称；上传的备份为来源面板中的名称。 */
+  instanceName: string;
+  source: BackupSource;
+  createdAt: string;
+  /** 压缩包大小（字节）。 */
+  sizeBytes: number;
+  /** 备份内文件数量。 */
+  fileCount: number;
+  /** 解压后的文件总大小（字节），还原时据此检查磁盘空间。 */
+  contentBytes: number;
+  coreType: CoreType | null;
+  mcVersion: string | null;
+  /** 备份时服务器是否在运行（运行中备份会先暂停自动保存并刷写世界）。 */
+  wasRunning: boolean;
+  /** 压缩包 SHA-256，便于用户自行核对下载的文件。 */
+  sha256: string;
+}
+
+/** GET /api/instances/:id/backups 响应 */
+export interface BackupListResult {
+  backups: BackupInfo[];
+}
+
+/** POST /api/instances/:id/backups/:backupId/restore 请求体 */
+export interface RestoreBackupInput {
+  /** 还原前先备份当前文件；默认 true。 */
+  backupCurrent?: boolean;
+}
+
 export interface TaskInfo {
   id: string;
-  type: 'download' | 'extract' | 'deploy' | 'import';
+  type: 'download' | 'extract' | 'deploy' | 'import' | 'backup' | 'restore';
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
   /** 英文进度文本；旧版本写入的任务可能是中文。 */
   message: string;
   /** 进度消息键与参数，Web 据此按界面语言显示；旧任务没有此字段。 */
   messageI18n?: PanelMessage;
-  result?: { instanceId?: string; stagingToken?: string };
+  /**
+   * backupId：备份任务生成的备份，或还原任务使用的备份。
+   * instanceRecordUpdated：还原后面板记录的启动文件、核心类型或版本已按备份更新。
+   */
+  result?: { instanceId?: string; stagingToken?: string; backupId?: string; instanceRecordUpdated?: boolean };
   /** 英文失败原因；旧版本写入的任务可能是中文。 */
   error?: string;
   /** 失败原因的消息键与参数；旧任务或无法归类的原始错误没有此字段。 */
@@ -343,6 +385,8 @@ export {
   updateNodeBodySchema,
   fileDownloadTicketBodySchema,
   fileDownloadQuerySchema,
+  restoreBackupBodySchema,
+  backupDownloadQuerySchema,
 } from './schemas.js';
 
 export type {

@@ -62,6 +62,8 @@ export default {
   'dashboard.forceStop.confirm': 'Force Stop',
   'dashboard.delete.title': 'Delete instance "{name}"?',
   'dashboard.delete.body': "This permanently deletes the instance folder and all its files (worlds, configs, mods). This can't be undone.",
+  'dashboard.delete.deleteBackups': "Also delete this instance's backups",
+  'dashboard.delete.keepBackupsNote': "The backups stay in the panel's backups folder but no longer appear in the panel. Delete them there when you no longer need them.",
   'dashboard.removeRecord.title': 'Remove instance record "{name}"?',
   'dashboard.removeRecord.body': 'Only the instance record is removed from the panel. No files in the old folder are deleted.',
   'dashboard.removeRecord.confirm': 'Remove Record',

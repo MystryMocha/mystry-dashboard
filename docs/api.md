@@ -103,7 +103,7 @@ Java 状态响应准确结构为：
 | POST | `/api/instances` | 创建空实例，Body 见 `CreateInstanceInput` |
 | PATCH | `/api/instances/:id` | 更新 `UpdateInstanceInput` |
 | POST | `/api/instances/:id/adopt-managed-directory` | 接管已复制到面板托管根目录的旧实例 |
-| DELETE | `/api/instances/:id` | 删除实例记录及面板托管的实例目录；旧版外部目录不会被访问或删除 |
+| DELETE | `/api/instances/:id` | 删除实例记录及面板托管的实例目录；旧版外部目录不会被访问或删除。默认同时删除该实例在 `BACKUP_DIR` 下的备份，`?keepBackups=1` 时保留（之后不再出现在面板中）；实例已删除但备份删除失败时返回 **500** |
 | POST | `/api/instances/:id/start` | 启动 |
 | POST | `/api/instances/:id/stop` | 停止；`?force=1` 强杀。普通停止超时仍在停止中时返回 **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
 | POST | `/api/instances/:id/restart` | 重启 |
@@ -170,6 +170,29 @@ Authorization: Bearer <token>
 已认证的 `DELETE .../download-ticket/:ticket` 仅在 ticket、当前用户和 URL 中的实例 ID 三者都匹配，且 ticket 仍为 `reserved` 时取消并立即释放预占槽位，返回 **204**。已进入 `streaming` 时不改变流或槽位，返回 **409**；票据不存在、所属用户或实例不匹配时统一返回 **404**。
 
 上传文件超过 `MAX_UPLOAD_BYTES` 时返回 **413**；上传或下载的并发容量已满时返回 **429**。相关超时见 [配置说明](configuration.md)。
+
+## 实例备份 `/api/instances/:id/backups`
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/backups` | `{ backups: BackupInfo[] }`，按创建时间从新到旧 |
+| POST | `/backups` | 一键备份，返回 `TaskInfo`（`type: 'backup'`），完成后 `result.backupId` 为新备份 |
+| POST | `/backups/upload` | multipart 单文件；完整校验通过后返回 `BackupInfo`（`source: 'upload'`） |
+| POST | `/backups/:backupId/restore` | Body：`{ backupCurrent: boolean }`；返回 `TaskInfo`（`type: 'restore'`），完成后 `result.instanceRecordUpdated` 表示是否按备份更新了实例的启动文件、核心类型与版本 |
+| DELETE | `/backups/:backupId` | 删除备份，返回 **204** |
+| POST | `/backups/:backupId/download-ticket` | 签发一次性下载票据并预占下载槽位 |
+| GET | `/backups/:backupId/download?ticket=` | 流式下载 `.tar.gz`；也可不带 `ticket` 改用 Bearer JWT |
+
+备份文件是 gzip 压缩的 tar，最后一个条目 `.mystry-backup/manifest.json` 记录每个文件的大小与 SHA-256。备份范围是实例目录 `DATA_DIR/instances/<id>` 下的全部文件，不含面板的归属标记和运行时被 JVM 锁住的 `session.lock`（启动时自动重建），也不含 `panel.db`（用户、实例设置不在备份里）。目录中有符号链接或目录联接时拒绝备份。
+
+- **运行中备份**：先发 `save-off` 和 `save-all flush`，等服务端自己打印 `Saved the game`（1.12 及更早为 `Saved the world`，只认日志前缀后的整条消息，玩家聊天不算；最多 60 秒），打包完成后发 `save-on`。期间服务器启停或崩溃会取消备份；启动中、停止中的实例返回 **409**。
+- **还原**：服务器必须已停止，否则 **409**。`backupCurrent` 为 `true`（界面默认）时先生成一份 `source: 'pre-restore'` 的备份。备份先完整校验并解压到 `DATA_DIR/.mystry-staging/<taskId>/`，全部通过后才整体替换实例目录；替换中途失败会把原目录移回。面板在替换中途退出时，下次启动会自动回滚或收尾。替换成功后，若清单里记录的启动文件（jar 或 Forge `@args:` 参数文件）在还原后的目录中存在，实例的 `jarFile`、`coreType`、`mcVersion` 会改为清单中的值。
+- **校验**：拒绝绝对路径、`..`、链接和特殊文件、重复路径、面板保留文件、清单之外的文件和校验值不一致的文件；条目数与总大小沿用 `MAX_EXISTING_IMPORT_ENTRIES` / `MAX_EXISTING_IMPORT_BYTES`。
+- **互斥**：备份或还原期间拒绝启动、重启、删除和接管该实例（**409**）；还原期间还拒绝写入、删除、改名和上传实例文件（上传在接收完、写入实例目录前会再检查一次）。正在被还原任务使用的备份不能删除（**409**）。
+- 备份与还原任务的运行时限为 `BACKUP_TASK_TIMEOUT_MS`（默认 6 小时），不受 `TASK_TIMEOUT_MS` 限制。
+- 上传超过 `MAX_BACKUP_UPLOAD_BYTES` 返回 **413**。下载票据的状态查询与取消沿用 `/files/download-ticket/:ticket/status` 和 `DELETE /files/download-ticket/:ticket`。
+
+`BackupInfo` 字段：`id`、`instanceId`、`instanceName`、`source`（`manual` / `pre-restore` / `upload`）、`createdAt`、`sizeBytes`（压缩包大小）、`fileCount`、`contentBytes`（解压后大小）、`coreType`、`mcVersion`、`wasRunning`、`sha256`（压缩包的 SHA-256）。
 
 ## 核心部署与导入
 

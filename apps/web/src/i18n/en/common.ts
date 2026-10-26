@@ -50,6 +50,7 @@ export default {
   'instance.tab.console': 'Console',
   'instance.tab.files': 'Files',
   'instance.tab.properties': 'Properties',
+  'instance.tab.backups': 'Backups',
   'instance.tab.settings': 'Settings',
 
   'empty.instances.title': 'No Minecraft instances yet',

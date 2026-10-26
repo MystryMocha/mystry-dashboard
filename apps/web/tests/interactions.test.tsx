@@ -9,6 +9,7 @@ import { ImportPage } from '../src/pages/ImportPage';
 import { NodesPage } from '../src/pages/NodesPage';
 import { TaskCenter } from '../src/components/TaskCenter';
 import { ConsolePanel } from '../src/components/ConsolePanel';
+import { BackupsTab } from '../src/components/BackupsTab';
 import { App } from '../src/App';
 import { AuthProvider } from '../src/auth';
 
@@ -338,4 +339,88 @@ test('复制提示计时器在控制台卸载时清理', async () => {
   expect(vi.getTimerCount()).toBeGreaterThan(0);
   view.unmount();
   expect(vi.getTimerCount()).toBe(0);
+});
+
+test('备份页：运行中禁用还原；还原弹窗默认先备份当前文件，取消勾选时提示无法撤销', async () => {
+  const backup = { id: '20261026-010203-abcdef', instanceId: 'test', instanceName: '测试', source: 'manual', createdAt: '2026-10-26T01:02:03.000Z', sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' };
+  const posted: Array<{ url: string; body: unknown }> = [];
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/backups' && !options?.method) return new Response(JSON.stringify({ backups: [backup] }));
+    if (String(url).endsWith('/restore')) {
+      posted.push({ url: String(url), body: JSON.parse(String(options?.body)) });
+      return new Response(JSON.stringify({ id: 'restore-task', type: 'restore', status: 'completed', progress: 100, createdAt: backup.createdAt }));
+    }
+    if (url === '/api/tasks/restore-task') return new Response(JSON.stringify({ id: 'restore-task', type: 'restore', status: 'completed', progress: 100, createdAt: backup.createdAt }));
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  const view = mount(<BackupsTab instance={{ ...instance, status: 'running' } as never} onRestored={() => {}} />);
+  await user.click(await screen.findByRole('button', { name: /的备份操作$/ }));
+  expect((screen.getByRole('menuitem', { name: '还原' }) as HTMLButtonElement).disabled).toBe(true);
+  await user.keyboard('{Escape}');
+  view.unmount();
+
+  mount(<BackupsTab instance={instance as never} onRestored={() => {}} />);
+  await user.click(await screen.findByRole('button', { name: /的备份操作$/ }));
+  await user.click(screen.getByRole('menuitem', { name: '还原' }));
+  const dialog = screen.getByRole('dialog', { name: '还原这个备份？' });
+  const checkbox = screen.getByRole('checkbox', { name: '先备份当前文件' }) as HTMLInputElement;
+  expect(checkbox.checked).toBe(true);
+  await user.click(checkbox);
+  expect(dialog.textContent).toContain('无法撤销');
+  await user.click(checkbox);
+  await user.click(screen.getByRole('button', { name: '还原', exact: true }));
+  await waitFor(() => expect(posted).toEqual([{ url: '/api/instances/test/backups/20261026-010203-abcdef/restore', body: { backupCurrent: true } }]));
+  expect(await screen.findByText('备份已还原')).toBeTruthy();
+});
+
+test('备份页：还原后实例记录按备份更新时给出说明', async () => {
+  const backup = { id: '20261026-010203-abcdef', instanceId: 'test', instanceName: '测试', source: 'manual', createdAt: '2026-10-26T01:02:03.000Z', sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' };
+  const task = { id: 'restore-task', type: 'restore', status: 'completed', progress: 100, createdAt: backup.createdAt, result: { instanceId: 'test', backupId: backup.id, instanceRecordUpdated: true } };
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/backups' && !options?.method) return new Response(JSON.stringify({ backups: [backup] }));
+    if (String(url).endsWith('/restore') || url === '/api/tasks/restore-task') return new Response(JSON.stringify(task));
+    return baseFetch(url, options);
+  }));
+  const onRestored = vi.fn();
+  const user = userEvent.setup();
+  mount(<BackupsTab instance={instance as never} onRestored={onRestored} />);
+  await user.click(await screen.findByRole('button', { name: /的备份操作$/ }));
+  await user.click(screen.getByRole('menuitem', { name: '还原' }));
+  await user.click(screen.getByRole('button', { name: '还原', exact: true }));
+  expect(await screen.findByText(/服务端文件、核心类型和版本已按备份更新/)).toBeTruthy();
+  expect(onRestored).toHaveBeenCalledTimes(1);
+});
+
+test('删除实例默认连同备份删除，取消勾选时带 keepBackups=1 并提示备份去向', async () => {
+  const deletes: string[] = [];
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (options?.method === 'DELETE') {
+      deletes.push(String(url));
+      return new Response(JSON.stringify({ ok: true }));
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  mount(<DashboardPage />);
+
+  async function openDelete() {
+    await user.click(await screen.findByRole('button', { name: '更多操作' }));
+    await user.click(screen.getByRole('menuitem', { name: '删除实例' }));
+    await user.type(screen.getByRole('textbox', { name: /请输入/ }), instance.name);
+    return screen.getByRole('checkbox', { name: '同时删除该实例的备份' }) as HTMLInputElement;
+  }
+
+  const checkbox = await openDelete();
+  expect(checkbox.checked).toBe(true);
+  await user.click(screen.getByRole('button', { name: '永久删除' }));
+  await waitFor(() => expect(deletes).toEqual(['/api/instances/test']));
+
+  await user.click((await openDelete()));
+  expect(screen.getByText(/备份会留在面板数据目录的 backups 文件夹中/)).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '永久删除' }));
+  await waitFor(() => expect(deletes).toEqual(['/api/instances/test', '/api/instances/test?keepBackups=1']));
 });
