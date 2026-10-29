@@ -3,9 +3,12 @@ import { afterEach, beforeEach, expect, test } from 'vitest';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
+  dateTimeFormat,
   detectLocale,
   formatters,
   getLocale,
+  numberFormat,
+  type Formatters,
   setLocalePreference,
   t,
   tm,
@@ -78,6 +81,38 @@ test('Intl 格式化随语言变化，数字与单位之间留空格', () => {
   expect(formatters('en').percent(24.5)).toBe('24.5%');
   expect(formatters('zh-CN').dateTime('invalid')).toBe('');
   expect(formatters('en').dateTime('2026-09-08T10:00:00Z', { year: 'numeric', timeZone: 'UTC' })).toBe('2026');
+});
+
+test('Intl 格式化器按语言与选项缓存，useI18n().fmt 引用稳定，切换语言后换新', () => {
+  // 内容相同的新选项对象也命中同一个实例；选项或语言不同则是另一个实例。
+  expect(numberFormat('en', { maximumFractionDigits: 1 })).toBe(numberFormat('en', { maximumFractionDigits: 1 }));
+  expect(numberFormat('en', { maximumFractionDigits: 2 })).not.toBe(numberFormat('en', { maximumFractionDigits: 1 }));
+  expect(numberFormat('zh-CN')).not.toBe(numberFormat('en'));
+  expect(dateTimeFormat('zh-TW', { year: 'numeric' })).toBe(dateTimeFormat('zh-TW', { year: 'numeric' }));
+  expect(formatters('en')).toBe(formatters('en'));
+  expect(formatters('en')).not.toBe(formatters('zh-CN'));
+
+  const date = '2026-09-08T10:00:00Z';
+  const monthDay: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', timeZone: 'UTC' };
+  const seen: Formatters[] = [];
+  function Probe() {
+    const { fmt } = useI18n();
+    seen.push(fmt);
+    return <p>{`${fmt.dateTime(date, monthDay)} | ${fmt.number(1234567.5)}`}</p>;
+  }
+  const { rerender } = render(<Probe />);
+  rerender(<Probe />);
+  expect(seen[1]).toBe(seen[0]);
+  expect(screen.getByText('September 8 | 1,234,567.5')).toBeTruthy();
+
+  act(() => setLocalePreference('zh-CN'));
+  expect(seen.at(-1)).not.toBe(seen[0]);
+  expect(seen.at(-1)).toBe(formatters('zh-CN'));
+  expect(screen.getByText('9月8日 | 1,234,567.5')).toBeTruthy();
+
+  act(() => setLocalePreference('en'));
+  expect(seen.at(-1)).toBe(seen[0]);
+  expect(screen.getByText('September 8 | 1,234,567.5')).toBeTruthy();
 });
 
 test('切换语言写入 <html lang> 与本机存储，模块级 t() 与组件同时更新', async () => {

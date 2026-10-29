@@ -51,17 +51,38 @@ export function translatePanelMessage(locale: Locale, message: PanelMessage | un
   return renderPanelMessage(message, (key) => lookup(locale, key));
 }
 
-const pluralRulesCache = new Map<Locale, Intl.PluralRules>();
+/**
+ * Intl 对象构造开销大（列表每行都要格式化日期和大小），按「语言 + 选项」缓存复用。
+ * 选项序列化为键，调用方每次传入内容相同的新对象也能命中；语言种类和选项组合都有限，缓存不会无限增长。
+ */
+const intlCache = new Map<string, object>();
+
+function cachedIntl<T extends object>(kind: string, locale: Locale, options: object | undefined, create: () => T): T {
+  const key = `${kind}|${locale}|${options ? JSON.stringify(options) : ''}`;
+  let formatter = intlCache.get(key) as T | undefined;
+  if (!formatter) {
+    formatter = create();
+    intlCache.set(key, formatter);
+  }
+  return formatter;
+}
+
+export function numberFormat(locale: Locale, options?: Intl.NumberFormatOptions): Intl.NumberFormat {
+  return cachedIntl('number', locale, options, () => new Intl.NumberFormat(locale, options));
+}
+
+export function dateTimeFormat(locale: Locale, options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  return cachedIntl('dateTime', locale, options, () => new Intl.DateTimeFormat(locale, options));
+}
+
+function pluralRules(locale: Locale): Intl.PluralRules {
+  return cachedIntl('plural', locale, undefined, () => new Intl.PluralRules(locale));
+}
 
 /** 复数文案：`{count}` 会按当前语言格式化后填入。 */
 export function translatePlural(locale: Locale, key: PluralKey, count: number, params?: MessageParams): string {
-  let rules = pluralRulesCache.get(locale);
-  if (!rules) {
-    rules = new Intl.PluralRules(locale);
-    pluralRulesCache.set(locale, rules);
-  }
-  const template = lookup(locale, `${key}_${rules.select(count)}`) ?? lookup(locale, `${key}_other`) ?? key;
-  return interpolate(template, { ...params, count: new Intl.NumberFormat(locale).format(count) });
+  const template = lookup(locale, `${key}_${pluralRules(locale).select(count)}`) ?? lookup(locale, `${key}_other`) ?? key;
+  return interpolate(template, { ...params, count: numberFormat(locale).format(count) });
 }
 
 export type RichTags = Record<string, (chunk: string) => ReactNode>;
@@ -96,10 +117,26 @@ function toDate(value: string | number | Date): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-/** 当前语言的数字、大小和日期格式化；数字与单位之间保留空格。 */
+const TIME_ONLY: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit' };
+
+const formattersCache = new Map<Locale, ReturnType<typeof createFormatters>>();
+
+/**
+ * 当前语言的数字、大小和日期格式化；数字与单位之间保留空格。
+ * 同一语言始终返回同一个对象，组件可放心把 `fmt` 或其方法作为依赖或 props 传给 memo 组件。
+ */
 export function formatters(locale: Locale) {
+  let fmt = formattersCache.get(locale);
+  if (!fmt) {
+    fmt = createFormatters(locale);
+    formattersCache.set(locale, fmt);
+  }
+  return fmt;
+}
+
+function createFormatters(locale: Locale) {
   const number = (value: number, options?: Intl.NumberFormatOptions) =>
-    new Intl.NumberFormat(locale, options).format(value);
+    numberFormat(locale, options).format(value);
   const fixed = (value: number, digits: number) =>
     number(value, { minimumFractionDigits: digits, maximumFractionDigits: digits });
   return {
@@ -127,14 +164,12 @@ export function formatters(locale: Locale) {
     /** 日期时间；无效输入返回空字符串。 */
     dateTime: (value: string | number | Date, options: Intl.DateTimeFormatOptions = DEFAULT_DATE_TIME) => {
       const date = toDate(value);
-      return date ? new Intl.DateTimeFormat(locale, options).format(date) : '';
+      return date ? dateTimeFormat(locale, options).format(date) : '';
     },
     /** 仅时间（时:分:秒）；无效输入返回空字符串。 */
     time: (value: string | number | Date) => {
       const date = toDate(value);
-      return date
-        ? new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(date)
-        : '';
+      return date ? dateTimeFormat(locale, TIME_ONLY).format(date) : '';
     },
   };
 }

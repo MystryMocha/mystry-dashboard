@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, File, FileText, Folder, FolderPlus, Pencil, RefreshCw, TextCursorInput, Trash2, Upload } from 'lucide-react';
 import type { FileEntry } from '@mystry/shared';
 import { ApiError, api, downloadAuthenticated, instanceApi } from '../api';
@@ -31,9 +31,124 @@ function validateEntryName(name: string, folder = false): MessageKey | null {
   return null;
 }
 
+type FileRowProps = {
+  file: FileEntry;
+  /** 该文件正在准备下载。 */
+  busy: boolean;
+  deleting: boolean;
+  renaming: boolean;
+  onOpenDir: (path: string) => void;
+  onEdit: (file: FileEntry) => void;
+  onDownload: (file: FileEntry) => void;
+  onRename: (file: FileEntry) => void;
+  onDelete: (file: FileEntry) => void;
+};
+
+/** 刷新列表时服务端返回的是新对象；内容相同就视为同一行，不必重新渲染。 */
+function sameFileRowProps(prev: FileRowProps, next: FileRowProps): boolean {
+  for (const key of Object.keys(next) as (keyof FileRowProps)[]) {
+    if (key !== 'file' && prev[key] !== next[key]) return false;
+  }
+  const a = prev.file;
+  const b = next.file;
+  return a === b || (a.path === b.path && a.name === b.name && a.isDirectory === b.isDirectory
+    && a.size === b.size && a.modifiedAt === b.modifiedAt);
+}
+
+/**
+ * 单个文件行。用 memo 隔离：编辑器、重命名、新建文件夹输入框每次按键都会让 FilesTab 重新渲染，
+ * 回调稳定时只有 props 真正变化的行（如正在下载的那一行）才会重新渲染。
+ */
+const FileRow = memo(function FileRow({
+  file: f,
+  busy,
+  deleting,
+  renaming,
+  onOpenDir,
+  onEdit,
+  onDownload,
+  onRename,
+  onDelete,
+}: FileRowProps) {
+  const { t, fmt } = useI18n();
+  const editable = canEditFile(f);
+  const Icon = f.isDirectory ? Folder : editable ? FileText : File;
+  const meta = f.isDirectory
+    ? t('files.row.folderMeta', { modified: fmt.dateTime(f.modifiedAt) })
+    : `${fmt.fileSize(f.size)} · ${fmt.dateTime(f.modifiedAt)}`;
+
+  const items: ActionMenuItem[] = [];
+  if (!f.isDirectory) {
+    items.push({
+      key: 'download',
+      label: busy ? t('files.menu.downloading') : t('action.download'),
+      icon: <Download size={14} />,
+      disabled: busy || deleting,
+      onSelect: () => onDownload(f),
+    });
+  }
+  if (editable) {
+    items.push({
+      key: 'edit',
+      label: t('action.edit'),
+      icon: <Pencil size={14} />,
+      disabled: deleting,
+      onSelect: () => onEdit(f),
+    });
+  }
+  items.push(
+    {
+      key: 'rename',
+      label: t('action.rename'),
+      icon: <TextCursorInput size={14} />,
+      disabled: busy || renaming || deleting,
+      onSelect: () => onRename(f),
+    },
+    {
+      key: 'delete',
+      label: t('action.delete'),
+      icon: <Trash2 size={14} />,
+      danger: true,
+      disabled: deleting,
+      onSelect: () => onDelete(f),
+    },
+  );
+
+  const body = (
+    <>
+      <span className={`file-icon ${f.isDirectory ? 'is-dir' : 'is-file'}`} aria-hidden="true">
+        <Icon size={18} />
+      </span>
+      <span className="file-text">
+        <span className="file-name">{f.name}</span>
+        <span className="file-meta">{busy ? t('files.row.preparingDownload') : meta}</span>
+      </span>
+    </>
+  );
+  return (
+    <li className="file-row">
+      {f.isDirectory ? (
+        <button className="file-main" type="button" onClick={() => onOpenDir(f.path)} title={t('files.row.open', { name: f.name })}>
+          {body}
+          <ChevronRight size={16} aria-hidden="true" className="file-chevron" />
+        </button>
+      ) : editable ? (
+        <button className="file-main" type="button" onClick={() => onEdit(f)} title={t('files.row.edit', { name: f.name })}>
+          {body}
+        </button>
+      ) : (
+        <span className="file-main">{body}</span>
+      )}
+      <div className="file-actions">
+        <ActionMenu label={t('files.row.actions', { name: f.name })} items={items} />
+      </div>
+    </li>
+  );
+}, sameFileRowProps);
+
 /** 实例文件管理。切换实例时由上层按实例 ID 重新挂载，这里不处理实例变化。 */
 export function FilesTab({ instanceId }: { instanceId: string }) {
-  const { t, fmt } = useI18n();
+  const { t } = useI18n();
   const [path, setPath] = useState('');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -130,16 +245,17 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setDeleteError('');
   }
 
-  function changePath(nextPath: string) {
+  // 以下传给 FileRow 的回调保持引用稳定，避免输入框每次按键都让整个列表重新渲染。
+  const changePath = useCallback((nextPath: string) => {
     loadGenerationRef.current += 1;
     setFiles([]);
     setLoaded(false);
     setLoading(true);
     setError('');
     setPath(nextPath);
-  }
+  }, []);
 
-  async function startEdit(file: FileEntry) {
+  const startEdit = useCallback(async (file: FileEntry) => {
     if (!canEditFile(file)) return;
     const generation = editGenerationRef.current + 1;
     editGenerationRef.current = generation;
@@ -160,7 +276,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     } finally {
       if (generation === editGenerationRef.current) setLoadingEdit(false);
     }
-  }
+  }, [instanceId]);
 
   async function saveFile() {
     if (!editPath) return;
@@ -184,10 +300,10 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     }
   }
 
-  function requestRemove(file: FileEntry) {
+  const requestRemove = useCallback((file: FileEntry) => {
     setDeleteTarget(file);
     setDeleteError('');
-  }
+  }, []);
 
   async function confirmRemove() {
     if (!deleteTarget || deleting) return;
@@ -207,7 +323,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     }
   }
 
-  async function download(file: FileEntry) {
+  const download = useCallback(async (file: FileEntry) => {
     if (file.isDirectory) return;
     const controller = new AbortController();
     downloadControllersRef.current.add(controller);
@@ -222,13 +338,13 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       downloadControllersRef.current.delete(controller);
       setBusyPath((current) => (current === file.path ? null : current));
     }
-  }
+  }, [instanceId, t]);
 
-  function startRename(file: FileEntry) {
+  const startRename = useCallback((file: FileEntry) => {
     setRenameTarget(file);
     setRenameName(file.name);
     setRenameError('');
-  }
+  }, []);
 
   async function confirmRename() {
     if (!renameTarget) return;
@@ -308,46 +424,6 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   }
 
   const segments = path.split('/').filter(Boolean);
-
-  function menuItems(f: FileEntry): ActionMenuItem[] {
-    const items: ActionMenuItem[] = [];
-    if (!f.isDirectory) {
-      items.push({
-        key: 'download',
-        label: busyPath === f.path ? t('files.menu.downloading') : t('action.download'),
-        icon: <Download size={14} />,
-        disabled: busyPath === f.path || deleting,
-        onSelect: () => void download(f),
-      });
-    }
-    if (canEditFile(f)) {
-      items.push({
-        key: 'edit',
-        label: t('action.edit'),
-        icon: <Pencil size={14} />,
-        disabled: deleting,
-        onSelect: () => void startEdit(f),
-      });
-    }
-    items.push(
-      {
-        key: 'rename',
-        label: t('action.rename'),
-        icon: <TextCursorInput size={14} />,
-        disabled: busyPath === f.path || renaming || deleting,
-        onSelect: () => startRename(f),
-      },
-      {
-        key: 'delete',
-        label: t('action.delete'),
-        icon: <Trash2 size={14} />,
-        danger: true,
-        disabled: deleting,
-        onSelect: () => requestRemove(f),
-      },
-    );
-    return items;
-  }
 
   return (
     <div className="files-workspace">
@@ -446,42 +522,20 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
         </div>
       ) : (
         <ul className={`file-list list-group${loading ? ' is-refreshing' : ''}`} aria-busy={loading}>
-          {files.map((f) => {
-            const Icon = f.isDirectory ? Folder : canEditFile(f) ? FileText : File;
-            const meta = f.isDirectory
-              ? t('files.row.folderMeta', { modified: fmt.dateTime(f.modifiedAt) })
-              : `${fmt.fileSize(f.size)} · ${fmt.dateTime(f.modifiedAt)}`;
-            const body = (
-              <>
-                <span className={`file-icon ${f.isDirectory ? 'is-dir' : 'is-file'}`} aria-hidden="true">
-                  <Icon size={18} />
-                </span>
-                <span className="file-text">
-                  <span className="file-name">{f.name}</span>
-                  <span className="file-meta">{busyPath === f.path ? t('files.row.preparingDownload') : meta}</span>
-                </span>
-              </>
-            );
-            return (
-              <li key={f.path} className="file-row">
-                {f.isDirectory ? (
-                  <button className="file-main" type="button" onClick={() => changePath(f.path)} title={t('files.row.open', { name: f.name })}>
-                    {body}
-                    <ChevronRight size={16} aria-hidden="true" className="file-chevron" />
-                  </button>
-                ) : canEditFile(f) ? (
-                  <button className="file-main" type="button" onClick={() => void startEdit(f)} title={t('files.row.edit', { name: f.name })}>
-                    {body}
-                  </button>
-                ) : (
-                  <span className="file-main">{body}</span>
-                )}
-                <div className="file-actions">
-                  <ActionMenu label={t('files.row.actions', { name: f.name })} items={menuItems(f)} />
-                </div>
-              </li>
-            );
-          })}
+          {files.map((f) => (
+            <FileRow
+              key={f.path}
+              file={f}
+              busy={busyPath === f.path}
+              deleting={deleting}
+              renaming={renaming}
+              onOpenDir={changePath}
+              onEdit={startEdit}
+              onDownload={download}
+              onRename={startRename}
+              onDelete={requestRemove}
+            />
+          ))}
         </ul>
       )}
 
