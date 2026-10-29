@@ -169,9 +169,12 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
         );
         wsRef.current = ws;
 
+        // 重连后服务端会重发完整历史缓冲；「已重新连接」提示留到历史写完再输出，避免被清屏抹掉。
+        let reconnectNoticePending = false;
+
         ws.onopen = () => {
           if (disposed) return;
-          if (retryAttempt > 0) writeSystemLine(translateNow('console.system.reconnected', { prefix: panelPrefix() }));
+          reconnectNoticePending = retryAttempt > 0;
           retryAttempt = 0;
           setConnected(true);
         };
@@ -181,7 +184,14 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
           try {
             const msg = JSON.parse(String(ev.data)) as ConsoleMessage;
             if (msg.type === 'history') {
+              // 历史帧是服务端缓冲的完整快照：先清空终端和未完成的半行，再整体写入，避免重连后日志重复。
+              term.reset();
+              colorState.pending = '';
               writeColored(msg.data, true);
+              if (reconnectNoticePending) {
+                reconnectNoticePending = false;
+                writeSystemLine(translateNow('console.system.reconnected', { prefix: panelPrefix() }));
+              }
             } else if (msg.type === 'output') {
               writeColored(msg.data);
             }

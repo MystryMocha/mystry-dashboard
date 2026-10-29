@@ -13,9 +13,12 @@ import { BackupsTab } from '../src/components/BackupsTab';
 import { App } from '../src/App';
 import { AuthProvider } from '../src/auth';
 
-const terminal = vi.hoisted(() => ({ text: '', clearSelection: vi.fn() }));
+const terminal = vi.hoisted(() => ({ text: '', written: '', clearSelection: vi.fn() }));
 vi.mock('@xterm/xterm', () => ({ Terminal: class {
-  loadAddon() {} open() {} write() {} writeln() {} dispose() {} clear() {} selectAll() {}
+  loadAddon() {} open() {} dispose() {} clear() {} selectAll() {}
+  write(data: string) { terminal.written += data; }
+  writeln(data: string) { terminal.written += `${data}\n`; }
+  reset() { terminal.written = ''; }
   getSelection() { return terminal.text; }
   clearSelection = terminal.clearSelection;
 } }));
@@ -34,7 +37,7 @@ beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
   // 这组回归按中文原文查元素，固定界面语言为 zh-CN；语言切换与英文文案见 i18n.test.tsx。
   document.documentElement.lang = 'zh-CN'; document.documentElement.dataset.localePreference = 'zh-CN';
-  requests = []; nodes = []; failNodes = false; terminal.text = '';
+  requests = []; nodes = []; failNodes = false; terminal.text = ''; terminal.written = '';
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener() {}, removeEventListener() {} });
   // jsdom 不实现原生模态层；此替身仅验证开关状态与应用的焦点恢复逻辑。
   HTMLDialogElement.prototype.showModal = function () { this.open = true; this.querySelector<HTMLElement>('button')?.focus(); };
@@ -316,6 +319,22 @@ test('复制日志提供空日志、权限拒绝、API 缺失与成功反馈', a
   await user.click(screen.getByRole('button', { name: '复制日志' }));
   await waitFor(() => expect(screen.getByRole('status').textContent).toBe('日志已复制。'));
   expect(writeText).toHaveBeenCalledWith('测试日志');
+});
+
+test('控制台断线重连后用历史快照替换旧日志，不重复输出', async () => {
+  const sockets: Array<{ onopen?: () => void; onmessage?: (ev: { data: string }) => void; onclose?: () => void }> = [];
+  vi.stubGlobal('WebSocket', class { constructor() { sockets.push(this); } close() {} });
+  vi.useFakeTimers();
+  mount(<ConsolePanel instanceId="test" />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  const history = JSON.stringify({ type: 'history', data: '[10:00:00 INFO]: Done (3.2s)!\n', status: 'running' });
+  act(() => { sockets[0].onopen?.(); sockets[0].onmessage?.({ data: history }); });
+  expect(terminal.written.match(/Done \(3\.2s\)/g)).toHaveLength(1);
+  act(() => sockets[0].onclose?.());
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  act(() => { sockets[1].onopen?.(); sockets[1].onmessage?.({ data: history }); });
+  expect(terminal.written.match(/Done \(3\.2s\)/g)).toHaveLength(1);
+  expect(terminal.written).toContain('已重新连接');
 });
 
 test('节点轮询失败保留旧数据并标记可能过期', async () => {

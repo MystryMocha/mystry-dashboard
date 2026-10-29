@@ -31,8 +31,8 @@ The most important rule of the system:
 - Appearance is `data-appearance="light|dark"` on `<html>` (Auto resolves to one of the two); the dark values live under `:root[data-appearance='dark']`.
 - Text: `label` (primary), `label-2` (secondary, descriptions, field labels), `label-3` (placeholders, chevrons and separators only — under 4.5:1, never body text).
 - Fills: `fill-2` (hover, stats panels), `fill` (default buttons, tracks, badges), `fill-strong` (spinner track). Inputs use `input-bg` with no border; on focus they turn `surface` with a 1px `accent` outline and a 4px `focus-ring` glow.
-- **The accent is the user's choice** — `data-accent="blue|purple|pink|green|graphite"`, blue by default. Refer only to `accent` (fills), `accent-text` (links, plain buttons, nav icons) and `on-accent` (text on an accent fill); never hard-code one accent. `accent-soft` (13%), `accent-soft-strong` (20%) and `focus-ring` (45%) are derived with `color-mix`.
-- **Semantic color comes in two sets.** `c-green`, `c-blue`, `c-purple`, `c-orange`, `c-red`, `c-gray` are tones for fills and icons only (components set them as `--tone` and mix them into the background at 11–16%). Text uses the deeper `ok`, `warn` and `danger`. A solid destructive button is `danger-fill` with white text.
+- **The accent is the user's choice** — `data-accent="blue|purple|pink|green|graphite"`, blue by default. Refer only to `accent` (fills), `accent-text` (links, plain buttons, nav icons) and `on-accent` (text on an accent fill); never hard-code one accent. In dark, blue and purple keep white `on-accent` on a fill one step deeper than the system color; pink, green and graphite switch to dark `on-accent`. `accent-soft` (13%), `accent-soft-strong` (20%) and `focus-ring` (45%) are derived with `color-mix`.
+- **Semantic color comes in two sets.** `c-green`, `c-blue`, `c-purple`, `c-orange`, `c-red`, `c-gray` are tones for fills and icons only (components set them as `--tone` and mix them into the background at 11–16%). Text uses `ok`, `warn` and `danger`, tuned so they stay at 4.5:1 or above on their own 11–16% tint over `bg` (the worst case for status pills, tinted buttons and callouts): deeper than the system colors in light, and in dark `danger` is one step lighter than `c-red`. A solid destructive button is `danger-fill` with white text; in dark it is one step deeper than `c-red`, so it is no longer the same value as `danger`.
 - Status mapping: Running → green; Starting, Stopping, Needs Migration → orange; Crashed and Failed → red; Stopped → gray. A status always carries its word, never color alone.
 - **The console is always dark** in both appearances: `#161618` window, `#1f1f22` bars, `#e5e5ea` text, `#aeaeb2` muted, `#30d158` prompt.
 - Brand color appears only on the brand mark: a 145° gradient `#ff73b0` → `#c64fd6` (52%) → `#7a4df0`. Each server core has its own gradient pair (`.core-paper`, `.core-fabric`, … set `--core-a` / `--core-b`), used only on core icons.
@@ -73,7 +73,9 @@ The most important rule of the system:
 
 ### Accessibility notes
 
-These pairs in the source fall below 4.5:1; do not widen their use: white on the blue `accent` in dark (3.6:1), white on the purple accent in dark (3.5:1), white on `danger-fill` in dark (3.4:1), `ok` on white (4.4:1), `label-3` on `surface` (about 3.3:1), and the white widget icons on `c-green` / `c-orange` (about 2.2:1).
+Text pairs built from `label`, `label-2`, `ok`, `warn`, `danger`, `accent-text` and `on-accent` reach 4.5:1 in both appearances and every accent, including on their 11–16% tints over `bg`. When you change any of these tokens, recheck the tinted cases (status pills, `btn-ok`, `btn-danger`, `btn-tinted`, callouts), not only text on `surface`.
+
+These pairs still fall below 4.5:1; do not widen their use: `label-3` on `input-bg` (placeholders, about 2.6–2.9:1) and on `surface` (about 3.3:1), and the white widget and task icons on `c-green` / `c-orange` (about 2.2:1).
 
 ## Iconography
 
