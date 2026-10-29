@@ -22,7 +22,7 @@ Together these are the six official UN languages. The implementation lives in [`
 - `<html lang>` follows the active locale so the browser picks the right glyphs from the font stack; Arabic also needs `dir="rtl"`.
 - Layouts must survive the longest locale: English is often twice as wide as Chinese, and French, Russian and Spanish run another 20–35% longer. Buttons, chips, pills and labels in scrolling rows use `white-space: nowrap` and `flex-shrink: 0`; titles wrap, they never truncate a verb.
 - Never concatenate sentence fragments; use `{name}` parameters. Never pick a plural by hand; use `tp()` (`Intl.PluralRules`).
-- Format numbers, dates and sizes with `useI18n().fmt` and keep a space between number and unit. Digits stay Western (0–9) in every locale, Arabic included, so ports, versions and log lines read the same everywhere.
+- Format numbers, dates and sizes with `useI18n().fmt` and keep a space between number and unit. Do not construct `Intl.*` objects in components: `fmt` (and `numberFormat()` / `dateTimeFormat()` in `i18n/index.ts`) reuse cached instances per locale and options, and `fmt` keeps the same reference until the locale changes, so it is safe to pass to memoized rows. Digits stay Western (0–9) in every locale, Arabic included, so ports, versions and log lines read the same everywhere.
 - Technical names (`Paper`, `JVM`, `server.properties`, Minecraft commands) are never translated.
 
 ## Server messages
