@@ -22,6 +22,12 @@ export default {
   'console.copy.empty': 'There\'s no log to copy yet.',
   'console.copy.done': 'Log copied.',
   'console.copy.failed': 'Couldn\'t copy. The browser clipboard is unavailable or permission was denied. Select the log and copy it manually.',
+  'console.tool.screenReader': 'Screen Reader Mode',
+  'console.tool.screenReaderTitle': 'Let screen readers browse the log line by line and read new output aloud',
+
+  // 终端输出区（读屏）
+  'console.output.label': 'Console Output',
+  'console.output.tooMuchOutput': 'Too much output to read aloud. Browse the log lines to read the rest.',
 
   // 命令输入
   'console.input.label': 'Console Command',

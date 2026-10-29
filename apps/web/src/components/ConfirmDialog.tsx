@@ -14,6 +14,7 @@ export function ConfirmDialog({
   busy = false,
   confirmDisabled = false,
   requireText,
+  error = '',
   onConfirm,
   onCancel,
 }: {
@@ -27,6 +28,8 @@ export function ConfirmDialog({
   confirmDisabled?: boolean;
   /** 需要输入完全一致的确认文本（如实例名） */
   requireText?: string;
+  /** 操作失败的提示：显示在弹窗内（模态打开时页面其余部分不可达），出现时由读屏立即播报。 */
+  error?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -36,6 +39,8 @@ export function ConfirmDialog({
   const [typed, setTyped] = useState('');
   const titleId = useId();
   const inputId = useId();
+  const errorId = useId();
+  const errorRef = useRef<HTMLParagraphElement>(null);
   /** 同一打开周期内只触发一次取消，避免 close 事件与按钮 onClick 双路径重复调用。 */
   const cancelHandledRef = useRef(false);
 
@@ -58,6 +63,11 @@ export function ConfirmDialog({
     cancelHandledRef.current = false;
   }, [open]);
 
+  // 表单较长时错误可能在可视区外，出现时滚到可见位置。
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [error]);
+
   const needText = Boolean(requireText);
   const canConfirm = !busy && !confirmDisabled && (!needText || typed === requireText);
 
@@ -66,6 +76,7 @@ export function ConfirmDialog({
       ref={dialogRef}
       className="confirm-dialog"
       aria-labelledby={titleId}
+      aria-describedby={error ? errorId : undefined}
       onClose={handleCancel}
       onCancel={(event) => {
         event.preventDefault();
@@ -94,6 +105,12 @@ export function ConfirmDialog({
                 autoFocus
               />
             </div>
+          )}
+          {/* role="alert" 元素插入时读屏会立即播报；放在可滚动正文末尾，紧挨确认按钮。 */}
+          {error && (
+            <p ref={errorRef} id={errorId} className="callout callout-danger" role="alert">
+              {error}
+            </p>
           )}
         </div>
         <footer className="confirm-dialog-footer">

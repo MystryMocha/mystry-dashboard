@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -72,6 +72,10 @@ export function DashboardPage() {
   const [emptyJavaMajor, setEmptyJavaMajor] = useState<number | null>(null);
   const [emptyJvmValid, setEmptyJvmValid] = useState(true);
   const [emptyBusy, setEmptyBusy] = useState(false);
+  const [emptyError, setEmptyError] = useState('');
+  // 监测从失败恢复时记下那次采样时间，供读屏播报一次「已恢复」；例行刷新不改它。
+  const [metricsRecoveredAt, setMetricsRecoveredAt] = useState<string | null>(null);
+  const previousMetricsErrorRef = useRef(metricsError);
 
   const load = useCallback(async () => {
     const requestId = ++latestLoadRequestRef.current;
@@ -89,7 +93,7 @@ export function DashboardPage() {
   }, []);
   usePolling(load);
 
-  const { busyId, error: actionError, setError: setActionError, run } = useInstanceAction(load);
+  const { busyId, error: actionError, run } = useInstanceAction(load);
 
   function retryLoad(): void {
     setLoadError('');
@@ -125,7 +129,7 @@ export function DashboardPage() {
 
   async function confirmCreateEmpty() {
     setEmptyBusy(true);
-    setActionError('');
+    setEmptyError('');
     try {
       const inst = await api<InstanceInfo>('/api/instances', {
         method: 'POST',
@@ -140,7 +144,8 @@ export function DashboardPage() {
       setEmptyOpen(false);
       navigate(`/instances/${inst.id}/files`);
     } catch (err) {
-      setActionError(errorMessage(err));
+      // 弹窗仍打开时页面其余部分是 inert 的，错误必须显示在弹窗内才能被看到和播报。
+      setEmptyError(errorMessage(err));
     } finally {
       setEmptyBusy(false);
     }
@@ -153,11 +158,27 @@ export function DashboardPage() {
   const loaded = loadState === 'loaded';
   const visibleInstances = instances.filter((inst) => !abnormalOnly || inst.status === 'crashed' || inst.requiresMigration);
 
+  useEffect(() => {
+    if (metricsError) setMetricsRecoveredAt(null);
+    else if (previousMetricsErrorRef.current && metrics) setMetricsRecoveredAt(metrics.sampledAt);
+    previousMetricsErrorRef.current = metricsError;
+  }, [metricsError, metrics]);
+
+  const metricsWarningText = metrics && !metricsError && metrics.warnings.length > 0
+    ? metricWarningTexts(metrics, i18n.tm).join(' · ')
+    : '';
   const metricsStatusText = metricsError
     ? (metrics ? t('dashboard.metrics.errorStale', { error: metricsError }) : metricsError)
     : metrics
       ? t('dashboard.metrics.updatedAt', { time: fmt.time(metrics.sampledAt) })
       : t('dashboard.metrics.loading');
+  // 每 5 秒变化的「更新于」时间戳不进 live region；读屏只播报出错、告警变化和从出错中恢复。
+  const metricsAnnouncement = metricsError
+    ? metricsStatusText
+    : [
+      metricsRecoveredAt ? t('dashboard.metrics.updatedAt', { time: fmt.time(metricsRecoveredAt) }) : '',
+      metricsWarningText,
+    ].filter(Boolean).join(' · ');
   const abnormalLabel = loaded ? abnormalCount : '—';
 
   return (
@@ -214,13 +235,12 @@ export function DashboardPage() {
         <HostMetricCards metrics={metrics} error={metricsError} />
       </section>
       <div className={`metrics-status${metricsError ? ' is-error' : ''}`}>
-        <span role="status">
+        <span>
           {metricsStatusText}
-          {metrics && !metricsError && metrics.warnings.length > 0
-            ? ` · ${metricWarningTexts(metrics, i18n.tm).join(' · ')}`
-            : ''}
+          {metricsWarningText ? ` · ${metricsWarningText}` : ''}
         </span>
-        <button type="button" className="link-button" disabled={metricsBusy} onClick={() => void refreshMetrics()}>
+        <span className="visually-hidden" role="status">{metricsAnnouncement}</span>
+        <button type="button" className="link-button" disabled={metricsBusy} onClick={() => void refreshMetrics(true)}>
           <RefreshCw size={12} aria-hidden="true" className={metricsBusy ? 'spin' : undefined} />
           {metricsBusy
             ? t('dashboard.metrics.refreshing')
@@ -421,9 +441,13 @@ export function DashboardPage() {
         }
         confirmLabel={t('dashboard.createEmpty.confirm')}
         busy={emptyBusy}
+        error={emptyError}
         confirmDisabled={!emptyJvmValid}
         onConfirm={() => void confirmCreateEmpty()}
-        onCancel={() => setEmptyOpen(false)}
+        onCancel={() => {
+          setEmptyOpen(false);
+          setEmptyError('');
+        }}
       />
 
       {/* 重启确认 */}

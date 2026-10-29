@@ -218,7 +218,7 @@ export function DeployPage() {
               <div className="field">
                 <label id={`${nameFieldId}-mc-version-label`}>{t('deploy.form.mcVersion.label')}</label>
                 <LazyScrollSelect
-                  ariaLabel={t('deploy.form.mcVersion.label')}
+                  labelId={`${nameFieldId}-mc-version-label`}
                   value={selectedMcVersion}
                   options={versions.data ?? []}
                   onChange={handleMcVersionChange}
@@ -237,7 +237,7 @@ export function DeployPage() {
                 <div className="field">
                   <label id={`${nameFieldId}-paper-build-label`}>{t('deploy.form.paperBuild.label')}</label>
                   <LazyScrollSelect
-                    ariaLabel={t('deploy.form.paperBuild.ariaLabel')}
+                    labelId={`${nameFieldId}-paper-build-label`}
                     value={build}
                     options={builds.data ?? []}
                     onChange={setBuild}
@@ -254,7 +254,7 @@ export function DeployPage() {
                 <div className="field">
                   <label id={`${nameFieldId}-loader-label`}>{t('deploy.form.optionalLabel', { label: loaderLabel })}</label>
                   <LazyScrollSelect
-                    ariaLabel={loaderLabel}
+                    labelId={`${nameFieldId}-loader-label`}
                     value={loaderVersion}
                     options={loaders.data?.loaders ?? []}
                     onChange={setLoaderVersion}
@@ -270,7 +270,7 @@ export function DeployPage() {
                 <div className="field">
                   <label id={`${nameFieldId}-installer-label`}>{t('deploy.form.installer.label')}</label>
                   <LazyScrollSelect
-                    ariaLabel={t('deploy.form.installer.ariaLabel')}
+                    labelId={`${nameFieldId}-installer-label`}
                     value={installerVersion}
                     options={loaders.data?.installers ?? []}
                     onChange={setInstallerVersion}

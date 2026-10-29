@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import { Copy, Eraser, Send } from 'lucide-react';
+import { Accessibility, Copy, Eraser, Send } from 'lucide-react';
 import { isServerMessageKey, type ConsoleMessage, type PanelMessageParam } from '@mystry/shared';
 import { createConsoleTicket } from '../api';
 import { errorMessage, isAbortError } from '../errors';
@@ -31,6 +31,37 @@ const QUICK_COMMANDS: { label: string; descKey: MessageKey; cmd: string }[] = [
 // 服务端写进控制台日志的面板提示整行：英文句式为当前写法，中文句式来自旧版本留下的历史缓冲。
 const PROCESS_START_FAILED_RE = /^(?:\[Panel\] Process failed to start: |\[面板\] 进程启动失败：)(.*)$/gm;
 const PROCESS_EXITED_RE = /^(?:\[Panel\] Process exited \(exit code (.*?), signal (.*?)\)|\[面板\] 进程已退出（退出码 (.*?)，信号 (.*?)）)$/gm;
+
+// 读屏模式是每个浏览器的个人偏好，读写失败（隐私模式等）时按关闭处理。
+const SCREEN_READER_KEY = 'mystry_console_screen_reader';
+
+function readScreenReaderPreference(): boolean {
+  try {
+    return localStorage.getItem(SCREEN_READER_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function storeScreenReaderPreference(enabled: boolean): void {
+  try {
+    if (enabled) localStorage.setItem(SCREEN_READER_KEY, '1');
+    else localStorage.removeItem(SCREEN_READER_KEY);
+  } catch {
+    // 无法持久化时只影响下次打开，本次开关照常生效。
+  }
+}
+
+/**
+ * xterm 的读屏朗读区最多读约 20 行，之后只提示「输出太多」，直到重建才恢复。
+ * 关掉再打开读屏模式会重建无障碍层：历史快照写完后、发送命令前各重置一次，
+ * 避免整段历史被朗读，也让命令的回显能被读到。
+ */
+function resetScreenReaderAnnouncements(term: Terminal): void {
+  if (!term.options.screenReaderMode) return;
+  term.options.screenReaderMode = false;
+  term.options.screenReaderMode = true;
+}
 
 /** 「无」占位换成可翻译消息，其余（退出码、信号名）原样显示。 */
 function exitDetail(value: string): PanelMessageParam {
@@ -71,6 +102,9 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
   const [command, setCommand] = useState('');
   const [connected, setConnected] = useState(false);
   const [copyMessage, setCopyMessage] = useState('');
+  const [screenReaderMode, setScreenReaderMode] = useState(readScreenReaderPreference);
+  // 终端只随实例重建；创建时读 ref 取当前开关，避免把开关放进依赖导致断开重连。
+  const screenReaderModeRef = useRef(screenReaderMode);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyRequestRef = useRef(0);
 
@@ -82,7 +116,12 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // xterm 的读屏文案是全局静态值，创建终端前按当前界面语言设置；终端只读，输入框标签改为「控制台输出」。
+    Terminal.strings.promptLabel = translateNow('console.output.label');
+    Terminal.strings.tooMuchOutput = translateNow('console.output.tooMuchOutput');
+
     const term = new Terminal({
+      screenReaderMode: screenReaderModeRef.current,
       convertEol: true,
       disableStdin: true,
       cursorBlink: false,
@@ -188,6 +227,11 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
               term.reset();
               colorState.pending = '';
               writeColored(msg.data, true);
+              // write 是异步解析的：空写入的回调在历史解析完后、后续写入解析前触发，
+              // 因此历史不会被朗读，而紧随其后的「已重新连接」提示仍会播报。
+              term.write('', () => {
+                if (!disposed) resetScreenReaderAnnouncements(term);
+              });
               if (reconnectNoticePending) {
                 reconnectNoticePending = false;
                 writeSystemLine(translateNow('console.system.reconnected', { prefix: panelPrefix() }));
@@ -234,6 +278,18 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
     };
   }, [instanceId]);
 
+  useEffect(() => {
+    screenReaderModeRef.current = screenReaderMode;
+    const term = termRef.current;
+    if (term) term.options.screenReaderMode = screenReaderMode;
+  }, [screenReaderMode]);
+
+  function toggleScreenReaderMode() {
+    const next = !screenReaderMode;
+    storeScreenReaderPreference(next);
+    setScreenReaderMode(next);
+  }
+
   const inputEnabled = canSend && connected;
 
   function sendCommand(raw: string) {
@@ -242,6 +298,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
+    if (termRef.current) resetScreenReaderAnnouncements(termRef.current);
     ws.send(JSON.stringify({ type: 'command', data: trimmed }));
     const history = historyRef.current;
     if (history[history.length - 1] !== trimmed) {
@@ -323,6 +380,16 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
             <span>{connected ? t('console.status.connected') : canSend ? t('console.status.connecting') : t('console.status.offline')}</span>
           </span>
           <div className="console-tools">
+            <button
+              className="console-tool"
+              type="button"
+              aria-pressed={screenReaderMode}
+              title={t('console.tool.screenReaderTitle')}
+              onClick={toggleScreenReaderMode}
+            >
+              <Accessibility size={14} aria-hidden="true" />
+              {t('console.tool.screenReader')}
+            </button>
             <button
               className="console-tool"
               type="button"

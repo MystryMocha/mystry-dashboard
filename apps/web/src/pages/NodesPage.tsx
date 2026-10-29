@@ -200,12 +200,8 @@ export function NodesPage() {
       <ConfirmDialog
         open={deleteTarget !== null}
         title={t('nodes.delete.title', { name: deleteTarget?.name ?? '' })}
-        description={
-          <>
-            <p>{t('nodes.delete.body')}</p>
-            {deleteError && <p className="error" role="alert">{deleteError}</p>}
-          </>
-        }
+        description={<p>{t('nodes.delete.body')}</p>}
+        error={deleteError}
         confirmLabel={t('nodes.delete.confirm')}
         danger
         busy={busyId === deleteTarget?.id}
