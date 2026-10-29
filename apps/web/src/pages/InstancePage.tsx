@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Link, NavLink, Route, Routes, useParams } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useParams } from 'react-router-dom';
 import {
   Archive,
   ChevronLeft,
@@ -26,10 +26,11 @@ import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
 import { InstanceStatusPill } from '../components/StatusPill';
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
 import { errorMessage } from '../errors';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useInstanceAction } from '../hooks/useInstanceAction';
 import { usePolling } from '../hooks/usePolling';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
-import { useI18n } from '../i18n';
+import { useI18n, type MessageKey } from '../i18n';
 import {
   canStartInstance,
   canStopInstance,
@@ -235,11 +236,20 @@ function SettingsTab({
   );
 }
 
+/** 实例子路由对应的标签名，用于浏览器标签标题；未知子路由会被重定向回控制台。 */
+const TAB_TITLE_KEYS = new Map<string, MessageKey>([
+  ['', 'instance.tab.console'],
+  ['files', 'instance.tab.files'],
+  ['config', 'instance.tab.properties'],
+  ['backups', 'instance.tab.backups'],
+  ['settings', 'instance.tab.settings'],
+]);
+
 const hubTabClass = ({ isActive }: { isActive: boolean }) => `segmented-item${isActive ? ' active' : ''}`;
 
 export function InstancePage() {
   const { t } = useI18n();
-  const { id = '' } = useParams();
+  const { id = '', '*': subPath = '' } = useParams();
   const [instance, setInstance] = useState<InstanceInfo | null>(null);
   const [loadError, setLoadError] = useState('');
   const [confirmRestart, setConfirmRestart] = useState(false);
@@ -254,6 +264,15 @@ export function InstancePage() {
     }
   }, [id]);
   usePolling(load);
+
+  const tabTitleKey = TAB_TITLE_KEYS.get(subPath.replace(/\/+$/, ''));
+  useDocumentTitle(
+    !instance
+      ? t('shell.pageTitle.workspace')
+      : instance.requiresMigration || !tabTitleKey
+        ? instance.name
+        : t('shell.docTitle.instance', { tab: t(tabTitleKey), name: instance.name }),
+  );
 
   const { busyId, error: actionError, run } = useInstanceAction(load);
   const busy = busyId !== null;
@@ -386,6 +405,7 @@ export function InstancePage() {
             <Route path="config" element={<ConfigTab instanceId={instance.id} />} />
             <Route path="backups" element={<BackupsTab instance={instance} onRestored={() => void load()} />} />
             <Route path="settings" element={<SettingsTab instance={instance} onSaved={load} />} />
+            <Route path="*" element={<Navigate to={`/instances/${id}`} replace />} />
           </Routes>
         )}
       </div>

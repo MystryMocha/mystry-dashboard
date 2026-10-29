@@ -4,6 +4,8 @@ import type en from '../en/shell';
 export default {
   'shell.pageTitle.workspace': '實例工作台',
   'shell.pageTitle.fallback': '管理主控台',
+  'shell.docTitle': '{page} · Mystry Dashboard',
+  'shell.docTitle.instance': '{tab} · {name}',
   'shell.loading.page': '頁面載入中…',
   'shell.nav.label': '主導覽',
   'shell.nav.open': '開啟導覽選單',

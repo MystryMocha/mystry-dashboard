@@ -69,7 +69,7 @@ npm.cmd run test:smoke
 
 `verify` 不包含 `audit:production`，也不自动完成下列人工流程。
 
-`test:interaction` 使用 Vitest、jsdom 与 Testing Library 执行真实 React 组件的键盘、任务抽屉开关/焦点恢复、ZIP 选择/拖放、节点重试及剪贴板反馈回归，已纳入 `verify`。请求与终端使用替身，jsdom 的 dialog 替身仅检查应用逻辑；不证明原生模态焦点约束、文件对话框、布局、主题、真实上传或 Minecraft 进程行为。
+`test:interaction` 使用 Vitest、jsdom 与 Testing Library 执行真实 React 组件的键盘、任务抽屉开关/焦点恢复、路由标题/换页焦点/未知路由兜底、ZIP 选择/拖放、节点重试及剪贴板反馈回归，已纳入 `verify`。请求与终端使用替身，jsdom 的 dialog 替身仅检查应用逻辑；不证明原生模态焦点约束、文件对话框、布局、主题、真实上传或 Minecraft 进程行为。
 
 1. `GET /api/health` 返回 `ok`。
 2. 空用户库 setup、正常 login、已认证请求和未认证 401。
