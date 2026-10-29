@@ -51,6 +51,7 @@
   --surface-raised: #ffffff;
   --material: rgba(255, 255, 255, 0.66);
   --material-thick: rgba(252, 252, 254, 0.82);
+  --material-flat: rgba(250, 250, 252, 0.96);
   --menu-bg: rgba(248, 248, 250, 0.86);
   --sheet-bg: rgba(255, 255, 255, 0.94);
   --glass-edge: inset 0 0 0 0.5px rgba(255, 255, 255, 0.7), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
@@ -105,6 +106,7 @@
   --surface-raised: #2c2c2e;
   --material: rgba(36, 36, 39, 0.62);
   --material-thick: rgba(40, 40, 43, 0.8);
+  --material-flat: rgba(38, 38, 41, 0.96);
   --menu-bg: rgba(44, 44, 47, 0.86);
   --sheet-bg: rgba(36, 36, 38, 0.95);
   --glass-edge: inset 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.6);
@@ -167,6 +169,8 @@
   --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
   --accent-soft-strong: color-mix(in srgb, var(--accent) 20%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 45%, transparent);
+  /* 控制台始终深色：强调色混入白色提亮，任一强调色与外观下对控制台底色都 ≥3:1。 */
+  --console-focus: color-mix(in srgb, var(--accent) 65%, #ffffff);
 }
 
 /* ========== 基础 ========== */
@@ -1008,6 +1012,7 @@ input[type='radio'] {
 .status-pill.crashed { --tone: var(--c-red); color: var(--danger); }
 
 .status-dot {
+  position: relative;
   flex-shrink: 0;
   width: 7px;
   height: 7px;
@@ -1015,11 +1020,21 @@ input[type='radio'] {
   background: currentColor;
 }
 
+/* 运行中呼吸光圈：伪元素只做缩放和淡出，交给合成层，不在每帧重绘阴影。7px 圆点放大到约 17px，与原 5px 光圈一致。 */
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-green) 55%, transparent); }
-  70%, 100% { box-shadow: 0 0 0 5px transparent; }
+  0% { transform: scale(1); opacity: 0.55; }
+  70%, 100% { transform: scale(2.4); opacity: 0; }
 }
-.status-pill.running .status-dot { animation: pulse-ring 2.2s var(--ease) infinite; }
+.status-pill.running .status-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--c-green);
+  opacity: 0;
+  pointer-events: none;
+  animation: pulse-ring 2.2s var(--ease) infinite;
+}
 .status-pill.starting .status-dot,
 .status-pill.stopping .status-dot { animation: blink 1.2s var(--ease) infinite; }
 @keyframes blink { 50% { opacity: 0.3; } }
@@ -1118,6 +1133,7 @@ input[type='radio'] {
 
 .widget {
   --tone: var(--c-blue);
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1148,14 +1164,15 @@ input[type='radio'] {
 .widget-value {
   display: flex;
   align-items: baseline;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 2px 6px;
-  font-size: 26px;
+  /* 数值不折行：字号随小组件宽度缩放（cqi 相对 .widget 内容宽），1280px 宽四列时也能放下「12.3 / 31.9」。 */
+  font-size: clamp(19px, 11.5cqi, 26px);
   font-weight: 700;
   line-height: 1.12;
   letter-spacing: -0.022em;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 .widget-unit { font-size: 13px; font-weight: 500; color: var(--label-2); letter-spacing: 0; }
 .widget-detail { margin-top: 5px; font-size: 12.5px; color: var(--label-2); }
@@ -1418,7 +1435,8 @@ input[type='radio'] {
   font-size: 13px;
   transition: box-shadow 0.15s var(--ease), background-color 0.15s var(--ease);
 }
-.console-input:focus { outline: none; background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.65); }
+.console-input:focus { outline: none; background: rgba(255, 255, 255, 0.1); box-shadow: 0 0 0 2px var(--console-focus); }
+.console-window :focus-visible { outline-color: var(--console-focus); }
 .console-input:disabled { opacity: 0.55; cursor: not-allowed; }
 .console-input::placeholder { color: #8e8e93; font-family: var(--font); }
 
@@ -2278,6 +2296,27 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   }
   .tab-bar-item.active { background: var(--fill); color: var(--accent-text); }
 
+  /*
+   * 窄屏只让底部标签栏保留背景模糊：工具栏、工具栏按钮组、侧栏抽屉、悬浮操作栏、任务抽屉和对话框
+   * 会与标签栏叠在同一块屏幕上，逐层模糊在手机 GPU 上开销很大，改用近实色或已有的半透明底。
+   */
+  .topbar.is-scrolled,
+  .toolbar-group,
+  .topbar .sidebar-toggle,
+  .sidebar,
+  .action-bar,
+  .task-drawer,
+  .confirm-dialog,
+  .file-edit-dialog,
+  .error-dialog {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .topbar.is-scrolled,
+  .sidebar,
+  .action-bar { background: var(--material-flat); }
+  .task-drawer { background: var(--sheet-bg); }
+
   .widget-grid { gap: 12px; }
   .widget { padding: 14px; gap: 10px; }
   .widget-value { font-size: 20px; }
@@ -2367,6 +2406,56 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .login-title { font-size: 25px; }
 }
 
+/*
+ * 触屏或窄屏：iOS Safari 在聚焦字号小于 16px 的输入框时会自动放大页面，这里统一抬到 16px。
+ * 各输入类的选择器优先级不一（.field :is(...) 很高），用 !important 一次覆盖；桌面宽屏不受影响。
+ */
+@media (pointer: coarse), (max-width: 768px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  select,
+  textarea { font-size: 16px !important; }
+  /* 懒加载下拉框的触发器是按钮，不会触发缩放，但与相邻输入框同排，字号保持一致。 */
+  .lazy-select-trigger { font-size: 16px; }
+}
+
+/*
+ * 粗指针（触屏）：可点区域至少 44×44。行内或列表型控件直接加高；
+ * 小号按钮、行内链接和返回链接保持原有外观，用透明伪元素向外扩出热区，不改变排版。
+ */
+@media (pointer: coarse) {
+  .btn:not(.btn-sm):not(.btn-lg) { height: 44px; }
+  .btn-icon:not(.btn-sm) { width: 44px; }
+  .toolbar-button { min-width: 44px; height: 44px; }
+  .segmented { padding: 2px; }
+  .segmented-item { height: 44px; }
+  .menu-item { height: 44px; }
+  .nav-item,
+  .language-option,
+  .lazy-select-option { min-height: 44px; }
+  .chip { height: 44px; }
+  .console-tool { min-width: 44px; height: 44px; }
+  .disclosure > summary { min-height: 44px; }
+  .field :is(input:not([type='checkbox']):not([type='radio']):not([type='file']), select),
+  .input,
+  .input-row > select,
+  .lazy-select-trigger { min-height: 44px; }
+  .breadcrumb { padding-top: 12px; padding-bottom: 12px; }
+  /* 实例名链接自带 overflow: hidden（省略号），伪元素会被裁掉，改用内边距加等量负外边距扩大热区。 */
+  .inst-name { padding-block: 11px; margin-block: -11px; }
+
+  .btn-sm,
+  .link-button,
+  .back-link { position: relative; }
+  .btn-sm::after,
+  .link-button::after,
+  .back-link::after {
+    content: '';
+    position: absolute;
+    /* 上下按自身高度、左右按自身宽度各补到 44px；已够大的方向不收缩。 */
+    inset: min(0px, calc(50% - 22px));
+  }
+}
+
 /* 减少动态效果：保留加载指示，取消入场动画、悬浮位移和呼吸闪烁。 */
 @media (prefers-reduced-motion: reduce) {
   .confirm-dialog[open],
@@ -2379,6 +2468,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .sidebar-backdrop,
   dialog::backdrop,
   .status-pill .status-dot,
+  .status-pill .status-dot::after,
   .console-status .status-dot { animation: none !important; }
   .instance-card:hover,
   .instance-card:has(.action-menu-trigger.is-open),
