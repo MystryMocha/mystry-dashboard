@@ -56,7 +56,8 @@
   --glass-edge: inset 0 0 0 0.5px rgba(255, 255, 255, 0.7), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
 
   --label: #1d1d1f;
-  --label-2: #6e6e73;
+  /* 次要文字在 bg、fill 和 15% 色调的状态标签上都需 ≥4.5:1。 */
+  --label-2: #636366;
   --label-3: #8e8e93;
   --separator: rgba(60, 60, 67, 0.17);
   --separator-strong: rgba(60, 60, 67, 0.3);
@@ -76,10 +77,11 @@
   --float-shadow: 0 10px 36px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.05);
   --sheet-shadow: 0 30px 90px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
 
-  /* 语义色：文字用加深变体保证对比度，填充用系统色。 */
-  --ok: #248a3d;
-  --warn: #c45500;
-  --danger: #d70015;
+  /* 语义色：文字用加深变体保证对比度，填充用系统色。
+     文字变体按最差底色取值：bg 上叠 11–16% 同色调（状态标签、色调按钮、提示框）仍 ≥4.5:1。 */
+  --ok: #1a7431;
+  --warn: #a84a00;
+  --danger: #c70012;
   --danger-fill: #e0281f;
   --c-green: #34c759;
   --c-blue: #007aff;
@@ -130,8 +132,9 @@
 
   --ok: #30d158;
   --warn: #ff9f0a;
-  --danger: #ff453a;
-  --danger-fill: #ff453a;
+  /* 深色下红色文字取浅一档、实色危险按钮取深一档，分别保证在红色调底和白字上 ≥4.5:1。 */
+  --danger: #ff6961;
+  --danger-fill: #d93229;
   --c-green: #30d158;
   --c-blue: #0a84ff;
   --c-purple: #bf5af2;
@@ -149,12 +152,13 @@
 :root[data-accent='blue'] { --accent: #0071e3; --accent-text: #0066cc; --on-accent: #ffffff; }
 :root[data-accent='purple'] { --accent: #8e44c9; --accent-text: #8139bd; --on-accent: #ffffff; }
 :root[data-accent='pink'] { --accent: #d6337f; --accent-text: #c0266d; --on-accent: #ffffff; }
-:root[data-accent='green'] { --accent: #0b7d60; --accent-text: #0b7d60; --on-accent: #ffffff; }
+:root[data-accent='green'] { --accent: #0b7d60; --accent-text: #09705a; --on-accent: #ffffff; }
 :root[data-accent='graphite'] { --accent: #48484a; --accent-text: #3a3a3c; --on-accent: #ffffff; }
 
+/* 深色蓝、紫保留白字，填充比系统色深一档，使白字 ≥4.5:1。 */
 :root[data-appearance='dark'],
-:root[data-appearance='dark'][data-accent='blue'] { --accent: #0a84ff; --accent-text: #409cff; --on-accent: #ffffff; }
-:root[data-appearance='dark'][data-accent='purple'] { --accent: #bf5af2; --accent-text: #d08cf6; --on-accent: #ffffff; }
+:root[data-appearance='dark'][data-accent='blue'] { --accent: #0a70de; --accent-text: #409cff; --on-accent: #ffffff; }
+:root[data-appearance='dark'][data-accent='purple'] { --accent: #a04ad8; --accent-text: #d08cf6; --on-accent: #ffffff; }
 :root[data-appearance='dark'][data-accent='pink'] { --accent: #f062a6; --accent-text: #ff8cc1; --on-accent: #2b091b; }
 :root[data-appearance='dark'][data-accent='green'] { --accent: #30d158; --accent-text: #30d158; --on-accent: #00230e; }
 :root[data-appearance='dark'][data-accent='graphite'] { --accent: #d1d1d6; --accent-text: #e5e5ea; --on-accent: #1c1c1e; }
@@ -2191,7 +2195,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 
 .login-notes { display: flex; flex-direction: column; gap: 6px; padding: 0 6px; font-size: 12.5px; line-height: 1.55; color: var(--label-2); }
 .login-notes p { margin: 0; }
-.login-footer { margin: 28px 0 0; font-size: 12px; color: var(--label-3); }
+.login-footer { margin: 28px 0 0; font-size: 12px; color: var(--label-2); }
 
 /* ========== 响应式 ========== */
 @media (max-width: 1180px) {
