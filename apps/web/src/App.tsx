@@ -7,6 +7,8 @@ import { BrandMark } from './components/BrandMark';
 import { LanguageToggle } from './components/LanguageToggle';
 import { TaskCenter } from './components/TaskCenter';
 import { ThemeToggle } from './components/ThemeToggle';
+import { useDocumentTitle } from './hooks/useDocumentTitle';
+import { useRouteFocus } from './hooks/useRouteFocus';
 import { LoginPage } from './pages/LoginPage';
 
 const DashboardPage = lazy(() =>
@@ -38,6 +40,43 @@ function pageTitleKeyFor(pathname: string): MessageKey {
   if (pathname.startsWith('/import')) return 'nav.import';
   if (pathname.startsWith('/nodes')) return 'nav.machine';
   return 'shell.pageTitle.fallback';
+}
+
+function trimTrailingSlash(pathname: string): string {
+  return pathname.replace(/\/+$/, '') || '/';
+}
+
+/** 浏览器标签标题里的页面名；实例页带实例名，由 InstancePage 自己设置，这里返回 undefined。 */
+function documentTitleKeyFor(pathname: string, needsSetup: boolean): MessageKey | null | undefined {
+  pathname = trimTrailingSlash(pathname);
+  if (pathname === '/login') return needsSetup ? 'login.setup.title' : 'login.signin.title';
+  if (pathname === '/') return 'nav.overview';
+  if (/^\/instances\/[^/]+/.test(pathname)) return undefined;
+  if (pathname === '/deploy') return 'nav.deploy';
+  if (pathname === '/import') return 'nav.import';
+  if (pathname === '/nodes') return 'nav.machine';
+  return null;
+}
+
+/** 判断「是否换了页面」用的键：同一实例内切换标签不算换页。 */
+function pageKeyFor(pathname: string): string {
+  return /^\/instances\/[^/]+/.exec(pathname)?.[0] ?? trimTrailingSlash(pathname);
+}
+
+function DocumentTitle({ page }: { page: string | null }) {
+  useDocumentTitle(page);
+  return null;
+}
+
+/** 路由级无障碍：按路由设置浏览器标签标题，换页后把焦点移到新页面主标题。 */
+function RouteAnnouncer() {
+  const { t } = useI18n();
+  const { needsSetup } = useAuth();
+  const { pathname } = useLocation();
+  useRouteFocus(pageKeyFor(pathname));
+  const titleKey = documentTitleKeyFor(pathname, needsSetup);
+  if (titleKey === undefined) return null;
+  return <DocumentTitle page={titleKey ? t(titleKey) : null} />;
 }
 
 const navClass = ({ isActive }: { isActive: boolean }) => `nav-item${isActive ? ' active' : ''}`;
@@ -78,16 +117,17 @@ function Shell({ children }: { children: React.ReactNode }) {
   const tabBarRef = useRef<HTMLElement>(null);
   const onInstancePage = location.pathname.startsWith('/instances');
 
-  const closeSidebar = useCallback(() => {
+  const closeSidebar = useCallback((restoreFocus = true) => {
     mainRef.current?.removeAttribute('inert');
     topbarToolsRef.current?.removeAttribute('inert');
     tabBarRef.current?.removeAttribute('inert');
     setSidebarOpen(false);
-    toggleRef.current?.focus();
+    if (restoreFocus) toggleRef.current?.focus();
   }, []);
 
   useEffect(() => {
-    closeSidebar();
+    // 换页时焦点交给 useRouteFocus 移到新页面标题，这里不再把焦点拉回菜单按钮。
+    closeSidebar(false);
     // 切换页面时回到顶部，避免新页面停在上一页的滚动位置。
     if (mainRef.current) mainRef.current.scrollTop = 0;
     setScrolled(false);
@@ -157,7 +197,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <nav className="nav-section" onClick={closeSidebar}>
+        <nav className="nav-section" onClick={() => closeSidebar()}>
           <div className="nav-header">{t('nav.group.servers')}</div>
           <NavLink ref={firstNavRef} to="/" end className={navClass}>
             <LayoutGrid size={17} aria-hidden="true" />
@@ -228,7 +268,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </header>
 
         {sidebarOpen && (
-          <div className="sidebar-backdrop" onClick={closeSidebar} aria-hidden="true" tabIndex={-1} />
+          <div className="sidebar-backdrop" onClick={() => closeSidebar()} aria-hidden="true" tabIndex={-1} />
         )}
 
         <main className="content-container" ref={mainRef} onScroll={onContentScroll}>
@@ -273,60 +313,63 @@ export function App() {
   const { user, loading, needsSetup } = useAuth();
 
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={
-          loading ? (
-            <Splash />
-          ) : user && !needsSetup ? (
-            <Navigate to="/" replace />
-          ) : (
-            <LoginPage />
-          )
-        }
-      />
-      <Route
-        path="/"
-        element={
-          <RequireAuth>
-            <DashboardPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/instances/:id/*"
-        element={
-          <RequireAuth>
-            <InstancePage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/deploy"
-        element={
-          <RequireAuth>
-            <DeployPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/import"
-        element={
-          <RequireAuth>
-            <ImportPage />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/nodes"
-        element={
-          <RequireAuth>
-            <NodesPage />
-          </RequireAuth>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <RouteAnnouncer />
+      <Routes>
+        <Route
+          path="/login"
+          element={
+            loading ? (
+              <Splash />
+            ) : user && !needsSetup ? (
+              <Navigate to="/" replace />
+            ) : (
+              <LoginPage />
+            )
+          }
+        />
+        <Route
+          path="/"
+          element={
+            <RequireAuth>
+              <DashboardPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/instances/:id/*"
+          element={
+            <RequireAuth>
+              <InstancePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/deploy"
+          element={
+            <RequireAuth>
+              <DeployPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/import"
+          element={
+            <RequireAuth>
+              <ImportPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/nodes"
+          element={
+            <RequireAuth>
+              <NodesPage />
+            </RequireAuth>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }

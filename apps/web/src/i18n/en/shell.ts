@@ -2,6 +2,9 @@
 export default {
   'shell.pageTitle.workspace': 'Instance Workspace',
   'shell.pageTitle.fallback': 'Admin Console',
+  // 浏览器标签标题：页面名在前、品牌名在后；实例页的页面名为「标签 · 实例名」。
+  'shell.docTitle': '{page} · Mystry Dashboard',
+  'shell.docTitle.instance': '{tab} · {name}',
   'shell.loading.page': 'Loading page…',
   'shell.nav.label': 'Main navigation',
   'shell.nav.open': 'Open navigation menu',

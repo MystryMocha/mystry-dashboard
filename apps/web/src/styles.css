@@ -230,6 +230,9 @@ h1, h2, h3 { letter-spacing: -0.015em; }
   outline-offset: 2px;
 }
 
+/* 换页后脚本把焦点移到页面主标题（见 useRouteFocus），标题不是可操作控件，不画焦点环。 */
+h1[tabindex="-1"]:focus { outline: none; }
+
 .visually-hidden {
   position: absolute !important;
   width: 1px;
