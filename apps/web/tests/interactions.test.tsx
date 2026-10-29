@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { DashboardPage } from '../src/pages/DashboardPage';
@@ -12,11 +12,24 @@ import { ConsolePanel } from '../src/components/ConsolePanel';
 import { BackupsTab } from '../src/components/BackupsTab';
 import { App } from '../src/App';
 import { AuthProvider } from '../src/auth';
+import { Terminal } from '@xterm/xterm';
 
-const terminal = vi.hoisted(() => ({ text: '', written: '', clearSelection: vi.fn() }));
+const terminal = vi.hoisted(() => ({ text: '', written: '', clearSelection: vi.fn(), created: [] as boolean[], srChanges: [] as boolean[], current: null as null | { options: { screenReaderMode: boolean } } }));
 vi.mock('@xterm/xterm', () => ({ Terminal: class {
+  static strings = { promptLabel: '', tooMuchOutput: '' };
+  options: { screenReaderMode: boolean };
+  constructor(options: { screenReaderMode?: boolean } = {}) {
+    // 与 xterm 一致：只有值真正变化时才重建读屏层，这里记录每次变化。
+    let screenReaderMode = Boolean(options.screenReaderMode);
+    this.options = {
+      get screenReaderMode() { return screenReaderMode; },
+      set screenReaderMode(value: boolean) { if (value !== screenReaderMode) { screenReaderMode = value; terminal.srChanges.push(value); } },
+    };
+    terminal.created.push(screenReaderMode);
+    terminal.current = this;
+  }
   loadAddon() {} open() {} dispose() {} clear() {} selectAll() {}
-  write(data: string) { terminal.written += data; }
+  write(data: string, callback?: () => void) { terminal.written += data; callback?.(); }
   writeln(data: string) { terminal.written += `${data}\n`; }
   reset() { terminal.written = ''; }
   getSelection() { return terminal.text; }
@@ -37,7 +50,7 @@ beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
   // 这组回归按中文原文查元素，固定界面语言为 zh-CN；语言切换与英文文案见 i18n.test.tsx。
   document.documentElement.lang = 'zh-CN'; document.documentElement.dataset.localePreference = 'zh-CN';
-  requests = []; nodes = []; failNodes = false; terminal.text = ''; terminal.written = '';
+  requests = []; nodes = []; failNodes = false; terminal.text = ''; terminal.written = ''; terminal.created = []; terminal.srChanges = []; terminal.current = null;
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener() {}, removeEventListener() {} });
   // jsdom 不实现原生模态层；此替身仅验证开关状态与应用的焦点恢复逻辑。
   HTMLDialogElement.prototype.showModal = function () { this.open = true; this.querySelector<HTMLElement>('button')?.focus(); };
@@ -73,7 +86,8 @@ test('总览监测保留过期数据，重试恢复，异常筛选可清除', as
   expect(await screen.findByText('2.4 GiB')).toBeTruthy();
   fail = true;
   await user.click(screen.getByRole('button', { name: '刷新', exact: true }));
-  expect(await screen.findByText(/数据可能过期/)).toBeTruthy();
+  // 可见状态行与读屏播报区各有一份错误文本。
+  expect(await screen.findAllByText(/数据可能过期/)).toHaveLength(2);
   expect(screen.getByText('2.4 GiB（过期）')).toBeTruthy();
   fail = false;
   await user.click(screen.getByRole('button', { name: '重试监测' }));
@@ -227,10 +241,10 @@ test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build �
   }));
   const user = userEvent.setup();
   mount(<DeployPage />);
-  const version = screen.getByRole('button', { name: '游戏版本' });
+  const version = screen.getByRole('button', { name: /^游戏版本/ });
   await waitFor(() => expect(version.textContent).toContain('26.3'));
   expect(requests.filter((url) => url === '/api/cores/paper/versions')).toHaveLength(1);
-  expect(screen.getByRole('button', { name: 'Paper Build' }).textContent).toContain('自动使用最新构建');
+  expect(screen.getByRole('button', { name: /^Paper 构建版本（可选）/ }).textContent).toContain('自动使用最新构建');
 
   const submit = screen.getByRole('button', { name: '开始部署' }) as HTMLButtonElement;
   const eula = screen.getByRole('checkbox', { name: /我已阅读并同意/ }) as HTMLInputElement;
@@ -442,4 +456,146 @@ test('删除实例默认连同备份删除，取消勾选时带 keepBackups=1 �
   expect(screen.getByText(/备份会留在面板数据目录的 backups 文件夹中/)).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '永久删除' }));
   await waitFor(() => expect(deletes).toEqual(['/api/instances/test', '/api/instances/test?keepBackups=1']));
+});
+
+test('部署页版本下拉：名称由可见标签加当前值组成，键盘可选择并回到触发按钮', async () => {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/cores/paper/versions') return new Response(JSON.stringify({ versions: ['26.3', '26.2', '1.21.11'] }));
+    return baseFetch(url, options);
+  }));
+  // jsdom 未实现 scrollIntoView，键盘移动活动项时会调用它。
+  Element.prototype.scrollIntoView = vi.fn();
+  const user = userEvent.setup();
+  mount(<DeployPage />);
+  const trigger = await screen.findByRole('button', { name: '游戏版本 26.3' });
+  expect(trigger.hasAttribute('aria-label')).toBe(false);
+  expect(screen.getByRole('button', { name: 'Paper 构建版本（可选） 自动使用最新构建（优先稳定版）' })).toBeTruthy();
+
+  trigger.focus();
+  await user.keyboard('{ArrowDown}');
+  const listbox = screen.getByRole('listbox', { name: '游戏版本' });
+  expect(document.activeElement).toBe(listbox);
+  const selected = screen.getByRole('option', { name: '26.3' });
+  expect(selected.getAttribute('aria-selected')).toBe('true');
+  expect(listbox.getAttribute('aria-activedescendant')).toBe(selected.id);
+  expect(selected.tabIndex).toBe(-1);
+  await user.keyboard('{ArrowDown}');
+  expect(listbox.getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: '26.2' }).id);
+  await user.keyboard('{Enter}');
+  expect(screen.queryByRole('listbox')).toBeNull();
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: '游戏版本 26.2' }));
+
+  await user.keyboard('{ArrowDown}');
+  expect(screen.getByRole('listbox', { name: '游戏版本' })).toBeTruthy();
+  await user.keyboard('{Tab}');
+  expect(screen.queryByRole('listbox')).toBeNull();
+  expect(document.activeElement).not.toBe(trigger);
+});
+
+test('总览例行刷新不进 live region，只播报出错与恢复', async () => {
+  vi.useFakeTimers();
+  const baseFetch = globalThis.fetch;
+  let fail = false;
+  let sample = 0;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/metrics') {
+      if (fail) return new Response('{}', { status: 503 });
+      sample += 1;
+      return new Response(JSON.stringify({ ...metricSample, sampledAt: `2026-09-08T10:00:${String(sample * 5).padStart(2, '0')}Z` }));
+    }
+    return baseFetch(url, options);
+  }));
+  mount(<DashboardPage />);
+  const liveText = () => [...document.querySelectorAll('[role="status"], [role="alert"], [aria-live]')]
+    .map((node) => node.textContent ?? '').join('|');
+  const refresh = () => screen.getByRole('button', { name: '刷新', exact: true }) as HTMLButtonElement;
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(screen.getByText(/^更新于/)).toBeTruthy();
+  expect(liveText()).not.toContain('更新于');
+
+  const before = screen.getByText(/^更新于/).textContent;
+  await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
+  expect(screen.getByText(/^更新于/).textContent).not.toBe(before);
+  expect(liveText()).not.toContain('更新于');
+  // 例行轮询不切换刷新按钮的禁用状态，避免聚焦在按钮上的键盘用户被打断。
+  expect(refresh().disabled).toBe(false);
+
+  fail = true;
+  await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+  expect(liveText()).toContain('监测数据获取失败，数据可能过期');
+
+  fail = false;
+  await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+  expect(liveText()).not.toContain('获取失败');
+  expect(liveText()).toContain('更新于');
+  const announced = liveText();
+  await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+  expect(liveText()).toBe(announced);
+});
+
+test('确认弹窗的操作错误显示在弹窗内，以 alert 播报并关联为描述', async () => {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances' && options?.method === 'POST') return new Response(JSON.stringify({ error: '实例名称已存在' }), { status: 409 });
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  mount(<DashboardPage />);
+  await user.click(await screen.findByRole('button', { name: '创建空实例' }));
+  const dialog = screen.getByRole('dialog', { name: '创建空实例' });
+  expect(dialog.hasAttribute('aria-describedby')).toBe(false);
+  await user.click(within(dialog).getByRole('button', { name: '创建并前往文件页' }));
+  const alert = await within(dialog).findByRole('alert');
+  expect(alert.textContent).toBe('实例名称已存在');
+  expect(dialog.getAttribute('aria-describedby')).toBe(alert.id);
+  await user.click(within(dialog).getByRole('button', { name: '取消' }));
+  await user.click(screen.getByRole('button', { name: '创建空实例' }));
+  expect(within(screen.getByRole('dialog', { name: '创建空实例' })).queryByRole('alert')).toBeNull();
+});
+
+test('控制台读屏模式可开关并记住，历史写完和发送命令前重置朗读区', async () => {
+  const sockets: Array<{ onopen?: () => void; onmessage?: (ev: { data: string }) => void; send: ReturnType<typeof vi.fn> }> = [];
+  vi.stubGlobal('WebSocket', class {
+    static OPEN = 1;
+    readyState = 1;
+    send = vi.fn();
+    constructor() { sockets.push(this); }
+    close() {}
+  });
+  const user = userEvent.setup();
+  const view = mount(<ConsolePanel instanceId="test" />);
+  const toggle = screen.getByRole('button', { name: '读屏模式' });
+  expect(toggle.getAttribute('aria-pressed')).toBe('false');
+  expect(terminal.created).toEqual([false]);
+  expect(Terminal.strings.promptLabel).toBe('控制台输出');
+  expect(Terminal.strings.tooMuchOutput).toContain('输出太多');
+
+  await user.click(toggle);
+  expect(toggle.getAttribute('aria-pressed')).toBe('true');
+  expect(terminal.current?.options.screenReaderMode).toBe(true);
+  expect(localStorage.getItem('mystry_console_screen_reader')).toBe('1');
+
+  await waitFor(() => expect(sockets).toHaveLength(1));
+  terminal.srChanges = [];
+  act(() => {
+    sockets[0].onopen?.();
+    sockets[0].onmessage?.({ data: JSON.stringify({ type: 'history', data: '[10:00:00 INFO]: Done (3.2s)!\n', status: 'running' }) });
+  });
+  // 着色与历史替换不受影响；历史写完后关再开一次，清空 xterm 的朗读计数。
+  expect(terminal.written).toContain('Done (3.2s)');
+  expect(terminal.srChanges).toEqual([false, true]);
+
+  terminal.srChanges = [];
+  await user.type(screen.getByRole('textbox', { name: '控制台命令' }), 'list{Enter}');
+  expect(sockets[0].send).toHaveBeenCalledWith(JSON.stringify({ type: 'command', data: 'list' }));
+  expect(terminal.srChanges).toEqual([false, true]);
+
+  view.unmount();
+  mount(<ConsolePanel instanceId="test" />);
+  expect(screen.getByRole('button', { name: '读屏模式' }).getAttribute('aria-pressed')).toBe('true');
+  expect(terminal.created.at(-1)).toBe(true);
+  await user.click(screen.getByRole('button', { name: '读屏模式' }));
+  expect(terminal.current?.options.screenReaderMode).toBe(false);
+  expect(localStorage.getItem('mystry_console_screen_reader')).toBeNull();
 });

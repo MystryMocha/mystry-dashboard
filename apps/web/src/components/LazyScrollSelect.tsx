@@ -22,8 +22,8 @@ type LazyScrollSelectProps<T extends string | number> = {
   formatLabel?: (value: T) => string;
   placeholder?: string;
   emptyText?: string;
-  /** 读屏与无障碍名称 */
-  ariaLabel: string;
+  /** 可见字段标签的 id：触发按钮的无障碍名称由「标签 + 当前值」组成，读屏能同时读到两者。 */
+  labelId: string;
 };
 
 /** 根据选中项索引计算至少需要展示多少条，保证已选项在列表内 */
@@ -47,7 +47,7 @@ export function LazyScrollSelect<T extends string | number>({
   formatLabel = (v) => String(v),
   placeholder,
   emptyText,
-  ariaLabel,
+  labelId,
 }: LazyScrollSelectProps<T>) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
@@ -57,6 +57,7 @@ export function LazyScrollSelect<T extends string | number>({
   const listRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listboxId = useId();
+  const valueId = `${listboxId}-value`;
   const [panelLayout, setPanelLayout] = useState<PanelLayout>({
     direction: 'below',
     maxHeight: PANEL_MAX_HEIGHT,
@@ -202,6 +203,11 @@ export function LazyScrollSelect<T extends string | number>({
       closePanel(true);
       return;
     }
+    if (event.key === 'Tab') {
+      // 与原生下拉一致：Tab 收起面板，焦点先回到触发按钮，再由浏览器默认行为移到下一个控件。
+      closePanel(true);
+      return;
+    }
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       moveActive(1);
@@ -260,11 +266,11 @@ export function LazyScrollSelect<T extends string | number>({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
-        aria-label={ariaLabel}
+        aria-labelledby={`${labelId} ${valueId}`}
         onClick={() => (open ? closePanel(true) : openPanel())}
         onKeyDown={onTriggerKeyDown}
       >
-        <span className={hasValue ? undefined : 'lazy-select-placeholder'}>{display}</span>
+        <span id={valueId} className={hasValue ? undefined : 'lazy-select-placeholder'}>{display}</span>
         <span className="lazy-select-chevron" aria-hidden />
       </button>
       {open && (
@@ -272,7 +278,7 @@ export function LazyScrollSelect<T extends string | number>({
           id={listboxId}
           className="lazy-select-panel"
           role="listbox"
-          aria-label={ariaLabel}
+          aria-labelledby={labelId}
           aria-activedescendant={activeOptionId}
           ref={listRef}
           style={{ maxHeight: panelLayout.maxHeight }}
@@ -295,6 +301,8 @@ export function LazyScrollSelect<T extends string | number>({
                 key={String(opt)}
                 type="button"
                 role="option"
+                // 选项由列表框的 aria-activedescendant 管理焦点，不单独进入 Tab 序列。
+                tabIndex={-1}
                 data-option-index={index}
                 aria-selected={selected}
                 className={`lazy-select-option${selected ? ' is-selected' : ''}${active ? ' is-active' : ''}`}

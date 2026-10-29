@@ -129,7 +129,7 @@ export function TaskCenter() {
 
         <div className="drawer-body">
           {stale && (
-            <div className="callout callout-danger">
+            <div className="callout callout-danger" role="alert">
               <div>
                 <strong>{t('tasks.center.stale', { error })}</strong>
                 {lastSuccessAt && <p>{t('tasks.center.lastSync', { time: formatTime(lastSuccessAt) })}</p>}

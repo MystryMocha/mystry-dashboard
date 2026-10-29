@@ -1376,6 +1376,7 @@ input[type='radio'] {
   transition: background-color 0.15s var(--ease);
 }
 .console-tool:hover { background: rgba(255, 255, 255, 0.15); }
+.console-tool[aria-pressed='true'] { background: rgba(255, 255, 255, 0.18); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55); }
 
 .console-copy-status {
   margin: 0;

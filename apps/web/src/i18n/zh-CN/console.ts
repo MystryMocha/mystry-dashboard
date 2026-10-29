@@ -24,6 +24,12 @@ export default {
   'console.copy.empty': '暂无可复制的日志。',
   'console.copy.done': '日志已复制。',
   'console.copy.failed': '复制失败：浏览器剪贴板不可用或权限被拒绝，请手动选择日志并复制。',
+  'console.tool.screenReader': '读屏模式',
+  'console.tool.screenReaderTitle': '让读屏软件可以逐行浏览日志，并朗读新输出',
+
+  // 终端输出区（读屏）
+  'console.output.label': '控制台输出',
+  'console.output.tooMuchOutput': '输出太多，无法全部朗读，请逐行浏览日志查看其余内容。',
 
   // 命令输入
   'console.input.label': '控制台命令',

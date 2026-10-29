@@ -24,6 +24,12 @@ export default {
   'console.copy.empty': '目前沒有可複製的日誌。',
   'console.copy.done': '日誌已複製。',
   'console.copy.failed': '無法複製：瀏覽器剪貼簿無法使用或權限遭拒，請手動選取日誌後複製。',
+  'console.tool.screenReader': '螢幕閱讀器模式',
+  'console.tool.screenReaderTitle': '讓螢幕閱讀器可以逐行瀏覽日誌，並朗讀新輸出',
+
+  // 终端输出区（读屏）
+  'console.output.label': '主控台輸出',
+  'console.output.tooMuchOutput': '輸出太多，無法全部朗讀，請逐行瀏覽日誌查看其餘內容。',
 
   // 命令输入
   'console.input.label': '主控台指令',

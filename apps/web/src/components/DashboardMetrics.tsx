@@ -48,9 +48,11 @@ export function useDashboardMetrics() {
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(false);
-  const refresh = useCallback(async () => {
+  // 只有用户手动刷新才进入 busy：例行轮询若也切换按钮禁用和文案，聚焦在按钮上的键盘/读屏用户每 5 秒都会被打断。
+  const refresh = useCallback(async (manual = false) => {
     if (pending.current) return;
-    pending.current = true; setBusy(true);
+    pending.current = true;
+    if (manual) setBusy(true);
     try {
       const result = await api<Metrics>('/api/system/metrics');
       if (!result.memory || !result.instances || !Array.isArray(result.warnings)) throw new Error('监测数据暂不可用');
