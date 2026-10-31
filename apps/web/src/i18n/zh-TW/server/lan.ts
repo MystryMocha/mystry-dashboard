@@ -1,0 +1,20 @@
+/** 服務端訊息（虛擬區域網路）的繁體中文翻譯；英文模板在 packages/shared/src/messages/lan.ts。 */
+export default {
+  'server.lan.invalidParams': '虛擬區域網路設定包含不支援的欄位或格式不正確',
+  'server.lan.instanceNotFound': '實例不存在',
+  'server.lan.notEnabled': '請先開啟虛擬區域網路，再下載給朋友的說明',
+  'server.lan.serverIpBlocked': '請先清空 server.properties 裡的 server-ip。遊戲必須在這台電腦的所有位址上接受連線，不能只監聽回環或某一張網卡',
+  'server.lan.localPortIsPanel': '遊戲連接埠和面板連接埠相同。開啟虛擬區域網路前請先修改 server-port',
+  'server.lan.localPortInvalid': 'server.properties 裡的遊戲連接埠不是有效連接埠',
+  'server.lan.clientMissing': '尚未安裝官方 EasyTier 用戶端',
+  'server.lan.platformUnsupported': '這個作業系統沒有釘選版本的官方 EasyTier 用戶端',
+  'server.lan.downloadFailed': '官方 EasyTier 用戶端下載失敗',
+  'server.lan.checksumMismatch': '下載的 EasyTier 用戶端與釘選的檢查碼不一致，已捨棄',
+  'server.lan.extractFailed': '官方 EasyTier 用戶端壓縮檔無法解壓縮',
+  'server.lan.notRunning': '請先啟動實例再開啟虛擬區域網路。只有遊戲在執行時朋友才能連線',
+  'server.lan.startFailed': '虛擬區域網路用戶端啟動失敗',
+  'server.lan.exited': '虛擬區域網路用戶端已停止',
+  'server.lan.needsAdmin': '虛擬網卡需要系統管理員權限。請以系統管理員身分啟動面板後再試',
+  'server.lan.waitingForAddress': '虛擬區域網路還在等待位址。完成之前朋友無法加入',
+  'server.lan.addressMismatch': '虛擬區域網路得到了未預期的位址，已保持關閉',
+} as const;

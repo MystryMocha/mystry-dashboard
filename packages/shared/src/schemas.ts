@@ -173,3 +173,66 @@ export const backupDownloadQuerySchema = {
     ticket: { type: 'string', minLength: 1, maxLength: 128 },
   },
 } as const;
+
+export const FRP_TRANSPORT_ENUM = ['tcp', 'kcp', 'quic', 'websocket', 'wss'] as const;
+export const TUNNEL_MODE_ENUM = ['public', 'stcp', 'xtcp'] as const;
+
+const frpNameSchema = { type: 'string', minLength: 1, maxLength: 64 } as const;
+const frpHostSchema = { type: 'string', minLength: 1, maxLength: 253 } as const;
+const frpPortSchema = { type: 'integer', minimum: 1, maximum: 65535 } as const;
+const frpTokenSchema = { type: 'string', minLength: 1, maxLength: 256 } as const;
+
+/** POST /api/frp/endpoints */
+export const createFrpEndpointBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['name', 'serverAddr', 'serverPort', 'transport', 'token'],
+  properties: {
+    name: frpNameSchema,
+    serverAddr: frpHostSchema,
+    serverPort: frpPortSchema,
+    visitHost: { type: 'string', maxLength: 253 },
+    transport: { type: 'string', enum: FRP_TRANSPORT_ENUM },
+    tls: { type: 'boolean' },
+    token: frpTokenSchema,
+  },
+} as const;
+
+/** PATCH /api/frp/endpoints/:id。token 省略或空字符串表示不改令牌。 */
+export const updateFrpEndpointBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    name: frpNameSchema,
+    serverAddr: frpHostSchema,
+    serverPort: frpPortSchema,
+    visitHost: { type: 'string', maxLength: 253 },
+    transport: { type: 'string', enum: FRP_TRANSPORT_ENUM },
+    tls: { type: 'boolean' },
+    token: { type: 'string', maxLength: 256 },
+  },
+} as const;
+
+/** PUT /api/instances/:id/tunnel */
+export const updateInstanceTunnelBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['enabled', 'endpointId', 'mode'],
+  properties: {
+    enabled: { type: 'boolean' },
+    endpointId: { type: 'string', minLength: 1, maxLength: 64 },
+    mode: { type: 'string', enum: TUNNEL_MODE_ENUM },
+    remotePort: frpPortSchema,
+    visitorBindPort: frpPortSchema,
+  },
+} as const;
+
+/** PUT /api/instances/:id/lan */
+export const updateInstanceLanBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['enabled'],
+  properties: {
+    enabled: { type: 'boolean' },
+  },
+} as const;

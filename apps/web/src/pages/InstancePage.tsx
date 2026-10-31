@@ -405,6 +405,7 @@ export function InstancePage() {
             <Route path="config" element={<ConfigTab instanceId={instance.id} />} />
             <Route path="backups" element={<BackupsTab instance={instance} onRestored={() => void load()} />} />
             <Route path="settings" element={<SettingsTab instance={instance} onSaved={load} />} />
+            <Route path="multiplayer" element={<Navigate to={`/multiplayer?instance=${encodeURIComponent(id ?? '')}`} replace />} />
             <Route path="*" element={<Navigate to={`/instances/${id}`} replace />} />
           </Routes>
         )}

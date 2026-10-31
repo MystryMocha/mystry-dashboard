@@ -42,9 +42,14 @@ function zipPathFromEntry(name: string): string {
   return parts.join('/');
 }
 
-function readZipEntries(zipPath: string, signal: AbortSignal): ZipEntry[] {
+/**
+ * 解析中央目录。maxArchiveBytes 只给面板内部固定来源（如 EasyTier 压缩包）使用，
+ * 省略时沿用上传上限，旧调用方行为不变。
+ */
+function readZipEntries(zipPath: string, signal: AbortSignal, maxArchiveBytes?: number): ZipEntry[] {
+  const archiveLimit = maxArchiveBytes ?? config.maxUploadBytes;
   const fileSize = fs.statSync(zipPath).size;
-  if (fileSize > config.maxUploadBytes) throw new PanelError('server.files.zip.tooLarge');
+  if (fileSize > archiveLimit) throw new PanelError('server.files.zip.tooLarge');
   const tailLength = Math.min(fileSize, 65_557);
   const fd = fs.openSync(zipPath, 'r');
   try {
@@ -109,7 +114,7 @@ function readZipEntries(zipPath: string, signal: AbortSignal): ZipEntry[] {
         throw new PanelError('server.files.zip.linkEntry', { name });
       }
       if ((flags & 1) !== 0) throw new PanelError('server.files.zip.encryptedEntry', { name });
-      if (compressedSize > config.maxUploadBytes || uncompressedSize > config.maxZipEntryBytes) {
+      if (compressedSize > archiveLimit || uncompressedSize > config.maxZipEntryBytes) {
         throw new PanelError('server.files.zip.entryTooLarge', { name });
       }
       totalUncompressed += uncompressedSize;
@@ -327,4 +332,59 @@ export async function safeExtract(
     if (signal.aborted) throw abortError(signal);
     throw err;
   }
+}
+
+/** 列出 ZIP 中所有非目录条目的规范化名称；只读中央目录，不解压数据。 */
+export function listZipEntryNames(
+  zipPath: string,
+  signal: AbortSignal = new AbortController().signal,
+  maxArchiveBytes?: number,
+): string[] {
+  return readZipEntries(zipPath, signal, maxArchiveBytes)
+    .filter((entry) => !entry.directory)
+    .map((entry) => entry.normalizedName);
+}
+
+/** 按规范化名称把单个条目解压到内存；只支持存储与 Deflate，解压结果超过 maxBytes 即中止。 */
+export async function readZipEntryBuffer(
+  zipPath: string,
+  entryName: string,
+  maxBytes: number,
+  signal: AbortSignal = new AbortController().signal,
+  maxArchiveBytes?: number,
+): Promise<Buffer> {
+  throwIfAborted(signal);
+  const entry = readZipEntries(zipPath, signal, maxArchiveBytes)
+    .find((candidate) => !candidate.directory && candidate.normalizedName === entryName);
+  // 调用方给的条目不存在，按压缩包内容不符处理。
+  if (!entry) throw new PanelError('server.files.zip.corrupted');
+  if (entry.uncompressedSize > maxBytes) throw new PanelError('server.files.zip.tooLarge');
+  // 先拒绝不支持的压缩方式，再打开文件流，避免留下无人处理的异步错误。
+  if (entry.compression !== 0 && entry.compression !== 8) {
+    throw new PanelError('server.files.zip.unsupportedCompression', { name: entry.name });
+  }
+  const dataStart = zipEntryDataStart(zipPath, entry);
+
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  const sink = new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      bytes += chunk.length;
+      // 不信任中央目录里的声明大小，按实际解压字节数再次限流。
+      if (bytes > maxBytes) {
+        callback(new PanelError('server.files.zip.tooLarge'));
+        return;
+      }
+      chunks.push(Buffer.from(chunk));
+      callback();
+    },
+  });
+  const source = createZipEntrySource(zipPath, entry, dataStart);
+  if (entry.compression === 0) {
+    await pipeline(source, sink, { signal });
+  } else {
+    await pipeline(source, createInflateRaw(), sink, { signal });
+  }
+  if (bytes !== entry.uncompressedSize) throw new PanelError('server.files.zip.entrySizeMismatch', { name: entry.name });
+  return Buffer.concat(chunks);
 }

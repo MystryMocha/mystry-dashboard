@@ -13,6 +13,7 @@ import configMessages from './config';
 import filesMessages from './files';
 import backupsMessages from './backups';
 import tasksMessages from './tasks';
+import multiplayerMessages from './multiplayer';
 import serverMessages from './server';
 
 export default {
@@ -30,5 +31,6 @@ export default {
   ...filesMessages,
   ...backupsMessages,
   ...tasksMessages,
+  ...multiplayerMessages,
   ...serverMessages,
 };

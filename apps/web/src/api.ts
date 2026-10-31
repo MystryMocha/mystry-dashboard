@@ -5,6 +5,14 @@ import type {
   ExistingServerSourceListResult,
   FileDownloadTicketResult,
   FileDownloadTicketStatusResult,
+  FrpEndpoint,
+  FrpEndpointInput,
+  FrpRuntimeInfo,
+  InstanceTunnel,
+  InstanceTunnelInput,
+  InstanceLan,
+  InstanceLanInput,
+  LanRuntimeInfo,
   JavaRuntimeListResult,
   JavaDetectResult,
   ImportPreviewInfo,
@@ -327,6 +335,61 @@ export async function detectDefaultJava() {
 /** 当前节点清单；第一阶段只使用内置本机节点的主机内存。 */
 export async function listNodes() {
   return api<NodeInfo[]>('/api/nodes');
+}
+
+export async function listFrpEndpoints() {
+  return api<FrpEndpoint[]>('/api/frp/endpoints');
+}
+
+export async function createFrpEndpoint(input: FrpEndpointInput) {
+  return api<FrpEndpoint>('/api/frp/endpoints', { method: 'POST', json: input });
+}
+
+export async function deleteFrpEndpoint(id: string) {
+  await api<unknown>(`/api/frp/endpoints/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function getFrpRuntime() {
+  return api<FrpRuntimeInfo>('/api/frp/runtime');
+}
+
+export async function installFrpRuntime() {
+  return api<FrpRuntimeInfo>('/api/frp/runtime', { method: 'POST' });
+}
+
+export async function getLanRuntime() {
+  return api<LanRuntimeInfo>('/api/lan/runtime');
+}
+
+export async function installLanRuntime() {
+  return api<LanRuntimeInfo>('/api/lan/runtime', { method: 'POST' });
+}
+
+export async function getInstanceLan(instanceId: string) {
+  return api<InstanceLan>(instanceApi(instanceId, '/lan'));
+}
+
+export async function saveInstanceLan(instanceId: string, input: InstanceLanInput) {
+  return api<InstanceLan>(instanceApi(instanceId, '/lan'), { method: 'PUT', json: input });
+}
+
+export async function fetchFriendLanInstructions(instanceId: string): Promise<string> {
+  const text = await api<string>(instanceApi(instanceId, '/lan/friend'));
+  return typeof text === 'string' ? text : '';
+}
+
+export async function getInstanceTunnel(instanceId: string) {
+  return api<InstanceTunnel>(instanceApi(instanceId, '/tunnel'));
+}
+
+export async function saveInstanceTunnel(instanceId: string, input: InstanceTunnelInput) {
+  return api<InstanceTunnel>(instanceApi(instanceId, '/tunnel'), { method: 'PUT', json: input });
+}
+
+/** 朋友配置只有几 KB，走普通文本响应；大文件下载仍必须用票据流。 */
+export async function fetchFriendTunnelConfig(instanceId: string): Promise<string> {
+  const text = await api<string>(instanceApi(instanceId, '/tunnel/friend-config'));
+  return typeof text === 'string' ? text : '';
 }
 
 /** 固定 DATA_DIR/imports 交接区中的已有服务端候选。 */

@@ -9,6 +9,8 @@ import systemMessages from './server/system';
 import tasksMessages from './server/tasks';
 import jvmMessages from './server/jvm';
 import backupsMessages from './server/backups';
+import frpMessages from './server/frp';
+import lanMessages from './server/lan';
 import type en from '../en/server';
 
 export default {
@@ -22,4 +24,6 @@ export default {
   ...tasksMessages,
   ...jvmMessages,
   ...backupsMessages,
+  ...frpMessages,
+  ...lanMessages,
 } satisfies Record<keyof typeof en, string>;

@@ -9,6 +9,10 @@ import { setLocalePreference } from '../src/i18n';
 import { resetRouteFocusForTests } from '../src/hooks/useRouteFocus';
 
 vi.mock('@xterm/xterm', () => ({ Terminal: class {
+  // ConsolePanel 创建终端前会写 xterm 的全局读屏文案，模拟类必须带这个静态对象。
+  static strings = { promptLabel: '', tooMuchOutput: '' };
+  // 切换读屏模式时会写 options.screenReaderMode。
+  options = { screenReaderMode: false };
   loadAddon() {} open() {} dispose() {} clear() {} selectAll() {} write() {} writeln() {} reset() {}
   getSelection() { return ''; }
   clearSelection() {}
