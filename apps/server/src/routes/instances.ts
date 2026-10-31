@@ -12,6 +12,8 @@ import {
   updateInstance,
 } from '../services/instance-service.js';
 import { deleteInstanceBackups } from '../services/backup-service.js';
+import { removeInstanceFrp } from '../services/frp-manager.js';
+import { removeInstanceLan } from '../services/lan-manager.js';
 import {
   isInstanceOperationConflictError,
   isInstanceStopPendingError,
@@ -105,6 +107,8 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
   app.delete<{ Params: { id: string }; Querystring: { keepBackups?: string } }>('/api/instances/:id', async (req, reply) => {
     try {
       await deleteInstance(req.params.id);
+      await removeInstanceFrp(req.params.id);
+      await removeInstanceLan(req.params.id);
     } catch (err) {
       return sendRouteError(reply, err);
     }

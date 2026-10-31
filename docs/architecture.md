@@ -85,7 +85,7 @@ mystry-dashboard/
 ### 入口 `apps/server/src/index.ts`
 
 - 注册 CORS、JWT、multipart、WebSocket、静态资源（`frontend-assets.ts`：发送构建时生成的 `.br` / `.gz` 预压缩副本，`/assets/*` 长期缓存，`index.html` 每次校验）。
-- 挂载路由：`auth`、`instances`、`files`、`cores`、`console`、`system`、`nodes`、`launcher`。
+- 挂载路由：`auth`、`instances`、`files`、`backups`、`cores`、`console`、`system`、`nodes`、`frp`、`lan`、`launcher`。
 - 健康检查：`GET /api/health`。
 
 ### 路由层 `apps/server/src/routes/`
@@ -99,6 +99,8 @@ mystry-dashboard/
 | `console.ts` | `/api/instances/:id/console-ticket`、`/ws/console/:id` | 控制台 ticket 与 WebSocket |
 | `system.ts` | `/api/system/java`、`/api/system/java-runtimes` | PATH `java` 状态和本机运行时探测 |
 | `nodes.ts` | `/api/nodes/*` | 本机/远程节点列表与管理（阶段一） |
+| `frp.ts` | `/api/frp/*`、`/api/instances/:id/tunnel` | 官方 frpc 联机。不接受可执行路径或原始配置 |
+| `lan.ts` | `/api/lan/*`、`/api/instances/:id/lan` | 官方 EasyTier 虚拟局域网。不接受可执行路径或原始配置 |
 | `launcher.ts` | `/api/launcher/shutdown` | PanelManager 本机令牌关闭通道 |
 
 路由的错误响应统一经 `src/http-errors.ts` 的 `sendRouteError`：服务层已知错误（排队任务过多、面板正在关闭、上传超限、预览失效、重命名冲突）映射为对应状态码，其余用路由给定的默认状态码。
@@ -164,6 +166,10 @@ DATA_DIR/
 ├── imports/
 │   └── <目录名>/
 ├── cache/cores/
+├── frp/<实例 id>/
+├── lan/<实例 id>/
+├── runtimes/frp/<版本>/
+├── runtimes/easytier/<版本>/
 └── uploads/
 ```
 
@@ -195,6 +201,10 @@ DATA_DIR/
 
 共享包的 `jvm-config.ts` 负责直接参数与 Java argfile 解析、内存公式、版本化预设和结构化诊断。数据库不保存配置器字段，只继续保存规范化 `jvmArgs` 字符串。普通 jar 将解析后的 JVM 参数直接放在 `-jar` 前；Forge / NeoForge 在启动前把同一规范参数重写为 `user_jvm_args.txt`，再组合面板控制的两个 argfile 和 `nogui`。
 
+联机穿透另起一个官方 `frpc` 子进程，工作目录是 `DATA_DIR/frp/<实例 id>`，环境同样经过 `getMinecraftChildEnv()`。它只在实例处于运行中且联机已启用时存在；实例停止、崩溃或面板关闭时退出。面板不管理 frps。
+
+虚拟局域网另起一个官方 `easytier-core` 子进程，工作目录是 `DATA_DIR/lan/<实例 id>`，环境同样经过 `getMinecraftChildEnv()`。它只在实例处于运行中且虚拟局域网已启用时存在；实例停止、崩溃或面板关闭时退出。面板不提供公共虚拟网络，也不接受用户粘贴的 EasyTier 配置。
+
 ## 前端结构
 
 | 路径 | 说明 |
@@ -219,6 +229,7 @@ DATA_DIR/
 - `/` — 实例总览
 - `/deploy` — 一键部署
 - `/import` — 同机目录交接或 zip 导入
+- `/multiplayer` — 联机。选择实例后，用分段切换虚拟局域网或 frp
 - `/nodes` — 本机环境（当前只有内置本机节点）
 - `/instances/:id/*` — 实例详情 Tab
 

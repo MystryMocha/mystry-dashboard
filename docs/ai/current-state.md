@@ -14,6 +14,8 @@
 - 首次 setup、登录和 Bearer JWT 认证；控制台通过短期一次性 ticket 建立 WebSocket。
 - 控制台前端按 ECMA-48 / ISO 6429 对 INFO（绿）、WARN（黄）、ERROR（红）等日志级别着色；服务端仍转发原始纯文本。
 - 多实例创建、编辑、删除、启动、停止、强制停止、重启和控制台命令。
+- 实例联机穿透：侧栏「部署与维护」中的「联机」（`/multiplayer`）用分段在「虚拟局域网」和「frp 穿透」之间切换，一次只显示一种，切换不改变另一种已保存的设置。frp 代管钉死版本的官方 frpc（Windows x64 与 Linux x64）。用户先选择实例，再填写自己的 frp 服务器地址、端口和令牌；面板只把该实例的 `server-port` 从 `127.0.0.1` 转出去，不暴露面板端口，也不接受可执行路径或原始配置。公网模式给出朋友可复制的加入地址；`stcp` / `xtcp` 可下载只应交给朋友的 visitor 配置。令牌不出现在 API 响应里。`server-ip` 绑定具体网卡时拒绝启动。实例停止或面板关闭时结束对应 frpc。见 D-023。
+- 实例虚拟局域网：同一「联机」页的分段可打开钉死版本的官方 EasyTier（Windows x64 与 Linux x64）。面板为该实例生成独立网络名和密钥，只放行游戏 TCP 端口；朋友用锁定命令加入虚拟地址。密钥不出现在状态接口里。`server-ip` 绑定具体网卡时拒绝启动。实例停止或面板关闭时结束对应进程。见 D-024。
 - Vanilla、Paper、Fabric、Forge、NeoForge 部署及 ZIP 导入。
 - ZIP 导入采用二阶段预览：Web 先调用 `/api/import/previews` 流式上传并验证中央目录，只读取根目录或单一顶层目录中最大 64 KiB 的 `user_jvm_args.txt`；确认后同一临时 ZIP 才交给后台任务。预览随机 ID 按用户隔离、默认 30 分钟、每用户一个/全局两个，队列满保留，取消/过期/关闭/重启清理且不写数据库。旧的一阶段 `POST /api/import` 已删除。
 - 面板外已有服务端交接：只列出 `DATA_DIR/imports` 直接子目录，只读扫描并以后台任务复制到新托管实例；拒绝 symlink/junction、特殊文件、ownership marker、超配额和磁盘空间不足，源目录始终保留。
@@ -23,8 +25,8 @@
 - 部署/导入/ZIP 先写入 `DATA_DIR/.mystry-staging/<taskId>/<instanceId>`（marker 含 task/instance/token），校验通过后原子移动到 `instances/<id>`；崩溃恢复只清理 marker 匹配且任务未完成的 staging，**不会**因 `result.instanceId` 删除已注册实例或最终目录（见 D-016）。
 - 实例 start/stop/restart/delete/adopt 互斥：启停、删除与接管走同一把实例操作锁；start 在首个异步步骤前占位 `starting`；普通 stop 只写 `stop\n`，超时返回仍在停止中且**不**隐式 `SIGKILL`；`force=1` 为唯一强杀路径（UI 二次确认）。面板关闭先标记 `shuttingDown` 并等待未完成的实例操作；`start` 在 spawn 前若已关闭则取消，避免留下无主 Java。
 - `server.properties` 读写、Java 状态检测、本机节点列表。
-- 界面参照 Apple HIG / Liquid Glass：导航层（悬浮侧栏、叠在内容上方的工具栏、底部标签栏、菜单、弹层、任务中心、页面底部悬浮操作栏）使用 `backdrop-filter` 毛玻璃，内容层为实色卡片与分组列表；页面以大标题开头，内容区滚动超过 12px 后工具栏显示页面标题与毛玻璃底；布尔型 `server.properties` 用 `role="switch"` 开关，实例子页和导入方式用分段控件，部署核心为 `radiogroup` 卡片（方向键切换）。文件页为面包屑 + 列表，「…」菜单提供下载/编辑/重命名/删除，新建文件夹改为弹窗。共用组件：`PageHeader`、`StatusPill`、`CoreIcon`、`BrandMark`。
-- 响应式布局：`<=1180px` 部署页指引改为单列、总览指标改为两列；`<=1024px` 侧栏收进左上角「打开导航菜单」（侧栏从工具栏下方展开，工具栏浮在遮罩之上，关闭按钮始终可点），任务中心按钮只显示图标；`<=768px` 出现底部悬浮标签栏（总览/部署/导入/本机，展开导航菜单时一并 inert），内容边距 16px，实例卡片单列，对话框改为底部升起的面板，控制台高度随视口调整；`<=560px` 指标圆环移到卡片右上角；`<=480px` 实例分段按钮隐藏图标。总览保留「一键部署 / 导入已有服务端」入口；实例卡片通过名称链接或「进入管理」导航，启动/停止与更多操作独立；「更多操作」面板挂到 body 并以 fixed 定位在按钮下方右对齐展开（下方空间不足时翻到上方），不受卡片 `overflow` 裁剪，支持方向键、Home/End、Escape 与 Tab 关闭并恢复焦点。断点实现以 CSS 为准，真实宽度与各外观/强调色的视觉验收需另行运行，不能由构建或 DOM 测试推定。
+- 界面参照 Apple HIG / Liquid Glass：导航层（悬浮侧栏、叠在内容上方的工具栏、底部标签栏、菜单、弹层、任务中心、页面底部悬浮操作栏）使用 `backdrop-filter` 毛玻璃，内容层为实色卡片与分组列表；页面以大标题开头，内容区滚动超过 12px 后工具栏显示页面标题与毛玻璃底；布尔型 `server.properties` 用 `role="switch"` 开关，实例子页、导入方式和联机方式用分段控件，部署核心为 `radiogroup` 卡片（方向键切换）。文件页为面包屑 + 列表，「…」菜单提供下载/编辑/重命名/删除，新建文件夹改为弹窗。共用组件：`PageHeader`、`StatusPill`、`CoreIcon`、`BrandMark`。
+- 响应式布局：`<=1180px` 部署页指引改为单列、总览指标改为两列；`<=1024px` 侧栏收进左上角「打开导航菜单」（侧栏从工具栏下方展开，工具栏浮在遮罩之上，关闭按钮始终可点），任务中心按钮只显示图标；`<=768px` 出现底部悬浮标签栏（总览/部署/导入/联机/本机，展开导航菜单时一并 inert），内容边距 16px，实例卡片单列，对话框改为底部升起的面板，控制台高度随视口调整；`<=560px` 指标圆环移到卡片右上角；`<=480px` 实例分段按钮隐藏图标。总览保留「一键部署 / 导入已有服务端」入口；实例卡片通过名称链接或「进入管理」导航，启动/停止与更多操作独立；「更多操作」面板挂到 body 并以 fixed 定位在按钮下方右对齐展开（下方空间不足时翻到上方），不受卡片 `overflow` 裁剪，支持方向键、Home/End、Escape 与 Tab 关闭并恢复焦点。断点实现以 CSS 为准，真实宽度与各外观/强调色的视觉验收需另行运行，不能由构建或 DOM 测试推定。
 - 路由无障碍（`App.tsx` 的 `RouteAnnouncer`、`hooks/useDocumentTitle.ts`、`hooks/useRouteFocus.ts`）：浏览器标签标题按路由设为「页面名 · Mystry Dashboard」，实例页为「标签 · 实例名 · Mystry Dashboard」，随界面语言更新；用户操作后的换页把焦点移到新页面 `h1`（脚本设 `tabindex=-1`），首屏加载与登录态重定向不移动焦点，同一实例内切换标签焦点留在标签上；未知顶层路由重定向到 `/`，未知实例子路由（如 `/instances/:id/console`）重定向到该实例控制台。
 - `PanelManager.cmd`（Windows）与 `PanelManager.sh`（Linux / WSL 源码）只负责检查 Node、安装依赖和构建，启停、状态、日志都转调 `scripts/portable/mystryctl.mjs`，经本机 `POST /api/launcher/shutdown` 安全关闭。Windows 默认配置为仓库根 `.env`。三个入口的提示跟随系统语言（中文系统用中文，其余英文），`MYSTRY_LANG` 可覆盖。
 - 跨平台 `mystryctl`：自动随机配置、后台 PID 指纹、健康检查、安全停止、状态和日志；便携包使用包内 Node，Linux 源码入口在依赖/构建预检后复用同一控制器。无参数且 stdin 为终端时显示交互菜单（通常是双击启动），菜单命令执行完或出错后等待回车再退出，避免窗口一闪而过；带参数调用与非终端 stdin 不暂停（`portable:test` 覆盖）。

@@ -168,6 +168,44 @@ export function initDb(): void {
       verified_at TEXT NOT NULL,
       available INTEGER NOT NULL DEFAULT 1
     );
+
+    CREATE TABLE IF NOT EXISTS frp_endpoints (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      server_addr TEXT NOT NULL,
+      server_port INTEGER NOT NULL,
+      visit_host TEXT NOT NULL DEFAULT '',
+      transport TEXT NOT NULL,
+      tls INTEGER NOT NULL DEFAULT 1,
+      token TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS instance_tunnels (
+      instance_id TEXT PRIMARY KEY,
+      endpoint_id TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      mode TEXT NOT NULL,
+      remote_port INTEGER,
+      visitor_bind_port INTEGER NOT NULL,
+      secret_key TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE,
+      FOREIGN KEY (endpoint_id) REFERENCES frp_endpoints(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS instance_lans (
+      instance_id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      network_name TEXT NOT NULL,
+      network_secret TEXT NOT NULL,
+      ipv4_octet INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE
+    );
   `);
 
   // 兼容已有数据库：补齐实例目录安全字段

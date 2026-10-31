@@ -176,4 +176,6 @@ ZIP 导入的预检结果暂存在 `uploads/.tmp-import-preview-*`，按登录�
 - `/api` → `http://127.0.0.1:3000`
 - `/ws` → `ws://127.0.0.1:3000`
 
+若本机 3000 被系统保留或拒绝绑定，可在运行 `npm run dev:web` 前设置环境变量 `MYSTRY_DEV_API_PORT`（PowerShell 示例：`$env:MYSTRY_DEV_API_PORT = "3100"`），让代理指向面板实际监听的端口；面板本身仍须已在该端口监听（由 `PORT` 决定）。该变量只影响 Vite 开发代理的目标端口，不影响面板自身的监听与配置。
+
 生产构建后由后端 `@fastify/static` 提供静态文件，无需 Vite。`npm run build -w @mystry/web` 会在 `vite build` 后为文本资源生成 `.br` / `.gz` 预压缩副本，后端按浏览器的 `Accept-Encoding` 直接发送；带 hash 的 `/assets/*` 允许浏览器缓存一年，`index.html` 每次重新校验，升级后刷新即可拿到新版本。反向代理无需再额外压缩这些资源。

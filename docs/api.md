@@ -355,6 +355,38 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 
 有效请求返回 **202**，响应包含 `accepted`、运行实例数、运行/排队任务数和是否已经处于关闭过程。令牌无效返回 401，非本机来源返回 403，当前启动方式未提供安全关闭回调时返回 503。该接口使用独立限流，并在响应发送完成后开始停止任务、Minecraft 实例、HTTP 服务和数据库。
 
+## 联机穿透 `/api/frp`
+
+面板只代管钉死版本的官方 `frpc`（`FRP_CLIENT_VERSION`）。用户提供自己的 frp 服务器地址、端口和令牌；请求不能提交可执行路径或原始配置。令牌只写不回读，响应里只有 `tokenSet`。本地转发固定到 `127.0.0.1` 上的实例 `server-port`，不会开放面板端口。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/frp/runtime` | `{ version, installed, platformSupported }` |
+| POST | `/api/frp/runtime` | 下载并校验钉死的官方客户端；已安装则直接返回 |
+| GET | `/api/frp/endpoints` | 穿透服务器列表。不含令牌 |
+| POST | `/api/frp/endpoints` | 创建。Body 见 `createFrpEndpointBodySchema` |
+| PATCH | `/api/frp/endpoints/:id` | 更新。省略 `token` 或空字符串表示不改令牌。成功后会按新配置重新同步已启用的隧道 |
+| DELETE | `/api/frp/endpoints/:id` | 删除。仍有实例启用着使用它的联机时 **409**；已关闭的隧道设置会随端点一起清除 |
+| GET | `/api/instances/:id/tunnel` | 该实例的联机状态 `InstanceTunnel` |
+| PUT | `/api/instances/:id/tunnel` | 保存并按当前实例状态启动或停止 `frpc` |
+| GET | `/api/instances/:id/tunnel/friend-config` | 内网模式的朋友配置 `friend-frpc.toml`。文件含令牌，只应交给要一起玩的人 |
+
+`mode` 为 `public` 时朋友直接连接公网端口，必须提供 `remotePort`。`stcp` 经穿透服务器中转，`xtcp` 在双方客户端之间打洞；这两种模式由朋友在自己的电脑上运行官方 `frpc` 和下载的配置，再连接本机 `127.0.0.1`。`server-ip` 若指向某一块网卡，隧道不会启动。实例停止、崩溃或面板关闭时，对应的 `frpc` 会退出。面板重启后不会恢复已经消失的游戏进程，需要重新启动实例。
+
+## 虚拟局域网 `/api/lan`
+
+面板只代管钉死版本的官方 EasyTier（`EASYTIER_VERSION`）。打开后，这个实例加入一个只属于它的虚拟局域网，朋友用面板给出的一条锁定命令加入。请求不能提交可执行路径、原始配置或网络密钥；密钥由面板生成，只出现在给朋友的说明里，不出现在状态接口里。本地只放行实例的 `server-port`，不开放面板端口，也不转发语音和查询用的 UDP。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/lan/runtime` | `{ version, installed, platformSupported }` |
+| POST | `/api/lan/runtime` | 下载并校验钉死的官方客户端；已安装则直接返回 |
+| GET | `/api/instances/:id/lan` | 该实例的虚拟局域网状态 `InstanceLan`。不含网络密钥 |
+| PUT | `/api/instances/:id/lan` | 保存开关。Body 只有 `{ enabled }` |
+| GET | `/api/instances/:id/lan/friend` | 给朋友的说明。含网络密钥，只应交给要一起玩的人 |
+
+游戏没在运行时客户端不会启动，但已保存的开关和将要使用的虚拟地址仍会返回。`server-ip` 若指向某一块网卡，虚拟局域网不会启动。实例停止、崩溃或面板关闭时，对应的 EasyTier 会退出。Windows 上面板和朋友的命令都需要管理员权限，否则创建不了虚拟网卡。
+
 ## 节点 `/api/nodes`
 
 阶段一仅保证本机节点 `local` 可用。远程节点创建由共享常量 `REMOTE_NODE_CREATION_ENABLED` 控制，当前为关闭。

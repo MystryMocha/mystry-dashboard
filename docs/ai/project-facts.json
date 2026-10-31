@@ -35,6 +35,14 @@
       "register": "fileRoutes"
     },
     {
+      "file": "frp.ts",
+      "register": "frpRoutes"
+    },
+    {
+      "file": "lan.ts",
+      "register": "lanRoutes"
+    },
+    {
       "file": "instances.ts",
       "register": "instanceRoutes"
     },

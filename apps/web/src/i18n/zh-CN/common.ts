@@ -45,6 +45,7 @@ export default {
   'nav.workspace': '当前工作台',
   'nav.deploy': '一键部署',
   'nav.import': '导入服务端',
+  'nav.multiplayer': '联机',
   'nav.machine': '本机环境',
   'nav.group.servers': '服务器',
   'nav.group.maintain': '部署与维护',

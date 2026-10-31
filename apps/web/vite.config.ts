@@ -21,9 +21,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://127.0.0.1:3000',
+      // 本机 3000 被系统拒绝绑定时，可用 MYSTRY_DEV_API_PORT 指向实际的面板端口。
+      '/api': `http://127.0.0.1:${process.env.MYSTRY_DEV_API_PORT || '3000'}`,
       '/ws': {
-        target: 'ws://127.0.0.1:3000',
+        target: `ws://127.0.0.1:${process.env.MYSTRY_DEV_API_PORT || '3000'}`,
         ws: true,
       },
     },

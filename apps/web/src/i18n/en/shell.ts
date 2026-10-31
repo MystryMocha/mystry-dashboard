@@ -13,6 +13,7 @@ export default {
   'shell.tabBar.overview': 'Overview',
   'shell.tabBar.deploy': 'Deploy',
   'shell.tabBar.import': 'Import',
+  'shell.tabBar.multiplayer': 'Join',
   'shell.tabBar.machine': 'Machine',
   'shell.user.role': 'Administrator',
   'shell.user.signOut': 'Sign Out',

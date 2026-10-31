@@ -17,6 +17,8 @@ import { coreRoutes } from './routes/cores.js';
 import { consoleRoutes } from './routes/console.js';
 import { systemRoutes } from './routes/system.js';
 import { nodeRoutes } from './routes/nodes.js';
+import { frpRoutes } from './routes/frp.js';
+import { lanRoutes } from './routes/lan.js';
 import {
   launcherRoutes,
   type LauncherRouteOptions,
@@ -39,6 +41,8 @@ import {
   initializeImportPreviews,
   shutdownImportPreviews,
 } from './services/import-preview-service.js';
+import { attachFrpLifecycle, shutdownFrp } from './services/frp-manager.js';
+import { attachLanLifecycle, shutdownLan } from './services/lan-manager.js';
 
 export type BuildAppOptions = LauncherRouteOptions & {
   isShuttingDown?: () => boolean;
@@ -71,6 +75,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
     // 还原换目录现场必须先于任务恢复处理：任务恢复会清理 staging 目录。
     const backupRecovery = recoverInterruptedBackups();
     const taskRecovery = recoverInterruptedTasks();
+    attachFrpLifecycle();
+    attachLanLifecycle();
     const previewRecovery = initializeImportPreviews();
 
   const app = Fastify({
@@ -188,6 +194,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
   await app.register(consoleRoutes);
   await app.register(systemRoutes);
   await app.register(nodeRoutes);
+  await app.register(frpRoutes);
+  await app.register(lanRoutes);
   await app.register(launcherRoutes, {
     prepareShutdown: options.prepareShutdown,
     startShutdown: options.startShutdown,
@@ -274,6 +282,8 @@ async function main() {
           '部分 Minecraft 实例在宽限期内未能完全退出，未发送 SIGKILL',
         );
       }
+      await shutdownFrp();
+      await shutdownLan();
       if (app) await closeAppWithGrace(app);
       releasePanelDataLock();
       getDb().close();

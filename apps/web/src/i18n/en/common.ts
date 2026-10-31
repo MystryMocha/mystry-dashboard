@@ -43,6 +43,7 @@ export default {
   'nav.workspace': 'Current Workspace',
   'nav.deploy': 'Quick Deploy',
   'nav.import': 'Import Server',
+  'nav.multiplayer': 'Multiplayer',
   'nav.machine': 'This Machine',
   'nav.group.servers': 'Servers',
   'nav.group.maintain': 'Deploy & Maintain',

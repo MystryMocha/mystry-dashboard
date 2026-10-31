@@ -14,6 +14,7 @@ export default {
   'shell.tabBar.overview': '总览',
   'shell.tabBar.deploy': '部署',
   'shell.tabBar.import': '导入',
+  'shell.tabBar.multiplayer': '联机',
   'shell.tabBar.machine': '本机',
   'shell.user.role': '管理员',
   'shell.user.signOut': '退出登录',

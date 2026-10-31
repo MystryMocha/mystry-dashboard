@@ -1,0 +1,20 @@
+/** 服务端消息（虚拟局域网）的简体中文翻译；英文模板在 packages/shared/src/messages/lan.ts。 */
+export default {
+  'server.lan.invalidParams': '虚拟局域网设置包含不支持的字段或格式不正确',
+  'server.lan.instanceNotFound': '实例不存在',
+  'server.lan.notEnabled': '请先打开虚拟局域网，再下载给朋友的说明',
+  'server.lan.serverIpBlocked': '请先清空 server.properties 里的 server-ip。游戏必须在这台电脑的所有地址上接受连接，不能只监听回环或某一块网卡',
+  'server.lan.localPortIsPanel': '游戏端口和面板端口相同。打开虚拟局域网前请先修改 server-port',
+  'server.lan.localPortInvalid': 'server.properties 里的游戏端口不是有效端口',
+  'server.lan.clientMissing': '尚未安装官方 EasyTier 客户端',
+  'server.lan.platformUnsupported': '这个操作系统没有钉死版本的官方 EasyTier 客户端',
+  'server.lan.downloadFailed': '官方 EasyTier 客户端下载失败',
+  'server.lan.checksumMismatch': '下载的 EasyTier 客户端与钉死的校验和不一致，已丢弃',
+  'server.lan.extractFailed': '官方 EasyTier 客户端压缩包无法解包',
+  'server.lan.notRunning': '请先启动实例再打开虚拟局域网。只有游戏在运行时朋友才能连接',
+  'server.lan.startFailed': '虚拟局域网客户端启动失败',
+  'server.lan.exited': '虚拟局域网客户端已停止',
+  'server.lan.needsAdmin': '虚拟网卡需要管理员权限。请以管理员身份启动面板后再试',
+  'server.lan.waitingForAddress': '虚拟局域网还在等待地址。完成之前朋友无法加入',
+  'server.lan.addressMismatch': '虚拟局域网得到了意外的地址，已保持关闭',
+} as const;

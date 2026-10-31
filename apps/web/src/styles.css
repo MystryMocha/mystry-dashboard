@@ -2082,7 +2082,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .environment-status.is-missing .status-dot { background: var(--c-orange); }
 
 /* ========== 导入 ========== */
-.import-mode-switch { align-self: flex-start; }
+.import-mode-switch,
+.multiplayer-mode-switch { align-self: flex-start; }
 .import-handoff-note ol { margin: 6px 0; padding-left: 18px; line-height: 1.75; font-size: 13.5px; }
 .import-handoff-note p { color: var(--label-2); font-size: 13px; }
 .import-zip-lead { font-size: 13.5px; }
@@ -2330,7 +2331,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .instance-meta { margin-top: 4px; }
   .hub-tabs { align-self: stretch; }
   .segmented-item { padding: 0 12px; }
-  .import-mode-switch { align-self: stretch; }
+  .import-mode-switch,
+  .multiplayer-mode-switch { align-self: stretch; }
 
   .form-card { padding: 18px 16px; }
   .action-bar { border-radius: var(--radius-lg); padding: 10px 10px 10px 16px; }
@@ -2395,9 +2397,11 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   /* 四个实例分段在手机上去掉图标，保证一行放下。 */
   .hub-tabs .segmented-item { gap: 0; padding: 0 8px; }
   .hub-tabs .segmented-item svg { display: none; }
-  /* 英文「Import from a Local Folder」较长，窄屏下导入方式切换同样去掉图标。 */
-  .import-mode-switch .segmented-item { gap: 0; padding: 0 10px; }
-  .import-mode-switch .segmented-item svg { display: none; }
+  /* 英文标签较长，窄屏下导入和联机方式切换同样去掉图标。 */
+  .import-mode-switch .segmented-item,
+  .multiplayer-mode-switch .segmented-item { gap: 0; padding: 0 10px; }
+  .import-mode-switch .segmented-item svg,
+  .multiplayer-mode-switch .segmented-item svg { display: none; }
   .page-header-actions { width: 100%; }
   .page-header-actions > .btn { flex: 1 1 auto; }
   .instance-actions { width: 100%; }

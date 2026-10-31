@@ -2,6 +2,24 @@ import type { DetectedJvmConfig } from './jvm-config.js';
 import type { PanelMessage, PanelMessageParams, ServerMessageKey } from './messages/index.js';
 
 export * from './messages/index.js';
+export type {
+  FrpEndpoint,
+  FrpEndpointInput,
+  FrpRuntimeInfo,
+  FrpTransport,
+  InstanceTunnel,
+  InstanceTunnelInput,
+  TunnelMode,
+  TunnelStatus,
+} from './frp.js';
+export type {
+  InstanceLan,
+  InstanceLanInput,
+  LanRuntimeInfo,
+  LanStatus,
+} from './lan.js';
+export { EASYTIER_VERSION, LAN_STATUSES } from './lan.js';
+export { FRP_CLIENT_VERSION, FRP_TRANSPORTS, TUNNEL_MODES, TUNNEL_STATUSES } from './frp.js';
 
 /** 本机资源快照；空值表示尚无有效采样，不等同于零占用。 */
 export interface DashboardMetrics {
@@ -387,6 +405,10 @@ export {
   fileDownloadQuerySchema,
   restoreBackupBodySchema,
   backupDownloadQuerySchema,
+  createFrpEndpointBodySchema,
+  updateFrpEndpointBodySchema,
+  updateInstanceTunnelBodySchema,
+  updateInstanceLanBodySchema,
 } from './schemas.js';
 
 export type {

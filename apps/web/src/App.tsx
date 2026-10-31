@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { FolderDown, LayoutGrid, LogOut, Menu, Rocket, Server, Terminal, X } from 'lucide-react';
+import { FolderDown, Globe, LayoutGrid, LogOut, Menu, Rocket, Server, Terminal, X } from 'lucide-react';
 import { useAuth } from './auth';
 import { useI18n, type MessageKey } from './i18n';
 import { BrandMark } from './components/BrandMark';
@@ -26,6 +26,9 @@ const ImportPage = lazy(() =>
 const NodesPage = lazy(() =>
   import('./pages/NodesPage').then(({ NodesPage }) => ({ default: NodesPage })),
 );
+const MultiplayerPage = lazy(() =>
+  import('./pages/MultiplayerPage').then(({ MultiplayerPage }) => ({ default: MultiplayerPage })),
+);
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
@@ -39,6 +42,7 @@ function pageTitleKeyFor(pathname: string): MessageKey {
   if (pathname.startsWith('/deploy')) return 'nav.deploy';
   if (pathname.startsWith('/import')) return 'nav.import';
   if (pathname.startsWith('/nodes')) return 'nav.machine';
+  if (pathname.startsWith('/multiplayer')) return 'nav.multiplayer';
   return 'shell.pageTitle.fallback';
 }
 
@@ -219,6 +223,10 @@ function Shell({ children }: { children: React.ReactNode }) {
             <FolderDown size={17} aria-hidden="true" />
             <span>{t('nav.import')}</span>
           </NavLink>
+          <NavLink to="/multiplayer" className={navClass}>
+            <Globe size={17} aria-hidden="true" />
+            <span>{t('nav.multiplayer')}</span>
+          </NavLink>
           <NavLink to="/nodes" className={navClass}>
             <Server size={17} aria-hidden="true" />
             <span>{t('nav.machine')}</span>
@@ -287,6 +295,10 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavLink to="/import" className={tabClass}>
             <FolderDown size={21} aria-hidden="true" />
             <span>{t('shell.tabBar.import')}</span>
+          </NavLink>
+          <NavLink to="/multiplayer" className={tabClass}>
+            <Globe size={21} aria-hidden="true" />
+            <span>{t('shell.tabBar.multiplayer')}</span>
           </NavLink>
           <NavLink to="/nodes" className={tabClass}>
             <Server size={21} aria-hidden="true" />
@@ -357,6 +369,14 @@ export function App() {
           element={
             <RequireAuth>
               <ImportPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/multiplayer"
+          element={
+            <RequireAuth>
+              <MultiplayerPage />
             </RequireAuth>
           }
         />

@@ -31,6 +31,8 @@
 | D-020 | Adopted | Web 界面参照 Apple HIG / Liquid Glass：毛玻璃只用于导航层，内容层用实色卡片；主题改为「外观（自动/浅色/深色）× 强调色」，替代原 Mystry / Codex / Grok 六主题 | 与系统深浅色一致、强调色可选且对比度按外观分别校准；旧 `mystry_theme` 在渲染前自动迁移，不丢用户选择；仍不加载外部字体与样式。`theme.ts`、`index.html`、`styles.css`、`ThemeToggle.tsx` |
 | D-021 | Adopted | Web 界面多语言：`en` 为默认与缺键回落语言，另有 `zh-CN`、`zh-TW`（台湾惯用词）；零依赖自研 `t` / 复数 / 富文本 / Intl 格式化，不引入 i18n 库；偏好 `auto`（跟随浏览器）/ `en` / `zh-CN` / `zh-TW` 存本机浏览器 | 不新增依赖与下载、首屏不闪烁（index.html 预写 `lang`）、键类型检查保证两种语言同步；服务端消息多语言当时未纳入，已由 D-022 补上。`apps/web/src/i18n/`、`LanguageToggle.tsx`、`index.html` |
 | D-022 | Adopted | 服务端面向用户的消息只返回稳定消息键与参数，英文模板放 `@mystry/shared`，其他语言由 Web 翻译；响应保留英文 `error` 文本，任务新增 `message_i18n` / `error_i18n` 可空列 | 服务端不需要知道浏览器语言，脚本与旧客户端仍能读英文；旧任务原文兼容显示；不引入迁移框架，只做启动期补列。`packages/shared/src/messages/`、`apps/server/src/utils/errors.ts`、`task-service.ts`、`db.ts` |
+| D-023 | Adopted | 联机只代管钉死版本的官方 frpc，转发实例游戏端口 | 不运行 frps，不暴露面板，不接受可执行路径或原始配置；令牌不回读，子进程使用脱敏环境；`frp-manager.ts`、`frp-runtime.ts` |
+| D-024 | Adopted | 没有公网服务器时，用钉死版本的官方 EasyTier 给单个实例开虚拟局域网 | 不暴露面板，不接受可执行路径或原始配置；网络密钥不回读，子进程使用脱敏环境，只放行游戏 TCP 端口；`lan-manager.ts`、`lan-runtime.ts` |
 
 ## 更新规则
 

@@ -13,6 +13,8 @@ import { INSTANCE_MESSAGES } from './instance.js';
 import { JVM_MESSAGES } from './jvm.js';
 import { SYSTEM_MESSAGES } from './system.js';
 import { TASKS_MESSAGES } from './tasks.js';
+import { FRP_MESSAGES } from './frp.js';
+import { LAN_MESSAGES } from './lan.js';
 
 export {
   AUTH_MESSAGES,
@@ -25,6 +27,8 @@ export {
   JVM_MESSAGES,
   SYSTEM_MESSAGES,
   TASKS_MESSAGES,
+  FRP_MESSAGES,
+  LAN_MESSAGES,
 };
 
 export const SERVER_MESSAGES = {
@@ -38,6 +42,8 @@ export const SERVER_MESSAGES = {
   ...TASKS_MESSAGES,
   ...JVM_MESSAGES,
   ...BACKUPS_MESSAGES,
+  ...FRP_MESSAGES,
+  ...LAN_MESSAGES,
 } as const;
 
 export type ServerMessageKey = keyof typeof SERVER_MESSAGES;
