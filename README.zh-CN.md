@@ -6,7 +6,7 @@
 
 面板是独立的 Node.js 程序，不是客户端模组，无需安装 Fabric / Forge 来运行面板自身。
 
-[快速开始](docs/getting-started.md) · [文档中心](docs/README.md) · [分步教程](docs/tutorials.md) · [界面导览](docs/product-intro/README.md) · [贡献指南](CONTRIBUTING.md)
+[快速开始](docs/getting-started.md) · [文档中心](docs/README.md) · [分步教程](docs/tutorials.md) · [贡献指南](CONTRIBUTING.md)
 
 ## 功能
 

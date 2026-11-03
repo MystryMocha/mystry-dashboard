@@ -59,3 +59,10 @@
 - 当前处理：服务端信号处理器挂到进程退出，关闭途中的重复信号只记日志；控制器用 `on` 监听，Windows 不转发 SIGINT。
 - 后续发现：修复后在 Linux 实机验收中，浏览器开着面板时 10 轮里有 2 轮卡在 `app.close()`：Java 已退出、端口已关，但浏览器残留的连接一直不断，锁不释放。没开浏览器的测试测不出来。现在 `app.close()` 最多等 5 秒，之后强制断开服务端跟踪的全部 TCP 连接（含已升级的 WebSocket），测试可用 `MYSTRY_TEST_CLOSE_GRACE_MS` 缩短。
 - 预防：验证前台停止时要对整个进程组发信号（或真实按 Ctrl+C），并确认安全关闭日志、退出码和数据目录锁已释放；至少有一轮要开着浏览器面板（含实例控制台页）。回归测试见 `scripts/smoke/panel-smoke.test.mjs` 与 `scripts/portable/portable.test.mjs`。
+
+## KF-011 Web 构建在 Windows 上报 esbuild 临时文件 `Access is denied`
+
+- 现象：`vite build` 报 `[vite:esbuild-transpile] remove ...\Temp\esbuild-<hash>: Access is denied`，在沙箱外、用户自己的终端里也能复现，`%TEMP%` 里会留下约 1 MB 的 `esbuild-*` 残留文件。和 KF-003 的报错文本相似，但不是沙箱问题。
+- 原因：esbuild 遇到超过 1 MiB 的输入时，会经 `%TEMP%` 下的临时文件中转，读完后删除；杀毒软件扫描占用该文件时删除失败。前端曾不分包，主代码块未压缩前超过 1 MiB，构建就必然走这条路径。
+- 当前处理：`apps/web/vite.config.ts` 用 `manualChunks` 把 React、xterm、图标和两个中文语言包各自拆成独立代码块，每块远小于 1 MiB。
+- 预防：新增大依赖或大段文案后，留意构建输出中最大 JS 代码块的大小；不要靠给杀毒软件加排除项来"修好"构建。

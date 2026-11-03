@@ -6,7 +6,7 @@ A self-hosted web panel for running game servers on your own machine. Start and 
 
 The first public preview supports **Minecraft: Java Edition** servers. Mystry Dashboard is a standalone Node.js app, not a client mod: you don't need Fabric or Forge to run the panel itself.
 
-[Screenshots](#screenshots) · [Quick start](#quick-start) · [Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md)
+[Quick start](#quick-start) · [Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md)
 
 > **Preview software.** The current version is `0.2.0-preview.2`. Expect rough edges, and read [Scope and limitations](#scope-and-limitations) before relying on it.
 
@@ -31,12 +31,6 @@ The first public preview supports **Minecraft: Java Edition** servers. Mystry Da
 |---|---|
 | Minecraft: Java Edition | Supported in the preview |
 | Left 4 Dead 2 | Planned |
-
-## Screenshots
-
-![Instances overview](docs/product-intro/screenshots/02-dashboard.png)
-
-The screenshot above shows the Simplified Chinese interface from `0.2.0-preview.2`. More pages are in the [interface tour](docs/product-intro/README.md).
 
 ## Quick start
 
