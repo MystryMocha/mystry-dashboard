@@ -8,6 +8,7 @@ import { forceSecureSensitiveFile } from '../utils/data-dir-permissions.js';
 import { PanelError } from '../utils/errors.js';
 import { downloadFromPlan, toRuntimeDownloadError } from './core-download.js';
 import { createDownloadPlan, getDownloadSource, githubReleaseCandidates } from './download-sources.js';
+import { readZipEntryBuffer } from './zip-service.js';
 
 const ARCHIVE_BYTE_LIMIT = 32 * 1024 * 1024;
 const BINARY_BYTE_LIMIT = 24 * 1024 * 1024;
@@ -128,10 +129,29 @@ async function downloadArchive(asset: FrpcAsset, destination: string): Promise<v
   forceSecureSensitiveFile(destination);
 }
 
-function extractMember(archivePath: string, member: string): Promise<Buffer> {
+/** 从压缩包取出 frpc。archivePath 带 .partial 后缀，所以按包含 .zip 判断格式。 */
+export async function extractMember(archivePath: string, member: string): Promise<Buffer> {
   if (member.includes('..') || member.startsWith('/') || member.includes('\\')) {
-    return Promise.reject(new PanelError('server.frp.extractFailed'));
+    throw new PanelError('server.frp.extractFailed');
   }
+  return path.basename(archivePath).includes('.zip')
+    ? extractZipMember(archivePath, member)
+    : extractTarMember(archivePath, member);
+}
+
+/** Windows 包是 ZIP，用面板自带的解析：PATH 里可能是 Git 带的 GNU tar，它读不了 zip，还会把 C: 当成远程主机。 */
+async function extractZipMember(archivePath: string, member: string): Promise<Buffer> {
+  let bytes: Buffer;
+  try {
+    bytes = await readZipEntryBuffer(archivePath, member, BINARY_BYTE_LIMIT, undefined, ARCHIVE_BYTE_LIMIT);
+  } catch (error) {
+    throw new PanelError('server.frp.extractFailed', undefined, { cause: error });
+  }
+  if (bytes.length === 0) throw new PanelError('server.frp.extractFailed');
+  return bytes;
+}
+
+function extractTarMember(archivePath: string, member: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const child = spawn('tar', ['-xOf', archivePath, member], {
       windowsHide: true,
