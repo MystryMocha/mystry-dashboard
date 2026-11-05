@@ -1,11 +1,11 @@
 # 便携预览版
 
-仓库当前版本为 `v0.2.0-preview.2`，发布流程为其配置了两个自带 Node.js 22、生产依赖和已构建前后端的便携目标：
+仓库当前版本为 `v0.2.0-preview.3`，发布流程为其配置了两个自带 Node.js 22、生产依赖和已构建前后端的便携目标：
 
 | 系统 | 文件 |
 |------|------|
-| Windows x64 | `mystry-v0.2.0-preview.2-windows-x64.zip` |
-| Linux x64 | `mystry-v0.2.0-preview.2-linux-x64.tar.gz` |
+| Windows x64 | `mystry-v0.2.0-preview.3-windows-x64.zip` |
+| Linux x64 | `mystry-v0.2.0-preview.3-linux-x64.tar.gz` |
 
 Linux ARM64 与 macOS（Intel / Apple Silicon）打包脚本仍可本地使用，但不纳入本 Preview 公开发布矩阵，留待后续版本。
 
@@ -42,7 +42,7 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 Windows PowerShell 可先计算压缩包哈希，再与 `SHA256SUMS` 中对应行比较：
 
 ```powershell
-Get-FileHash .\mystry-v0.2.0-preview.2-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\mystry-v0.2.0-preview.3-windows-x64.zip -Algorithm SHA256
 ```
 
 也可在 WSL 或 Gpg4win 中执行与 Linux 相同的 `gpg --verify`。
@@ -68,7 +68,7 @@ Windows：
 Linux：
 
 ```bash
-tar -xzf mystry-v0.2.0-preview.2-linux-x64.tar.gz
+tar -xzf mystry-v0.2.0-preview.3-linux-x64.tar.gz
 cd mystry-dashboard
 chmod +x mystryctl
 ./mystryctl start
@@ -132,7 +132,7 @@ mystry-dashboard/
 - Java 8/17/21/25 不随包提供，也不会自动下载；用户可正确配置系统 `PATH` 作为默认运行时，或启动面板后扫描并选择其他已安装版本。
 - 登录仍使用浏览器本地 JWT；Cookie 会话、CSRF、TOTP 和公网部署向导尚未实现。
 - 默认只监听 `127.0.0.1`。不要把面板端口直接暴露到不可信公网。
-- 2026-10-21 的官方 registry 生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 来自 React Router 6 系公告；当前 SPA 不使用 SSR hydration，导航目标来自固定站内路径或服务端生成的实例 ID，但这些公告仍作为 Preview 残余风险记录，并须在每次发布时重新审计。此前 `fastify`、`fast-jwt`、`@fastify/busboy`、`fast-uri`、`brace-expansion` 的 high 公告已通过升级传递依赖（`fastify` 5.12.7、`fast-jwt` 6.3.5、`@fastify/busboy` 3.2.3、`fast-uri` 3.1.9 / 4.2.3、`brace-expansion` 5.0.12）消除。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入便携包，升级需跨大版本，暂未处理。
+- 2026-11-05 的官方 registry 生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 来自 React Router 6 系公告（GHSA-wrjc-x8rr-h8h6 反斜杠开放重定向、GHSA-337j-9hxr-rhxg SSR hydration 构造注入），修复版只在 7.18 以上；当前 SPA 不使用 SSR hydration，导航目标来自固定站内路径或服务端生成的实例 ID，但这些公告仍作为 Preview 残余风险记录，并须在每次发布时重新审计。本次已把 `react-router-dom` / `react-router` 升到 6.30.6 消除 GHSA-jjmj-jmhj-qwj2，并通过 `@fastify/static` 10.1.10 带动 `glob` 14.0.3 / `minimatch` 11.0.4 消除 GHSA-3g3m-2fjr-6pw4 与 GHSA-g3hv-75wg-m249。此前 `fastify`、`fast-jwt`、`@fastify/busboy`、`fast-uri`、`brace-expansion` 的 high 公告已通过升级传递依赖（`fastify` 5.12.7、`fast-jwt` 6.3.5、`@fastify/busboy` 3.2.3、`fast-uri` 3.1.9 / 4.2.3、`brace-expansion` 5.0.12）消除。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入便携包，升级需跨大版本，暂未处理。
 
 ## 发布维护
 
@@ -144,7 +144,7 @@ npm run verify
 npm run audit:production
 npm run build
 node scripts/portable/package-portable.mjs --platform win32 --arch x64 --output-dir release
-node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.2-windows-x64.zip
+node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.3-windows-x64.zip
 ```
 
 以上流程可一键完成（在目标平台原生运行，自动使用当前平台与架构，并生成压缩包、SHA256SUMS 与 SBOM）：
