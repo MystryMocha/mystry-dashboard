@@ -160,6 +160,33 @@ ZIP 导入的预检结果暂存在 `uploads/.tmp-import-preview-*`，按登录�
 
 `MYSTRY_HOME` 和 `MYSTRY_CONFIG_PATH` 用于确定配置文件位置，因此不能依赖该配置文件自己改变其加载位置；应由 `mystryctl`、shell 或进程环境在启动前设置。便携用户通常不需要手动设置这些变量。
 
+## npm 下载源
+
+源码启动器安装依赖时使用的下载地址。便携版自带依赖，不用设置。
+
+```powershell
+.\PanelManager.cmd mirror
+.\PanelManager.cmd mirror npmmirror
+```
+
+第一条查看当前选择和可选项，第二条切换。Linux / WSL 用 `./PanelManager.sh mirror`；Windows 双击 `PanelManager.cmd` 后也可以在菜单里选。
+
+| 名称 | 下载地址 | 说明 |
+|------|----------|------|
+| `default` | npm 自身配置 | 默认值，启动器不额外指定地址 |
+| `official` | `https://registry.npmjs.org/` | npm 官方，国际 |
+| `npmmirror` | `https://registry.npmmirror.com/` | 中国大陆 |
+| `tencent` | `https://mirrors.cloud.tencent.com/npm/` | 腾讯云，中国大陆 |
+| `huawei` | `https://repo.huaweicloud.com/repository/npm/` | 华为云，中国大陆 |
+
+选择保存在仓库根目录的 `config/npm-mirror`，这个文件不进 Git。切换后下次安装依赖时生效；要马上重装，运行 `rebuild`。
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `MYSTRY_NPM_MIRROR` | 未设置 | 临时指定下载源，优先于保存的选择，取值同上 |
+
+换源不影响安装结果：`package-lock.json` 只记录官方地址，npm 安装时换成所选的源，下载内容仍按锁文件里的 `integrity` 校验。
+
 ## 安全建议
 
 1. **不要**将面板直接暴露到公网；默认仅绑定回环地址。

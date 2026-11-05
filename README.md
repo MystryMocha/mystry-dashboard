@@ -20,6 +20,7 @@ The first public preview supports **Minecraft: Java Edition** servers. Mystry Da
 | Quick deploy | Deploy Vanilla, Paper, Fabric, Forge or NeoForge. Paper and the latest stable version are preselected. |
 | Import | Upload a ZIP (checked before import) or copy in an existing server folder from the same machine. The original folder is left untouched. |
 | Backups | One-click backup of a whole server folder, even while it's running. Download, upload, delete and restore backups; a restore backs up the current files first by default. |
+| Multiplayer | Let friends outside your network join a server, through a virtual LAN (no public IP or account needed) or your own frp server. Only the game port is opened, never the panel. |
 | Java and JVM | Detect installed Java runtimes, get a warning when the Java version doesn't match the Minecraft version, and set memory with presets (including G1 and Aikar's flags) or custom arguments. |
 | Tasks and monitoring | A task center tracks deploys, imports and backups. The overview shows host CPU, memory and disk, plus CPU and memory for each server process. |
 | Interface | First-run admin setup and JWT sign-in. Apple-style design with auto, light and dark appearance, five accent colours, and layouts for phones and tablets. |
@@ -58,7 +59,7 @@ chmod +x PanelManager.sh
 
 The source launcher checks your environment, installs dependencies, generates a config file with random secrets, then builds and starts the panel. Open `http://127.0.0.1:3000` in your browser. During manual development, the Vite dev server runs at `http://127.0.0.1:5173`.
 
-Launcher commands: `start`, `foreground`, `stop`, `restart`, `rebuild` (source only), `status`, `logs`, `open` and `help`. Running it without a command opens an interactive menu.
+Launcher commands: `start`, `foreground`, `stop`, `restart`, `rebuild` (source only), `status`, `logs`, `open`, `mirror` (source only) and `help`. `PanelManager.cmd` and `mystryctl` open an interactive menu when run without a command; `PanelManager.sh` starts the panel.
 
 **Java is not included.** Install the Java version your Minecraft server needs. By default a server uses the `java` on the panel's `PATH`, or you can pick a runtime the panel has detected and verified.
 
@@ -68,6 +69,8 @@ Launcher commands: `start`, `foreground`, `stop`, `restart`, `rebuild` (source o
 | 1.20.5 to 1.21.x | 21 |
 | 1.17 to 1.20.4 | 17 |
 | 1.16.5 and earlier | 8 |
+
+**Slow dependency downloads?** The source launchers install dependencies with npm. Run `.\PanelManager.cmd mirror` or `./PanelManager.sh mirror` to choose a download source: npm's own configuration (the default), the official registry, or a mainland China mirror (npmmirror, Tencent Cloud or Huawei Cloud). See [npm download source](docs/configuration.md#npm-下载源). Portable packages bundle their dependencies, so they don't need this.
 
 ### Portable preview
 
@@ -86,7 +89,16 @@ On Windows PowerShell, use `npm.cmd` instead of `npm`. The server also serves th
 
 ## Configuration
 
-Settings are read from a `.env` file. The launchers create one for you; for manual setup, copy [`.env.example`](.env.example).
+Which config file the panel reads depends on how you run it:
+
+| How you run it | Config file |
+|---|---|
+| Portable package (`mystryctl`) | `config/panel.env` in the package folder |
+| Linux / WSL, from source (`PanelManager.sh`) | `config/panel.env` in the repository |
+| Windows, from source (`PanelManager.cmd`) | `.env` in the repository root |
+| Manual (`npm run dev:server`, `npm start`) | `.env` in the repository root |
+
+The launchers create the file and generate its secrets for you. For manual setup, copy [`.env.example`](.env.example).
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -104,11 +116,12 @@ Upload sizes, timeouts, concurrency and other limits are all configurable. The f
 - To import a server that's already on the machine, stop it and copy it into the data directory's `imports/` folder first. See [import from a local folder](docs/user-guide.md#从本机文件夹导入).
 - Tasks can queue. If the panel restarts, unfinished tasks are marked as failed and do not resume.
 - Backups cover one server folder at a time. There are no scheduled backups or retention rules yet, and the panel database (`panel.db`) is not included. See [backup and migration](docs/tutorials.md#教程-8备份与迁移).
+- Multiplayer has a few requirements. On Windows, the virtual LAN only works if you start the panel as administrator, and your friends must run their command as administrator too. If a direct connection fails, traffic is relayed through shared community nodes, encrypted with the network key. frp needs a server of your own. Anyone with the network key or the friend config can reach that game port, so share them only with people you trust. See [multiplayer](docs/user-guide.md#联机).
 - There is one admin account. Sessions can't be listed or revoked, and there is no 2FA or role system yet.
 
 ## Security
 
-The panel listens on `127.0.0.1` only by default. It can read and write server files and run processes, so read the [security policy](SECURITY.md) and the [configuration guide](docs/configuration.md) before exposing it to a network. Never commit `.env`, secrets or the `data/` folder. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+The panel listens on `127.0.0.1` only by default. It can read and write server files and run processes, so read the [security policy](SECURITY.md) and the [configuration guide](docs/configuration.md) before exposing it to a network. Never commit `.env`, `config/panel.env`, other secrets or the `data/` folder. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
 
 ## Project structure
 

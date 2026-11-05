@@ -164,8 +164,8 @@ Authorization: Bearer <token>
 | GET | `/files/download-ticket/:ticket/status` | 查询所属下载票据的生命周期状态 |
 | DELETE | `/files/download-ticket/:ticket` | 取消尚未开流的所属下载票据 |
 | POST | `/files/upload?path=` | multipart 单文件 |
-| GET | `/config/server.properties` | 键值对象 |
-| PUT | `/config/server.properties` | Body：`Record<string, string>` |
+| GET | `/config/server.properties` | 键值对象；`difficulty`、`gamemode` 的数字写法转成名称（如 `1` → `easy`） |
+| PUT | `/config/server.properties` | Body：`Record<string, string>`。`difficulty`、`gamemode` 提交名称；文件原来是数字或实例版本为 1.13 及更早时写回数字。非 ASCII 字符写成 `\uXXXX` |
 
 所有 `path` 均为**相对于 `DATA_DIR/instances/<id>` 的逻辑路径**，服务端会校验并拒绝 `..` 逃逸；这些接口不能访问实例根目录以外的文件。下载仅允许普通文件；`Content-Disposition` 仅使用 basename（含 RFC 5987 `filename*`）。无 ticket 的下载使用 Bearer JWT；浏览器原生下载可先使用 Bearer JWT 调用 `POST .../download-ticket`，再以 `GET .../download?path=&ticket=` 触发流式下载（该 GET 不带 Authorization header）。
 

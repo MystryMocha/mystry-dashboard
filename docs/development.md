@@ -90,6 +90,7 @@ npm run build -w @mystry/shared
 - 路由、环境变量、workspaces、入口或验证脚本变化时，必须同步 `docs/ai/project-facts.json`。
 - 当前事实、计划、已否决方案和历史故障必须分层记录，不得把旧计划当成已实现能力。
 - 快速检查：`npm run knowledge:check`；检查器负向测试：`npm run knowledge:test`。
+- 锁文件只记录官方地址。本机 npm 配了镜像时，装完新依赖运行 `npm run lockfile:fix`。
 - 完整门禁：`npm run verify`。Windows PowerShell 从终端直接执行时使用 `npm.cmd run verify`。
 
 ## 本地验证清单

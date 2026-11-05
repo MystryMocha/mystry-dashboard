@@ -42,6 +42,8 @@ chmod +x mystryctl
 3. 没有 `.env` 时从 `.env.example` 复制一份。
 4. 交给跨平台控制器 `mystryctl`：生成互不相同的随机密钥、检查 Java、后台启动面板并打开浏览器。
 
+依赖下载慢或失败时，运行 `.\PanelManager.cmd mirror` 换一个 npm 下载源，见 [npm 下载源](configuration.md#npm-下载源)。
+
 双击会显示菜单，语言跟随系统（中文系统显示中文，其他显示英文，可用 `MYSTRY_LANG` 指定，见[启动器语言](configuration.md#启动器语言)）。也可以直接使用：
 
 ```powershell
@@ -50,6 +52,7 @@ chmod +x mystryctl
 .\PanelManager.cmd stop
 .\PanelManager.cmd restart
 .\PanelManager.cmd rebuild
+.\PanelManager.cmd mirror
 .\PanelManager.cmd status
 .\PanelManager.cmd logs
 .\PanelManager.cmd open

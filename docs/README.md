@@ -10,6 +10,7 @@ Mystry Dashboard 是独立的 Minecraft Java 服务端 Web 管理面板，在本
 | 创建首个管理员或处理登录问题 | [初始化管理员](getting-started.md#初始化管理员) | [启动与认证排查](getting-started.md#故障排查) |
 | 开出第一个服务端 | [分步教程](tutorials.md) | [使用指南](user-guide.md) |
 | 导入、配置或管理实例 | [使用指南](user-guide.md) | [备份与迁移](tutorials.md#教程-8备份与迁移) |
+| 让朋友加入服务器 | [联机](user-guide.md#联机) | [安全政策](../SECURITY.md) |
 | 修改监听、密钥或资源限制 | [配置说明](configuration.md) | [安全政策](../SECURITY.md) |
 | 修改代码或提交 PR | [开发指南](development.md) | [贡献指南](../CONTRIBUTING.md)、[验证矩阵](ai/verification.md) |
 | 接入接口或理解实现 | [API 参考](api.md) | [架构设计](architecture.md) |
