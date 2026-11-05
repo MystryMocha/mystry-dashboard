@@ -187,6 +187,8 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
               <option value="" disabled>
                 {t('config.select.placeholder')}
               </option>
+              {/* 文件里的值不在选项内时原样显示，否则下拉框会误显示成第一项。 */}
+              {raw && !field.options?.some((option) => option.value === raw) && <option value={raw}>{raw}</option>}
               {field.options?.map((option) => (
                 <option key={option.value} value={option.value}>
                   {t(option.labelKey)}

@@ -476,16 +476,17 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     '/api/instances/:id/config/server.properties',
     { attachValidation: true, schema: { body: serverPropertiesBodySchema } },
     async (req, reply) => {
-      if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
+      const instance = getInstance(req.params.id);
+      if (!instance) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       if (req.validationError) return validationMessage(reply, 'server.files.validation.serverProperties');
       try {
         rejectWhileRestoring(req.params.id);
         assertTextFileWithinLimit(req.params.id, 'server.properties');
-        const preview = previewServerPropertiesWrite(req.params.id, req.body);
+        const preview = previewServerPropertiesWrite(req.params.id, req.body, instance.mcVersion);
         if (Buffer.byteLength(preview, 'utf8') > maxTextFileBytes) {
           return reply.code(400).send(panelErrorBody('server.files.serverProperties.tooLarge', { limit: maxTextFileBytes }));
         }
-        writeServerProperties(req.params.id, req.body);
+        writeServerProperties(req.params.id, req.body, instance.mcVersion);
         return { ok: true };
       } catch (err) {
         return sendRouteError(reply, err);
