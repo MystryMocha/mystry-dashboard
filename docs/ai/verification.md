@@ -9,6 +9,8 @@ Windows PowerShell：
 ```powershell
 npm.cmd run knowledge:check
 npm.cmd run knowledge:test
+npm.cmd run lockfile:check
+npm.cmd run mirror:test
 npm.cmd run portable:test
 npm.cmd run windows:test
 npm.cmd run linux:test
@@ -52,6 +54,7 @@ npm.cmd run test:smoke
 | 变更 | 最低自动验证 | 额外人工验证 |
 |---|---|---|
 | 纯知识库或文档 | `knowledge:check`、`knowledge:test`；提交前 `verify` | 标题锚点、阅读路径和事实源可读 |
+| npm 下载源或锁文件 | `lockfile:check`、`mirror:test`、`windows:test`、`linux:test` | 用小包实测所选下载源能完成 `npm ci` |
 | shared 类型/schema | shared build、typecheck、build | 请求与响应兼容 |
 | 服务端路由/认证 | typecheck、安全自检、`test:smoke`、build | health、setup/login、授权失败 |
 | 文件/路径/ZIP | 安全自检、build | 列表、读写、上传、下载及逃逸拒绝 |

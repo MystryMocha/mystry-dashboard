@@ -60,6 +60,9 @@
 - 一键部署默认选中 Paper，选定核心后自动拉取版本列表并默认选中最新正式版；Paper Build、Fabric Loader/Installer、Forge/NeoForge 版本均为可选，留空时由服务端解析为最新（Paper 优先稳定构建）。部署、ZIP/目录导入、创建空实例三处的 EULA 同意默认不勾选；部署页必须勾选后才能提交，导入和空实例可不勾选（不勾选时启动不改写已有 `eula.txt`）。部署页右侧为新手指引（选核心与进服步骤），不再展示内部实现说明。
 - 面向用户的文案避免内部术语（英文对应叫法见 `apps/web/src/i18n/en/common.ts` 与贡献指南）：侧栏「本机环境」（`/nodes`，页面不再展示远程集群锁定卡）、「从本机文件夹导入」（`DATA_DIR/imports`）、「系统默认 Java」（PATH 中的 `java`）、「最大内存」（`-Xmx`）；导入与部分启动、落地错误改为「导入文件夹」「部署临时文件」「Forge/NeoForge 启动参数文件」等说法。
 
+- `server.properties`：`config-service.ts` 把数字形式的 `difficulty`、`gamemode` 读成名称，文件原来是数字或实例版本为 1.13 及更早时写回数字；非 ASCII 值写成 `\uXXXX`。
+- npm 下载源：源码启动器的 `mirror` 命令和 `scripts/npm-mirror.mjs` 决定 `npm ci` 的 `--registry`，选择保存在 `config/npm-mirror`。`package-lock.json` 只记录官方地址，由 `lockfile:check` 把关。面板自身下载核心、frpc、EasyTier 的来源不受这个开关影响。
+
 主要事实源：
 
 - `apps/server/src/index.ts`

@@ -34,6 +34,7 @@
 | D-023 | Adopted | 联机只代管钉死版本的官方 frpc，转发实例游戏端口 | 不运行 frps，不暴露面板，不接受可执行路径或原始配置；令牌不回读，子进程使用脱敏环境；`frp-manager.ts`、`frp-runtime.ts` |
 | D-024 | Adopted | 没有公网服务器时，用钉死版本的官方 EasyTier 给单个实例开虚拟局域网 | 不暴露面板，不接受可执行路径或原始配置；网络密钥不回读，子进程使用脱敏环境，只放行游戏 TCP 端口；`lan-manager.ts`、`lan-runtime.ts` |
 | D-025 | Adopted | 下载来源是界面设置（`panel_settings` 表，默认 `official`），不是环境变量；官方来源绝不访问第三方；国内来源只在校验值已知时使用镜像，来源地址写死在代码里，不接受用户自定义 | 面向不改配置文件的用户，切换不用重启；第三方连接必须由用户主动选择。BMCLAPI 的 Maven 会跳到社区节点、公共 GitHub 代理运营方不可知，而这些文件随后会被执行，所以 `createDownloadPlan()` 在没有校验值时丢弃镜像；Forge/NeoForge 的 `.sha256` 只取自官方 Maven。Forge `--mirror` 不覆盖 `libraries.minecraft.net`、NeoForge 不使用它，改用预取并依赖安装器跳过 SHA-1 相符文件。`download-sources.ts`、`core-download.ts`、`installer-prefetch.ts` |
+| D-026 | Adopted | `package-lock.json` 只记录官方地址，npm 下载源在安装时选择 | 不提交镜像地址，公开用户和 CI 不被固定到第三方镜像；需要镜像的人用启动器 `mirror` 命令，内容仍由 `integrity` 校验 |
 
 ## 更新规则
 
