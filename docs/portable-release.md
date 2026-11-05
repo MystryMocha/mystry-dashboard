@@ -176,3 +176,5 @@ Windows 用户也可直接双击 `scripts/portable/package-release.cmd`。参数
 `release` Environment 应启用 **Required reviewers**（人工审批），并限制仅受保护分支上的发布 workflow 可访问；此项须由仓库管理员在 GitHub Settings 中配置并留存记录。
 
 正式打标签前先将版本提交合入 `main`，再在该提交创建并推送标签。流水线不会自动创建标签，也不会发布不在 `main` 中的提交。
+
+Release 正文取自 `.github/portable-preview-notes.md`，包内 `README.txt` 由 `package-portable.mjs` 生成。两者都是英文在前、中文在后；更新审计结论或其他事实时两段要一起改，`npm run portable:test` 会比对其中的日期、版本号和公告编号。

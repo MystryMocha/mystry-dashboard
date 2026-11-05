@@ -10,6 +10,7 @@ import test from 'node:test';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createChecksums } from './create-checksums.mjs';
+import { createPortableReadme } from './package-portable.mjs';
 import { createReleaseMetadata } from './package-release.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
@@ -32,6 +33,45 @@ test('便携入口只调用包内 Node 运行时', async () => {
   assert.doesNotMatch(windows, /\bnpm(?:\.cmd)?\b/i);
   assert.match(unix, /runtime\/bin\/node/);
   assert.doesNotMatch(unix, /\bnpm\b/i);
+});
+
+/** 取出两种语言都必须一致的事实：日期、版本号、地址、公告编号和审计计数。 */
+function releaseFacts(text) {
+  const pattern = /\d{4}-\d{2}-\d{2}|GHSA-[\w-]+|\b\d+(?:\.\d+)+\b|\b\d+ (?:critical|high|moderate)\b/g;
+  return (text.match(pattern) ?? []).sort();
+}
+
+test('Release 正文英文在前，中英两段事实一致', async () => {
+  const notes = await fsp.readFile(
+    path.join(scriptDir, '..', '..', '.github', 'portable-preview-notes.md'),
+    'utf8',
+  );
+  const [english, chinese, ...rest] = notes.split('\n## 简体中文\n');
+  assert.equal(rest.length, 0);
+  assert.match(english, /^## English$/m);
+  assert.ok(chinese, '缺少简体中文段落');
+  assert.ok(releaseFacts(english).length > 0);
+  assert.deepEqual(releaseFacts(english), releaseFacts(chinese));
+});
+
+test('包内 README.txt 英文在前，中英两段事实一致', async () => {
+  const directory = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-readme-'));
+  try {
+    const destination = path.join(directory, 'README.txt');
+    await createPortableReadme(destination, '9.9.9-test');
+    const content = await fsp.readFile(destination, 'utf8');
+    const [english, chinese, ...rest] = content.split(/\n-{20,}\n/);
+    assert.equal(rest.length, 0);
+    assert.match(english, /^Mystry Dashboard 9\.9\.9-test Portable Preview$/m);
+    assert.match(chinese, /^Mystry Dashboard 9\.9\.9-test 便携预览版$/m);
+    assert.deepEqual(releaseFacts(english), releaseFacts(chinese));
+    for (const text of [english, chinese]) {
+      assert.match(text, /start, foreground, stop, restart, status, logs, open, help/);
+      assert.match(text, /chmod \+x mystryctl/);
+    }
+  } finally {
+    await fsp.rm(directory, { recursive: true, force: true });
+  }
 });
 
 /**
