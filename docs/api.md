@@ -68,6 +68,10 @@ X-Setup-Token: <SETUP_TOKEN>
 |------|------|------|------|
 | GET | `/api/system/java` | 是 | Java 状态对象 |
 | GET | `/api/system/java-runtimes` | 是 | `{ runtimes: JavaRuntimeInfo[] }` |
+| GET | `/api/system/download-source` | 是 | `{ source: 'official' \| 'china' }` |
+| PUT | `/api/system/download-source` | 是 | 请求体 `{ source }`，返回保存后的值；其他取值返回 400 |
+
+下载来源默认 `official`，保存在 `panel.db`，保存后新发起的下载立即使用，不需要重启。各类文件实际走哪里见[架构说明](architecture.md#下载来源)。
 
 Java 状态响应准确结构为：
 

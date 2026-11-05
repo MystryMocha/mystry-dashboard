@@ -4,6 +4,7 @@ import { Check } from 'lucide-react';
 import type { TaskInfo } from '@mystry/shared';
 import { api, pollTask } from '../api';
 import { CoreIcon } from '../components/CoreIcon';
+import { DownloadSourceHint } from '../components/DownloadSourceSection';
 import { EulaCheckbox } from '../components/EulaCheckbox';
 import { ErrorSummary } from '../components/ErrorSummary';
 import { LazyScrollSelect } from '../components/LazyScrollSelect';
@@ -287,6 +288,7 @@ export function DeployPage() {
                   {t('deploy.form.forgeHelp')}
                 </p>
               )}
+              <DownloadSourceHint />
               {metadataError && <p className="error" role="alert">{t('deploy.form.metadataError', { error: metadataError })}</p>}
             </div>
           </section>

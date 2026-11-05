@@ -13,15 +13,16 @@ import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { PanelError, throwIfAborted } from '../utils/errors.js';
 import { ensureCoreCache, isUsableCoreCache } from './core-download.js';
 import { runInstaller, writeUserJvmArgs } from './core-installer.js';
+import { createDownloadPlan, getDownloadSource, officialCandidate, type DownloadPlan } from './download-sources.js';
+import { prefetchInstallerFiles } from './installer-prefetch.js';
 import {
   buildResolvedCoreCacheBasename,
-  forgeInstallerUrl,
   listForgeLoaders,
   listNeoForgeLoaders,
-  neoForgeInstallerUrl,
   resolveFabricJarUrl,
+  resolveInstallerDownload,
   resolvePaperDownload,
-  resolveVanillaServerUrl,
+  resolveVanillaDownload,
 } from './core-metadata.js';
 
 export async function deployCore(input: DeployCoreInput) {
@@ -68,10 +69,6 @@ export async function deployCore(input: DeployCoreInput) {
             throw new PanelError('server.deploy.loaderNoVersions', { coreType: input.coreType, mcVersion: input.mcVersion });
           }
 
-          const installerUrl =
-            input.coreType === 'forge'
-              ? forgeInstallerUrl(input.mcVersion, loaderVersion)
-              : neoForgeInstallerUrl(loaderVersion);
           const installerName =
             input.coreType === 'forge'
               ? `forge-${input.mcVersion}-${loaderVersion}-installer.jar`
@@ -89,11 +86,24 @@ export async function deployCore(input: DeployCoreInput) {
           } else {
             throwIfAborted(signal);
             report(15, { key: 'server.deploy.progress.downloadingInstaller' });
-            await ensureCoreCache(installerUrl, cachePath, (ratio) => {
-              report(15 + ratio * 40, { key: 'server.deploy.progress.downloadingInstallerPercent', params: { percent: Math.round(ratio * 100) } });
+            const plan = await resolveInstallerDownload(input.coreType, input.mcVersion, loaderVersion, signal);
+            await ensureCoreCache(plan, cachePath, installerName, (ratio, source) => {
+              report(15 + ratio * 40, {
+                key: 'server.deploy.progress.downloadingInstallerFrom',
+                params: { source, percent: Math.round(ratio * 100) },
+              });
             }, signal);
             throwIfAborted(signal);
             fs.copyFileSync(cachePath, installerDest);
+          }
+
+          if (getDownloadSource() === 'china') {
+            await prefetchInstallerFiles(installerDest, dir, signal, (done, total) => {
+              report(56 + (done / total) * 3, {
+                key: 'server.deploy.progress.prefetchingLibraries',
+                params: { done, total },
+              });
+            });
           }
 
           throwIfAborted(signal);
@@ -139,14 +149,14 @@ export async function deployCore(input: DeployCoreInput) {
 
           report(5, { key: 'server.deploy.progress.resolvingUrl' });
 
-          let downloadUrl: string;
+          let plan: DownloadPlan;
           let cacheBasename: string;
           if (input.coreType === 'vanilla') {
-            downloadUrl = await resolveVanillaServerUrl(input.mcVersion, signal);
+            plan = await resolveVanillaDownload(input.mcVersion, signal);
             cacheBasename = buildResolvedCoreCacheBasename('vanilla', input.mcVersion, {});
           } else if (input.coreType === 'paper') {
             const paper = await resolvePaperDownload(input.mcVersion, input.build, signal);
-            downloadUrl = paper.url;
+            plan = paper.plan;
             cacheBasename = buildResolvedCoreCacheBasename('paper', input.mcVersion, { build: paper.build });
           } else {
             const fabric = await resolveFabricJarUrl(
@@ -155,7 +165,8 @@ export async function deployCore(input: DeployCoreInput) {
               input.installerVersion,
               signal,
             );
-            downloadUrl = fabric.url;
+            // Fabric 的服务端 jar 由官方接口现场生成，BMCLAPI 不提供，始终走官方。
+            plan = createDownloadPlan([officialCandidate('FabricMC', fabric.url)]);
             cacheBasename = buildResolvedCoreCacheBasename('fabric', input.mcVersion, {
               loader: fabric.loader,
               installer: fabric.installer,
@@ -170,8 +181,11 @@ export async function deployCore(input: DeployCoreInput) {
           } else {
             throwIfAborted(signal);
             report(15, { key: 'server.deploy.progress.startingDownload' });
-            await ensureCoreCache(downloadUrl, cachePath, (ratio) => {
-              report(15 + ratio * 70, { key: 'server.deploy.progress.downloading', params: { percent: Math.round(ratio * 100) } });
+            await ensureCoreCache(plan, cachePath, cacheBasename, (ratio, source) => {
+              report(15 + ratio * 70, {
+                key: 'server.deploy.progress.downloadingFrom',
+                params: { source, percent: Math.round(ratio * 100) },
+              });
             }, signal);
             throwIfAborted(signal);
             fs.copyFileSync(cachePath, destJar);

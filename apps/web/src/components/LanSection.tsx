@@ -9,6 +9,7 @@ import {
   installLanRuntime,
   saveInstanceLan,
 } from '../api';
+import { DownloadSourceHint } from './DownloadSourceSection';
 import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n, type MessageKey } from '../i18n';
@@ -133,6 +134,7 @@ export function LanSection({ instanceId }: { instanceId: string }) {
           <button className="btn btn-primary" type="button" disabled={busy} onClick={() => void install()}>
             {t('multiplayer.lan.runtime.install')}
           </button>
+          <DownloadSourceHint />
         </div>
       )}
       {runtime?.installed && (

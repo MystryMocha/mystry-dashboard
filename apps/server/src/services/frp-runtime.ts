@@ -2,13 +2,12 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import { FRP_CLIENT_VERSION } from '@mystry/shared';
 import { config } from '../config.js';
 import { forceSecureSensitiveFile } from '../utils/data-dir-permissions.js';
 import { PanelError } from '../utils/errors.js';
-import { USER_AGENT } from './core-utils.js';
+import { downloadFromPlan, toRuntimeDownloadError } from './core-download.js';
+import { createDownloadPlan, getDownloadSource, githubReleaseCandidates } from './download-sources.js';
 
 const ARCHIVE_BYTE_LIMIT = 32 * 1024 * 1024;
 const BINARY_BYTE_LIMIT = 24 * 1024 * 1024;
@@ -66,7 +65,7 @@ export function frpcInstalled(): boolean {
 
 let installing: Promise<void> | null = null;
 
-/** 下载钉死版本的官方 frpc，校验压缩包摘要后只抽出客户端二进制。 */
+/** 下载钉死版本的官方 frpc（来源见下载来源设置），校验压缩包摘要后只抽出客户端二进制。 */
 export async function ensureFrpcInstalled(): Promise<void> {
   if (frpcInstalled()) return;
   if (!installing) {
@@ -85,6 +84,8 @@ async function installFrpc(): Promise<void> {
   const binaryPath = path.join(dir, asset.binaryName);
   const marker = path.join(dir, 'archive.sha256');
   try {
+    // 崩溃可能留下旧文件，而下载不会覆盖已存在的目标。
+    fs.rmSync(archivePath, { force: true });
     await downloadArchive(asset, archivePath);
     const digest = createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
     if (digest !== asset.sha256) throw new PanelError('server.frp.checksumMismatch');
@@ -106,33 +107,23 @@ async function installFrpc(): Promise<void> {
 }
 
 async function downloadArchive(asset: FrpcAsset, destination: string): Promise<void> {
-  const url = `https://github.com/fatedier/frp/releases/download/v${FRP_CLIENT_VERSION}/${asset.archive}`;
-  let response: Response;
+  const candidates = githubReleaseCandidates(
+    getDownloadSource(),
+    'fatedier/frp',
+    `v${FRP_CLIENT_VERSION}`,
+    asset.archive,
+  );
   try {
-    response = await fetch(url, {
-      headers: { 'user-agent': USER_AGENT },
-      signal: AbortSignal.timeout(config.coreDownloadTimeoutMs),
-      redirect: 'follow',
+    await downloadFromPlan(
+      createDownloadPlan(candidates, { algorithm: 'sha256', hex: asset.sha256 }),
+      destination,
+      { name: 'frp', maxBytes: ARCHIVE_BYTE_LIMIT },
+    );
+  } catch (error) {
+    throw toRuntimeDownloadError(error, {
+      failed: 'server.frp.downloadFailed',
+      mismatch: 'server.frp.checksumMismatch',
     });
-  } catch (error) {
-    throw new PanelError('server.frp.downloadFailed', undefined, { cause: error });
-  }
-  if (!response.ok || !response.body) throw new PanelError('server.frp.downloadFailed');
-  const contentLength = Number(response.headers.get('content-length') ?? '0');
-  if (Number.isFinite(contentLength) && contentLength > ARCHIVE_BYTE_LIMIT) {
-    throw new PanelError('server.frp.downloadFailed');
-  }
-  let received = 0;
-  const source = Readable.fromWeb(response.body as import('stream/web').ReadableStream);
-  source.on('data', (chunk: Buffer) => {
-    received += chunk.length;
-    if (received > ARCHIVE_BYTE_LIMIT) source.destroy(new PanelError('server.frp.downloadFailed'));
-  });
-  try {
-    await pipeline(source, fs.createWriteStream(destination, { mode: 0o600 }));
-  } catch (error) {
-    if (error instanceof PanelError) throw error;
-    throw new PanelError('server.frp.downloadFailed', undefined, { cause: error });
   }
   forceSecureSensitiveFile(destination);
 }

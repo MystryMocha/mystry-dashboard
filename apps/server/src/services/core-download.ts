@@ -1,12 +1,18 @@
 import fs, { createWriteStream } from 'node:fs';
 import path from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import { config } from '../config.js';
 import { createByteCounter } from '../utils/byte-counter.js';
-import { abortError, PanelError } from '../utils/errors.js';
+import { abortError, isPanelError, PanelError } from '../utils/errors.js';
 import { createTimeoutAbort, USER_AGENT } from './core-utils.js';
+import {
+  describeFailures,
+  type DownloadPlan,
+  type ExpectedDigest,
+  type SourceFailure,
+} from './download-sources.js';
 
 export function isUsableCoreCache(filePath: string): boolean {
   try {
@@ -17,13 +23,38 @@ export function isUsableCoreCache(filePath: string): boolean {
   }
 }
 
+export type DownloadOptions = {
+  /** 写入最终路径前核对的校验值；不符时丢弃文件。 */
+  expected?: ExpectedDigest;
+  /** 单文件大小上限，默认 MAX_CORE_DOWNLOAD_BYTES。 */
+  maxBytes?: number;
+  /** 等待响应头的时限；还有后备来源时用它，避免卡死的镜像耗尽整段下载超时。 */
+  responseTimeoutMs?: number;
+};
+
+/** 请求文件并等待响应头；时限只覆盖这一段，正文仍受外层下载超时约束。 */
+async function fetchDownload(url: string, signal: AbortSignal, responseTimeoutMs?: number): Promise<Response> {
+  const init = { headers: { 'User-Agent': USER_AGENT } };
+  if (responseTimeoutMs === undefined) return fetch(url, { ...init, signal });
+  const timeout = createTimeoutAbort(signal, responseTimeoutMs, 'server.deploy.downloadTimeout');
+  try {
+    return await fetch(url, { ...init, signal: timeout.signal });
+  } catch (error) {
+    throw timeout.errorFor(error);
+  } finally {
+    timeout.dispose();
+  }
+}
+
 export async function downloadToFile(
   url: string,
   dest: string,
   onProgress?: (ratio: number) => void,
   signal?: AbortSignal,
+  options: DownloadOptions = {},
 ): Promise<void> {
   if (signal?.aborted) throw abortError(signal);
+  const maxBytes = options.maxBytes ?? config.maxCoreDownloadBytes;
   const timeout = createTimeoutAbort(signal, config.coreDownloadTimeoutMs, 'server.deploy.downloadTimeout');
   const part = path.join(
     path.dirname(dest),
@@ -33,18 +64,20 @@ export async function downloadToFile(
 
   try {
     fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
-    const res = await fetch(url, { headers: { 'User-Agent': USER_AGENT }, signal: timeout.signal });
+    const res = await fetchDownload(url, timeout.signal, options.responseTimeoutMs);
     if (!res.ok || !res.body) {
       throw new PanelError('server.deploy.downloadHttpFailed', { status: res.status, url });
     }
 
     const total = Number(res.headers.get('content-length') || 0);
-    if (total > config.maxCoreDownloadBytes) throw new PanelError('server.deploy.downloadTooLarge');
+    if (total > maxBytes) throw new PanelError('server.deploy.downloadTooLarge');
     let downloaded = 0;
+    const digest = options.expected ? createHash(options.expected.algorithm) : null;
     const nodeStream = Readable.fromWeb(res.body as import('stream/web').ReadableStream);
-    const counter = createByteCounter((chunkBytes) => {
+    const counter = createByteCounter((chunkBytes, chunk) => {
       downloaded += chunkBytes;
-      if (downloaded > config.maxCoreDownloadBytes) return new PanelError('server.deploy.downloadTooLarge');
+      if (downloaded > maxBytes) return new PanelError('server.deploy.downloadTooLarge');
+      digest?.update(chunk);
       if (total > 0 && onProgress) onProgress(downloaded / total);
       return undefined;
     });
@@ -55,6 +88,9 @@ export async function downloadToFile(
       { signal: timeout.signal },
     );
     if (timeout.signal.aborted) throw abortError(timeout.signal);
+    if (digest && digest.digest('hex') !== options.expected!.hex.toLowerCase()) {
+      throw new PanelError('server.system.downloadChecksumMismatch');
+    }
 
     // 只把完整 part 文件提升为最终缓存文件；最终路径不会被用作下载中的暂存区。
     if (isUsableCoreCache(dest)) {
@@ -77,11 +113,67 @@ export async function downloadToFile(
   }
 }
 
+/** 进度回调：比例和当前正在使用的来源名。 */
+export type PlanProgress = (ratio: number, source: string) => void;
+
+export type PlanDownloadOptions = {
+  /** 所有来源都失败时显示在错误里的文件名称。 */
+  name: string;
+  onProgress?: PlanProgress;
+  signal?: AbortSignal;
+  maxBytes?: number;
+};
+
+/** 按顺序尝试计划里的来源，成功即止。只有一个来源时保留它自己的错误，文案与切换来源前一致。 */
+export async function downloadFromPlan(plan: DownloadPlan, dest: string, options: PlanDownloadOptions): Promise<void> {
+  const failures: SourceFailure[] = [];
+  const { candidates, expected } = plan;
+  for (const [index, candidate] of candidates.entries()) {
+    const hasFallback = index < candidates.length - 1;
+    try {
+      await downloadToFile(
+        candidate.url,
+        dest,
+        options.onProgress && ((ratio) => options.onProgress!(ratio, candidate.label)),
+        options.signal,
+        {
+          expected,
+          maxBytes: options.maxBytes,
+          responseTimeoutMs: hasFallback ? config.coreMetadataTimeoutMs : undefined,
+        },
+      );
+      return;
+    } catch (error) {
+      if (options.signal?.aborted || candidates.length === 1) throw error;
+      failures.push({ source: candidate.label, error });
+    }
+  }
+  throw new PanelError('server.system.downloadAllSourcesFailed', {
+    name: options.name,
+    attempts: describeFailures(failures),
+  });
+}
+
+/** 运行时压缩包的下载错误：多来源汇总错误原样抛出，单一来源映射成该运行时自己的文案。 */
+export function toRuntimeDownloadError(
+  error: unknown,
+  keys: {
+    failed: 'server.frp.downloadFailed' | 'server.lan.downloadFailed';
+    mismatch: 'server.frp.checksumMismatch' | 'server.lan.checksumMismatch';
+  },
+): PanelError {
+  if (isPanelError(error)) {
+    if (error.messageKey === 'server.system.downloadAllSourcesFailed') return error;
+    if (error.messageKey === 'server.system.downloadChecksumMismatch') return new PanelError(keys.mismatch);
+  }
+  return new PanelError(keys.failed, undefined, { cause: error });
+}
+
 type CacheDownloadFlight = {
   controller: AbortController;
   promise: Promise<void>;
   waiters: number;
-  callbacks: Set<(ratio: number) => void>;
+  callbacks: Set<PlanProgress>;
   finished: boolean;
 };
 
@@ -119,9 +211,10 @@ function waitForCacheDownload(flight: CacheDownloadFlight, signal?: AbortSignal)
 
 /** 按最终缓存路径合并并发下载，避免多个任务同时覆盖同一个核心文件。 */
 export async function ensureCoreCache(
-  url: string,
+  plan: DownloadPlan,
   cachePath: string,
-  onProgress?: (ratio: number) => void,
+  name: string,
+  onProgress?: PlanProgress,
   signal?: AbortSignal,
 ): Promise<void> {
   if (signal?.aborted) throw abortError(signal);
@@ -130,7 +223,7 @@ export async function ensureCoreCache(
   let flight = cacheDownloadFlights.get(cachePath);
   if (!flight) {
     const controller = new AbortController();
-    const callbacks = new Set<(ratio: number) => void>();
+    const callbacks = new Set<PlanProgress>();
     flight = {
       controller,
       promise: Promise.resolve(),
@@ -138,14 +231,13 @@ export async function ensureCoreCache(
       callbacks,
       finished: false,
     };
-    flight.promise = downloadToFile(
-      url,
-      cachePath,
-      (ratio) => {
-        for (const callback of callbacks) callback(ratio);
+    flight.promise = downloadFromPlan(plan, cachePath, {
+      name,
+      onProgress: (ratio, source) => {
+        for (const callback of callbacks) callback(ratio, source);
       },
-      controller.signal,
-    ).finally(() => {
+      signal: controller.signal,
+    }).finally(() => {
       flight!.finished = true;
       if (cacheDownloadFlights.get(cachePath) === flight) cacheDownloadFlights.delete(cachePath);
     });

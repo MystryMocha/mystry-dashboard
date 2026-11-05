@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- 「本机环境」页新增下载来源设置，可选官方来源（默认）或国内镜像，保存后立即生效。国内镜像下 Vanilla、Forge、NeoForge 和版本列表走 BMCLAPI，frp 和 EasyTier 走公共 GitHub 镜像，失败时自动改用官方来源；Paper 和 Fabric 的服务端文件仍走官方。`panel_settings` 表在启动时自动创建，无需手动迁移。
+- 部署页和联机客户端安装提示显示当前下载来源；下载进度显示正在使用的来源。
+- Vanilla、Paper、Forge、NeoForge 的下载现在按官方校验值核对，不符的文件不会进入缓存。
+
+### Changed
+
+- 官方来源下 Forge 版本列表改用 `files.minecraftforge.net`，NeoForge 版本列表只用 `maven.neoforged.net`，不再访问第三方的 BMCLAPI。
+
+### Fixed
+
+- Forge 的默认版本现在总是最新构建。原来按 BMCLAPI 返回的顺序取，可能选到旧一点的构建。
+- Forge 1.7.10 等带分支后缀的旧版本能拼出正确的安装器地址。
+
 ## [0.2.0-preview.3] - 2026-11-05
 
 ### Changed

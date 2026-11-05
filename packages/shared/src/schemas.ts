@@ -10,6 +10,9 @@ export const CORE_TYPE_ENUM = [
   'custom',
 ] as const;
 
+/** 面板下载来源：official 只用官方服务器，china 优先用国内镜像，失败后回到官方。 */
+export const DOWNLOAD_SOURCE_ENUM = ['official', 'china'] as const;
+
 /** 可一键部署的核心类型（不含 custom） */
 export const DEPLOYABLE_CORE_TYPE_ENUM = [
   'vanilla',
@@ -61,6 +64,15 @@ export const deployCoreBodySchema = {
     jvmArgs: { type: 'string', maxLength: 8192 },
     acceptEula: { type: 'boolean' },
     javaRuntimeId: { type: ['string', 'null'], maxLength: 255 },
+  },
+} as const;
+
+export const updateDownloadSourceBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['source'],
+  properties: {
+    source: { type: 'string', enum: [...DOWNLOAD_SOURCE_ENUM] },
   },
 } as const;
 

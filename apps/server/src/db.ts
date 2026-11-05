@@ -196,6 +196,12 @@ export function initDb(): void {
       FOREIGN KEY (endpoint_id) REFERENCES frp_endpoints(id)
     );
 
+    CREATE TABLE IF NOT EXISTS panel_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS instance_lans (
       instance_id TEXT PRIMARY KEY,
       enabled INTEGER NOT NULL DEFAULT 0,
