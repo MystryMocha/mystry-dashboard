@@ -163,6 +163,12 @@ export function LazyScrollSelect<T extends string | number>({
     }
   }
 
+  // 内容放不满面板时没有滚动条，也就不会触发 onScroll：每次渲染出新内容后都补查一次，直到出现滚动条或全部加载。
+  // 选项可能在展开后才到达，面板高度也会随视口变化，所以都要列入依赖；绘制前执行可避免闪现加载提示。
+  useLayoutEffect(() => {
+    if (open) handleScroll();
+  }, [open, visibleCount, options.length, panelLayout.maxHeight]);
+
   function selectOption(opt: T) {
     onChange(opt);
     closePanel(true);

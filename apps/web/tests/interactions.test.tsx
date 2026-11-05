@@ -524,6 +524,66 @@ test('部署页版本下拉：名称由可见标签加当前值组成，键盘�
   expect(document.activeElement).not.toBe(trigger);
 });
 
+/** jsdom 没有真实布局：按桌面实测尺寸模拟下拉面板（每项 34px、提示与内边距 44px、上限 400px）。 */
+function mockLazySelectLayout() {
+  const contentHeight = (el: HTMLElement) => el.querySelectorAll('[role="option"]').length * 34 + 44;
+  vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
+    return contentHeight(this);
+  });
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockImplementation(function (this: HTMLElement) {
+    return Math.min(contentHeight(this), 400);
+  });
+}
+
+test('部署页版本下拉：首屏填不满面板时继续加载，滚动后能用鼠标选到靠后的版本', async () => {
+  const versions = Array.from({ length: 45 }, (_, index) => `1.${index}`);
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/cores/paper/versions') return new Response(JSON.stringify({ versions }));
+    return baseFetch(url, options);
+  }));
+  Element.prototype.scrollIntoView = vi.fn();
+  mockLazySelectLayout();
+  const user = userEvent.setup();
+  mount(<DeployPage />);
+
+  await user.click(await screen.findByRole('button', { name: '游戏版本 1.0' }));
+  const listbox = screen.getByRole('listbox', { name: '游戏版本' });
+  // 10 项只有 384px，放不满 400px 的面板；加载到 20 项出现滚动条后必须停下，不能一次全部渲染。
+  expect(within(listbox).getAllByRole('option')).toHaveLength(20);
+  expect(listbox.getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: '1.0' }).id);
+
+  listbox.scrollTop = listbox.scrollHeight - listbox.clientHeight;
+  fireEvent.scroll(listbox);
+  expect(within(listbox).getAllByRole('option')).toHaveLength(30);
+  await user.click(screen.getByRole('option', { name: '1.25' }));
+  expect(screen.queryByRole('listbox')).toBeNull();
+  expect(screen.getByRole('button', { name: '游戏版本 1.25' })).toBeTruthy();
+});
+
+test('部署页 Paper 构建下拉：展开后才到达的选项同样填满面板', async () => {
+  const builds = Array.from({ length: 45 }, (_, index) => 500 - index);
+  let resolveBuilds: (response: Response) => void = () => {};
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/cores/paper/versions') return new Response(JSON.stringify({ versions: ['26.3'] }));
+    if (url === '/api/cores/paper/26.3/builds') return new Promise<Response>((resolve) => { resolveBuilds = resolve; });
+    return baseFetch(url, options);
+  }));
+  Element.prototype.scrollIntoView = vi.fn();
+  mockLazySelectLayout();
+  const user = userEvent.setup();
+  mount(<DeployPage />);
+  await screen.findByRole('button', { name: '游戏版本 26.3' });
+
+  await user.click(screen.getByRole('button', { name: /^Paper 构建版本/ }));
+  const listbox = screen.getByRole('listbox', { name: /^Paper 构建版本/ });
+  expect(within(listbox).queryAllByRole('option')).toHaveLength(0);
+
+  await act(async () => { resolveBuilds(new Response(JSON.stringify({ builds }))); });
+  await waitFor(() => expect(within(listbox).getAllByRole('option')).toHaveLength(20));
+});
+
 test('总览例行刷新不进 live region，只播报出错与恢复', async () => {
   vi.useFakeTimers();
   const baseFetch = globalThis.fetch;
