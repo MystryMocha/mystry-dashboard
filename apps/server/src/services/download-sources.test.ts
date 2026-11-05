@@ -147,6 +147,123 @@ test('国内来源的 NeoForge 列表过滤掉官方坐标之外的版本，空�
   assert.ok(calls.some((url) => url.includes('maven.neoforged.net')));
 });
 
+test('NeoForge 版本号按段数区分新旧规则，映射到真实的 Minecraft 版本', async () => {
+  const { neoForgeVersionToMc } = await import('./core-metadata.js');
+  const cases: Array<[string, string]> = [
+    ['20.2.3-beta', '1.20.2'],
+    ['20.4.253', '1.20.4'],
+    ['21.0.167', '1.21'],
+    ['21.0.0-beta', '1.21'],
+    ['21.1.265', '1.21.1'],
+    ['21.11.48', '1.21.11'],
+    ['26.1.0.19-beta', '26.1'],
+    ['26.1.1.15-beta', '26.1.1'],
+    ['26.1.2.126', '26.1.2'],
+    ['26.2.0.0-beta', '26.2'],
+    ['26.3.0.101', '26.3'],
+    ['26.1.0.0-alpha.1+snapshot-1', '26.1-snapshot-1'],
+    ['26.1.0.0-alpha.14+snapshot-11', '26.1-snapshot-11'],
+    ['26.1.0.0-alpha.15+pre-3', '26.1-pre-3'],
+    ['0.25w14craftmine.3-beta', '25w14craftmine'],
+  ];
+  for (const [neoVersion, mcVersion] of cases) {
+    assert.equal(neoForgeVersionToMc(neoVersion), mcVersion, neoVersion);
+  }
+  for (const invalid of ['', '21', '21.1', 'latest', '1.21.1-21.1.5']) {
+    assert.throws(() => neoForgeVersionToMc(invalid), PanelError, invalid);
+  }
+});
+
+test('两种来源的 NeoForge 列表都显示真实版本号，只列正式版', async (t) => {
+  const { listCoreVersions } = await import('./core-metadata.js');
+  const versions = [
+    '26.1.0.0-alpha.1+snapshot-1',
+    '26.1.0.0-alpha.15+pre-3',
+    '0.25w14craftmine.3-beta',
+    '21.0.167',
+    '21.1.265',
+    '21.11.48',
+    '26.1.0.19-beta',
+    '26.1.2.126',
+    '26.2.0.93',
+    '26.3.0.101',
+  ];
+  const xml = `<metadata>${versions.map((v) => `<version>${v}</version>`).join('')}</metadata>`;
+  const expected = ['26.3', '26.2', '26.1.2', '26.1', '1.21.11', '1.21.1', '1.21'];
+  const calls = mockFetch(t, {
+    'https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml': () => new Response(xml),
+    'https://bmclapi2.bangbang93.com/maven/net/neoforged/neoforge/maven-metadata.xml': () => new Response(xml),
+  });
+  assert.deepEqual(await listCoreVersions('neoforge', undefined, 'official'), expected);
+  assert.ok(calls.every((url) => url.includes('maven.neoforged.net')));
+  assert.deepEqual(await listCoreVersions('neoforge', undefined, 'china'), expected);
+  assert.ok(calls.some((url) => url.includes('bmclapi2')));
+});
+
+test('两种来源的 NeoForge 构建列表按真实版本号匹配，快照构建不混入正式版', async (t) => {
+  const { listNeoForgeLoaders } = await import('./core-metadata.js');
+  const metadata = [
+    '26.1.0.0-alpha.1+snapshot-1',
+    '26.1.0.0-alpha.2+snapshot-1',
+    '26.1.0.1-beta',
+    '26.1.0.19-beta',
+    '26.1.2.125',
+    '26.3.0.100',
+    '26.1.2.126',
+    '26.3.0.101',
+    '21.1.265',
+  ];
+  mockFetch(t, {
+    'https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml': () =>
+      new Response(`<metadata>${metadata.map((v) => `<version>${v}</version>`).join('')}</metadata>`),
+    'https://bmclapi2.bangbang93.com/neoforge/list/26.1': () => Response.json([
+      { version: '26.1.0.1-beta' },
+      { version: '26.1.0.19-beta' },
+    ]),
+    'https://bmclapi2.bangbang93.com/neoforge/list/26.1.2': () => Response.json([
+      { version: '26.1.2.125' },
+      { version: '26.1.2.126' },
+    ]),
+    'https://bmclapi2.bangbang93.com/neoforge/list/26.3': () => Response.json([
+      { version: '26.3.0.100' },
+      { version: '26.3.0.101' },
+    ]),
+    'https://bmclapi2.bangbang93.com/neoforge/list/26.1-snapshot-1': () => Response.json([
+      { version: '26.1.0.0-alpha.1+snapshot-1' },
+      { version: '26.1.0.0-alpha.2+snapshot-1' },
+    ]),
+    'https://bmclapi2.bangbang93.com/neoforge/list/1.21.1': () => Response.json([{ version: '21.1.265' }]),
+  });
+  const expected: Array<[string, string[]]> = [
+    ['26.3', ['26.3.0.101', '26.3.0.100']],
+    ['26.1.2', ['26.1.2.126', '26.1.2.125']],
+    ['26.1', ['26.1.0.19-beta', '26.1.0.1-beta']],
+    ['26.1-snapshot-1', ['26.1.0.0-alpha.2+snapshot-1', '26.1.0.0-alpha.1+snapshot-1']],
+    ['1.21.1', ['21.1.265']],
+  ];
+  for (const source of ['official', 'china'] as const) {
+    for (const [mcVersion, loaders] of expected) {
+      assert.deepEqual(await listNeoForgeLoaders(mcVersion, undefined, source), loaders, `${source} ${mcVersion}`);
+    }
+  }
+  // 修复前的错误版本号在官方列表里不再有任何匹配。
+  assert.deepEqual(await listNeoForgeLoaders('1.26.3', undefined, 'official'), []);
+});
+
+test('NeoForge 构建按数字排序，BMCLAPI 乱序时默认项仍是最新构建', async (t) => {
+  const { listNeoForgeLoaders } = await import('./core-metadata.js');
+  // 取自 BMCLAPI 对 1.21 的真实返回顺序：最后一项是旧的 beta，不是最新构建。
+  const order = ['21.0.150', '21.0.0-beta', '21.0.139-beta', '21.0.14-beta', '21.0.167', '21.0.98-beta'];
+  mockFetch(t, {
+    'https://bmclapi2.bangbang93.com/neoforge/list/1.21': () => Response.json(order.map((version) => ({ version }))),
+    'https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml': () =>
+      new Response(`<metadata>${order.map((v) => `<version>${v}</version>`).join('')}</metadata>`),
+  });
+  const expected = ['21.0.167', '21.0.150', '21.0.139-beta', '21.0.98-beta', '21.0.14-beta', '21.0.0-beta'];
+  assert.deepEqual(await listNeoForgeLoaders('1.21', undefined, 'china'), expected);
+  assert.deepEqual(await listNeoForgeLoaders('1.21', undefined, 'official'), expected);
+});
+
 test('镜像失败时元数据回到官方，全部失败时错误列出每个来源的原因', async (t) => {
   const { listCoreVersions } = await import('./core-metadata.js');
   const routes: Record<string, () => Response> = {

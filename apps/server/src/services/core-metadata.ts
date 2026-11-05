@@ -121,13 +121,31 @@ function parseMavenVersions(xml: string): string[] {
   return matches.map((m) => m[1]!).filter(Boolean);
 }
 
-/** NeoForge 版本号 → Minecraft 版本，如 21.1.244 → 1.21.1，21.0.x → 1.21 */
+/**
+ * NeoForge 版本号 → Minecraft 版本。新旧版号靠段数区分，不靠主版本大小：
+ * - 三段 `<小版本>.<补丁>.<构建>`：21.1.244 → 1.21.1，21.0.167 → 1.21
+ * - 四段 `<年份>.<序号>.<热修>.<构建>`：26.1.2.126 → 26.1.2，26.3.0.101 → 26.3
+ * - 快照构建在 `+` 后带快照名：26.1.0.0-alpha.1+snapshot-1 → 26.1-snapshot-1
+ * - 愚人节版：0.25w14craftmine.3-beta → 25w14craftmine
+ */
 export function neoForgeVersionToMc(neoVersion: string): string {
-  const cleaned = neoVersion.replace(/-beta.*$/i, '');
-  const [a, b] = cleaned.split('.');
-  if (!a || b === undefined) throw new PanelError('server.deploy.neoforgeVersionInvalid', { version: neoVersion });
-  if (b === '0') return `1.${a}`;
-  return `1.${a}.${b}`;
+  const special = /^0\.(\d+w\d+\w*)\./.exec(neoVersion);
+  if (special) return special[1]!;
+  const match = /^(\d+)\.(\d+)\.(\d+)(\.\d+)?(?:-(?:alpha|beta)[^+]*)?(?:\+(.+))?$/.exec(neoVersion);
+  if (!match) throw new PanelError('server.deploy.neoforgeVersionInvalid', { version: neoVersion });
+  const [, first, second, third, build, snapshot] = match;
+  const release = build === undefined
+    ? (second === '0' ? `1.${first}` : `1.${first}.${second}`)
+    : (third === '0' ? `${first}.${second}` : `${first}.${second}.${third}`);
+  return snapshot ? `${release}-${snapshot}` : release;
+}
+
+/** Minecraft 正式版的版本号；快照、预发布和愚人节版都不符合。 */
+const MC_RELEASE_VERSION = /^\d+\.\d+(?:\.\d+)?$/;
+
+/** 版本号按数字降序，21.0.167 排在 21.0.98-beta 前面。 */
+function newestFirst(a: string, b: string): number {
+  return b.localeCompare(a, undefined, { numeric: true });
 }
 
 type PaperBuild = {
@@ -227,19 +245,21 @@ export async function listCoreVersions(
       },
       { label: 'MinecraftForge', load: async () => Object.keys(await loadForgeIndex(signal)) },
     ], signal);
-    return [...versions].sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    return [...versions].sort(newestFirst);
   }
 
   if (coreType === 'neoforge') {
     const mcSet = new Set<string>();
     for (const v of await loadNeoForgeVersions(source, signal)) {
       try {
-        mcSet.add(neoForgeVersionToMc(v));
+        const mcVersion = neoForgeVersionToMc(v);
+        // 和其他核心一样只列正式版。
+        if (MC_RELEASE_VERSION.test(mcVersion)) mcSet.add(mcVersion);
       } catch {
           /* 忽略无法映射到 Minecraft 版本的条目 */
       }
     }
-    return [...mcSet].sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    return [...mcSet].sort(newestFirst);
   }
 
   // Vanilla
@@ -332,14 +352,16 @@ export async function listNeoForgeLoaders(
           signal,
         );
         // 1.20.1 的早期版本发布在另一个 Maven 坐标下，官方列表也不含它们，这里同样过滤。
-        return requireEntries(data.map((x) => x.version).filter((v) => matchesNeoForgeMc(v, mcVersion))).reverse();
+        // BMCLAPI 的返回不保证顺序，部署时留空会取第一项，所以要自己排序。
+        return requireEntries(data.map((x) => x.version).filter((v) => matchesNeoForgeMc(v, mcVersion)))
+          .sort(newestFirst);
       },
     },
     {
       label: 'NeoForged',
       load: async () => {
         const all = parseMavenVersions(await fetchText(NEOFORGE_METADATA_URL, signal));
-        return all.filter((v) => matchesNeoForgeMc(v, mcVersion)).reverse();
+        return all.filter((v) => matchesNeoForgeMc(v, mcVersion)).sort(newestFirst);
       },
     },
   ], signal);

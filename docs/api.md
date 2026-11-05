@@ -206,7 +206,7 @@ Authorization: Bearer <token>
 | GET | `/api/cores/paper/:version/builds` | Paper build 列表 |
 | GET | `/api/cores/fabric/:version/loaders` | Fabric loaders + installers |
 | GET | `/api/cores/forge/:version/loaders` | Forge loader 列表 |
-| GET | `/api/cores/neoforge/:version/loaders` | NeoForge loader 列表 |
+| GET | `/api/cores/neoforge/:version/loaders` | NeoForge loader 列表，新构建在前。`:version` 是 Minecraft 版本号，如 `1.21.1`、`26.3` |
 | POST | `/api/cores/deploy` | Body：`DeployCoreInput`，返回 `TaskInfo` |
 | GET | `/api/import/sources` | 列出 `DATA_DIR/imports` 的直接子目录及启动文件探测结果 |
 | POST | `/api/import/existing` | Body：`ImportExistingServerInput`，复制交接目录并返回 `TaskInfo` |
