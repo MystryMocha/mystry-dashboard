@@ -220,8 +220,33 @@ function getGitSha() {
   }
 }
 
-async function createPortableReadme(destination, version) {
-  const content = `Mystry Dashboard ${version} 便携预览版
+// 公开用户直接看到的说明：英文在前、中文在后，改事实时两段要一起改
+export async function createPortableReadme(destination, version) {
+  const content = `Mystry Dashboard ${version} Portable Preview
+中文说明在英文之后。
+
+Windows:
+  Double-click mystryctl.cmd, or run mystryctl.cmd start
+
+Linux / macOS:
+  chmod +x mystryctl
+  ./mystryctl start
+
+Commands:
+  start, foreground, stop, restart, status, logs, open, help
+
+Important notes:
+1. Node.js is bundled. You don't need to install Node or run npm install.
+2. This package doesn't include the Java runtime Minecraft needs. It uses the java on your system PATH by default. You can also scan for and select another installed runtime in the panel.
+3. This preview doesn't register a system service or start automatically at boot.
+4. The config, data and logs folders are created on first start. When you upgrade, stop the panel and keep these folders.
+5. The panel only listens on 127.0.0.1 by default. Don't expose the panel port directly to the untrusted public internet.
+
+Project home: https://github.com/MystryWorks/mystry-dashboard
+
+----------------------------------------
+
+Mystry Dashboard ${version} 便携预览版
 
 Windows：
   双击 mystryctl.cmd，或运行 mystryctl.cmd start
