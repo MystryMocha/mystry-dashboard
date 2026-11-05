@@ -21,7 +21,7 @@ chmod +x mystryctl
 ./mystryctl start
 ```
 
-无需执行 `npm install`。请先安装适配目标服务端的 Java；可用 `java -version` 检查默认 PATH 运行时，或在面板中探测并选择其他已安装运行时。完整平台列表、校验、升级和限制见 [便携预览版](portable-release.md)。
+无需执行 `npm install`。请先安装适配目标服务端的 Java；可用 `java -version` 检查默认 PATH 运行时，或在面板中探测并选择其他已安装运行时。完整平台列表、校验、升级和限制见 [便携预览版](portable-release.zh-CN.md)。
 
 ## 源码运行环境要求
 

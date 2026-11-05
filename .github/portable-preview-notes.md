@@ -18,7 +18,7 @@ Run `mystryctl stop` in the old folder first. Extract the new version into a new
 - The production dependency audit against the official registry on 2026-11-05 found 0 critical, 0 high and 2 moderate advisories. This release upgrades `react-router-dom` / `react-router` to 6.30.6 and `@fastify/static` to 10.1.10, which also brings in `glob` 14.0.3 and `minimatch` 11.0.4 and resolves 3 advisories of moderate severity. The two that remain are React Router 6 dependency advisories (GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg), fixed only in 7.18 and later. The frontend has no SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs. They still stand as a residual preview risk, and the audit is rerun for every release.
 - After downloading, check the files against `SHA256SUMS`. Import `mystry-release-signing-key.asc`, confirm its fingerprint, then use that public key to verify `SHA256SUMS.asc`.
 
-Full details are in `docs/portable-release.md` in the repository (currently Chinese only).
+Full details are in `docs/portable-release.md` in the repository. The Chinese version is `docs/portable-release.zh-CN.md`.
 
 ## 简体中文
 
@@ -38,4 +38,4 @@ Full details are in `docs/portable-release.md` in the repository (currently Chin
 - 2026-11-05 官方 registry 生产依赖审计为 0 critical、0 high、2 moderate（本版升级 `react-router-dom` / `react-router` 6.30.6、`@fastify/static` 10.1.10，并带动 `glob` 14.0.3、`minimatch` 11.0.4，消除 3 项 moderate 公告）。剩余两项 moderate 来自 React Router 6 系依赖公告（GHSA-wrjc-x8rr-h8h6、GHSA-337j-9hxr-rhxg），修复版只在 7.18 以上；当前前端没有 SSR hydration，并且导航目标来自固定站内路径或服务端生成的实例 ID，但仍作为 Preview 残余风险保留并在每次发布重新审计。
 - 下载后请先使用 `SHA256SUMS` 校验文件，导入 `mystry-release-signing-key.asc` 核对指纹后，再用该公钥验证 `SHA256SUMS.asc`。
 
-完整说明见仓库中的 `docs/portable-release.md`。
+完整说明见仓库中的 `docs/portable-release.zh-CN.md`，英文版是 `docs/portable-release.md`。

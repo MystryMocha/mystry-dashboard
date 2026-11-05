@@ -6,7 +6,7 @@ Mystry Dashboard 是独立的 Minecraft Java 服务端 Web 管理面板，在本
 
 | 你想做什么 | 从这里开始 | 后续参考 |
 |---|---|---|
-| 安装并启动面板 | [快速开始](getting-started.md) | [便携版下载、校验与升级](portable-release.md) |
+| 安装并启动面板 | [快速开始](getting-started.md) | [便携版下载、校验与升级](portable-release.zh-CN.md) |
 | 创建首个管理员或处理登录问题 | [初始化管理员](getting-started.md#初始化管理员) | [启动与认证排查](getting-started.md#故障排查) |
 | 开出第一个服务端 | [分步教程](tutorials.md) | [使用指南](user-guide.md) |
 | 导入、配置或管理实例 | [使用指南](user-guide.md) | [备份与迁移](tutorials.md#教程-8备份与迁移) |

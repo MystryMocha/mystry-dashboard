@@ -35,7 +35,7 @@
 
 | 运行方式 | 环境要求 | 入口 |
 |---|---|---|
-| 便携预览版 | 发布目标为 Windows x64 / Linux x64；包内自带 Node.js | [下载、校验与启动](docs/portable-release.md) |
+| 便携预览版 | 发布目标为 Windows x64 / Linux x64；包内自带 Node.js | [下载、校验与启动](docs/portable-release.zh-CN.md) |
 | Windows 源码管理器 | Node.js ≥ 22 | 双击仓库根目录 `PanelManager.cmd` |
 | Linux / WSL 源码管理器 | Node.js ≥ 22 | 运行下方命令 |
 | 手动开发 | Node.js ≥ 22，两个开发终端 | [安装与配置](docs/getting-started.md#手动安装与首次配置)、[开发指南](docs/development.md) |
@@ -59,7 +59,7 @@ Minecraft 服务端所需的 **Java 需要另行安装**。实例默认使用面
 
 ### 便携预览版
 
-发布流程配置了 Windows x64 与 Linux x64 两个便携目标，包内包含 Node.js、生产依赖和前后端构建物。具体版本与资产以项目实际 Release 页面为准；平台限制、签名校验和升级步骤统一见 [便携预览版说明](docs/portable-release.md)。
+发布流程配置了 Windows x64 与 Linux x64 两个便携目标，包内包含 Node.js、生产依赖和前后端构建物。具体版本与资产以项目实际 Release 页面为准；平台限制、签名校验和升级步骤统一见 [便携预览版说明](docs/portable-release.zh-CN.md)。
 
 ### 生产部署
 
