@@ -8,7 +8,7 @@ The first public preview supports **Minecraft: Java Edition** servers. Mystry Da
 
 [Quick start](#quick-start) · [Documentation](docs/README.md) · [Contributing](CONTRIBUTING.md)
 
-> **Preview software.** The current version is `0.2.0-preview.2`. Expect rough edges, and read [Scope and limitations](#scope-and-limitations) before relying on it.
+> **Preview software.** The current version is `0.2.0-preview.3`. Expect rough edges, and read [Scope and limitations](#scope-and-limitations) before relying on it.
 
 ## Features
 

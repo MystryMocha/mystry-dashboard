@@ -1,6 +1,6 @@
 # Mystry Dashboard AI 开发规则
 
-Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.2`）是单机一体的 **Minecraft Java 服务端** Web 管理面板：本机多实例启停、控制台、文件、一键部署与导入。**不是**客户端模组，也不依赖 Fabric/Forge 作为面板自身的模组加载器。
+Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.3`）是单机一体的 **Minecraft Java 服务端** Web 管理面板：本机多实例启停、控制台、文件、一键部署与导入。**不是**客户端模组，也不依赖 Fabric/Forge 作为面板自身的模组加载器。
 
 本文件是 Claude Code 的项目级入口。开始任务时读取 @docs/ai/README.md，并按其中的任务路由按需加载详细知识。若规则、知识库与源码冲突，以当前源码和配置为事实，并同步修正文档。
 
@@ -52,7 +52,7 @@ Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.2`）是
 - 下载必须流式传输；浏览器端不得用 `res.blob()` 整体缓存大文件。
 - Web 界面支持多语言：`en` 为默认与缺键回落语言，另有 `zh-CN`、`zh-TW`（台湾惯用词，不是简繁转换）。用户可见文案只能写进 `apps/web/src/i18n/en/*.ts` 并同步补齐 `zh-CN/*.ts`、`zh-TW/*.ts`（类型检查强制两边键一致），组件里不得内联文案；状态词、通用动作和导航名以 `i18n/en/common.ts` 术语表为准。英文按钮/标题用 Title Case、说明用 sentence case；数字、日期、大小用 `useI18n().fmt`（Intl）。服务端返回给用户的错误、任务进度和控制台错误必须用 `PanelError` / `panelErrorBody` / 任务 `report(progress, { key, params })` 返回 `server.*` 消息键：英文模板写在 `packages/shared/src/messages/<区域>.ts`，并在 `apps/web/src/i18n/zh-CN/server/`、`zh-TW/server/` 补翻译；响应的 `error` 文本默认英文。启动期终端日志不在此列。新增/修改的代码注释使用中文。
 - 设计或修改界面前读 [`docs/design-system.md`](docs/design-system.md)（毛玻璃只用于导航层、强调色只引用变量、组件类名）；各语言写作规则、新增语言与从右到左布局见 [`docs/localization.md`](docs/localization.md)。两者都以源码为准。
-- 无 ESLint/Prettier；与周围文件风格保持一致（TypeScript + ESM）。不要把 React Router 从已锁定的 `6.30.4` 升到 7。
+- 无 ESLint/Prettier；与周围文件风格保持一致（TypeScript + ESM）。不要把 React Router 从已锁定的 `6.30.6` 升到 7。
 
 ## 标准变更顺序
 

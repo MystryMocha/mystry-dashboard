@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [0.2.0-preview.3] - 2026-11-05
+
 ### Changed
 
 - 接口错误响应改为 `{ error, code, params }`：`error` 为英文文本（原来是中文），`code` 是 `server.*` 消息键。直接读取 `error` 的脚本会看到英文；实例操作冲突（409）的 `code` 由 `INSTANCE_OPERATION_CONFLICT` 改为具体的消息键。任务的 `message` / `error` 同样改为英文，并新增 `messageI18n` / `errorI18n`；`tasks` 表启动时自动新增两列，无需手动迁移。
@@ -54,6 +56,12 @@
 ### Performance
 
 - 前端构建后生成 `.br` / `.gz` 预压缩资源，服务端按 `Accept-Encoding` 直接发送；带 hash 的 `/assets/*` 设为一年 `immutable` 缓存，`index.html` 每次重新校验。
+
+### Security
+
+- `react-router-dom` / `react-router` 从 6.30.4 升到 6.30.6，修复 6.30.2–6.30.5 的开放重定向导致 XSS 公告（GHSA-jjmj-jmhj-qwj2）。仍留在 6 系。
+- `@fastify/static` 升到 10.1.10，随之把 `glob` 升到 14.0.3、`minimatch` 升到 11.0.4，消除 AbortSignal 取消绕过（GHSA-3g3m-2fjr-6pw4）与 globparts 放大拒绝服务（GHSA-g3hv-75wg-m249）两条公告。
+- 生产依赖审计剩余 2 条 moderate，都来自 React Router 6 系、只在 7.18 以上修复（反斜杠开放重定向 GHSA-wrjc-x8rr-h8h6、SSR hydration 构造注入 GHSA-337j-9hxr-rhxg）；本面板不用 SSR，导航目标都是站内固定路径或服务端生成的实例 ID，作为残余风险记录在 [便携预览版](docs/portable-release.md)。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入发布包，升级需跨大版本，本次未处理。
 
 ## [0.2.0-preview.2] - 2026-10-21
 
