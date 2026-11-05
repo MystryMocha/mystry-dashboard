@@ -7,6 +7,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
+import { assertLogsShowLine, lastLogLine } from './smoke-checks.mjs';
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -55,7 +56,8 @@ function verifyWrapper(root, env) {
         { cwd: root, env },
       )
     : run(path.join(root, 'mystryctl'), ['help'], { cwd: root, env });
-  if (!output.includes('Mystry Dashboard 便携版管理器')) {
+  // 用法行里的命令名不随界面语言变化，源码模式下这里是 PanelManager。
+  if (!output.includes('mystryctl <command>')) {
     throw new Error('平台入口脚本未能调用包内便携控制器');
   }
 }
@@ -148,16 +150,12 @@ async function main() {
       MYSTRY_CONFIG_PATH: path.join(portableRoot, 'config', 'panel.env'),
       MYSTRY_DATA_DIR: path.join(portableRoot, 'data'),
       MYSTRY_NO_BROWSER: '1',
-      // 下面按中文输出判断结果，不随 CI 的系统语言变化。
-      MYSTRY_LANG: 'zh-CN',
       PORT: String(port),
     };
     controlEnv = env;
     verifyWrapper(portableRoot, env);
-    const startOutput = runControl(portableRoot, 'start', env);
-    if (!startOutput.includes('面板已启动')) {
-      throw new Error(`启动输出缺少成功标记：\n${startOutput}`);
-    }
+    // runControl 在退出码非 0 时抛错；成败由退出码和下面的文件、健康检查判断。
+    runControl(portableRoot, 'start', env);
     started = true;
     if (!fs.existsSync(path.join(portableRoot, 'config', 'panel.env'))) {
       throw new Error('首次启动未在 config/panel.env 生成配置');
@@ -173,22 +171,16 @@ async function main() {
     if (!health.ok || body?.service !== 'mystry-dashboard') {
       throw new Error(`健康检查失败：HTTP ${health.status}`);
     }
-    const statusOutput = runControl(portableRoot, 'status', env);
-    if (!statusOutput.includes('状态：运行中')) {
-      throw new Error(`状态检查失败：\n${statusOutput}`);
-    }
-    const logsOutput = runControl(portableRoot, 'logs', env);
-    if (!logsOutput.includes('stdout')) {
-      throw new Error(`日志命令未返回面板输出：\n${logsOutput}`);
-    }
+    runControl(portableRoot, 'status', env);
+    // __is-running 用退出码表示受管进程是否在运行。
+    runControl(portableRoot, '__is-running', env);
+    const expectedLogLine = lastLogLine(path.join(portableRoot, 'logs', 'panel.stdout.log'));
+    assertLogsShowLine(runControl(portableRoot, 'logs', env), expectedLogLine);
     const openOutput = runControl(portableRoot, 'open', env);
     if (!openOutput.includes(`http://127.0.0.1:${port}`)) {
       throw new Error(`open 命令未返回面板地址：\n${openOutput}`);
     }
-    const restartOutput = runControl(portableRoot, 'restart', env);
-    if (!restartOutput.includes('面板已启动')) {
-      throw new Error(`重启输出缺少成功标记：\n${restartOutput}`);
-    }
+    runControl(portableRoot, 'restart', env);
     const restartedHealth = await fetch(`http://127.0.0.1:${port}/api/health`);
     if (!restartedHealth.ok) {
       throw new Error(`重启后的健康检查失败：HTTP ${restartedHealth.status}`);

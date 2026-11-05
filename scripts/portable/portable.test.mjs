@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createChecksums } from './create-checksums.mjs';
 import { createPortableReadme } from './package-portable.mjs';
 import { createReleaseMetadata } from './package-release.mjs';
+import { assertLogsShowLine, lastLogLine } from './smoke-checks.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -261,6 +262,37 @@ test('界面语言跟随 MYSTRY_LANG 和 LANG，非中文一律用英文', () =>
     assert.match(help({ LANG: 'en_US.UTF-8' }), /Usage: /);
     assert.match(help({ LC_ALL: 'C', LANG: 'zh_CN.UTF-8' }), /用法：/);
   }
+});
+
+test('发布冒烟不按界面文案判断结果', async () => {
+  const source = await fsp.readFile(path.join(scriptDir, 'smoke-portable.mjs'), 'utf8');
+  assert.doesNotMatch(source, /MYSTRY_LANG/);
+  assert.doesNotMatch(source, /\.includes\(\s*['"`][^'"`]*[一-鿿]/);
+});
+
+test('冒烟的日志检查在每种界面语言下都成立', async (t) => {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-smoke-logs-'));
+  t.after(() => fsp.rm(home, { recursive: true, force: true }));
+  const logPath = path.join(home, 'logs', 'panel.stdout.log');
+  await fsp.mkdir(path.dirname(logPath), { recursive: true });
+  await fsp.writeFile(logPath, '{"msg":"first"}\n{"msg":"Server listening"}\n\n', 'utf8');
+  const expectedLine = lastLogLine(logPath);
+  assert.equal(expectedLine, '{"msg":"Server listening"}');
+
+  for (const language of ['zh-CN', 'en-US']) {
+    const result = spawnSync(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'logs'], {
+      env: {
+        ...process.env,
+        MYSTRY_HOME: home,
+        MYSTRY_CONFIG_PATH: path.join(home, 'config', 'panel.env'),
+        MYSTRY_LANG: language,
+      },
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assertLogsShowLine(result.stdout, expectedLine);
+  }
+  assert.throws(() => assertLogsShowLine('--- Recent stdout ---\n', expectedLine), /缺少/);
 });
 
 test('校验和脚本稳定排序并排除自身', async () => {
