@@ -4,6 +4,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 CONTROLLER="$PROJECT_ROOT/scripts/portable/mystryctl.mjs"
+NPM_MIRROR_SCRIPT="$PROJECT_ROOT/scripts/npm-mirror.mjs"
 
 # 界面语言：MYSTRY_LANG 优先，其次 LC_ALL / LC_MESSAGES / LANG；中文环境用中文，其余一律英文。
 # C / POSIX 表示没有设置语言，继续看下一项。结果写回 MYSTRY_LANG，让 mystryctl 用同一种语言。
@@ -36,7 +37,7 @@ fail() {
   exit 1
 }
 
-commands_hint="$(text '可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。' 'Available commands: start, foreground, stop, restart, rebuild, status, logs, open, help.')"
+commands_hint="$(text '可用命令：start、foreground、stop、restart、rebuild、status、logs、open、mirror、help。' 'Available commands: start, foreground, stop, restart, rebuild, status, logs, open, mirror, help.')"
 
 if [ "$(uname -s)" != 'Linux' ]; then
   fail "$(text 'PanelManager.sh 仅支持 Linux / WSL；Windows 请使用 PanelManager.cmd。' 'PanelManager.sh supports Linux / WSL only. On Windows, use PanelManager.cmd.')"
@@ -65,7 +66,8 @@ if [ ! -f "$CONTROLLER" ]; then
   fail "$(text '找不到生命周期控制器：' 'Lifecycle controller not found: ')$CONTROLLER"
 fi
 
-if [ "$#" -gt 1 ]; then
+# 只有 mirror 带参数：mirror <名称或编号>。
+if [ "$#" -gt 1 ] && { [ "$#" -gt 2 ] || [ "$1" != mirror ]; }; then
   fail "$(text '每次只能指定一个命令；' 'Specify one command at a time. ')$commands_hint"
 fi
 
@@ -79,11 +81,21 @@ ensure_dependencies() {
     || [ ! -d "$PROJECT_ROOT/node_modules" ] \
     || [ ! -f "$PROJECT_ROOT/node_modules/.package-lock.json" ] \
     || [ "$PROJECT_ROOT/package-lock.json" -nt "$PROJECT_ROOT/node_modules/.package-lock.json" ]; then
+    # 跟随 npm 自身配置时脚本不输出地址，这里也就不加 --registry。
+    local registry
+    registry="$(node "$NPM_MIRROR_SCRIPT" registry)" || exit 1
     printf '%s\n' "$(text '正在根据 package-lock.json 安装依赖…' 'Installing dependencies from package-lock.json…')"
+    if [ -n "$registry" ]; then
+      printf '%s\n' "$(text 'npm 下载源：' 'npm download source: ')$registry"
+    fi
     (
       cd "$PROJECT_ROOT"
-      npm ci
-    )
+      if [ -n "$registry" ]; then
+        npm ci --registry="$registry"
+      else
+        npm ci
+      fi
+    ) || fail "$(text '依赖安装失败。下载慢或失败时，可以运行 ./PanelManager.sh mirror 换一个 npm 下载源。' 'Installing dependencies failed. If downloads are slow or failing, run ./PanelManager.sh mirror to choose another npm download source.')"
   fi
 }
 
@@ -123,6 +135,12 @@ case "$command" in
     ;;
   stop|restart|status|logs|open|help|-h|--help)
     run_controller "$command"
+    ;;
+  mirror)
+    if [ "$#" -eq 2 ]; then
+      exec node "$NPM_MIRROR_SCRIPT" set "$2"
+    fi
+    exec node "$NPM_MIRROR_SCRIPT" show
     ;;
   *)
     fail "$(text "未知命令：$command。" "Unknown command: $command. ")$commands_hint"

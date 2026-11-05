@@ -108,3 +108,39 @@ test('PanelManager 按 MYSTRY_LANG 切换语言，并传给 mystryctl', { skip: 
   assert.match(run('en-US', 'help').stdout, /Usage: PanelManager\.cmd/);
   assert.match(run('zh-CN', 'help').stdout, /用法：PanelManager\.cmd/);
 });
+
+test('PanelManager 按所选下载源安装依赖，默认不指定 registry', { skip: process.platform !== 'win32' }, () => {
+  const installArguments = (mirror) => runPowerShell(`
+    $env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY = '1'
+    $env:MYSTRY_NPM_MIRROR = ${quotePowerShell(mirror)}
+    . ${quotePowerShell(managerPath)}
+    Write-Output ('args=' + ((Get-NpmInstallArguments) -join ' '))
+  `);
+
+  assert.match(installArguments('default').stdout, /^args=ci$/m);
+  assert.match(installArguments('npmmirror').stdout, /^args=ci --registry=https:\/\/registry\.npmmirror\.com\/$/m);
+  assert.match(installArguments('official').stdout, /^args=ci --registry=https:\/\/registry\.npmjs\.org\/$/m);
+
+  const invalid = installArguments('nope');
+  assert.notEqual(invalid.status, 0);
+  assert.match(invalid.stderr, /未知的 npm 下载源/);
+});
+
+test('mirror 是唯一可以带参数的命令，无效名称不写入选择', { skip: process.platform !== 'win32' }, () => {
+  const run = (...args) => spawnSync(
+    'powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, ...args],
+    { env: cleanEnvironment(), encoding: 'utf8' },
+  );
+
+  const list = run('mirror');
+  assert.equal(list.status, 0, list.stderr);
+  assert.match(list.stdout, /npmmirror/);
+
+  const invalid = run('mirror', 'nope');
+  assert.equal(invalid.status, 2);
+  assert.match(invalid.stderr, /未知的 npm 下载源/);
+
+  assert.equal(run('mirror', 'npmmirror', 'extra').status, 2);
+  assert.equal(run('status', 'extra').status, 2);
+});

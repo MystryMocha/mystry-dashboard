@@ -799,6 +799,7 @@ function printHelp() {
     ['status', '查看状态', 'Show status'],
     ['logs', '查看最近日志', 'Show recent logs'],
     ['open', '打开管理页面', 'Open the dashboard'],
+    ...(portableMode ? [] : [['mirror', '查看或切换 npm 下载源', 'Show or change the npm download source']]),
     ['help', '显示帮助', 'Show this help'],
   ];
   console.log([

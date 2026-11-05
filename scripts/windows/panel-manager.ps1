@@ -59,6 +59,7 @@ $script:EnvPath = if ([IO.Path]::IsPathRooted([string]$env:MYSTRY_CONFIG_PATH)) 
 }
 $script:EnvExamplePath = Join-Path $script:ProjectRoot '.env.example'
 $script:Controller = Join-Path $script:ProjectRoot 'scripts\portable\mystryctl.mjs'
+$script:NpmMirrorScript = Join-Path $script:ProjectRoot 'scripts\npm-mirror.mjs'
 $script:ServerEntry = Join-Path $script:ProjectRoot 'apps\server\dist\index.js'
 # 与 mystryctl 的日志目录一致。
 $script:StdoutLog = Join-Path $script:ProjectRoot 'logs\panel.stdout.log'
@@ -162,6 +163,15 @@ function Invoke-Npm {
   }
 }
 
+function Get-NpmInstallArguments {
+  # 跟随 npm 自身配置时脚本不输出地址，这里也就不加 --registry。
+  $registry = ([string](& node.exe $script:NpmMirrorScript 'registry')).Trim()
+  if ($LASTEXITCODE -ne 0) { throw (T 'npm 下载源设置无效，请查看上方提示。' 'The npm download source setting is not valid. See the message above.') }
+  if (-not $registry) { return @('ci') }
+  Write-Host (T "npm 下载源：$registry" "npm download source: $registry")
+  return @('ci', "--registry=$registry")
+}
+
 function Update-Project {
   param([switch]$Force)
   if (-not (Get-Command npm.cmd -ErrorAction SilentlyContinue)) {
@@ -173,7 +183,7 @@ function Update-Project {
   $dependencyChanged = -not $state.ContainsKey('dependencyHash') -or [string]$state.dependencyHash -ne $dependencyHash
   if ($Force -or $dependencyChanged -or -not (Test-Path -LiteralPath (Join-Path $script:ProjectRoot 'node_modules'))) {
     Write-Host (T '正在根据 package-lock.json 安装依赖，可能需要几分钟…' 'Installing dependencies from package-lock.json. This may take a few minutes…')
-    Invoke-Npm -Arguments @('ci') -FailureMessage (T '依赖安装失败，请检查上方 npm 输出和网络连接。' 'Installing dependencies failed. Check the npm output above and your network connection.')
+    Invoke-Npm -Arguments (Get-NpmInstallArguments) -FailureMessage (T '依赖安装失败，请检查上方 npm 输出和网络连接。下载慢或失败时，可以运行 .\PanelManager.cmd mirror 换一个 npm 下载源。' 'Installing dependencies failed. Check the npm output above and your network connection. If downloads are slow or failing, run .\PanelManager.cmd mirror to choose another npm download source.')
     $state = @{ dependencyHash = $dependencyHash }
   }
 
@@ -252,8 +262,25 @@ function Invoke-TailLogs {
   }
 }
 
+function Invoke-NpmMirror {
+  param([Parameter(Mandatory = $true)][string[]]$Arguments)
+  & node.exe $script:NpmMirrorScript @Arguments
+  $script:ControllerExitCode = $LASTEXITCODE
+}
+
+function Select-NpmMirror {
+  Invoke-NpmMirror -Arguments @('show')
+  if ($script:ControllerExitCode -ne 0) { return }
+  Write-Host ''
+  $selection = (Read-Host (T '输入编号或名称（直接回车不修改）' 'Enter a number or name (press Enter to keep the current one)')).Trim()
+  if ($selection) { Invoke-NpmMirror -Arguments @('set', $selection) }
+}
+
 function Invoke-Command {
-  param([Parameter(Mandatory = $true)][string]$Command)
+  param(
+    [Parameter(Mandatory = $true)][string]$Command,
+    [string]$Argument
+  )
   switch ($Command) {
     { $_ -in @('start', 'foreground', 'restart') } {
       Prepare-Project
@@ -268,28 +295,37 @@ function Invoke-Command {
     { $_ -in @('stop', 'status', 'logs', 'open') } {
       Invoke-Controller $Command
     }
+    'mirror' {
+      if ($Argument) {
+        Invoke-NpmMirror -Arguments @('set', $Argument)
+      } else {
+        Invoke-NpmMirror -Arguments @('show')
+      }
+    }
     { $_ -in @('help', '-h', '--help') } {
       Invoke-Controller 'help'
     }
     default {
-      throw (T "未知命令：$Command。可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。" "Unknown command: $Command. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, help.")
+      throw (T "未知命令：$Command。可用命令：start、foreground、stop、restart、rebuild、status、logs、open、mirror、help。" "Unknown command: $Command. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, mirror, help.")
     }
   }
 }
 
-# 菜单项：[按键, 命令, 说明]。直接回车等同于 1；live-logs 是菜单专用的「新窗口看实时日志」。
+# 菜单项：[按键, 命令, 说明]。直接回车等同于 1；live-logs 和 npm-mirror 是菜单专用的交互操作。
 $script:RunningMenu = @(
   @('1', 'open', (T '打开管理页面（直接回车）' 'Open the dashboard (Enter)')),
   @('2', 'live-logs', (T '查看实时日志' 'View live logs')),
   @('3', 'restart', (T '重启面板' 'Restart the panel')),
   @('4', 'stop', (T '安全停止面板' 'Stop the panel safely')),
-  @('5', 'rebuild', (T '重新安装依赖、构建并重启' 'Reinstall dependencies, build and restart'))
+  @('5', 'rebuild', (T '重新安装依赖、构建并重启' 'Reinstall dependencies, build and restart')),
+  @('6', 'npm-mirror', (T '选择 npm 下载源' 'Choose the npm download source'))
 )
 $script:StoppedMenu = @(
   @('1', 'start', (T '后台启动面板（直接回车）' 'Start the panel in the background (Enter)')),
   @('2', 'foreground', (T '前台启动并查看日志' 'Start in the foreground and view logs')),
   @('3', 'rebuild', (T '重新安装依赖、构建并启动' 'Reinstall dependencies, build and start')),
-  @('4', 'logs', (T '查看最近日志' 'View recent logs'))
+  @('4', 'logs', (T '查看最近日志' 'View recent logs')),
+  @('5', 'npm-mirror', (T '选择 npm 下载源' 'Choose the npm download source'))
 )
 
 # 只返回选中的命令，不在这里执行：函数返回值会吞掉其中 node 的输出。
@@ -321,11 +357,13 @@ if ($env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY -eq '1') {
   return
 }
 
-if ($args.Count -gt 1) {
-  Write-Host (T '每次只能指定一个命令；可用命令：start、foreground、stop、restart、rebuild、status、logs、open、help。' 'Specify one command at a time. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, help.') -ForegroundColor Red
+$command = if ($args.Count -ge 1) { ([string]$args[0]).ToLowerInvariant() } else { '' }
+# 只有 mirror 带参数：mirror <名称或编号>。
+$commandArgument = if ($args.Count -eq 2 -and $command -eq 'mirror') { [string]$args[1] } else { '' }
+if ($args.Count -gt 1 -and -not $commandArgument) {
+  Write-Host (T '每次只能指定一个命令；可用命令：start、foreground、stop、restart、rebuild、status、logs、open、mirror、help。' 'Specify one command at a time. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, mirror, help.') -ForegroundColor Red
   exit 2
 }
-$command = if ($args.Count -eq 1) { ([string]$args[0]).ToLowerInvariant() } else { '' }
 if ($command -eq '__tail') {
   Invoke-TailLogs
   exit 0
@@ -334,13 +372,17 @@ if ($command -eq '__tail') {
 try {
   Assert-Node
   if ($command) {
-    Invoke-Command $command
+    Invoke-Command $command $commandArgument
     exit $script:ControllerExitCode
   }
   # 无参数通常是双击启动：执行完菜单命令（含出错）后先停住，让结果和令牌提示留在屏幕上。
   $choice = Read-MenuChoice
   if ($choice) {
-    if ($choice -eq 'live-logs') { Open-LiveLogs } else { Invoke-Command $choice }
+    switch ($choice) {
+      'live-logs' { Open-LiveLogs }
+      'npm-mirror' { Select-NpmMirror }
+      default { Invoke-Command $choice }
+    }
     Write-Host ''
     [void](Read-Host (T '按回车键关闭窗口' 'Press Enter to close this window'))
   }

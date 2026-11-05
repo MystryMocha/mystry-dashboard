@@ -134,8 +134,11 @@
     "audit:production": "node scripts/check-production-audit.mjs",
     "test:interaction": "npm run test:interaction -w @mystry/web",
     "test:smoke": "node --test scripts/smoke/panel-smoke.test.mjs",
-    "verify": "npm run knowledge:check && npm run knowledge:test && npm run portable:test && npm run windows:test && npm run linux:test && npm run build -w @mystry/shared && npm run typecheck && npm run test:interaction && npm run test:security -w @mystry/server && npm run test:smoke && npm run test:regression -w @mystry/server && npm run build && npm run test:static",
-    "linux:test": "node --test scripts/linux/panel-manager.test.mjs"
+    "verify": "npm run knowledge:check && npm run knowledge:test && npm run lockfile:check && npm run mirror:test && npm run portable:test && npm run windows:test && npm run linux:test && npm run build -w @mystry/shared && npm run typecheck && npm run test:interaction && npm run test:security -w @mystry/server && npm run test:smoke && npm run test:regression -w @mystry/server && npm run build && npm run test:static",
+    "linux:test": "node --test scripts/linux/panel-manager.test.mjs",
+    "lockfile:check": "node scripts/check-lockfile-registry.mjs",
+    "lockfile:fix": "node scripts/check-lockfile-registry.mjs --fix",
+    "mirror:test": "node --test scripts/npm-mirror.test.mjs"
   },
   "knowledgeDocuments": [
     "docs/ai/README.md",
@@ -190,7 +193,11 @@
   "requiredContent": [
     {
       "path": "apps/server/src/routes/system.ts",
-      "includes": ["/api/system/metrics", "MetricsService", "app.authenticate"]
+      "includes": [
+        "/api/system/metrics",
+        "MetricsService",
+        "app.authenticate"
+      ]
     },
     {
       "path": "CLAUDE.md",
@@ -203,11 +210,17 @@
     },
     {
       "path": "docs/ai/README.md",
-      "includes": ["../design-system.md", "../localization.md"]
+      "includes": [
+        "../design-system.md",
+        "../localization.md"
+      ]
     },
     {
       "path": "apps/web/index.html",
-      "includes": ["mystry_locale", "root.lang = locale"]
+      "includes": [
+        "mystry_locale",
+        "root.lang = locale"
+      ]
     },
     {
       "path": "docs/architecture.md",
