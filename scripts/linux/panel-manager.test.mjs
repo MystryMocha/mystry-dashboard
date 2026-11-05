@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
@@ -36,4 +37,40 @@ test('Linux 上的启动器可直接转发帮助命令', { skip: process.platfor
   assert.match(result.stdout, /Mystry Dashboard 源码版管理器/);
   assert.match(result.stdout, /用法：PanelManager\.sh <command>/);
   assert.match(result.stdout, /start\s+后台启动面板/);
+});
+
+test('Linux 启动器按所选下载源安装依赖', { skip: process.platform !== 'linux' }, async (t) => {
+  // 在临时目录放一份启动器，npm 和控制器都用替身，只看实际传给 npm 的参数。
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-mirror-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  await fs.mkdir(path.join(root, 'scripts', 'portable'), { recursive: true });
+  await fs.mkdir(path.join(root, 'bin'));
+  await fs.copyFile(launcherPath, path.join(root, 'PanelManager.sh'));
+  await fs.copyFile(path.join(projectRoot, 'scripts', 'npm-mirror.mjs'), path.join(root, 'scripts', 'npm-mirror.mjs'));
+  await fs.writeFile(path.join(root, 'scripts', 'portable', 'mystryctl.mjs'), '', 'utf8');
+  await fs.writeFile(path.join(root, 'package-lock.json'), '{}', 'utf8');
+  const npmLog = path.join(root, 'npm.log');
+  await fs.writeFile(path.join(root, 'bin', 'npm'), `#!/bin/sh\necho "$*" >> "${npmLog}"\n`, { mode: 0o755 });
+
+  const run = (args, env = {}) => spawnSync('bash', [path.join(root, 'PanelManager.sh'), ...args], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, PATH: `${path.join(root, 'bin')}${path.delimiter}${process.env.PATH}`, MYSTRY_LANG: 'zh-CN', ...env },
+  });
+  const installs = async () => (await fs.readFile(npmLog, 'utf8')).split('\n').filter((line) => line.startsWith('ci'));
+
+  assert.equal(run(['rebuild'], { MYSTRY_NPM_MIRROR: 'default' }).status, 0);
+  assert.deepEqual(await installs(), ['ci']);
+
+  assert.equal(run(['rebuild'], { MYSTRY_NPM_MIRROR: 'npmmirror' }).status, 0);
+  assert.equal((await installs()).at(-1), 'ci --registry=https://registry.npmmirror.com/');
+
+  assert.equal(run(['mirror', 'official']).status, 0);
+  assert.match(run(['mirror']).stdout, /\* \[2\] official/);
+  assert.equal(run(['rebuild']).status, 0);
+  assert.equal((await installs()).at(-1), 'ci --registry=https://registry.npmjs.org/');
+
+  assert.notEqual(run(['rebuild'], { MYSTRY_NPM_MIRROR: 'nope' }).status, 0);
+  assert.equal(run(['mirror', 'nope']).status, 2);
+  assert.notEqual(run(['status', 'extra']).status, 0);
 });
