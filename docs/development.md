@@ -120,12 +120,12 @@ node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.3-windows
 
 `package-portable.mjs` 会从官方 Node.js 发布站下载固定版本运行时并按 `SHASUMS256.txt` 校验，使用 `npm ci --omit=dev` 创建独立生产依赖树，物理复制 `@mystry/shared`，并拒绝包内符号链接。不要从当前仓库的 `node_modules` 直接打包。
 
-`.github/workflows/portable-release.yml` 在 Windows x64 与 Linux x64 矩阵全部通过后生成 Release。发布前还必须通过 `npm run verify` 和 `npm run audit:production`；签名密钥缺失会阻止公开 Release。维护操作和数据升级流程见 [便携预览版](portable-release.md)。
+`.github/workflows/portable-release.yml` 在 Windows x64 与 Linux x64 矩阵全部通过后生成 Release。发布前还必须通过 `npm run verify` 和 `npm run audit:production`；签名密钥缺失会阻止公开 Release。维护操作和数据升级流程见 [便携预览版](portable-release.zh-CN.md)。
 
 ## 相关文档
 
 - [贡献指南](../CONTRIBUTING.md)
 - [架构设计](architecture.md)
 - [配置说明](configuration.md)
-- [便携预览版](portable-release.md)
+- [便携预览版](portable-release.zh-CN.md)
 - [AI 项目知识库](ai/README.md)

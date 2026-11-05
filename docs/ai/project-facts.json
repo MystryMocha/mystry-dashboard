@@ -271,6 +271,15 @@
         "SHA256SUMS.asc",
         "mystry-release-signing-key.asc",
         "MYSTRY_CONFIG_PATH",
+        "data/instances/<id>"
+      ]
+    },
+    {
+      "path": "docs/portable-release.zh-CN.md",
+      "includes": [
+        "SHA256SUMS.asc",
+        "mystry-release-signing-key.asc",
+        "MYSTRY_CONFIG_PATH",
         "data/instances/<id>",
         "RELEASE_GPG_PRIVATE_KEY",
         "RELEASE_GPG_FINGERPRINT"

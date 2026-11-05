@@ -38,23 +38,62 @@ test('便携入口只调用包内 Node 运行时', async () => {
 /** 取出两种语言都必须一致的事实：日期、版本号、地址、公告编号和审计计数。 */
 function releaseFacts(text) {
   const pattern = /\d{4}-\d{2}-\d{2}|GHSA-[\w-]+|\b\d+(?:\.\d+)+\b|\b\d+ (?:critical|high|moderate)\b/g;
-  return (text.match(pattern) ?? []).sort();
+  return [...new Set(text.match(pattern) ?? [])].sort();
 }
 
-test('Release 正文英文在前，中英两段事实一致', async () => {
+/** 取出行内代码（命令、文件名、变量名）；含中文的是界面文案，不参与比对。 */
+function inlineCode(text) {
+  const body = text.replace(/^```[\s\S]*?^```$/gm, '');
+  const tokens = [...body.matchAll(/`([^`\n]+)`/g)].map((match) => match[1]);
+  return [...new Set(tokens.filter((token) => !/\p{Script=Han}/u.test(token)))].sort();
+}
+
+/** 统计结构：一种语言多出或漏掉一节、一条列表、一行表格时计数就不同。 */
+function documentShape(text) {
+  const count = (pattern) => (text.match(pattern) ?? []).length;
+  return {
+    headings: count(/^#{2,6} /gm),
+    bullets: count(/^- /gm),
+    numbered: count(/^\d+\. /gm),
+    tableRows: count(/^\|/gm),
+    fences: count(/^```/gm),
+  };
+}
+
+/** 译文无法靠程序证明语义相同，这里只拦住事实、标识符和结构上的漂移。 */
+function assertSameContent(english, chinese) {
+  assert.ok(releaseFacts(english).length > 0, '没有提取到事实，比对没有意义');
+  assert.deepEqual(releaseFacts(english), releaseFacts(chinese));
+  assert.deepEqual(inlineCode(english), inlineCode(chinese));
+  assert.deepEqual(documentShape(english), documentShape(chinese));
+}
+
+test('Release 正文英文在前，中英两段内容一致', async () => {
   const notes = await fsp.readFile(
     path.join(scriptDir, '..', '..', '.github', 'portable-preview-notes.md'),
     'utf8',
   );
-  const [english, chinese, ...rest] = notes.split('\n## 简体中文\n');
+  const [beforeChinese, chinese, ...rest] = notes.split('\n## 简体中文\n');
   assert.equal(rest.length, 0);
-  assert.match(english, /^## English$/m);
   assert.ok(chinese, '缺少简体中文段落');
-  assert.ok(releaseFacts(english).length > 0);
-  assert.deepEqual(releaseFacts(english), releaseFacts(chinese));
+  const [, english] = beforeChinese.split('\n## English\n');
+  assert.ok(english, '英文段落必须在中文之前');
+  assertSameContent(english, chinese);
 });
 
-test('包内 README.txt 英文在前，中英两段事实一致', async () => {
+test('便携说明文档中英两版内容一致', async () => {
+  const docs = path.join(scriptDir, '..', '..', 'docs');
+  const english = await fsp.readFile(path.join(docs, 'portable-release.md'), 'utf8');
+  const chinese = await fsp.readFile(path.join(docs, 'portable-release.zh-CN.md'), 'utf8');
+  // 发布维护步骤只在中文版写全，英文版只放链接，因此不比对这一节
+  const [englishBody, ...englishRest] = english.split('\n## Release Maintenance\n');
+  const [chineseBody, ...chineseRest] = chinese.split('\n## 发布维护\n');
+  assert.equal(englishRest.length, 1);
+  assert.equal(chineseRest.length, 1);
+  assertSameContent(englishBody, chineseBody);
+});
+
+test('包内 README.txt 英文在前，中英两段内容一致', async () => {
   const directory = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-readme-'));
   try {
     const destination = path.join(directory, 'README.txt');
@@ -64,7 +103,7 @@ test('包内 README.txt 英文在前，中英两段事实一致', async () => {
     assert.equal(rest.length, 0);
     assert.match(english, /^Mystry Dashboard 9\.9\.9-test Portable Preview$/m);
     assert.match(chinese, /^Mystry Dashboard 9\.9\.9-test 便携预览版$/m);
-    assert.deepEqual(releaseFacts(english), releaseFacts(chinese));
+    assertSameContent(english, chinese);
     for (const text of [english, chinese]) {
       assert.match(text, /start, foreground, stop, restart, status, logs, open, help/);
       assert.match(text, /chmod \+x mystryctl/);
