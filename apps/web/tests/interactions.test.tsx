@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { createMemoryRouter, MemoryRouter, RouterProvider, useLocation } from 'react-router-dom';
 import { DashboardPage } from '../src/pages/DashboardPage';
 import { DeployPage } from '../src/pages/DeployPage';
 import { ImportPage } from '../src/pages/ImportPage';
@@ -10,6 +10,7 @@ import { NodesPage } from '../src/pages/NodesPage';
 import { TaskCenter } from '../src/components/TaskCenter';
 import { ConsolePanel } from '../src/components/ConsolePanel';
 import { BackupsTab } from '../src/components/BackupsTab';
+import { ConfigTab } from '../src/components/ConfigTab';
 import { App } from '../src/App';
 import { AuthProvider } from '../src/auth';
 import { Terminal } from '@xterm/xterm';
@@ -628,4 +629,21 @@ test('控制台读屏模式可开关并记住，历史写完和发送命令前�
   await user.click(screen.getByRole('button', { name: '读屏模式' }));
   expect(terminal.current?.options.screenReaderMode).toBe(false);
   expect(localStorage.getItem('mystry_console_screen_reader')).toBeNull();
+});
+
+test('参数配置遇到选项之外的值时原样显示，不误显示成第一项', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(
+    JSON.stringify({ difficulty: '9', gamemode: 'creative' }),
+    { status: 200, headers: { 'content-type': 'application/json' } },
+  )));
+  // useBlocker 需要数据路由，这里不能用 MemoryRouter。
+  const router = createMemoryRouter([{ path: '/', element: <ConfigTab instanceId="test" /> }]);
+  render(<RouterProvider router={router} />);
+
+  const difficulty = await screen.findByRole('combobox', { name: '难度' }) as HTMLSelectElement;
+  await waitFor(() => expect(difficulty.value).toBe('9'));
+  expect(within(difficulty).getByRole('option', { name: '9' })).toBeTruthy();
+  const gamemode = screen.getByRole('combobox', { name: '默认游戏模式' }) as HTMLSelectElement;
+  expect(gamemode.value).toBe('creative');
+  expect(within(gamemode).queryByRole('option', { name: 'creative' })).toBeNull();
 });

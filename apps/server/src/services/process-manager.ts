@@ -393,7 +393,7 @@ export class ProcessManager extends EventEmitter {
       if (this.shuttingDown) {
         throw new PanelError('server.instance.startCancelledShuttingDown');
       }
-      ensureServerPropertiesDefaults(instance.id);
+      ensureServerPropertiesDefaults(instance.id, instance.mc_version);
       const child = this.spawnMinecraft(javaCommand, args, {
         cwd,
         env: getMinecraftChildEnv(),

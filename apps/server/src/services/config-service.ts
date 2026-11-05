@@ -36,6 +36,55 @@ const DEFAULT_PROPERTIES: PropertiesMap = {
   'online-mode': 'true',
 };
 
+/**
+ * 1.13 及更早的服务端只认数字形式的难度和模式，写单词会被静默重置成默认值。
+ * 1.14 起文件里改存单词，但仍接受数字，所以数字是新旧版本都能读的写法。
+ * 下标就是游戏里的数字编号。
+ */
+const NUMERIC_ENUM_PROPERTIES: Record<string, readonly string[]> = {
+  difficulty: ['peaceful', 'easy', 'normal', 'hard'],
+  gamemode: ['survival', 'creative', 'adventure', 'spectator'],
+};
+
+function requiresNumericEnums(mcVersion: string | null | undefined): boolean {
+  const minor = mcVersion?.match(/^1\.(\d+)\b/)?.[1];
+  return minor !== undefined && Number(minor) < 14;
+}
+
+function isNumericValue(value: string | undefined): boolean {
+  return value !== undefined && /^\d+$/.test(value);
+}
+
+/** 接口和表单只用单词；超出范围的数字保持原样，让用户看到文件里的真实内容。 */
+function withNamedEnumValues(properties: PropertiesMap): PropertiesMap {
+  const result = { ...properties };
+  for (const [key, names] of Object.entries(NUMERIC_ENUM_PROPERTIES)) {
+    const value = result[key];
+    const name = isNumericValue(value) ? names[Number(value)] : undefined;
+    if (name) result[key] = name;
+  }
+  return result;
+}
+
+/** 把单词换回文件该用的写法：文件原来是数字，或实例版本只认数字时写数字。 */
+function withFileEnumValues(
+  properties: PropertiesMap,
+  current: PropertiesMap,
+  mcVersion: string | null | undefined,
+): PropertiesMap {
+  const result = { ...properties };
+  const numericOnly = requiresNumericEnums(mcVersion);
+  for (const [key, names] of Object.entries(NUMERIC_ENUM_PROPERTIES)) {
+    const value = result[key];
+    if (value === undefined) continue;
+    const index = names.indexOf(value);
+    if (index !== -1 && (numericOnly || isNumericValue(current[key]))) {
+      result[key] = String(index);
+    }
+  }
+  return result;
+}
+
 function detectEol(content: string): '\n' | '\r\n' {
   return content.includes('\r\n') ? '\r\n' : '\n';
 }
@@ -179,18 +228,24 @@ function replaceEntryValue(line: PropertyEntryLine, value: string): PropertyEntr
   };
 }
 
-/** Java properties 转义：反斜杠与 \t \r \n \f 必须转义，否则写出后会被当作语法而非值。 */
+/**
+ * Java properties 转义：反斜杠与 \t \r \n \f 必须转义，否则写出后会被当作语法而非值。
+ * 非 ASCII 字符写成 \uXXXX：旧版服务端按 Latin-1 读取，直接写 UTF-8 会变成乱码，
+ * 服务端随后把乱码存回文件，原文就找不回来了。emoji 按 UTF-16 拆成两段，Java 读取时会合并。
+ */
 function escapePropertyValue(value: string): string {
-  return value.replace(/[\\\t\r\n\f]/g, (char) => {
-    const mapped: Record<string, string> = {
-      '\\': '\\\\',
-      '\t': '\\t',
-      '\r': '\\r',
-      '\n': '\\n',
-      '\f': '\\f',
-    };
-    return mapped[char] ?? char;
-  });
+  return value
+    .replace(/[\\\t\r\n\f]/g, (char) => {
+      const mapped: Record<string, string> = {
+        '\\': '\\\\',
+        '\t': '\\t',
+        '\r': '\\r',
+        '\n': '\\n',
+        '\f': '\\f',
+      };
+      return mapped[char] ?? char;
+    })
+    .replace(/[^\x00-\x7f]/g, (char) => `\\u${char.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}`);
 }
 
 /**
@@ -258,31 +313,40 @@ export function readServerProperties(instanceId: string): PropertiesMap {
     return { ...DEFAULT_PROPERTIES };
   }
   assertMutablePropertiesFile(instanceId, file);
-  return parseProperties(fs.readFileSync(file, 'utf8'));
+  return withNamedEnumValues(parseProperties(fs.readFileSync(file, 'utf8')));
 }
 
 /** 首次启动前写入面板默认配置；已有 server.properties 保持不变。 */
-export function ensureServerPropertiesDefaults(instanceId: string): void {
+export function ensureServerPropertiesDefaults(instanceId: string, mcVersion?: string | null): void {
   const root = getInstanceDir(instanceId);
   const file = resolveSafePath(root, 'server.properties');
   if (fs.existsSync(file)) return;
-  writeServerProperties(instanceId, {});
+  writeServerProperties(instanceId, {}, mcVersion);
 }
 
-export function previewServerPropertiesWrite(instanceId: string, patch: PropertiesMap): string {
+export function previewServerPropertiesWrite(
+  instanceId: string,
+  patch: PropertiesMap,
+  mcVersion?: string | null,
+): string {
   const root = getInstanceDir(instanceId);
   const file = resolveSafePath(root, 'server.properties');
   // 默认文档不混入 patch：先解析纯默认值，再统一经 applyPropertiesPatch 转义应用，
   // 避免未转义值（换行、尾随反斜杠）在解析阶段被拆成额外属性或吞并下一行。
   const baseDocument = fs.existsSync(file)
     ? parsePropertiesDocument(fs.readFileSync(file, 'utf8'))
-    : parsePropertiesDocument(stringifyProperties({ ...DEFAULT_PROPERTIES }));
-  return stringifyPropertiesDocument(applyPropertiesPatch(baseDocument, patch));
+    : parsePropertiesDocument(stringifyProperties(withFileEnumValues(DEFAULT_PROPERTIES, {}, mcVersion)));
+  const filePatch = withFileEnumValues(patch, propertiesMapFromDocument(baseDocument), mcVersion);
+  return stringifyPropertiesDocument(applyPropertiesPatch(baseDocument, filePatch));
 }
 
-export function writeServerProperties(instanceId: string, patch: PropertiesMap): void {
+export function writeServerProperties(
+  instanceId: string,
+  patch: PropertiesMap,
+  mcVersion?: string | null,
+): void {
   const root = getInstanceDir(instanceId);
   const file = resolveSafePath(root, 'server.properties');
   assertMutablePropertiesFile(instanceId, file);
-  writeFileAtomic(file, previewServerPropertiesWrite(instanceId, patch));
+  writeFileAtomic(file, previewServerPropertiesWrite(instanceId, patch, mcVersion));
 }
