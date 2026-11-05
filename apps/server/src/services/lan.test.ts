@@ -289,6 +289,35 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   }
 });
 
+test('frpc 的 Windows 压缩包不依赖系统 tar，缺少条目时报解压失败', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-frp-zip-'));
+  // 单独运行这条测试时配置还没加载，这里补齐；整组运行时模块已缓存，不受影响。
+  process.env.MYSTRY_DATA_DIR ??= dir;
+  process.env.JWT_SECRET ??= 'a'.repeat(64);
+  process.env.SETUP_TOKEN ??= 'b'.repeat(64);
+  process.env.LAUNCHER_TOKEN ??= 'c'.repeat(64);
+  const { extractMember } = await import('./frp-runtime.js');
+  const savedPath = process.env.PATH;
+  // PATH 清空后系统 tar 一定找不到，还能走通就说明没有用它。
+  process.env.PATH = '';
+  t.after(() => {
+    process.env.PATH = savedPath;
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const frpc = Buffer.alloc(4096, 0x42);
+  // 文件名与真实下载时一致：带 .partial 后缀，同目录还有 frps.exe。
+  const zipPath = path.join(dir, 'frp_windows_amd64.zip.partial');
+  fs.writeFileSync(zipPath, createZip([
+    { name: 'frp_windows_amd64/frps.exe', contents: Buffer.from('frps'), compression: 8 },
+    { name: 'frp_windows_amd64/frpc.exe', contents: frpc, compression: 8 },
+  ]));
+  assert.deepEqual(await extractMember(zipPath, 'frp_windows_amd64/frpc.exe'), frpc);
+  await assert.rejects(
+    extractMember(zipPath, 'frp_windows_amd64/missing.exe'),
+    (error: { messageKey?: string }) => error.messageKey === 'server.frp.extractFailed',
+  );
+});
+
 test('EasyTier 压缩包用面板自带的 ZIP 解析列出并读出条目，超限拒绝', async () => {
   const { listZipEntryNames, readZipEntryBuffer } = await import('./zip-service.js');
   const { PanelError } = await import('../utils/errors.js');
