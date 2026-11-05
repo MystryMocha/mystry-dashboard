@@ -12,6 +12,19 @@ export default {
   'server.system.nodeHasInstances': '此節點下還有實例，請先遷移或刪除這些實例',
   'server.system.localNodeNoSecret': '本機節點不需要金鑰',
 
+  // 下载来源
+  'server.system.downloadSourceInvalid': '請選擇支援的下載來源',
+  'server.system.downloadAllSourcesFailed': '{name} 在所有下載來源都下載失敗。{attempts}請稍後再試，或到「本機環境」頁更換下載來源。',
+  'server.system.metadataAllSourcesFailed': '所有來源都無法讀取版本資訊。{attempts}請稍後再試，或到「本機環境」頁更換下載來源。',
+  'server.system.downloadAttempt': '{source}：{reason}。{next}',
+  'server.system.downloadReasonHttp': '伺服器回傳 HTTP {status}',
+  'server.system.downloadReasonTimeout': '要求逾時',
+  'server.system.downloadReasonNetwork': '無法連線至伺服器',
+  'server.system.downloadReasonInvalid': '無法讀取回傳內容',
+  'server.system.downloadReasonChecksum': '檔案校驗失敗，已捨棄',
+  'server.system.downloadReasonTooLarge': '檔案超過面板允許的大小',
+  'server.system.downloadChecksumMismatch': '下載的檔案校驗值不符，已捨棄',
+
   // 主机监测告警
   'server.system.metricsCpuHigh': '主機 CPU 持續偏高',
   'server.system.metricsMemoryHigh': '主機記憶體持續偏高',

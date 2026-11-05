@@ -24,6 +24,17 @@ export default {
   'nodes.spec.instanceCount_one': '{count} 個伺服器實例',
   'nodes.spec.instanceCount_other': '{count} 個伺服器實例',
 
+  'nodes.downloadSource.title': '下載來源',
+  'nodes.downloadSource.lead': '選擇面板從哪裡下載伺服器檔案和連線用戶端。',
+  'nodes.downloadSource.official': '官方來源',
+  'nodes.downloadSource.china': '中國大陸鏡像',
+  'nodes.downloadSource.official.desc': '檔案直接來自 Mojang、PaperMC、FabricMC、Forge、NeoForge 和 GitHub，面板不會連線至第三方鏡像。',
+  'nodes.downloadSource.china.desc': 'Vanilla、Forge、NeoForge 和版本清單使用 BMCLAPI，frp 和 EasyTier 使用公共 GitHub 鏡像。鏡像下載的檔案都會先核對校驗值再使用；鏡像失敗時自動改用官方來源。',
+  'nodes.downloadSource.china.limits': 'Paper 和 Fabric 的伺服器檔案沒有可靠的鏡像，仍從官方網站下載。Forge 和 NeoForge 安裝程式的部分檔案仍要連線至 Mojang，伺服器第一次啟動時也可能再下載檔案。',
+  'nodes.downloadSource.saved': '已儲存，之後的下載使用這個來源。',
+  'nodes.downloadSource.hint': '下載來源：{source}。',
+  'nodes.downloadSource.hint.change': '變更',
+
   'nodes.remote.title': '其他節點清單',
   'nodes.remote.desc_one': '遠端節點 · {count} 個實例 · 最近心跳 {lastSeen}',
   'nodes.remote.desc_other': '遠端節點 · {count} 個實例 · 最近心跳 {lastSeen}',

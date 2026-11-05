@@ -244,12 +244,35 @@ DATA_DIR/
 
 ## 外部依赖 API
 
-| 用途 | 来源 |
-|------|------|
-| Vanilla 版本与 jar | Mojang 官方元数据 |
-| Paper build | `fill.papermc.io` v3 |
-| Fabric loader / installer | Fabric Meta API |
-| Forge / NeoForge | BMCLAPI2 版本列表 + Maven Installer，`--installServer` |
+### 下载来源
+
+面板有「官方来源」和「国内镜像」两种下载来源，默认官方。设置在「本机环境」页，保存在 `panel.db` 的 `panel_settings` 表。官方来源绝不访问第三方；国内镜像按下表顺序尝试，失败后回到官方。
+
+| 文件 | 官方来源 | 国内镜像（依次尝试） | 校验 |
+|------|----------|----------------------|------|
+| Vanilla 版本列表与 jar | Mojang | BMCLAPI → Mojang | jar 按版本详情里的 SHA-1 |
+| Paper 版本与 jar | `fill.papermc.io` | 同官方，没有可靠镜像 | jar 按 Fill 接口的 SHA-256 |
+| Fabric 版本列表 | Fabric Meta | BMCLAPI `/fabric-meta` → Fabric Meta | 无 |
+| Fabric 服务端 jar | Fabric Meta 现场生成 | 同官方，BMCLAPI 不提供 | 无 |
+| Forge 版本列表 | `files.minecraftforge.net` 的 `maven-metadata.json` | BMCLAPI → 官方 | 无 |
+| NeoForge 版本列表 | `maven.neoforged.net` | BMCLAPI → 官方 | 无 |
+| Forge / NeoForge 安装器 | 官方 Maven | BMCLAPI `/maven` → 官方 Maven | 按官方 Maven 的 `.sha256` |
+| 安装器依赖与 Vanilla jar | 安装器自行下载 | 面板先经 BMCLAPI 预取，缺的由安装器补齐 | 按安装器清单里的 SHA-1 |
+| frpc | GitHub | 南京大学镜像 → `ghfast.top` → `gh-proxy.com` → GitHub | 钉死的 SHA-256 |
+| EasyTier | GitHub | `ghfast.top` → `gh-proxy.com` → GitHub | 钉死的 SHA-256 |
+
+规则：
+
+- **校验值未知时不用镜像**。`createDownloadPlan()` 在没有校验值时丢弃所有镜像地址，只留官方地址。BMCLAPI 的 Maven 路径会跳转到社区节点，公共 GitHub 代理的运营方也不可知，所以镜像给的文件必须能和可信的校验值对上才用。
+- **校验值不能来自社区节点**。BMCLAPI 只有 JSON 列表接口由主站直接返回，`/maven`、`/v1/packages`、`/v1/objects` 都会 302 到 USTC、CERNET 或志愿者节点。Forge / NeoForge 的 `.sha256` 因此只读官方 Maven。Vanilla 是一条校验链：清单由主站直接返回，清单里的 SHA-1 核对版本详情，版本详情里的 SHA-1 核对 jar；清单没有 SHA-1 或详情对不上时改用 Mojang 的详情。
+- **校验在写入最终路径之前**。文件边下载边算摘要，不符就丢弃，换下一个来源。
+- **列表结果不算校验**。版本列表来自镜像时最多显示错版本，不会让未校验的文件进入实例。
+- **BMCLAPI 有限流**。实测同一地址 60 秒内超过 10 次返回 429（2026-11-05，按地址计，不同文件互不影响）。这里不做等待：429 和其他失败一样换下一个来源。
+- 有后备来源时，等待响应头的时限是 `CORE_METADATA_TIMEOUT_MS`，卡住的镜像不会耗尽整段下载超时。全部失败时错误里列出每个来源的原因，并提示到「本机环境」更换来源。
+
+国内镜像下仍会连接官方的部分：安装器的 `--mirror` 不改写 `libraries.minecraft.net`，NeoForge 安装器也不使用它，所以面板改为预取：两种安装器都会跳过 SHA-1 相符的已有文件。但安装器在 1.17+ 仍要从 Mojang 下载映射文件，且会检测官方站点能否连接。Fabric 和 Forge 服务端第一次启动时也可能自己下载文件。
+
+Forge / NeoForge 由 `--installServer` 完成安装。
 
 下载文件可缓存在 `DATA_DIR/cache/cores/` 以减少重复拉取；下载大小和超时受对应环境变量限制。
 

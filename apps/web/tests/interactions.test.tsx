@@ -64,6 +64,7 @@ beforeEach(() => {
       : url === '/api/system/metrics' ? metricSample
       : url === '/api/tasks' ? { tasks: [{ id: 'task', type: 'import', status: 'running', progress: 30, createdAt: new Date().toISOString() }] }
       : url === '/api/nodes' ? nodes
+      : url === '/api/system/download-source' ? { source: 'official' }
       : String(url).includes('/import/sources') ? { sources: [] }
       : String(url).includes('java-runtimes') ? { runtimes: [], defaultRuntime: null }
       : {};
@@ -314,6 +315,35 @@ test('节点页展示空态，失败后可主动重试恢复真实离线状态',
   await user.click(screen.getByRole('button', { name: '重试加载' }));
   expect(await screen.findByText('离线')).toBeTruthy();
   expect(screen.queryByText(/健康运转中/)).toBeNull();
+});
+
+test('本机环境页切换下载来源：失败时保留原选择，成功后显示说明', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const saved: string[] = [];
+  let failSave = true;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/download-source' && options?.method === 'PUT') {
+      saved.push(String(options.body));
+      return failSave
+        ? new Response(JSON.stringify({ error: '保存失败' }), { status: 500 })
+        : new Response(String(options.body));
+    }
+    return baseFetch(url, options);
+  }));
+  mount(<NodesPage />);
+  const official = await screen.findByRole('button', { name: '官方来源', pressed: true });
+  const china = screen.getByRole('button', { name: '国内镜像', pressed: false });
+  await user.click(china);
+  expect((await screen.findByRole('alert')).textContent).toContain('保存失败');
+  expect(official.getAttribute('aria-pressed')).toBe('true');
+  failSave = false;
+  await user.click(china);
+  expect(await screen.findByText('已保存，之后的下载使用这个来源。')).toBeTruthy();
+  expect(china.getAttribute('aria-pressed')).toBe('true');
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(screen.getByText(/Paper 和 Fabric 的服务端文件没有可靠的镜像/)).toBeTruthy();
+  expect(saved.at(-1)).toBe('{"source":"china"}');
 });
 
 test('复制日志提供空日志、权限拒绝、API 缺失与成功反馈', async () => {

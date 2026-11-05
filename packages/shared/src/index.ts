@@ -179,6 +179,14 @@ export interface FileDownloadTicketStatusResult {
   errorI18n?: PanelMessage;
 }
 
+/** 下载来源，取值见 schemas.ts 的 DOWNLOAD_SOURCE_ENUM。 */
+export type DownloadSource = 'official' | 'china';
+
+/** GET /api/system/download-source 响应，也是 PUT 的请求体。 */
+export interface DownloadSourceSetting {
+  source: DownloadSource;
+}
+
 export interface DeployCoreInput {
   name: string;
   coreType: Exclude<CoreType, 'custom'>;
@@ -392,6 +400,8 @@ export interface ConsoleMessage {
 export {
   CORE_TYPE_ENUM,
   DEPLOYABLE_CORE_TYPE_ENUM,
+  DOWNLOAD_SOURCE_ENUM,
+  updateDownloadSourceBodySchema,
   createInstanceBodySchema,
   updateInstanceBodySchema,
   deployCoreBodySchema,

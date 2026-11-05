@@ -15,6 +15,8 @@ import type {
   LanRuntimeInfo,
   JavaRuntimeListResult,
   JavaDetectResult,
+  DownloadSource,
+  DownloadSourceSetting,
   ImportPreviewInfo,
   InstanceInfo,
   InstanceStopPendingResult,
@@ -330,6 +332,16 @@ export async function listJavaRuntimes(refresh = false) {
 /** PATH 中默认 Java 的探测结果。 */
 export async function detectDefaultJava() {
   return api<JavaDetectResult>('/api/system/java');
+}
+
+/** 面板当前的下载来源设置。 */
+export async function getDownloadSource() {
+  return api<DownloadSourceSetting>('/api/system/download-source');
+}
+
+/** 保存下载来源；之后发起的下载立即使用新来源。 */
+export async function saveDownloadSource(source: DownloadSource) {
+  return api<DownloadSourceSetting>('/api/system/download-source', { method: 'PUT', json: { source } });
 }
 
 /** 当前节点清单；第一阶段只使用内置本机节点的主机内存。 */

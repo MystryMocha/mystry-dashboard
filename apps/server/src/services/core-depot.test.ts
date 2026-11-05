@@ -11,10 +11,16 @@ import { syncBuiltinESMExports } from 'node:module';
 import { PassThrough } from 'node:stream';
 import type { DeployCoreInput, PanelMessage, ServerMessageKey } from '@mystry/shared';
 import { PanelError } from '../utils/errors.js';
+import type { DownloadPlan } from './download-sources.js';
 
 process.env.JWT_SECRET = randomBytes(32).toString('hex');
 process.env.SETUP_TOKEN = randomBytes(32).toString('hex');
 process.env.LAUNCHER_TOKEN = randomBytes(32).toString('hex');
+
+/** 只有一个官方地址的下载计划。 */
+function planFor(url: string): DownloadPlan {
+  return { candidates: [{ label: 'Fixture', url, mirror: false }] };
+}
 
 /** 断言为可翻译错误且消息键一致（不依赖具体语言的文案）。 */
 function hasMessageKey(error: unknown, key: ServerMessageKey): boolean {
@@ -137,8 +143,8 @@ test('缓存并发：仅下载一次，单个等待者取消不会中断其他�
   const second = new AbortController();
   const progress1: number[] = [];
   const progress2: number[] = [];
-  const p1 = assert.rejects(ensureCoreCache(url, dest, (p) => progress1.push(p), first.signal), (error) => hasMessageKey(error, 'server.tasks.aborted'));
-  const p2 = ensureCoreCache(url, dest, (p) => progress2.push(p), second.signal);
+  const p1 = assert.rejects(ensureCoreCache(planFor(url), dest, 'core.jar', (p) => progress1.push(p), first.signal), (error) => hasMessageKey(error, 'server.tasks.aborted'));
+  const p2 = ensureCoreCache(planFor(url), dest, 'core.jar', (p) => progress2.push(p), second.signal);
   await waitUntil(() => progress1.length > 0 && progress2.length > 0);
   assert.equal(responses.length, 1);
   assert.equal(fs.existsSync(dest), false, '下载完成之前最终缓存不可见');
@@ -152,7 +158,7 @@ test('缓存并发：仅下载一次，单个等待者取消不会中断其他�
   assert.equal(progress2.at(-1), 1);
   assert.equal(fs.readFileSync(dest, 'utf8'), 'abcdef');
   assert.deepEqual(fs.readdirSync(dir), ['core.jar']);
-  await ensureCoreCache(url, dest);
+  await ensureCoreCache(planFor(url), dest, 'core.jar');
   assert.equal(responses.length, 1, '完整缓存复用不应重复请求');
   assert.equal(getEventListeners(first.signal, 'abort').length, 0);
   assert.equal(getEventListeners(second.signal, 'abort').length, 0);
@@ -166,13 +172,13 @@ test('缓存所有等待者取消：终止下载、清理 part，后续可重新
   const controllers = [new AbortController(), new AbortController()];
   let progressSeen = false;
   const results = controllers.map((controller) => assert.rejects(
-    ensureCoreCache(url, dest, () => { progressSeen = true; }, controller.signal), (error) => hasMessageKey(error, 'server.tasks.aborted'),
+    ensureCoreCache(planFor(url), dest, 'core.jar', () => { progressSeen = true; }, controller.signal), (error) => hasMessageKey(error, 'server.tasks.aborted'),
   ));
   await waitUntil(() => progressSeen);
   controllers.forEach((controller) => controller.abort(new PanelError('server.tasks.aborted')));
   await Promise.all(results);
   await waitUntil(() => responses[0]?.destroyed === true && fs.readdirSync(dir).length === 0);
-  const retry = ensureCoreCache(url, dest);
+  const retry = ensureCoreCache(planFor(url), dest, 'core.jar');
   await waitUntil(() => responses.length === 2);
   responses[1]!.end('def');
   await retry;
@@ -188,13 +194,13 @@ test('所有等待者取消后立刻重试：发起新下载，不继承别人�
   const controller = new AbortController();
   let progressSeen = false;
   const canceled = assert.rejects(
-    ensureCoreCache(url, dest, () => { progressSeen = true; }, controller.signal), (error) => hasMessageKey(error, 'server.tasks.aborted'),
+    ensureCoreCache(planFor(url), dest, 'core.jar', () => { progressSeen = true; }, controller.signal), (error) => hasMessageKey(error, 'server.tasks.aborted'),
   );
   await waitUntil(() => progressSeen);
   controller.abort(new PanelError('server.tasks.aborted'));
   await canceled;
   // 不等旧下载收尾就重试：旧下载此时可能还没从合并表中移除。
-  const retry = ensureCoreCache(url, dest);
+  const retry = ensureCoreCache(planFor(url), dest, 'core.jar');
   await waitUntil(() => responses.length === 2);
   responses[1]!.end('def');
   await retry;

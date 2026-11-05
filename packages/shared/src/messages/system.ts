@@ -10,6 +10,19 @@ export const SYSTEM_MESSAGES = {
   'server.system.nodeHasInstances': 'This node still has instances. Move or delete them first.',
   'server.system.localNodeNoSecret': 'The local node does not need a secret.',
 
+  // 下载来源
+  'server.system.downloadSourceInvalid': 'Choose a supported download source.',
+  'server.system.downloadAllSourcesFailed': "{name} couldn't be downloaded from any source. {attempts}Try again later, or change the download source on the This Machine page.",
+  'server.system.metadataAllSourcesFailed': "Version information couldn't be loaded from any source. {attempts}Try again later, or change the download source on the This Machine page.",
+  'server.system.downloadAttempt': '{source}: {reason}. {next}',
+  'server.system.downloadReasonHttp': 'the server returned HTTP {status}',
+  'server.system.downloadReasonTimeout': 'the request timed out',
+  'server.system.downloadReasonNetwork': "the server couldn't be reached",
+  'server.system.downloadReasonInvalid': 'the response could not be read',
+  'server.system.downloadReasonChecksum': 'the file failed its checksum check and was discarded',
+  'server.system.downloadReasonTooLarge': 'the file is larger than the panel allows',
+  'server.system.downloadChecksumMismatch': 'The downloaded file did not match its checksum and was discarded.',
+
   // 主机监测告警
   'server.system.metricsCpuHigh': 'Host CPU has stayed high',
   'server.system.metricsMemoryHigh': 'Host memory has stayed high',
