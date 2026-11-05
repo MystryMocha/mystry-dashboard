@@ -1714,6 +1714,7 @@ button.file-main:hover { background: var(--fill-2); }
   left: 0;
   right: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 5px;
   border-radius: var(--radius-md);
   transform-origin: top center;
