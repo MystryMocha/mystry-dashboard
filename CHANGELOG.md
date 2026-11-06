@@ -6,16 +6,23 @@
 
 ### Added
 
+- 面板左下角可以修改管理员密码。
+- 新增 `reset-password` 命令，忘记密码时可在本机重置。
 - 「本机环境」页新增下载来源设置，可选官方来源（默认）或国内镜像，保存后立即生效。国内镜像下 Vanilla、Forge、NeoForge 和版本列表走 BMCLAPI，frp 和 EasyTier 走公共 GitHub 镜像，失败时自动改用官方来源；Paper 和 Fabric 的服务端文件仍走官方。`panel_settings` 表在启动时自动创建，无需手动迁移。
 - 部署页和联机客户端安装提示显示当前下载来源；下载进度显示正在使用的来源。
 - Vanilla、Paper、Forge、NeoForge 的下载现在按官方校验值核对，不符的文件不会进入缓存。
 
 ### Changed
 
+- 通过启动器首次启动时，自动创建管理员 `admin` 和随机 16 位密码，并只在窗口里显示一次，不再需要处理初始化令牌。手动运行面板时仍用初始化令牌。
+- 双击 `mystryctl.cmd` 后面板在后台运行，窗口只显示账号和重要日志，不再先进菜单。关掉窗口不影响面板和服务端，重新打开后按 Ctrl+C 安全停止。菜单改用 `mystryctl.cmd menu` 打开。
+- 启动窗口不再显示 Node 实验功能提示和 Windows 数据目录权限提示，后者写入日志文件。
 - 官方来源下 Forge 版本列表改用 `files.minecraftforge.net`，NeoForge 版本列表只用 `maven.neoforged.net`，不再访问第三方的 BMCLAPI。
 
 ### Fixed
 
+- 关闭前台窗口或终端时，面板会尝试安全关闭。
+- 前台启动不再刷屏：窗口只显示可读的重要日志，不显示逐请求记录，完整日志写入 `logs/panel.stdout.log`。
 - Forge 的默认版本现在总是最新构建。原来按 BMCLAPI 返回的顺序取，可能选到旧一点的构建。
 - Forge 1.7.10 等带分支后缀的旧版本能拼出正确的安装器地址。
 - Windows 上安装 frp 客户端不再依赖系统 `tar`。原来 `PATH` 里排在前面的是 Git 带的 GNU tar 时（例如从 Git Bash 启动），下载成功后会解压失败。

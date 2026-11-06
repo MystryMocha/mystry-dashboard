@@ -1,8 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { FolderDown, Globe, LayoutGrid, LogOut, Menu, Rocket, Server, Terminal, X } from 'lucide-react';
+import { FolderDown, Globe, KeyRound, LayoutGrid, LogOut, Menu, Rocket, Server, Terminal, X } from 'lucide-react';
 import { useAuth } from './auth';
 import { useI18n, type MessageKey } from './i18n';
+import { ChangePasswordDialog } from './components/ChangePasswordDialog';
 import { BrandMark } from './components/BrandMark';
 import { LanguageToggle } from './components/LanguageToggle';
 import { TaskCenter } from './components/TaskCenter';
@@ -112,6 +113,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -241,11 +243,15 @@ function Shell({ children }: { children: React.ReactNode }) {
               <span className="user-role">{t('shell.user.role')}</span>
             </div>
           </div>
+          <button className="btn btn-icon btn-plain" type="button" title={t('shell.user.changePassword')} aria-label={t('shell.user.changePassword')} onClick={() => setPasswordDialogOpen(true)}>
+            <KeyRound size={16} aria-hidden="true" />
+          </button>
           <button className="btn btn-icon btn-plain" type="button" title={t('shell.user.signOut')} aria-label={t('shell.user.signOut')} onClick={logout}>
             <LogOut size={16} aria-hidden="true" />
           </button>
         </div>
       </aside>
+      {passwordDialogOpen && <ChangePasswordDialog onClose={() => setPasswordDialogOpen(false)} />}
 
       <div className="viewport">
         <header className={`topbar${scrolled ? ' is-scrolled' : ''}`}>

@@ -17,6 +17,13 @@ export default {
   'shell.tabBar.machine': 'Machine',
   'shell.user.role': 'Administrator',
   'shell.user.signOut': 'Sign Out',
+  'shell.user.changePassword': 'Change Password',
+  'shell.password.current': 'Current Password',
+  'shell.password.new': 'New Password',
+  'shell.password.confirm': 'Confirm New Password',
+  'shell.password.help': 'Use at least 12 characters.',
+  'shell.password.mismatch': "The new passwords don't match.",
+  'shell.password.changed': 'Your password has been changed.',
   'shell.error.title': 'Something Went Wrong',
   'shell.error.reload': 'Reload Page',
 

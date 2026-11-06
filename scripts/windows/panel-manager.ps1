@@ -292,7 +292,7 @@ function Invoke-Command {
       Prepare-Project -Force
       Invoke-Controller 'start'
     }
-    { $_ -in @('stop', 'status', 'logs', 'open') } {
+    { $_ -in @('stop', 'status', 'logs', 'open', 'reset-password') } {
       Invoke-Controller $Command
     }
     'mirror' {
@@ -306,7 +306,7 @@ function Invoke-Command {
       Invoke-Controller 'help'
     }
     default {
-      throw (T "未知命令：$Command。可用命令：start、foreground、stop、restart、rebuild、status、logs、open、mirror、help。" "Unknown command: $Command. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, mirror, help.")
+      throw (T "未知命令：$Command。可用命令：start、foreground、stop、restart、rebuild、status、logs、open、reset-password、mirror、help。" "Unknown command: $Command. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, reset-password, mirror, help.")
     }
   }
 }
@@ -361,7 +361,7 @@ $command = if ($args.Count -ge 1) { ([string]$args[0]).ToLowerInvariant() } else
 # 只有 mirror 带参数：mirror <名称或编号>。
 $commandArgument = if ($args.Count -eq 2 -and $command -eq 'mirror') { [string]$args[1] } else { '' }
 if ($args.Count -gt 1 -and -not $commandArgument) {
-  Write-Host (T '每次只能指定一个命令；可用命令：start、foreground、stop、restart、rebuild、status、logs、open、mirror、help。' 'Specify one command at a time. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, mirror, help.') -ForegroundColor Red
+  Write-Host (T '每次只能指定一个命令；可用命令：start、foreground、stop、restart、rebuild、status、logs、open、reset-password、mirror、help。' 'Specify one command at a time. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, reset-password, mirror, help.') -ForegroundColor Red
   exit 2
 }
 if ($command -eq '__tail') {

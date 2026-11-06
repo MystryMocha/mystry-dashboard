@@ -46,6 +46,7 @@ CPU 按整机逻辑核总容量归一至 0–100%；进程内存是驻留内存�
 | GET | `/api/auth/status` | 否 | `{ needsSetup: boolean }` |
 | POST | `/api/auth/setup` | `X-Setup-Token` | 仅用户表为空时可用；Body：`{ username, password }` → `{ token, user }` |
 | POST | `/api/auth/login` | 否 | Body：`{ username, password }` → `{ token, user }` 或 401 |
+| POST | `/api/auth/password` | JWT | Body：`{ currentPassword, newPassword }` → `{ ok: true }`；当前密码错误返回 400。已签发的 JWT 不会失效，到期前仍可使用 |
 | GET | `/api/auth/me` | 是 | `{ user }` |
 
 ### setup 请求
@@ -60,7 +61,7 @@ X-Setup-Token: <SETUP_TOKEN>
 {"username":"admin","password":"至少 12 位的强密码"}
 ```
 
-用户创建成功后 setup 接口不再可用。密钥格式要求见 [配置说明](configuration.md#首次启动必需配置)。
+用户创建成功后 setup 接口不再可用。`mystryctl` 和 `PanelManager` 会用这个接口自动创建 `admin`，并在成功后移除 `SETUP_TOKEN`。密钥格式要求见 [配置说明](configuration.md#首次启动必需配置)。
 
 ## 系统 `/api/system`
 

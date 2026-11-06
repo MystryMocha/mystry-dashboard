@@ -12,7 +12,6 @@ import { fileURLToPath } from 'node:url';
 
 const SERVICE_NAME = 'mystry-dashboard';
 const SECRET_PATTERN = /^[0-9a-f]{64}$/i;
-const INTERNAL_FINALIZE_SETUP = '__finalize-setup';
 // 供源码启动器判断面板是否在运行：运行中退出码 0，否则 1。
 const INTERNAL_IS_RUNNING = '__is-running';
 
@@ -279,7 +278,9 @@ function getConnection(values) {
     url: `http://${browserHost}:${port}`,
     healthUrl: `http://${browserHost}:${port}/api/health`,
     authStatusUrl: `http://${browserHost}:${port}/api/auth/status`,
+    setupUrl: `http://${browserHost}:${port}/api/auth/setup`,
     shutdownUrl: `http://127.0.0.1:${port}/api/launcher/shutdown`,
+    resetPasswordUrl: `http://127.0.0.1:${port}/api/launcher/reset-password`,
   };
 }
 
@@ -461,15 +462,9 @@ async function waitForHealth(
 }
 
 const OPEN_URL_COMMANDS = { win32: 'explorer.exe', darwin: 'open' };
-const CLIPBOARD_COMMANDS = {
-  win32: [['clip.exe', []]],
-  darwin: [['pbcopy', []]],
-};
-const LINUX_CLIPBOARD_COMMANDS = [['wl-copy', []], ['xclip', ['-selection', 'clipboard']]];
-
-async function openBrowser(values) {
+async function openBrowser(values, { announce = true } = {}) {
   const url = getConnection(values).url;
-  console.log(text(`面板地址：${url}`, `Panel URL: ${url}`));
+  if (announce) console.log(text(`面板地址：${url}`, `Panel URL: ${url}`));
   if (process.env.MYSTRY_NO_BROWSER === '1') return;
   const command = OPEN_URL_COMMANDS[process.platform] ?? 'xdg-open';
   try {
@@ -484,73 +479,78 @@ async function openBrowser(values) {
   }
 }
 
-function copySetupToken(token) {
-  const commands = CLIPBOARD_COMMANDS[process.platform] ?? LINUX_CLIPBOARD_COMMANDS;
-  for (const [command, args] of commands) {
-    const result = spawnSync(command, args, {
-      input: token,
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: 5_000,
-    });
-    if (!result.error && result.status === 0) return true;
-  }
-  return false;
+// 去掉容易看错的 0/O、1/l/I，方便用户照着窗口输入。
+const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+const GENERATED_PASSWORD_LENGTH = 16;
+const INITIAL_ADMIN_USERNAME = 'admin';
+
+function randomPassword() {
+  return Array.from(
+    { length: GENERATED_PASSWORD_LENGTH },
+    () => PASSWORD_ALPHABET[crypto.randomInt(PASSWORD_ALPHABET.length)],
+  ).join('');
 }
 
-function showSetupToken(token) {
-  if (!token) return;
-  if (copySetupToken(token)) {
-    console.log(text(
-      '首次初始化令牌已复制到剪贴板，请粘贴到初始化页面。',
-      'The setup token has been copied to the clipboard. Paste it into the setup page.',
+/** 账号和密码只进用户的窗口，不进日志文件，所以这里用 console.log 而不是服务端日志。 */
+function showCredentials(title, { username, password }) {
+  const divider = '='.repeat(64);
+  console.log(`\n${divider}`);
+  console.log(title);
+  console.log('');
+  console.log(text(`  用户名：${username}`, `  Username: ${username}`));
+  console.log(text(`  密码：${password}`, `  Password: ${password}`));
+  console.log('');
+  console.log(text(
+    '密码只显示这一次，请现在记下。登录后点左下角的钥匙图标修改密码。',
+    'This password is shown only once, so note it now. After signing in, click the key icon at the bottom left to change it.',
+  ));
+  console.log(text(
+    `忘记密码时，在面板运行期间执行：${managerCommand} reset-password`,
+    `If you forget it, run this while the panel is running: ${managerCommand} reset-password`,
+  ));
+  console.log(`${divider}\n`);
+}
+
+/** 用内部令牌创建首个管理员，用户不用接触令牌；创建后令牌立即从配置中移除。 */
+async function createInitialAdmin({ setupToken }, connection) {
+  const credentials = { username: INITIAL_ADMIN_USERNAME, password: randomPassword() };
+  try {
+    const response = await fetchWithTimeout(connection.setupUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-setup-token': setupToken },
+      body: JSON.stringify(credentials),
+    }, 15_000);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  } catch (error) {
+    console.warn(text(
+      `自动创建管理员失败：${error instanceof Error ? error.message : String(error)}。请在打开的页面手动创建，初始化令牌在 ${configPath}`,
+      `Could not create the administrator automatically: ${error instanceof Error ? error.message : String(error)}. Create it on the page that opened. The setup token is in ${configPath}`,
     ));
-  } else {
-    console.log(text(`首次初始化令牌：${token}`, `Setup token: ${token}`));
-    console.log(text(`令牌也保存在：${configPath}`, `The token is also saved in: ${configPath}`));
+    return null;
   }
+  const lines = (await fsp.readFile(configPath, 'utf8')).replace(/\r\n/g, '\n').split('\n');
+  if (setEnvLine(lines, 'SETUP_TOKEN', null)) {
+    await writeAtomic(configPath, `${lines.join('\n').replace(/\n+$/, '')}\n`);
+  }
+  return credentials;
 }
 
-function spawnSetupFinalizer() {
-  const child = spawn(
-    nodeExecutable,
-    ['--experimental-sqlite', scriptPath, INTERNAL_FINALIZE_SETUP],
-    {
-      cwd: homeDir,
-      env: { ...childEnvironment('setup-finalizer'), MYSTRY_NO_BROWSER: '1' },
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-    },
-  );
-  child.unref();
-}
-
-async function finalizeSetup() {
+async function resetPassword() {
   const values = await loadConfiguration();
-  if (!values?.get('SETUP_TOKEN')) return;
-  const connection = getConnection(values);
-  const deadline = Date.now() + 30 * 60_000;
-  let consecutiveFailures = 0;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetchWithTimeout(connection.authStatusUrl);
-      const status = response.ok ? await response.json() : null;
-      consecutiveFailures = 0;
-      if (status?.needsSetup === false) {
-        const original = await fsp.readFile(configPath, 'utf8');
-        const lines = original.replace(/\r\n/g, '\n').split('\n');
-        if (setEnvLine(lines, 'SETUP_TOKEN', null)) {
-          await writeAtomic(configPath, `${lines.join('\n').replace(/\n+$/, '')}\n`);
-        }
-        return;
-      }
-    } catch {
-      consecutiveFailures += 1;
-      if (consecutiveFailures >= 3) return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  if (!(await isManagedPanelRunning(values, await readState()))) {
+    throw new Error(text('面板未运行。请先启动面板，再重置密码。', 'The panel is not running. Start it first, then reset the password.'));
   }
+  const password = randomPassword();
+  const response = await fetchWithTimeout(getConnection(values).resetPasswordUrl, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-launcher-token': values.get('LAUNCHER_TOKEN') },
+    body: JSON.stringify({ password }),
+  }, 15_000);
+  if (!response.ok) {
+    throw new Error(text(`重置密码失败：HTTP ${response.status}`, `Could not reset the password: HTTP ${response.status}`));
+  }
+  const { username } = await response.json();
+  showCredentials(text('管理员密码已重置：', 'The administrator password has been reset:'), { username, password });
 }
 
 async function rotateLogs() {
@@ -593,18 +593,35 @@ async function prepareStart() {
 function spawnServer(nonce, options) {
   return spawn(
     nodeExecutable,
-    ['--experimental-sqlite', serverEntry, `--mystry-fingerprint=${nonce}`],
+    ['--no-warnings', '--experimental-sqlite', serverEntry, `--mystry-fingerprint=${nonce}`],
     { cwd: homeDir, env: childEnvironment(nonce), ...options },
   );
 }
 
 async function announceStarted({ configuration, connection }) {
   console.log(text(`面板已启动：${connection.url}`, `Panel started: ${connection.url}`));
-  await openBrowser(configuration.values);
-  if (configuration.needsSetup) {
-    showSetupToken(configuration.setupToken);
-    spawnSetupFinalizer();
+  const credentials = configuration.needsSetup
+    ? await createInitialAdmin(configuration, connection)
+    : null;
+  await openBrowser(configuration.values, { announce: false });
+  if (!credentials) return;
+  // 输出被重定向时可能进日志文件，不写出密码，用户可以随时重置。
+  if (process.stdout.isTTY) {
+    showCredentials(text('首次启动，已创建管理员账号：', 'First run. The administrator account has been created:'), credentials);
+  } else {
+    console.log(text(
+      `已创建管理员 ${credentials.username}。当前输出不是终端，没有显示密码；请运行 ${managerCommand} reset-password 生成新密码。`,
+      `Created administrator ${credentials.username}. Output is not a terminal, so the password was not shown. Run ${managerCommand} reset-password to generate a new one.`,
+    ));
   }
+}
+
+/** 后台面板没有窗口，用户容易以为它已经退出，所以每次后台启动都说清楚。 */
+function showDaemonReminder() {
+  console.log(text(
+    `提醒：面板在后台运行，没有窗口，不会自动停止。要停止时运行：${managerCommand} stop`,
+    `Reminder: the panel runs in the background with no window, and it does not stop on its own. To stop it, run: ${managerCommand} stop`,
+  ));
 }
 
 async function startBackground() {
@@ -636,13 +653,50 @@ async function startBackground() {
   await announceStarted(prepared);
 }
 
+const LOG_LEVEL_LABELS = { 10: 'TRACE', 20: 'DEBUG', 30: 'INFO', 40: 'WARN', 50: 'ERROR', 60: 'FATAL' };
+const REQUEST_LOG_MESSAGES = new Set(['incoming request', 'request completed']);
+
+/** 把一行服务端 JSON 日志转成给人看的短文本；逐请求记录返回 null，不是 JSON 的行原样返回。 */
+function formatForegroundLogLine(line) {
+  let entry;
+  try {
+    entry = JSON.parse(line);
+  } catch {
+    return line;
+  }
+  if (typeof entry?.msg !== 'string' || !Number.isFinite(entry.time)) return line;
+  if (entry.quiet === true || REQUEST_LOG_MESSAGES.has(entry.msg)) return null;
+  const time = new Date(entry.time).toTimeString().slice(0, 8);
+  return `${time} ${(LOG_LEVEL_LABELS[entry.level] ?? 'LOG').padEnd(5)} ${entry.msg}`;
+}
+
+/** 前台窗口只显示可读日志，完整原始日志仍写入日志文件，排错时不丢信息。 */
+function relayForegroundLogs(stream) {
+  // 窗口关闭后输出端已失效，面板还在安全关闭，这时写屏失败不能中断转发。
+  process.stdout.on('error', () => {});
+  const rawLog = fs.createWriteStream(stdoutLog, { flags: 'a', mode: 0o600 });
+  rawLog.on('error', () => {});
+  const lines = readline.createInterface({ input: stream, crlfDelay: Infinity });
+  lines.on('line', (line) => {
+    rawLog.write(`${line}\n`);
+    const formatted = formatForegroundLogLine(line);
+    if (formatted !== null) console.log(formatted);
+  });
+  lines.once('close', () => rawLog.end());
+}
+
+// 用户主动结束时窗口直接关闭，不用再按回车。
+let windowCanClose = false;
+
 async function startForeground() {
   const prepared = await prepareStart();
   if (!prepared) return;
   const { configuration, connection } = prepared;
+  await rotateLogs();
   const nonce = crypto.randomBytes(16).toString('hex');
   const startedAt = new Date().toISOString();
-  const child = spawnServer(nonce, { stdio: 'inherit', windowsHide: false });
+  const child = spawnServer(nonce, { stdio: ['inherit', 'pipe', 'inherit'], windowsHide: false });
+  relayForegroundLogs(child.stdout);
   const exitPromise = new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('exit', (code) => resolve(code ?? 1));
@@ -659,8 +713,11 @@ async function startForeground() {
   const forwardTerminate = () => {
     if (isProcessAlive(child.pid)) child.kill('SIGTERM');
   };
+  // 窗口关闭时面板自己也会收到 SIGHUP；控制器要活到面板关完，否则面板写日志的管道会断。
+  const keepRelayingOnHangup = () => {};
   process.on('SIGINT', forwardInterrupt);
   process.on('SIGTERM', forwardTerminate);
+  process.on('SIGHUP', keepRelayingOnHangup);
   try {
     if (!(await waitForHealth(configuration.values, nonce))) {
       if (isProcessAlive(child.pid)) child.kill('SIGTERM');
@@ -668,14 +725,135 @@ async function startForeground() {
       throw new Error(text('面板未能在 60 秒内启动，请检查前台输出。', 'The panel did not start within 60 seconds. Check the output above.'));
     }
     await releaseCurrentManagerLock();
+    windowCanClose = true;
     await announceStarted(prepared);
+    console.log(text(
+      `窗口只显示重要日志，完整日志在：${stdoutLog}\n按 Ctrl+C 停止面板。有服务端在运行时不要直接关窗口。`,
+      `This window shows important logs only. Full log: ${stdoutLog}\nPress Ctrl+C to stop the panel. Do not just close this window while a server is running.`,
+    ));
     const exitCode = await exitPromise;
     if (exitCode !== 0) process.exitCode = exitCode;
   } finally {
     process.off('SIGINT', forwardInterrupt);
     process.off('SIGTERM', forwardTerminate);
+    process.off('SIGHUP', keepRelayingOnHangup);
     await clearState();
   }
+}
+
+const WATCH_POLL_MS = 500;
+
+/** 读出日志文件新增的完整行。文件轮转后变短时从头读，结尾没写完的行留到下一轮。 */
+async function readNewLogLines(cursor) {
+  let handle;
+  try {
+    handle = await fsp.open(stdoutLog, 'r');
+  } catch (error) {
+    if (isErrorCode(error, 'ENOENT')) return [];
+    throw error;
+  }
+  try {
+    const { size } = await handle.stat();
+    if (size < cursor.offset) {
+      cursor.offset = 0;
+      cursor.partial = Buffer.alloc(0);
+    }
+    if (size === cursor.offset) return [];
+    const chunk = Buffer.alloc(size - cursor.offset);
+    const { bytesRead } = await handle.read(chunk, 0, chunk.length, cursor.offset);
+    cursor.offset += bytesRead;
+    const data = Buffer.concat([cursor.partial, chunk.subarray(0, bytesRead)]);
+    const lineEnd = data.lastIndexOf(0x0a);
+    cursor.partial = data.subarray(lineEnd + 1);
+    return lineEnd < 0 ? [] : data.subarray(0, lineEnd).toString('utf8').split(/\r?\n/);
+  } finally {
+    await handle.close();
+  }
+}
+
+/** 监听 Ctrl+C。终端切到原始模式后它只是一个按键，批处理不会再问「终止批处理操作吗」。 */
+function onStopKey(callback) {
+  const rawTerminal = process.stdin.isTTY && typeof process.stdin.setRawMode === 'function';
+  const onKey = (chunk) => {
+    if (chunk.includes(0x03)) callback();
+  };
+  if (rawTerminal) {
+    process.stdin.setRawMode(true);
+    process.stdin.on('data', onKey);
+    process.stdin.resume();
+  }
+  process.on('SIGINT', callback);
+  return () => {
+    process.off('SIGINT', callback);
+    if (!rawTerminal) return;
+    process.stdin.off('data', onKey);
+    process.stdin.setRawMode(false);
+    process.stdin.pause();
+  };
+}
+
+async function stopWithLock() {
+  const releaseLock = await acquireManagerLock();
+  try {
+    await stopPanel();
+  } finally {
+    await releaseLock();
+  }
+}
+
+/** 查看窗口只读日志文件，和面板没有进程关系，所以关掉窗口不影响面板和服务端。 */
+async function watchPanel() {
+  const state = await readState();
+  console.log(text(
+    `提醒：面板和服务端作为 daemon 在后台运行，没有单独的窗口。\n关闭这个窗口后它们会继续运行，不会自动停止。\n要停止时：重新打开 ${managerCommand}，按 Ctrl+C 安全停止。关机或重启前也请先停止。\n这里只显示重要日志，完整日志在：${stdoutLog}\n`,
+    `Reminder: the panel and your servers run in the background as a daemon, with no window of their own.\nThey keep running after you close this window, and they do not stop on their own.\nTo stop them, open ${managerCommand} again and press Ctrl+C to stop safely. Do this before you shut down or restart too.\nThis window shows important logs only. Full log: ${stdoutLog}\n`,
+  ));
+  const cursor = {
+    offset: fs.existsSync(stdoutLog) ? fs.statSync(stdoutLog).size : 0,
+    partial: Buffer.alloc(0),
+  };
+  const printNewLogs = async () => {
+    for (const line of await readNewLogLines(cursor)) {
+      const formatted = formatForegroundLogLine(line);
+      if (formatted !== null) console.log(formatted);
+    }
+  };
+  let stopping = null;
+  let stopSettled = false;
+  const stopListening = onStopKey(() => {
+    if (stopping) return;
+    console.log(text('正在安全停止面板和服务端，请稍候…', 'Safely stopping the panel and servers. Please wait…'));
+    stopping = stopWithLock().finally(() => {
+      stopSettled = true;
+    });
+    // 错误在循环结束后再抛出，这里只避免未处理的拒绝。
+    stopping.catch(() => {});
+  });
+  try {
+    while (isProcessAlive(state?.pid) && !stopSettled) {
+      await printNewLogs();
+      await new Promise((resolve) => setTimeout(resolve, WATCH_POLL_MS));
+    }
+    await printNewLogs();
+    if (stopping) {
+      await stopping;
+      windowCanClose = true;
+      return;
+    }
+  } finally {
+    stopListening();
+  }
+  console.log(text('面板已经停止。', 'The panel has stopped.'));
+}
+
+async function startAndWatch() {
+  const releaseLock = await acquireManagerLock();
+  try {
+    await startBackground();
+  } finally {
+    await releaseLock();
+  }
+  await watchPanel();
 }
 
 async function stopPanel() {
@@ -792,13 +970,18 @@ async function showLogs() {
 function printHelp() {
   const commands = [
     ['start', '后台启动面板', 'Start the panel in the background'],
-    ['foreground', '前台启动面板', 'Start the panel in the foreground'],
+    ['foreground', '前台启动面板，关窗口时面板也会退出', 'Start the panel in the foreground. Closing the window also stops the panel'],
     ['stop', '安全停止面板及实例', 'Safely stop the panel and its instances'],
     ['restart', '安全重启面板', 'Safely restart the panel'],
     ...(portableMode ? [] : [['rebuild', '重新安装依赖并构建，然后重启面板', 'Reinstall dependencies, build, then restart the panel']]),
     ['status', '查看状态', 'Show status'],
     ['logs', '查看最近日志', 'Show recent logs'],
     ['open', '打开管理页面', 'Open the dashboard'],
+    ['reset-password', '重置管理员密码（面板运行时）', 'Reset the administrator password (while the panel is running)'],
+    ...(portableMode ? [
+      ['watch', '后台启动面板并查看日志（双击时的默认操作）', 'Start the panel in the background and watch its logs (what double-clicking does)'],
+      ['menu', '打开管理菜单', 'Open the management menu'],
+    ] : []),
     ...(portableMode ? [] : [['mirror', '查看或切换 npm 下载源', 'Show or change the npm download source']]),
     ['help', '显示帮助', 'Show this help'],
   ];
@@ -808,7 +991,7 @@ function printHelp() {
     text(`用法：${managerCommand} <command>`, `Usage: ${managerCommand} <command>`),
     '',
     text('命令：', 'Commands:'),
-    ...commands.map(([name, zh, en]) => `  ${name.padEnd(12)}${text(zh, en)}`),
+    ...commands.map(([name, zh, en]) => `  ${name.padEnd(16)}${text(zh, en)}`),
     '',
     text('启动器不会注册系统服务，也不会配置开机启动。', 'The launcher does not register a system service or start at boot.'),
   ].join('\n'));
@@ -820,10 +1003,11 @@ const RUNNING_MENU = [
   ['2', 'logs', text('查看日志', 'View logs')],
   ['3', 'restart', text('重启面板', 'Restart the panel')],
   ['4', 'stop', text('停止面板', 'Stop the panel')],
+  ['5', 'reset-password', text('重置管理员密码', 'Reset the administrator password')],
 ];
 const STOPPED_MENU = [
   ['1', 'start', text('后台启动面板（直接回车）', 'Start the panel in the background (Enter)')],
-  ['2', 'foreground', text('前台启动并查看日志', 'Start in the foreground and view logs')],
+  ['2', 'watch', text('启动并查看日志', 'Start and watch the logs')],
   ['3', 'logs', text('查看最近日志', 'View recent logs')],
 ];
 
@@ -872,11 +1056,20 @@ async function runCommand(command) {
     await openBrowser(await loadConfiguration());
     return;
   }
+  if (command === 'reset-password') {
+    await resetPassword();
+    return;
+  }
+  if (command === 'watch') {
+    await startAndWatch();
+    return;
+  }
 
   const releaseLock = await acquireManagerLock();
   try {
     if (command === 'start') {
       await startBackground();
+      showDaemonReminder();
       return;
     }
     if (command === 'foreground') {
@@ -890,6 +1083,7 @@ async function runCommand(command) {
     if (command === 'restart') {
       await stopPanel();
       await startBackground();
+      showDaemonReminder();
       return;
     }
     throw new Error(text(`未知命令：${command}`, `Unknown command: ${command}`));
@@ -899,17 +1093,13 @@ async function runCommand(command) {
 }
 
 async function main() {
-  if (process.argv[2] === INTERNAL_FINALIZE_SETUP) {
-    await finalizeSetup();
-    return;
-  }
   if (process.argv[2] === INTERNAL_IS_RUNNING) {
     const running = await isManagedPanelRunning(await loadConfiguration(), await readState());
     process.exitCode = running ? 0 : 1;
     return;
   }
   const command = process.argv[2];
-  if (command) {
+  if (command && command !== 'menu') {
     await runCommand(command);
     return;
   }
@@ -917,15 +1107,25 @@ async function main() {
     printHelp();
     return;
   }
-  // 无参数且有终端：通常是双击启动，菜单命令执行完（含出错）后暂停；带参数的命令行与脚本调用不受影响。
-  const selected = await interactiveMenu();
-  if (!selected) return;
+  if (command === 'menu') {
+    const selected = await interactiveMenu();
+    if (!selected) return;
+    await runAndHoldWindow(selected);
+    return;
+  }
+  // 无参数且有终端：通常是双击启动。面板进后台，窗口只用来看账号和日志。
+  await runAndHoldWindow('watch');
+}
+
+/** 交互运行的命令结束后暂停，让结果和错误留在屏幕上；用户按 Ctrl+C 停止面板成功时不用再按键。 */
+async function runAndHoldWindow(command) {
   try {
-    await runCommand(selected);
+    await runCommand(command);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   }
+  if (!process.exitCode && windowCanClose) return;
   await waitForCloseKey();
 }
 

@@ -17,7 +17,7 @@ test('Linux 源码启动器复用带指纹的跨平台控制器', async () => {
   const controller = await fs.readFile(controllerPath, 'utf8');
 
   assert.match(source, /^#!\/usr\/bin\/env bash/m);
-  assert.match(source, /node --experimental-sqlite "\$CONTROLLER"/);
+  assert.match(source, /node --no-warnings --experimental-sqlite "\$CONTROLLER"/);
   assert.match(source, /npm ci/);
   assert.match(source, /npm run build/);
   assert.match(source, /rebuild\)\s+call_controller stop\s+ensure_dependencies force\s+build_sources\s+run_controller start/);

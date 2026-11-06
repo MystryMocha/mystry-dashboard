@@ -105,7 +105,7 @@ mystry-dashboard/
 
 路由的错误响应统一经 `src/http-errors.ts` 的 `sendRouteError`：服务层已知错误（排队任务过多、面板正在关闭、上传超限、预览失效、重命名冲突）映射为对应状态码，其余用路由给定的默认状态码。
 
-除 `auth/status`、`auth/setup`、`auth/login`、健康检查与本机 launcher 关闭通道外，业务路由经 `authenticate` 校验 JWT。`auth/setup` 另需 `X-Setup-Token`，且只在用户表为空时有效；launcher 关闭通道只接受回环地址与有效 `X-Launcher-Token`。
+除 `auth/status`、`auth/setup`、`auth/login`、健康检查与本机 launcher 关闭通道外，业务路由经 `authenticate` 校验 JWT。`auth/setup` 另需 `X-Setup-Token`，且只在用户表为空时有效；launcher 通道（安全关闭、重置管理员密码）只接受回环地址与有效 `X-Launcher-Token`。
 
 ### 服务层 `apps/server/src/services/`
 

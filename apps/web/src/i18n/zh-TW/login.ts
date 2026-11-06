@@ -16,8 +16,8 @@ export default {
   'login.form.username': '使用者名稱',
   'login.form.setupToken': '初始化權杖',
   'login.form.password': '密碼',
-  'login.form.setupTokenHelp': '用啟動器開啟面板時，權杖已自動複製到剪貼簿，按 Ctrl+V 貼上即可。剪貼簿裡沒有時，請開啟面板設定檔（可攜版和 Linux 為 config/panel.env，Windows 原始碼版為 .env），複製 SETUP_TOKEN 的值。',
-  'login.form.passwordHelp': '密碼至少需要 12 個字元，請妥善記住，面板目前不支援密碼復原。',
+  'login.form.setupTokenHelp': '從面板設定檔複製 SETUP_TOKEN 的值。可攜版和 Linux 版在 config/panel.env，Windows 原始碼版在 .env。',
+  'login.form.passwordHelp': '密碼至少需要 12 個字元，請妥善保管。',
 
   'login.submit.busy': '處理中…',
   'login.submit.setup': '建立並進入',

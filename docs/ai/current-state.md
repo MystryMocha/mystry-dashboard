@@ -30,7 +30,7 @@
 - 响应式布局：`<=1180px` 部署页指引改为单列、总览指标改为两列；`<=1024px` 侧栏收进左上角「打开导航菜单」（侧栏从工具栏下方展开，工具栏浮在遮罩之上，关闭按钮始终可点），任务中心按钮只显示图标；`<=768px` 出现底部悬浮标签栏（总览/部署/导入/联机/本机，展开导航菜单时一并 inert），内容边距 16px，实例卡片单列，对话框改为底部升起的面板，控制台高度随视口调整；`<=560px` 指标圆环移到卡片右上角；`<=480px` 实例分段按钮隐藏图标。总览保留「一键部署 / 导入已有服务端」入口；实例卡片通过名称链接或「进入管理」导航，启动/停止与更多操作独立；「更多操作」面板挂到 body 并以 fixed 定位在按钮下方右对齐展开（下方空间不足时翻到上方），不受卡片 `overflow` 裁剪，支持方向键、Home/End、Escape 与 Tab 关闭并恢复焦点。断点实现以 CSS 为准，真实宽度与各外观/强调色的视觉验收需另行运行，不能由构建或 DOM 测试推定。
 - 路由无障碍（`App.tsx` 的 `RouteAnnouncer`、`hooks/useDocumentTitle.ts`、`hooks/useRouteFocus.ts`）：浏览器标签标题按路由设为「页面名 · Mystry Dashboard」，实例页为「标签 · 实例名 · Mystry Dashboard」，随界面语言更新；用户操作后的换页把焦点移到新页面 `h1`（脚本设 `tabindex=-1`），首屏加载与登录态重定向不移动焦点，同一实例内切换标签焦点留在标签上；未知顶层路由重定向到 `/`，未知实例子路由（如 `/instances/:id/console`）重定向到该实例控制台。
 - `PanelManager.cmd`（Windows）与 `PanelManager.sh`（Linux / WSL 源码）只负责检查 Node、安装依赖和构建，启停、状态、日志都转调 `scripts/portable/mystryctl.mjs`，经本机 `POST /api/launcher/shutdown` 安全关闭。Windows 默认配置为仓库根 `.env`。三个入口的提示跟随系统语言（中文系统用中文，其余英文），`MYSTRY_LANG` 可覆盖。
-- 跨平台 `mystryctl`：自动随机配置、后台 PID 指纹、健康检查、安全停止、状态和日志；便携包使用包内 Node，Linux 源码入口在依赖/构建预检后复用同一控制器。无参数且 stdin 为终端时显示交互菜单（通常是双击启动），菜单命令执行完或出错后等待回车再退出，避免窗口一闪而过；带参数调用与非终端 stdin 不暂停（`portable:test` 覆盖）。
+- 跨平台 `mystryctl`：自动随机配置、后台 PID 指纹、健康检查、安全停止、状态和日志；便携包使用包内 Node，Linux 源码入口在依赖/构建预检后复用同一控制器。无参数且 stdin 为终端时（通常是双击启动）执行 `watch`：面板以后台进程运行，窗口只读日志文件，关窗不影响面板和服务端，Ctrl+C 走安全停止。`menu` 打开交互菜单，命令执行完或出错后等待回车再退出；带参数调用与非终端 stdin 不暂停（`portable:test` 覆盖）。
 - 目标平台原生便携组装与最终压缩包冒烟脚本；发布包物理复制 `@mystry/shared`，并生成文件级 manifest。
 - GitHub Preview Release 流水线：标签/main/版本门禁、Windows x64 与 Linux x64 矩阵、生产依赖审计、校验和签名、SBOM 和自动 Release Notes。
 - 上传、下载、任务、元数据、控制台和 ZIP 解压均有大小、并发或超时边界。
@@ -91,7 +91,7 @@
 - 最终数据根目录优先使用 `MYSTRY_DATA_DIR`，否则使用 `DATA_DIR`；实例固定为该根目录的 `instances/<id>`，不得浏览或管理整台机器。
 - 同机目录交接（界面称「从本机文件夹导入」）只接收 `DATA_DIR/imports` 下的单层目录 ID，不能提交绝对路径；该目录仅为复制源，不是实例工作目录。
 - 旧版外部实例路径只用于迁移状态判断；面板不会读取、启动、搬迁或删除旧外部目录。
-- `JWT_SECRET` 必填；空用户表时 `SETUP_TOKEN` 必填；`LAUNCHER_TOKEN` 仅供本机 PanelManager 关闭接口使用；已配置的三项必须互不相同。
+- `JWT_SECRET` 必填；空用户表时 `SETUP_TOKEN` 必填，管理器自动生成并用它创建 `admin`，随机 16 位密码只显示在窗口里；`LAUNCHER_TOKEN` 仅供本机 PanelManager 关闭和重置密码接口使用；已配置的三项必须互不相同。
 - Java 可执行路径只允许来自面板扫描注册（见 D-014）；请求只能提交运行时 ID，不得提交任意路径。
 - 部署和导入可保持 `pending` 等待队列容量，UI 必须轮询至终态。
 

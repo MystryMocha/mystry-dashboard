@@ -35,6 +35,8 @@
 | D-024 | Adopted | 没有公网服务器时，用钉死版本的官方 EasyTier 给单个实例开虚拟局域网 | 不暴露面板，不接受可执行路径或原始配置；网络密钥不回读，子进程使用脱敏环境，只放行游戏 TCP 端口；`lan-manager.ts`、`lan-runtime.ts` |
 | D-025 | Adopted | 下载来源是界面设置（`panel_settings` 表，默认 `official`），不是环境变量；官方来源绝不访问第三方；国内来源只在校验值已知时使用镜像，来源地址写死在代码里，不接受用户自定义 | 面向不改配置文件的用户，切换不用重启；第三方连接必须由用户主动选择。BMCLAPI 的 Maven 会跳到社区节点、公共 GitHub 代理运营方不可知，而这些文件随后会被执行，所以 `createDownloadPlan()` 在没有校验值时丢弃镜像；Forge/NeoForge 的 `.sha256` 只取自官方 Maven。Forge `--mirror` 不覆盖 `libraries.minecraft.net`、NeoForge 不使用它，改用预取并依赖安装器跳过 SHA-1 相符文件。`download-sources.ts`、`core-download.ts`、`installer-prefetch.ts` |
 | D-026 | Adopted | `package-lock.json` 只记录官方地址，npm 下载源在安装时选择 | 不提交镜像地址，公开用户和 CI 不被固定到第三方镜像；需要镜像的人用启动器 `mirror` 命令，内容仍由 `integrity` 校验 |
+| D-027 | Adopted | 管理器首次启动自动创建 `admin` 和随机 16 位密码，只显示在窗口里；用户在面板修改密码，忘记时用本机 `reset-password` 重置 | 用户不接触令牌，服务端仍要求令牌才能创建管理员，所以对外监听时也没有抢注窗口；密码不进日志文件，输出被重定向时不写出 |
+| D-028 | Adopted | 便携版双击时面板以后台进程运行，窗口只是日志查看器（`watch`）；关窗不影响面板和服务端，Ctrl+C 走安全停止 | Windows 关控制台窗口后只留约 5 秒，随后杀掉进程，非 detached 的 Java 子进程也一起被杀，服务端可能来不及保存；后台进程不属于这个窗口，不受影响 |
 
 ## 更新规则
 

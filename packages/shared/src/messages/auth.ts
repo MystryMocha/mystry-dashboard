@@ -9,7 +9,9 @@ export const AUTH_MESSAGES = {
   'server.auth.passwordTooLong': 'The password can be at most {max} characters.',
   'server.auth.passwordTooManyBytes': 'The password can be at most {max} bytes (the bcrypt limit).',
   'server.auth.alreadyInitialized': 'The administrator account is already set up.',
-  'server.auth.launcherLocalOnly': 'The shutdown endpoint only accepts requests from this computer.',
+  'server.auth.currentPasswordIncorrect': 'The current password is incorrect.',
+  'server.auth.noAdministrator': "There's no administrator account yet.",
+  'server.auth.launcherLocalOnly': 'The launcher endpoints only accept requests from this computer.',
   'server.auth.invalidLauncherToken': 'The launcher token is invalid.',
   'server.auth.launcherShutdownUnsupported': "Launcher shutdown isn't supported in the current run mode.",
 } as const satisfies Record<string, string>;

@@ -16,7 +16,7 @@
 首次启动前必须配置：
 
 - `JWT_SECRET`：64 位十六进制字符串，用于 JWT 签名。
-- `SETUP_TOKEN`：64 位十六进制字符串，用于首次 setup 请求的 `X-Setup-Token` header。
+- `SETUP_TOKEN`：64 位十六进制字符串，用于首次 setup 请求的 `X-Setup-Token` header。管理器会自动生成并在创建管理员后移除，只有手动运行才需要自己配置。
 - `LAUNCHER_TOKEN`：PanelManager / mystryctl 自动生成的独立本机关闭令牌；手动运行且不使用管理器时可以不配置。
 
 已配置的密钥必须分别使用不同的随机值。Node.js 生成命令如下；文档和模板不提供可用固定密钥：

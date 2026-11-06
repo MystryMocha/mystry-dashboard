@@ -11,7 +11,9 @@ export default {
   'server.auth.passwordTooLong': '密碼最多 {max} 個字元',
   'server.auth.passwordTooManyBytes': '密碼最多 {max} 位元組（bcrypt 截斷上限）',
   'server.auth.alreadyInitialized': '管理員帳號已完成初始化',
-  'server.auth.launcherLocalOnly': '關閉介面僅允許本機存取',
+  'server.auth.currentPasswordIncorrect': '目前的密碼不正確',
+  'server.auth.noAdministrator': '還沒有管理員帳號',
+  'server.auth.launcherLocalOnly': '啟動器介面僅允許本機存取',
   'server.auth.invalidLauncherToken': '啟動器權杖無效',
   'server.auth.launcherShutdownUnsupported': '目前的執行方式不支援透過啟動器關閉',
 } satisfies Record<keyof typeof AUTH_MESSAGES, string>;

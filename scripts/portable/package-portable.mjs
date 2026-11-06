@@ -226,14 +226,15 @@ export async function createPortableReadme(destination, version) {
 中文说明在英文之后。
 
 Windows:
-  Double-click mystryctl.cmd, or run mystryctl.cmd start
+  Double-click mystryctl.cmd. The panel runs in the background with no window of its own. The window you see shows the account and logs.
+  Closing the window does not affect the panel or your servers. To stop them, open mystryctl.cmd again and press Ctrl+C.
 
 Linux / macOS:
   chmod +x mystryctl
   ./mystryctl start
 
 Commands:
-  start, foreground, stop, restart, status, logs, open, help
+  start, watch, foreground, stop, restart, status, logs, open, reset-password, menu, help
 
 Important notes:
 1. Node.js is bundled. You don't need to install Node or run npm install.
@@ -249,14 +250,15 @@ Project home: https://github.com/MystryWorks/mystry-dashboard
 Mystry Dashboard ${version} 便携预览版
 
 Windows：
-  双击 mystryctl.cmd，或运行 mystryctl.cmd start
+  双击 mystryctl.cmd，面板在后台运行，没有单独的窗口，看到的窗口显示账号和日志。
+  关闭窗口不影响面板和服务端。要停止时，重新打开 mystryctl.cmd 并按 Ctrl+C。
 
 Linux / macOS：
   chmod +x mystryctl
   ./mystryctl start
 
 支持命令：
-  start, foreground, stop, restart, status, logs, open, help
+  start, watch, foreground, stop, restart, status, logs, open, reset-password, menu, help
 
 重要说明：
 1. 本包自带 Node.js，不需要安装 Node 或运行 npm install。

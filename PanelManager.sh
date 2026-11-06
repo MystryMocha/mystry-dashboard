@@ -37,7 +37,7 @@ fail() {
   exit 1
 }
 
-commands_hint="$(text '可用命令：start、foreground、stop、restart、rebuild、status、logs、open、mirror、help。' 'Available commands: start, foreground, stop, restart, rebuild, status, logs, open, mirror, help.')"
+commands_hint="$(text '可用命令：start、foreground、stop、restart、rebuild、status、logs、open、reset-password、mirror、help。' 'Available commands: start, foreground, stop, restart, rebuild, status, logs, open, reset-password, mirror, help.')"
 
 if [ "$(uname -s)" != 'Linux' ]; then
   fail "$(text 'PanelManager.sh 仅支持 Linux / WSL；Windows 请使用 PanelManager.cmd。' 'PanelManager.sh supports Linux / WSL only. On Windows, use PanelManager.cmd.')"
@@ -109,14 +109,14 @@ build_sources() {
 
 run_controller() {
   cd "$PROJECT_ROOT"
-  exec node --experimental-sqlite "$CONTROLLER" "$@"
+  exec node --no-warnings --experimental-sqlite "$CONTROLLER" "$@"
 }
 
 # 和 run_controller 一样，但执行完会回到脚本，rebuild 停止面板后还要继续。
 call_controller() {
   (
     cd "$PROJECT_ROOT"
-    node --experimental-sqlite "$CONTROLLER" "$@"
+    node --no-warnings --experimental-sqlite "$CONTROLLER" "$@"
   )
 }
 
@@ -133,7 +133,7 @@ case "$command" in
     build_sources
     run_controller start
     ;;
-  stop|restart|status|logs|open|help|-h|--help)
+  stop|restart|status|logs|open|reset-password|help|-h|--help)
     run_controller "$command"
     ;;
   mirror)

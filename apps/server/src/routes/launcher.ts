@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
+import { resetPasswordBodySchema, type ResetPasswordInput } from '@mystry/shared';
 import { config } from '../config.js';
+import { resetAdminPassword } from '../services/auth-service.js';
 import { createRateLimitHook, tokenMatches } from '../services/security-service.js';
-import { panelErrorBody } from '../utils/errors.js';
+import { errorBody, panelErrorBody, PanelError } from '../utils/errors.js';
 
 export type ShutdownSummary = {
   runningInstances: number;
@@ -22,7 +24,7 @@ function isLoopbackAddress(address: string): boolean {
     || normalized === '::ffff:127.0.0.1';
 }
 
-/** 仅供本机 PanelManager 调用的安全关闭通道。 */
+/** 仅供本机 PanelManager 调用的通道：安全关闭和重置管理员密码。 */
 export async function launcherRoutes(
   app: FastifyInstance,
   options: LauncherRouteOptions,
@@ -53,6 +55,33 @@ export async function launcherRoutes(
       reply.raw.once('finish', options.startShutdown);
       reply.raw.once('close', options.startShutdown);
       return reply.code(202).send({ accepted: true, ...summary });
+    },
+  );
+
+  // 新密码由本机控制器生成，只显示在用户的终端里；请求体不进日志。
+  app.post<{ Body: ResetPasswordInput }>(
+    '/api/launcher/reset-password',
+    {
+      attachValidation: true,
+      schema: { body: resetPasswordBodySchema },
+      preHandler: [strictLauncherLimit],
+    },
+    async (req, reply) => {
+      if (!isLoopbackAddress(req.ip)) {
+        return reply.code(403).send(panelErrorBody('server.auth.launcherLocalOnly'));
+      }
+      if (!tokenMatches(req.headers['x-launcher-token'], config.launcherToken)) {
+        return reply.code(401).send(panelErrorBody('server.auth.invalidLauncherToken'));
+      }
+      if (req.validationError) {
+        return reply.code(400).send(panelErrorBody('server.auth.invalidCredentialFormat'));
+      }
+      try {
+        return resetAdminPassword(req.body.password);
+      } catch (err) {
+        const noAdministrator = err instanceof PanelError && err.messageKey === 'server.auth.noAdministrator';
+        return reply.code(noAdministrator ? 409 : 400).send(errorBody(err));
+      }
     },
   );
 }

@@ -14,6 +14,12 @@ export class DataDirPermissionError extends Error {
 }
 
 let windowsAclWarningShown = false;
+const startupNotices: string[] = [];
+
+/** 取走启动期提示，由面板写入日志文件；这类提示每次启动都一样，不占用前台窗口。 */
+export function takeStartupNotices(): string[] {
+  return startupNotices.splice(0);
+}
 
 function isUnix(): boolean {
   return process.platform !== 'win32';
@@ -26,8 +32,8 @@ export function isDataPermissionRepairEnabled(): boolean {
 function warnWindowsAclBoundary(targetPath: string): void {
   if (windowsAclWarningShown || isUnix()) return;
   windowsAclWarningShown = true;
-  console.warn(
-    `[安全警告] 无法在 Windows 上自动验证「${targetPath}」的 ACL。`
+  startupNotices.push(
+    `无法在 Windows 上自动验证「${targetPath}」的 ACL。`
       + '请确保 DATA_DIR 仅当前运行面板的用户可读写；'
       + '若目录权限过宽，其他本机账户可能读取数据库与实例文件。'
       + '详见 docs/configuration.md。',
