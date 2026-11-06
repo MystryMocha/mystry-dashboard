@@ -16,8 +16,8 @@ export default {
   'login.form.username': '用户名',
   'login.form.setupToken': '初始化令牌',
   'login.form.password': '密码',
-  'login.form.setupTokenHelp': '用启动器打开面板时，令牌已自动复制到剪贴板，按 Ctrl+V 粘贴即可。剪贴板里没有时，请打开面板配置文件（便携版和 Linux 为 config/panel.env，Windows 源码版为 .env），复制 SETUP_TOKEN 的值。',
-  'login.form.passwordHelp': '密码至少 12 个字符，请牢记，面板暂不支持找回密码。',
+  'login.form.setupTokenHelp': '从面板配置文件复制 SETUP_TOKEN 的值。便携版和 Linux 版在 config/panel.env，Windows 源码版在 .env。',
+  'login.form.passwordHelp': '密码至少 12 个字符，请妥善保管。',
 
   'login.submit.busy': '处理中…',
   'login.submit.setup': '创建并进入',

@@ -20,14 +20,7 @@ export function needsSetup(): boolean {
   return row.c === 0;
 }
 
-export function setupAdmin(username: string, password: string): { id: string; username: string } {
-  const normalizedUsername = username.trim();
-  if (normalizedUsername.length < USERNAME_MIN_LENGTH) {
-    throw new PanelError('server.auth.usernameTooShort', { min: USERNAME_MIN_LENGTH });
-  }
-  if (normalizedUsername.length > USERNAME_MAX_LENGTH) {
-    throw new PanelError('server.auth.usernameTooLong', { max: USERNAME_MAX_LENGTH });
-  }
+function assertValidPassword(password: string): void {
   if (password.length < PASSWORD_MIN_LENGTH) {
     throw new PanelError('server.auth.passwordTooShort', { min: PASSWORD_MIN_LENGTH });
   }
@@ -37,6 +30,17 @@ export function setupAdmin(username: string, password: string): { id: string; us
   if (Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) {
     throw new PanelError('server.auth.passwordTooManyBytes', { max: BCRYPT_MAX_BYTES });
   }
+}
+
+export function setupAdmin(username: string, password: string): { id: string; username: string } {
+  const normalizedUsername = username.trim();
+  if (normalizedUsername.length < USERNAME_MIN_LENGTH) {
+    throw new PanelError('server.auth.usernameTooShort', { min: USERNAME_MIN_LENGTH });
+  }
+  if (normalizedUsername.length > USERNAME_MAX_LENGTH) {
+    throw new PanelError('server.auth.usernameTooLong', { max: USERNAME_MAX_LENGTH });
+  }
+  assertValidPassword(password);
 
   const id = nanoid(12);
   const hash = bcrypt.hashSync(password, 10);
@@ -66,6 +70,36 @@ export function verifyLogin(
   if (!bcrypt.compareSync(password, row ? row.password_hash : DUMMY_PASSWORD_HASH)) return null;
   if (!row) return null;
   return { id: row.id, username: row.username };
+}
+
+function updatePasswordHash(userId: string, password: string): void {
+  getDb().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), userId);
+}
+
+export function changePassword(userId: string, currentPassword: string, newPassword: string): void {
+  const row = getDb().prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as
+    | Pick<UserRow, 'password_hash'>
+    | undefined;
+  if (
+    !row
+    || Buffer.byteLength(currentPassword, 'utf8') > BCRYPT_MAX_BYTES
+    || !bcrypt.compareSync(currentPassword, row.password_hash)
+  ) {
+    throw new PanelError('server.auth.currentPasswordIncorrect');
+  }
+  assertValidPassword(newPassword);
+  updatePasswordHash(userId, newPassword);
+}
+
+/** 忘记密码时由本机启动器调用，重置最早创建的管理员。 */
+export function resetAdminPassword(password: string): { username: string } {
+  assertValidPassword(password);
+  const row = getDb().prepare('SELECT id, username FROM users ORDER BY created_at LIMIT 1').get() as
+    | { id: string; username: string }
+    | undefined;
+  if (!row) throw new PanelError('server.auth.noAdministrator', undefined, { statusCode: 409 });
+  updatePasswordHash(row.id, password);
+  return { username: row.username };
 }
 
 export function getUserById(id: string): { id: string; username: string } | null {

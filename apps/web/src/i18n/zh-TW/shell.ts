@@ -18,6 +18,13 @@ export default {
   'shell.tabBar.machine': '本機',
   'shell.user.role': '管理員',
   'shell.user.signOut': '登出',
+  'shell.user.changePassword': '修改密碼',
+  'shell.password.current': '目前的密碼',
+  'shell.password.new': '新密碼',
+  'shell.password.confirm': '確認新密碼',
+  'shell.password.help': '密碼至少需要 12 個字元。',
+  'shell.password.mismatch': '兩次輸入的新密碼不一致。',
+  'shell.password.changed': '密碼已修改。',
   'shell.error.title': '頁面發生錯誤',
   'shell.error.reload': '重新整理頁面',
 

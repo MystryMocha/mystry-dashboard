@@ -289,6 +289,47 @@ async function main(): Promise<void> {
     const accessToken = setup.json<{ token: string }>().token;
     const authorization = { authorization: `Bearer ${accessToken}` };
 
+    const login = (password: string) => app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { username: 'admin12', password },
+    });
+    const changePasswordRequest = (headers: Record<string, string>, currentPassword: string, newPassword: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/auth/password',
+        headers,
+        payload: { currentPassword, newPassword },
+      });
+    assert.equal((await changePasswordRequest({}, 'password1234', 'changed-password')).statusCode, 401);
+    assert.equal((await changePasswordRequest(authorization, 'wrong-password', 'changed-password')).statusCode, 400);
+    assert.equal((await changePasswordRequest(authorization, 'password1234', 'short')).statusCode, 400);
+    assert.equal((await login('password1234')).statusCode, 200, '改密失败时旧密码必须仍然有效');
+    assert.equal((await changePasswordRequest(authorization, 'password1234', 'changed-password')).statusCode, 200);
+    assert.equal((await login('password1234')).statusCode, 401);
+    assert.equal((await login('changed-password')).statusCode, 200);
+
+    const resetPasswordRequest = (headers: Record<string, string>, password: string) => app.inject({
+      method: 'POST',
+      url: '/api/launcher/reset-password',
+      headers,
+      payload: { password },
+    });
+    assert.equal((await resetPasswordRequest({}, 'password1234')).statusCode, 401);
+    assert.equal((await resetPasswordRequest({ 'x-launcher-token': 'd'.repeat(64) }, 'password1234')).statusCode, 401);
+    const remoteReset = await app.inject({
+      method: 'POST',
+      url: '/api/launcher/reset-password',
+      remoteAddress: '192.168.2.20',
+      headers: { 'x-launcher-token': 'c'.repeat(64) },
+      payload: { password: 'password1234' },
+    });
+    assert.equal(remoteReset.statusCode, 403);
+    const reset = await resetPasswordRequest({ 'x-launcher-token': 'c'.repeat(64) }, 'password1234');
+    assert.equal(reset.statusCode, 200);
+    assert.deepEqual(reset.json(), { username: 'admin12' });
+    assert.equal((await login('password1234')).statusCode, 200);
+
     const taskList = await app.inject({
       method: 'GET',
       url: '/api/tasks',

@@ -56,10 +56,12 @@ If `RELEASE_GPG_PRIVATE_KEY` is missing from the pipeline, or `RELEASE_GPG_FINGE
 Windows:
 
 ```text
-Extract → double-click mystryctl.cmd → press Enter in the menu (starts the panel in the background) → read the messages, then press Enter to close the window
+Extract → double-click mystryctl.cmd → the panel runs in the background and opens your browser → sign in with the account shown in the window → press Ctrl+C in the window to stop it
 ```
 
-Running it without arguments shows an interactive menu. After a menu command finishes, including on an error, the window stays on the result until you press Enter, so you can read the setup token message and any errors. Choosing [0] Exit closes it right away. Command-line calls with arguments don't pause, so they're safe to use in scripts.
+When you double-click it, the panel and your servers run in the background as a daemon, with no window of their own. The window you see only shows the account and important logs. The full log is in `logs/panel.stdout.log`. Closing the window doesn't affect the panel or your servers. To see the logs again or stop the panel, double-click `mystryctl.cmd` again. Ctrl+C safely stops the panel and all servers. Do this before you shut down or restart too. If startup fails, the window stays on the error until you press Enter.
+
+To use the menu, run `.\mystryctl.cmd menu`. Command-line calls with arguments don't pause, so they're safe to use in scripts.
 
 You can also run this in a terminal:
 
@@ -81,14 +83,15 @@ Commands:
 | Command | What it does |
 |------|------|
 | `start` | Starts in the background, writes the PID fingerprint, runs a health check and records logs |
-| `foreground` | Starts in the foreground, useful for troubleshooting |
+| `watch` | Starts in the background and shows the logs. This is what double-clicking does |
+| `foreground` | Starts in the foreground, useful for troubleshooting. Closing the window also stops the panel |
 | `stop` | Requests a safe shutdown with the local token |
 | `restart` | Stops, then starts again in the background |
 | `status` | Checks health and the state of the managed process |
 | `logs` | Shows recent logs |
 | `open` | Opens the panel address |
 
-The first start creates `config/panel.env`, generates distinct random secrets, and shows a setup token once while the user database is empty. After you create the admin account, the controller removes the setup token from the config. The config file contains secrets, so don't upload or share it.
+The first start creates `config/panel.env`, generates distinct random secrets, and creates the `admin` account with a random 16-character password. The password is shown once in the window and isn't written to the log files. After signing in, click the key icon at the bottom left to change it. If you forget it, run `.\mystryctl.cmd reset-password` while the panel is running. The config file contains secrets, so don't upload or share it.
 
 ## Folders and Data
 

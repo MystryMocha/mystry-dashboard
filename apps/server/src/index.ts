@@ -8,6 +8,7 @@ import multipart from '@fastify/multipart';
 import websocket from '@fastify/websocket';
 import { config } from './config.js';
 import { getDb, initDb } from './db.js';
+import { takeStartupNotices } from './utils/data-dir-permissions.js';
 import { registerFrontendAssets } from './frontend-assets.js';
 import { authRoutes, registerAuthHooks } from './routes/auth.js';
 import { instanceRoutes } from './routes/instances.js';
@@ -101,6 +102,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     keepAliveTimeout: config.httpKeepAliveTimeoutMs,
     ajv: { customOptions: { removeAdditional: false } },
   });
+  for (const notice of takeStartupNotices()) app.log.warn({ quiet: true }, notice);
   if (backupRecovery.restoresRolledBack > 0 || backupRecovery.restoresCompleted > 0 || backupRecovery.tempFilesRemoved > 0) {
     app.log.warn(backupRecovery, '已处理上次面板进程中断的备份或还原');
   }
@@ -325,6 +327,8 @@ async function main() {
   };
   process.on('SIGINT', handleSignal);
   process.on('SIGTERM', handleSignal);
+  // Windows 关闭控制台窗口、Linux 关闭终端时收到的是 SIGHUP，同样要走安全关闭。
+  process.on('SIGHUP', handleSignal);
   try {
     await app.listen({ host: config.host, port: config.port });
     app.log.info(`面板已启动 http://${config.host}:${config.port}`);

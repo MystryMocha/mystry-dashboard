@@ -382,6 +382,15 @@ export interface SetupInput {
   password: string;
 }
 
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordInput {
+  password: string;
+}
+
 export interface AuthUser {
   id: string;
   username: string;
@@ -408,6 +417,8 @@ export {
   importExistingServerBodySchema,
   confirmZipImportBodySchema,
   setupBodySchema,
+  changePasswordBodySchema,
+  resetPasswordBodySchema,
   loginBodySchema,
   createNodeBodySchema,
   updateNodeBodySchema,

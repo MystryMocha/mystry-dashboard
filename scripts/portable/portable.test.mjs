@@ -106,7 +106,7 @@ test('包内 README.txt 英文在前，中英两段内容一致', async () => {
     assert.match(chinese, /^Mystry Dashboard 9\.9\.9-test 便携预览版$/m);
     assertSameContent(english, chinese);
     for (const text of [english, chinese]) {
-      assert.match(text, /start, foreground, stop, restart, status, logs, open, help/);
+      assert.match(text, /start, watch, foreground, stop, restart, status, logs, open, reset-password, menu, help/);
       assert.match(text, /chmod \+x mystryctl/);
     }
   } finally {
@@ -115,16 +115,16 @@ test('包内 README.txt 英文在前，中英两段内容一致', async () => {
 });
 
 /**
- * 以「双击启动」方式运行控制器：stdin 被标记为终端，菜单选项通过管道逐步输入。
+ * 以交互方式运行控制器：stdin 被标记为终端，默认打开菜单，选项通过管道逐步输入。
  * 返回读取输出、写入一行与等待退出的辅助函数。
  */
-async function startInteractiveController(t) {
+async function startInteractiveController(t, args = ['menu']) {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-interactive-'));
   const preload = path.join(home, 'force-tty.mjs');
   await fsp.writeFile(preload, "Object.defineProperty(process.stdin, 'isTTY', { value: true });\n", 'utf8');
   const child = spawn(
     process.execPath,
-    ['--import', pathToFileURL(preload).href, path.join(scriptDir, 'mystryctl.mjs')],
+    ['--import', pathToFileURL(preload).href, path.join(scriptDir, 'mystryctl.mjs'), ...args],
     {
       env: {
         ...process.env,
@@ -161,7 +161,17 @@ async function startInteractiveController(t) {
   };
 }
 
-test('双击启动执行完菜单命令后等待回车再关闭窗口', async (t) => {
+test('双击启动直接运行面板，不显示菜单，出错时等待回车', async (t) => {
+  const controller = await startInteractiveController(t, []);
+  // 临时目录没有服务端构建产物，启动会失败。
+  await controller.waitForOutput('按回车键关闭窗口');
+  assert.match(controller.output(), /找不到服务端构建产物/);
+  assert.doesNotMatch(controller.output(), /请选择/);
+  controller.send('');
+  assert.equal(await controller.exited, 1);
+});
+
+test('菜单命令执行完后等待回车再关闭窗口', async (t) => {
   const controller = await startInteractiveController(t);
   await controller.waitForOutput('请选择');
   controller.send('3');
@@ -173,10 +183,10 @@ test('双击启动执行完菜单命令后等待回车再关闭窗口', async (t
   assert.equal(await controller.exited, 0);
 });
 
-test('双击启动时菜单命令出错也先显示错误并等待回车', async (t) => {
+test('菜单命令出错时也先显示错误并等待回车', async (t) => {
   const controller = await startInteractiveController(t);
   await controller.waitForOutput('请选择');
-  // 临时目录没有服务端构建产物，前台启动会失败。
+  // 临时目录没有服务端构建产物，启动会失败。
   controller.send('2');
   await controller.waitForOutput('按回车键关闭窗口');
   assert.match(controller.output(), /找不到服务端构建产物/);
@@ -417,7 +427,21 @@ const marker = process.env.FAKE_PANEL_MARKER;
 const fingerprint = process.env.MYSTRY_PROCESS_FINGERPRINT;
 const server = http.createServer((req, res) => {
   res.setHeader('content-type', 'application/json');
-  if (req.url === '/api/health') {
+  if (req.url === '/__exit') {
+    res.end('{}', () => process.exit(0));
+  } else if (req.url === '/__log') {
+    process.stdout.write(process.env.FAKE_PANEL_WATCH_LINES);
+    res.end('{}');
+  } else if (req.url === '/api/launcher/shutdown' && req.method === 'POST') {
+    res.end('{}', () => setTimeout(() => process.exit(0), 300));
+  } else if (req.url === '/api/auth/setup' && process.env.FAKE_PANEL_SETUP_LOG) {
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      fs.writeFileSync(process.env.FAKE_PANEL_SETUP_LOG, JSON.stringify({ token: req.headers['x-setup-token'], body: JSON.parse(body) }));
+      res.end('{}');
+    });
+  } else if (req.url === '/api/health') {
     res.end(JSON.stringify({ ok: true, service: 'mystry-dashboard', processFingerprint: fingerprint }));
   } else if (req.url === '/api/auth/status') {
     res.end(JSON.stringify({ needsSetup: false }));
@@ -427,6 +451,7 @@ const server = http.createServer((req, res) => {
   }
 });
 server.listen(Number(process.env.PORT), '127.0.0.1');
+if (process.env.FAKE_PANEL_LOG_LINES) process.stdout.write(process.env.FAKE_PANEL_LOG_LINES);
 let closing = false;
 process.on('SIGINT', () => {
   fs.appendFileSync(marker, 'SIGINT;');
@@ -452,6 +477,194 @@ function reservePort() {
 }
 
 // 终端 Ctrl+C 会把 SIGINT 发给整个前台进程组，连按两次时控制器不能先被杀掉，
+test('前台模式只显示可读日志，完整日志写入文件', { timeout: 60_000 }, async (t) => {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-foreground-log-'));
+  // Windows 上进程刚退出时目录句柄可能还没释放，清理要重试。
+  t.after(() => fsp.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+  const fakeBin = path.join(home, 'bin');
+  await fsp.mkdir(path.join(home, 'apps', 'server', 'dist'), { recursive: true });
+  await fsp.writeFile(path.join(home, 'apps', 'server', 'dist', 'index.js'), FAKE_PANEL_SOURCE, 'utf8');
+  await fsp.mkdir(fakeBin);
+  await fsp.writeFile(path.join(fakeBin, 'java'), '#!/bin/sh\necho \'openjdk version "21"\' >&2\n', { mode: 0o755 });
+  const time = Date.now();
+  const rawLines = [
+    JSON.stringify({ level: 30, time, msg: 'incoming request', req: { url: '/api/health' } }),
+    JSON.stringify({ level: 30, time, msg: 'request completed', res: { statusCode: 200 } }),
+    JSON.stringify({ level: 30, time, msg: 'Server listening' }),
+    JSON.stringify({ level: 40, time, msg: 'startup notice', quiet: true }),
+    JSON.stringify({ level: 50, time, msg: 'disk failed', err: { stack: 'long stack' } }),
+    'plain line',
+  ];
+  const port = await reservePort();
+  const child = spawn(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'foreground'], {
+    env: {
+      ...(process.platform === 'win32' ? process.env : { PATH: fakeBin }),
+      MYSTRY_HOME: home,
+      MYSTRY_CONFIG_PATH: path.join(home, 'config', 'panel.env'),
+      MYSTRY_DATA_DIR: path.join(home, 'data'),
+      MYSTRY_LANG: 'zh-CN',
+      MYSTRY_NO_BROWSER: '1',
+      PORT: String(port),
+      FAKE_PANEL_MARKER: path.join(home, 'panel-signals.log'),
+      FAKE_PANEL_LOG_LINES: `${rawLines.join('\n')}\n`,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => { output += chunk; });
+  child.stderr.on('data', (chunk) => { output += chunk; });
+  const exited = new Promise((resolve) => child.on('close', resolve));
+  t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
+
+  const deadline = Date.now() + 20_000;
+  while (!output.includes('按 Ctrl+C 停止面板')) {
+    if (Date.now() > deadline || child.exitCode !== null) assert.fail(`前台启动未完成：\n${output}`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  await fetch(`http://127.0.0.1:${port}/__exit`);
+  assert.equal(await exited, 0, output);
+
+  assert.match(output, /\d\d:\d\d:\d\d INFO  Server listening/);
+  assert.match(output, /\d\d:\d\d:\d\d ERROR disk failed/);
+  assert.match(output, /plain line/);
+  assert.doesNotMatch(output, /incoming request|request completed|startup notice|"level"/);
+  const fullLog = await fsp.readFile(path.join(home, 'logs', 'panel.stdout.log'), 'utf8');
+  assert.equal(fullLog, `${rawLines.join('\n')}\n`);
+});
+
+for (const [name, terminal] of [['终端里显示账号和密码', true], ['输出重定向时不写出密码', false]]) {
+  test(`首次启动自动创建管理员：${name}`, { timeout: 60_000 }, async (t) => {
+    const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-admin-'));
+    t.after(() => fsp.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+    const fakeBin = path.join(home, 'bin');
+    const setupLog = path.join(home, 'setup.json');
+    const preload = path.join(home, 'force-tty.mjs');
+    await fsp.mkdir(path.join(home, 'apps', 'server', 'dist'), { recursive: true });
+    await fsp.writeFile(path.join(home, 'apps', 'server', 'dist', 'index.js'), FAKE_PANEL_SOURCE, 'utf8');
+    await fsp.mkdir(fakeBin);
+    await fsp.writeFile(path.join(fakeBin, 'java'), '#!/bin/sh\necho \'openjdk version "21"\' >&2\n', { mode: 0o755 });
+    await fsp.writeFile(preload, "Object.defineProperty(process.stdout, 'isTTY', { value: true });\n", 'utf8');
+    const port = await reservePort();
+    const configPath = path.join(home, 'config', 'panel.env');
+    const child = spawn(process.execPath, [
+      ...(terminal ? ['--import', pathToFileURL(preload).href] : []),
+      path.join(scriptDir, 'mystryctl.mjs'),
+      'foreground',
+    ], {
+      env: {
+        ...(process.platform === 'win32' ? process.env : { PATH: fakeBin }),
+        MYSTRY_HOME: home,
+        MYSTRY_CONFIG_PATH: configPath,
+        MYSTRY_DATA_DIR: path.join(home, 'data'),
+        MYSTRY_LANG: 'zh-CN',
+        MYSTRY_NO_BROWSER: '1',
+        PORT: String(port),
+        FAKE_PANEL_MARKER: path.join(home, 'panel-signals.log'),
+        FAKE_PANEL_SETUP_LOG: setupLog,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '';
+    child.stdout.on('data', (chunk) => { output += chunk; });
+    child.stderr.on('data', (chunk) => { output += chunk; });
+    const exited = new Promise((resolve) => child.on('close', resolve));
+    t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
+
+    const deadline = Date.now() + 20_000;
+    while (!output.includes('按 Ctrl+C 停止面板')) {
+      if (Date.now() > deadline || child.exitCode !== null) assert.fail(`前台启动未完成：\n${output}`);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    await fetch(`http://127.0.0.1:${port}/__exit`);
+    assert.equal(await exited, 0, output);
+
+    const { token, body } = JSON.parse(await fsp.readFile(setupLog, 'utf8'));
+    assert.match(token, /^[0-9a-f]{64}$/);
+    assert.equal(body.username, 'admin');
+    assert.match(body.password, /^[A-HJ-NP-Za-km-z2-9]{16}$/);
+    assert.equal(output.includes(token), false, '令牌不应出现在输出里');
+    assert.equal(output.includes(body.password), terminal);
+    if (!terminal) assert.match(output, /reset-password/);
+    assert.doesNotMatch(await fsp.readFile(configPath, 'utf8'), /SETUP_TOKEN/);
+    assert.equal(fs.readdirSync(path.join(home, 'logs')).some((name) => (
+      fs.readFileSync(path.join(home, 'logs', name), 'utf8').includes(body.password)
+    )), false, '密码不应进日志文件');
+  });
+}
+
+test('双击后关闭窗口不影响后台面板，重新打开后 Ctrl+C 安全停止', { timeout: 60_000 }, async (t) => {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-watch-'));
+  t.after(() => fsp.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+  const fakeBin = path.join(home, 'bin');
+  const preload = path.join(home, 'force-raw-tty.mjs');
+  await fsp.mkdir(path.join(home, 'apps', 'server', 'dist'), { recursive: true });
+  await fsp.writeFile(path.join(home, 'apps', 'server', 'dist', 'index.js'), FAKE_PANEL_SOURCE, 'utf8');
+  await fsp.mkdir(fakeBin);
+  await fsp.writeFile(path.join(fakeBin, 'java'), '#!/bin/sh\necho \'openjdk version "21"\' >&2\n', { mode: 0o755 });
+  // 管道没有原始模式，这里补一个空实现，用写入 0x03 模拟终端里的 Ctrl+C。
+  await fsp.writeFile(preload, `
+    Object.defineProperty(process.stdin, 'isTTY', { value: true });
+    process.stdin.setRawMode = () => process.stdin;
+  `, 'utf8');
+  const port = await reservePort();
+  const time = Date.now();
+  const env = {
+    ...(process.platform === 'win32' ? process.env : { PATH: fakeBin }),
+    MYSTRY_HOME: home,
+    MYSTRY_CONFIG_PATH: path.join(home, 'config', 'panel.env'),
+    MYSTRY_DATA_DIR: path.join(home, 'data'),
+    MYSTRY_LANG: 'zh-CN',
+    MYSTRY_NO_BROWSER: '1',
+    PORT: String(port),
+    FAKE_PANEL_MARKER: path.join(home, 'panel-signals.log'),
+    FAKE_PANEL_WATCH_LINES: `${[
+      JSON.stringify({ level: 30, time, msg: 'request completed' }),
+      JSON.stringify({ level: 30, time, msg: 'instance started' }),
+    ].join('\n')}\n`,
+  };
+  const health = async () => (await fetch(`http://127.0.0.1:${port}/api/health`).catch(() => null))?.ok === true;
+  const openWindow = () => {
+    const child = spawn(process.execPath, [
+      '--import', pathToFileURL(preload).href, path.join(scriptDir, 'mystryctl.mjs'),
+    ], { env, stdio: ['pipe', 'pipe', 'pipe'] });
+    const window = { child, output: '', exited: new Promise((resolve) => child.on('close', resolve)) };
+    child.stdout.on('data', (chunk) => { window.output += chunk; });
+    child.stderr.on('data', (chunk) => { window.output += chunk; });
+    t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
+    return window;
+  };
+  const waitFor = async (window, expected) => {
+    const deadline = Date.now() + 20_000;
+    while (!window.output.includes(expected)) {
+      if (Date.now() > deadline) assert.fail(`等待输出「${expected}」超时：\n${window.output}`);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  };
+  t.after(async () => { if (await health()) await fetch(`http://127.0.0.1:${port}/__exit`).catch(() => {}); });
+
+  const first = openWindow();
+  await waitFor(first, '按 Ctrl+C 安全停止');
+  await fetch(`http://127.0.0.1:${port}/__log`);
+  await waitFor(first, 'INFO  instance started');
+  assert.match(first.output, /作为 daemon 在后台运行，没有单独的窗口/);
+  assert.match(first.output, /不会自动停止/);
+  assert.doesNotMatch(first.output, /request completed/);
+
+  // 强杀查看窗口相当于关窗口：面板不是它的子进程，要继续运行。
+  first.child.kill('SIGKILL');
+  await first.exited;
+  assert.equal(await health(), true);
+
+  const second = openWindow();
+  await waitFor(second, '面板已经在运行');
+  await waitFor(second, '按 Ctrl+C 安全停止');
+  second.child.stdin.write('\u0003');
+  assert.equal(await second.exited, 0, second.output);
+  assert.match(second.output, /面板已停止/);
+  assert.equal(await health(), false);
+  assert.equal(fs.existsSync(path.join(home, 'data', 'launcher', 'state.json')), false);
+});
+
 // 必须等面板自己关完再按面板的退出码退出。Windows 无法用 kill 模拟控制台 Ctrl+C。
 test('前台模式下连按两次 Ctrl+C 仍等待面板安全关闭', {
   timeout: 60_000,

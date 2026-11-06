@@ -18,6 +18,13 @@ export default {
   'shell.tabBar.machine': '本机',
   'shell.user.role': '管理员',
   'shell.user.signOut': '退出登录',
+  'shell.user.changePassword': '修改密码',
+  'shell.password.current': '当前密码',
+  'shell.password.new': '新密码',
+  'shell.password.confirm': '确认新密码',
+  'shell.password.help': '密码至少 12 个字符。',
+  'shell.password.mismatch': '两次输入的新密码不一致。',
+  'shell.password.changed': '密码已修改。',
   'shell.error.title': '页面出现异常',
   'shell.error.reload': '刷新页面',
 

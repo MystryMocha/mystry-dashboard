@@ -125,6 +125,28 @@ export const loginBodySchema = {
   },
 } as const;
 
+/** 密码长度规则由服务端校验，这里只挡超长输入，用户才能看到具体的长度提示。 */
+const newPasswordSchema = { type: 'string', maxLength: 1024 } as const;
+
+export const changePasswordBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['currentPassword', 'newPassword'],
+  properties: {
+    currentPassword: { type: 'string', minLength: 1, maxLength: 128 },
+    newPassword: newPasswordSchema,
+  },
+} as const;
+
+export const resetPasswordBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['password'],
+  properties: {
+    password: newPasswordSchema,
+  },
+} as const;
+
 export const createNodeBodySchema = {
   type: 'object',
   additionalProperties: false,

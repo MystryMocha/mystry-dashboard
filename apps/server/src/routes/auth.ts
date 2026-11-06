@@ -1,6 +1,13 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { loginBodySchema, setupBodySchema, type LoginInput, type SetupInput } from '@mystry/shared';
-import { needsSetup, setupAdmin, verifyLogin, getUserById } from '../services/auth-service.js';
+import {
+  changePasswordBodySchema,
+  loginBodySchema,
+  setupBodySchema,
+  type ChangePasswordInput,
+  type LoginInput,
+  type SetupInput,
+} from '@mystry/shared';
+import { changePassword, needsSetup, setupAdmin, verifyLogin, getUserById } from '../services/auth-service.js';
 import { config } from '../config.js';
 import { errorBody, panelErrorBody, PanelError } from '../utils/errors.js';
 import { createLoginFailureLimiter, createRateLimitHook, tokenMatches } from '../services/security-service.js';
@@ -72,6 +79,26 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       loginFailureLimit.reset(req, req.body.username);
       const token = await reply.jwtSign(user, { expiresIn: config.jwtExpiresIn });
       return { token, user };
+    },
+  );
+
+  app.post<{ Body: ChangePasswordInput }>(
+    '/api/auth/password',
+    {
+      attachValidation: true,
+      schema: { body: changePasswordBodySchema },
+      preHandler: [app.authenticate, strictAuthLimit],
+    },
+    async (req, reply) => {
+      if (req.validationError) {
+        return reply.code(400).send(panelErrorBody('server.auth.invalidCredentialFormat'));
+      }
+      try {
+        changePassword(req.user.id, req.body.currentPassword, req.body.newPassword);
+        return { ok: true };
+      } catch (err) {
+        return reply.code(400).send(errorBody(err));
+      }
     },
   );
 
