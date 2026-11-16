@@ -21,7 +21,9 @@ export const SYSTEM_MESSAGES = {
   'server.system.downloadReasonInvalid': 'the response could not be read',
   'server.system.downloadReasonChecksum': 'the file failed its checksum check and was discarded',
   'server.system.downloadReasonTooLarge': 'the file is larger than the panel allows',
+  'server.system.downloadReasonInsecure': 'the server redirected to an address without HTTPS',
   'server.system.downloadChecksumMismatch': 'The downloaded file did not match its checksum and was discarded.',
+  'server.system.downloadInsecureRedirect': 'The download was redirected to an address without HTTPS, so it was stopped.',
 
   // 主机监测告警
   'server.system.metricsCpuHigh': 'Host CPU has stayed high',

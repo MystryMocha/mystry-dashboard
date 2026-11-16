@@ -23,7 +23,9 @@ export default {
   'server.system.downloadReasonInvalid': '无法读取返回内容',
   'server.system.downloadReasonChecksum': '文件校验失败，已丢弃',
   'server.system.downloadReasonTooLarge': '文件超过面板允许的大小',
+  'server.system.downloadReasonInsecure': '服务器跳转到了不使用 HTTPS 的地址',
   'server.system.downloadChecksumMismatch': '下载的文件校验值不符，已丢弃',
+  'server.system.downloadInsecureRedirect': '下载被跳转到不使用 HTTPS 的地址，已停止',
 
   // 主机监测告警
   'server.system.metricsCpuHigh': '主机 CPU 持续偏高',

@@ -4,7 +4,7 @@ import {
   type PanelMessage,
 } from '@mystry/shared';
 import { getDb } from '../db.js';
-import { isPanelError } from '../utils/errors.js';
+import { isPanelError, PanelError } from '../utils/errors.js';
 
 const SETTING_KEY = 'download_source';
 
@@ -82,15 +82,39 @@ export function officialCandidate(label: string, url: string): DownloadCandidate
   return { label, url, mirror: false };
 }
 
-/** Mojang 元数据和文件在 BMCLAPI 上路径不变，只换域名；其他地址返回 null。 */
-export function mojangMirrorUrl(url: string): string | null {
+function parseUrl(url: string): URL | null {
   try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'https:' || !MOJANG_HOSTS.has(parsed.hostname)) return null;
-    return `${BMCLAPI_ORIGIN}${parsed.pathname}`;
+    return new URL(url);
   } catch {
     return null;
   }
+}
+
+/** 是否为 Mojang 官方服务器上的 https 地址。Vanilla 清单可能来自镜像，里面的地址必须先过这一关。 */
+export function isMojangUrl(url: string): boolean {
+  const parsed = parseUrl(url);
+  return parsed?.protocol === 'https:' && MOJANG_HOSTS.has(parsed.hostname);
+}
+
+/** Mojang 元数据和文件在 BMCLAPI 上路径不变，只换域名；其他地址返回 null。 */
+export function mojangMirrorUrl(url: string): string | null {
+  return isMojangUrl(url) ? `${BMCLAPI_ORIGIN}${new URL(url).pathname}` : null;
+}
+
+/**
+ * 请求的是 https 地址时，跟随跳转后的最终地址也必须是 https。Node 的 fetch 会跟随降级到 http 的跳转，
+ * 没有校验值的文件在明文链路上可以被替换。镜像跳到社区节点（https）不受影响。
+ * 手工构造的 Response（测试替身）没有 url，按请求地址处理；被拒绝的响应先释放正文再抛错。
+ */
+export async function rejectInsecureRedirect(requestUrl: string, response: Response): Promise<void> {
+  if (parseUrl(requestUrl)?.protocol !== 'https:') return;
+  if (parseUrl(response.url || requestUrl)?.protocol === 'https:') return;
+  try {
+    await response.body?.cancel();
+  } catch {
+    /* 忽略正文清理失败 */
+  }
+  throw new PanelError('server.system.downloadInsecureRedirect');
 }
 
 /** 把官方 Maven 文件地址转成 BMCLAPI /maven 地址；不在已知仓库内返回 null。 */
@@ -155,6 +179,8 @@ function failureReason(error: unknown): PanelMessage {
       case 'server.deploy.downloadTooLarge':
       case 'server.deploy.metadataTooLarge':
         return { key: 'server.system.downloadReasonTooLarge' };
+      case 'server.system.downloadInsecureRedirect':
+        return { key: 'server.system.downloadReasonInsecure' };
       default:
         return { key: 'server.system.downloadReasonInvalid' };
     }

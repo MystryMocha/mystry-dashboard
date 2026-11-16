@@ -203,7 +203,7 @@ Mystry Dashboard 运行在你**本机**上：用网页管理多个 Minecraft **�
 在 **本机环境** 页可以选择面板从哪里下载文件，保存后立即生效，不需要重启：
 
 - **官方来源**（默认）：直接连接 Mojang、PaperMC、FabricMC、Forge、NeoForge 和 GitHub，不连接任何第三方镜像。
-- **国内镜像**：Vanilla、Forge、NeoForge 和版本列表使用 [BMCLAPI](https://bmclapidoc.bangbang93.com/)，frp 和 EasyTier 使用公共 GitHub 镜像。镜像失败时自动改用官方来源。
+- **国内镜像**：Vanilla、Forge、NeoForge 和版本列表使用 [BMCLAPI](https://bmclapidoc.bangbang93.com/)，frp 和 EasyTier 使用公共 GitHub 镜像。部署 Vanilla 时仍会从 Mojang 读取版本清单，镜像文件的校验值来自它。镜像失败时自动改用官方来源。
 
 国内镜像由第三方运营，面板只使用能核对校验值的文件，校验不符会丢弃并换下一个来源。
 
@@ -282,7 +282,7 @@ Mystry Dashboard 运行在你**本机**上：用网页管理多个 Minecraft **�
   - 打洞失败时，流量经社区共享节点中转，内容用网络密钥加密。
   - **中继节点**：默认使用几个由志愿者维护的社区共享节点，它们随时可能下线，也可能离你们很远。你可以在「自己的中继节点」里一行填一个自己的节点（例如 `tcp://relay.example.com:11010`），也可以取消「同时使用社区共享节点」只用自己的。改了节点要把新的说明重新发给朋友。
   - **直连**：面板会额外开一个直连端口，有 IPv6 或在同一局域网的朋友可以不经中转直接连上。
-  - **Windows 防火墙**：面板会自动添加放行规则，只放行虚拟地址上的游戏端口和直连端口，关掉时自动删除。如果你以前在 Windows 防火墙弹窗里阻止过 Java，需要先在「Windows Defender 防火墙 → 高级设置 → 入站规则」里删掉 Java 的阻止规则。
+  - **Windows 防火墙**：面板会自动添加放行规则，只放行虚拟地址上的游戏端口和直连端口（直连端口只对面板启动的 EasyTier 程序生效），关掉时自动删除；面板异常退出留下的规则会在下次启动时清掉。如果你以前在 Windows 防火墙弹窗里阻止过 Java，需要先在「Windows Defender 防火墙 → 高级设置 → 入站规则」里删掉 Java 的阻止规则。
   - 拿到网络密钥的人都能进入这个虚拟局域网并连上游戏端口，不要公开发出去。
 - **frp 穿透**：需要一台自己的 frp 服务器（地址、端口和令牌）。
   - **公网端口**：朋友在 Minecraft 的多人游戏里直接添加页面上的地址。
@@ -384,7 +384,7 @@ Mystry Dashboard 运行在你**本机**上：用网页管理多个 Minecraft **�
 
 ### 忘记管理员密码
 
-在面板运行期间，在运行面板的这台电脑上执行 `reset-password` 命令：便携版 Windows 为 `.\mystryctl.cmd reset-password`，便携版 Linux 为 `./mystryctl reset-password`，源码版为 `.\PanelManager.cmd reset-password` 或 `./PanelManager.sh reset-password`。窗口会显示一个新的随机密码，只显示一次；登录后点左下角的钥匙图标改成自己的密码。
+在面板运行期间，在运行面板的这台电脑上执行 `reset-password` 命令：便携版 Windows 为 `.\mystryctl.cmd reset-password`，便携版 Linux 为 `./mystryctl reset-password`，源码版为 `.\PanelManager.cmd reset-password` 或 `./PanelManager.sh reset-password`。窗口会显示一个新的随机密码，只显示一次。请直接在终端窗口里运行：输出被重定向到文件或通过管道传出时，命令会拒绝执行，旧密码继续有效。登录后点左下角的钥匙图标改成自己的密码。
 
 重置密码会让所有浏览器和设备上的登录失效，包括你正在用的；重新打开面板，用新密码登录即可。
 

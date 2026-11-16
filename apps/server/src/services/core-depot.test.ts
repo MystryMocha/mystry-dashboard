@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createServer, type ServerResponse } from 'node:http';
 import { once, EventEmitter, getEventListeners } from 'node:events';
 import childProcess from 'node:child_process';
@@ -21,6 +21,9 @@ process.env.LAUNCHER_TOKEN = randomBytes(32).toString('hex');
 function planFor(url: string): DownloadPlan {
   return { candidates: [{ label: 'Fixture', url, mirror: false }] };
 }
+
+const sha1 = (data: string | Buffer) => createHash('sha1').update(data).digest('hex');
+const sha256 = (data: string | Buffer) => createHash('sha256').update(data).digest('hex');
 
 /** 断言为可翻译错误且消息键一致（不依赖具体语言的文案）。 */
 function hasMessageKey(error: unknown, key: ServerMessageKey): boolean {
@@ -209,6 +212,96 @@ test('所有等待者取消后立刻重试：发起新下载，不继承别人�
   assert.deepEqual(fs.readdirSync(dir), ['core.jar']);
 });
 
+test('缓存校验值不符时删掉重新下载，相符时直接复用', async (t) => {
+  const dir = tempDir(t);
+  const { ensureCoreCache, verifyCoreCache } = await import('./core-download.js');
+  const dest = path.join(dir, 'core.jar');
+  const content = '官方核心内容';
+  const plan: DownloadPlan = {
+    candidates: [{ label: 'Fixture', url: 'https://fixture.invalid/core.jar', mirror: false }],
+    expected: { algorithm: 'sha256', hex: sha256(content) },
+  };
+  const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response(content));
+
+  // 别的来源或旧版面板留下的缓存：非空，但与本次计划的校验值不符。
+  fs.writeFileSync(dest, '被篡改的缓存');
+  assert.equal(await verifyCoreCache(dest, plan.expected), false);
+  assert.equal(fs.existsSync(dest), false, '不符的缓存被删除');
+  fs.writeFileSync(dest, '被篡改的缓存');
+  await ensureCoreCache(plan, dest, 'core.jar');
+  assert.equal(fetchMock.mock.callCount(), 1);
+  assert.equal(fs.readFileSync(dest, 'utf8'), content);
+  assert.deepEqual(fs.readdirSync(dir), ['core.jar']);
+
+  await ensureCoreCache(plan, dest, 'core.jar');
+  assert.equal(fetchMock.mock.callCount(), 1, '相符的缓存不重复下载');
+  assert.equal(await verifyCoreCache(dest, plan.expected), true);
+  // 计划没有校验值时无从核对，非空缓存照旧可用（例如离线时）。
+  assert.equal(await verifyCoreCache(dest, undefined), true);
+});
+
+test('带校验值下载时，核对过的新文件替换未经核对的已有文件', async (t) => {
+  const dir = tempDir(t);
+  const { downloadToFile } = await import('./core-download.js');
+  const dest = path.join(dir, 'core.jar');
+  const content = '官方核心内容';
+  fs.writeFileSync(dest, '来路不明的旧文件');
+  t.mock.method(globalThis, 'fetch', async () => new Response(content));
+  await downloadToFile('https://fixture.invalid/core.jar', dest, undefined, undefined, {
+    expected: { algorithm: 'sha256', hex: sha256(content) },
+  });
+  assert.equal(fs.readFileSync(dest, 'utf8'), content);
+  assert.deepEqual(fs.readdirSync(dir), ['core.jar']);
+});
+
+test('部署时缓存的 Vanilla jar 校验不符会被重新下载', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-core-depot-'));
+  const originalDataDir = process.env.MYSTRY_DATA_DIR;
+  process.env.MYSTRY_DATA_DIR = dir;
+  const { initDb, closeDb } = await import('../db.js');
+  const { config } = await import('../config.js');
+  const { deployCore } = await import('./core-depot.js');
+  const { getTask, shutdownTasks, resetTaskRuntimeForTests } = await import('./task-service.js');
+  initDb();
+  resetTaskRuntimeForTests();
+  t.after(async () => {
+    await shutdownTasks();
+    resetTaskRuntimeForTests();
+    closeDb();
+    fs.rmSync(dir, { recursive: true, force: true });
+    if (originalDataDir === undefined) delete process.env.MYSTRY_DATA_DIR;
+    else process.env.MYSTRY_DATA_DIR = originalDataDir;
+  });
+  const jar = '官方服务端';
+  const detail = JSON.stringify({
+    downloads: { server: { url: 'https://piston-data.mojang.com/v1/objects/fixture/server.jar', sha1: sha1(jar) } },
+  });
+  const calls: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: string | URL | Request) => {
+    const value = String(url);
+    calls.push(value);
+    if (value.includes('version_manifest')) {
+      return Response.json({
+        versions: [{ id: '1.21.1', url: 'https://piston-meta.mojang.com/v1/packages/fixture/1.21.1.json', sha1: sha1(detail) }],
+      });
+    }
+    if (value.endsWith('/1.21.1.json')) return new Response(detail);
+    if (value.endsWith('/server.jar')) return new Response(jar);
+    throw new TypeError('fetch failed');
+  });
+  fs.mkdirSync(config.cacheDir, { recursive: true });
+  fs.writeFileSync(path.join(config.cacheDir, 'vanilla-1.21.1.jar'), '被篡改的缓存');
+
+  const task = await deployCore({ name: '缓存核对', coreType: 'vanilla', mcVersion: '1.21.1', acceptEula: true });
+  await waitUntil(() => ['completed', 'failed'].includes(getTask(task.id)!.status));
+  const current = getTask(task.id)!;
+  assert.equal(current.status, 'completed', current.error);
+  assert.ok(calls.some((url) => url.endsWith('/server.jar')), '缓存不符时重新下载');
+  const instanceId = current.result!.instanceId as string;
+  assert.equal(fs.readFileSync(path.join(dir, 'instances', instanceId, 'server.jar'), 'utf8'), jar);
+  assert.equal(fs.readFileSync(path.join(config.cacheDir, 'vanilla-1.21.1.jar'), 'utf8'), jar);
+});
+
 type FakeInstaller = EventEmitter & { stdout: PassThrough; stderr: PassThrough; pid?: number; kill: (signal?: string) => boolean };
 
 function installerFixture(t: import('node:test').TestContext, onSpawn?: (child: FakeInstaller, cwd: string) => void) {
@@ -324,10 +417,18 @@ test('部署落地后关闭：五种核心均继续注册并完成任务', async
     if (originalDataDir === undefined) delete process.env.MYSTRY_DATA_DIR;
     else process.env.MYSTRY_DATA_DIR = originalDataDir;
   });
+  // Vanilla 的详情和 jar 必须在 Mojang 地址上且带校验值，替身按真实格式给出。
+  const vanillaDetail = JSON.stringify({
+    downloads: { server: { url: 'https://piston-data.mojang.com/v1/objects/fixture/server.jar', sha1: sha1('测试核心文件') } },
+  });
   t.mock.method(globalThis, 'fetch', async (url: string | URL | Request) => {
     const value = String(url);
-    if (value.includes('version_manifest')) return Response.json({ versions: [{ id: '1.21.1', url: 'https://fixture.invalid/detail' }] });
-    if (value.endsWith('/detail')) return Response.json({ downloads: { server: { url: 'https://fixture.invalid/core.jar' } } });
+    if (value.includes('version_manifest')) {
+      return Response.json({
+        versions: [{ id: '1.21.1', url: 'https://piston-meta.mojang.com/v1/packages/fixture/1.21.1.json', sha1: sha1(vanillaDetail) }],
+      });
+    }
+    if (value.endsWith('/1.21.1.json')) return new Response(vanillaDetail);
     if (value.includes('fill.papermc.io')) return Response.json([{ id: 42, channel: 'STABLE', downloads: { 'server:default': { url: 'https://fixture.invalid/core.jar' } } }]);
     return new Response('测试核心文件');
   });
@@ -365,6 +466,69 @@ test('部署落地后关闭：五种核心均继续注册并完成任务', async
     assert.equal(fs.readFileSync(path.join(dir, 'instances', promotedId, 'eula.txt'), 'utf8'), 'eula=true\n');
     assert.equal(fs.existsSync(path.join(dir, '.mystry-staging', task.id)), false);
   }
+});
+
+test('部署 Forge 时缓存的安装器按官方校验值复核；离线取不到校验值时仍用缓存', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-core-depot-'));
+  const originalDataDir = process.env.MYSTRY_DATA_DIR;
+  process.env.MYSTRY_DATA_DIR = dir;
+  const { initDb, closeDb } = await import('../db.js');
+  const { config } = await import('../config.js');
+  const { deployCore } = await import('./core-depot.js');
+  const { forgeInstallerUrl } = await import('./core-metadata.js');
+  const { getTask, shutdownTasks, resetTaskRuntimeForTests } = await import('./task-service.js');
+  initDb();
+  t.after(async () => {
+    await shutdownTasks();
+    resetTaskRuntimeForTests();
+    closeDb();
+    fs.rmSync(dir, { recursive: true, force: true });
+    if (originalDataDir === undefined) delete process.env.MYSTRY_DATA_DIR;
+    else process.env.MYSTRY_DATA_DIR = originalDataDir;
+  });
+  const installerUrl = forgeInstallerUrl('1.21.1', '1.0.0');
+  const genuine = '官方安装器';
+  let online = true;
+  const calls: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: string | URL | Request) => {
+    const value = String(url);
+    calls.push(value);
+    if (!online) throw new TypeError('fetch failed');
+    if (value === `${installerUrl}.sha256`) return new Response(`${sha256(genuine)}\n`);
+    if (value === installerUrl) return new Response(genuine);
+    throw new TypeError('fetch failed');
+  });
+  // 记录安装器运行时拿到的内容，确认执行的是哪一份。
+  const ran: string[] = [];
+  installerFixture(t, (child, cwd) => {
+    const jar = fs.readdirSync(cwd).find((name) => name.endsWith('-installer.jar'))!;
+    ran.push(fs.readFileSync(path.join(cwd, jar), 'utf8'));
+    fs.writeFileSync(path.join(cwd, 'server.jar'), '安装器生成的服务端');
+    queueMicrotask(() => child.emit('close', 0));
+  });
+  const cachePath = path.join(config.cacheDir, 'forge-1.21.1-1.0.0-installer.jar');
+  fs.mkdirSync(config.cacheDir, { recursive: true });
+  const deploy = async () => {
+    resetTaskRuntimeForTests();
+    const task = await deployCore({ name: '安装器缓存', coreType: 'forge', mcVersion: '1.21.1', loaderVersion: '1.0.0', acceptEula: true });
+    await waitUntil(() => ['completed', 'failed'].includes(getTask(task.id)!.status));
+    const current = getTask(task.id)!;
+    assert.equal(current.status, 'completed', current.error);
+  };
+
+  fs.writeFileSync(cachePath, '被篡改的安装器');
+  await deploy();
+  assert.ok(calls.includes(installerUrl), '校验不符时重新下载');
+  assert.deepEqual(ran, [genuine]);
+  assert.equal(fs.readFileSync(cachePath, 'utf8'), genuine);
+
+  // 离线：取不到 .sha256，计划不带校验值，非空缓存照旧使用，不尝试下载。
+  online = false;
+  calls.length = 0;
+  fs.writeFileSync(cachePath, '离线时的缓存');
+  await deploy();
+  assert.deepEqual(calls, [`${installerUrl}.sha256`]);
+  assert.deepEqual(ran, [genuine, '离线时的缓存']);
 });
 
 test('部署落地前失败或取消：清理 staging、不注册实例、不遗留最终目录', async (t) => {

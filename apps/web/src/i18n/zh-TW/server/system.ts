@@ -23,7 +23,9 @@ export default {
   'server.system.downloadReasonInvalid': '無法讀取回傳內容',
   'server.system.downloadReasonChecksum': '檔案校驗失敗，已捨棄',
   'server.system.downloadReasonTooLarge': '檔案超過面板允許的大小',
+  'server.system.downloadReasonInsecure': '伺服器重新導向到不使用 HTTPS 的網址',
   'server.system.downloadChecksumMismatch': '下載的檔案校驗值不符，已捨棄',
+  'server.system.downloadInsecureRedirect': '下載被重新導向到不使用 HTTPS 的網址，已停止',
 
   // 主机监测告警
   'server.system.metricsCpuHigh': '主機 CPU 持續偏高',

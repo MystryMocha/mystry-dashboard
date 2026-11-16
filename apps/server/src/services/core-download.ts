@@ -9,6 +9,7 @@ import { abortError, isPanelError, PanelError } from '../utils/errors.js';
 import { createTimeoutAbort, USER_AGENT } from './core-utils.js';
 import {
   describeFailures,
+  rejectInsecureRedirect,
   type DownloadPlan,
   type ExpectedDigest,
   type SourceFailure,
@@ -21,6 +22,54 @@ export function isUsableCoreCache(filePath: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** 流式计算文件摘要，核心文件有几十 MB，不整体读进内存。 */
+async function hashFile(filePath: string, algorithm: ExpectedDigest['algorithm'], signal?: AbortSignal): Promise<string> {
+  const hash = createHash(algorithm);
+  for await (const chunk of fs.createReadStream(filePath, { signal })) hash.update(chunk as Buffer);
+  return hash.digest('hex');
+}
+
+function statOrNull(filePath: string): fs.Stats | null {
+  try {
+    return fs.statSync(filePath);
+  } catch {
+    return null;
+  }
+}
+
+function isSameFile(a: fs.Stats, b: fs.Stats): boolean {
+  return a.ino === b.ino && a.size === b.size && a.mtimeMs === b.mtimeMs && a.birthtimeMs === b.birthtimeMs;
+}
+
+/**
+ * 核心缓存能否直接使用：非空文件，且计划带校验值时内容与之相符。缓存只按核心类型和版本命名、不分来源，
+ * 旧版面板或别的来源都可能留下它，所以每次使用前按本次计划的校验值重新核对，不符的删掉，交给调用方重新下载。
+ * 计划没有校验值时（例如离线取不到官方校验文件）只能按非空判断，与以前一致。
+ */
+export async function verifyCoreCache(
+  filePath: string,
+  expected: ExpectedDigest | undefined,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const before = statOrNull(filePath);
+  if (!before?.isFile() || before.size === 0) return false;
+  if (!expected) return true;
+  let actual: string;
+  try {
+    actual = await hashFile(filePath, expected.algorithm, signal);
+  } catch (error) {
+    if (signal?.aborted) throw abortError(signal);
+    throw error;
+  }
+  if (actual === expected.hex.toLowerCase()) return true;
+  const now = statOrNull(filePath);
+  if (!now) return false;
+  // 计算摘要期间文件可能已被别的下载替换成核对过的新文件，这时核对新文件，不能把它删掉。
+  if (!isSameFile(before, now)) return verifyCoreCache(filePath, expected, signal);
+  fs.rmSync(filePath, { force: true });
+  return false;
 }
 
 export type DownloadOptions = {
@@ -65,6 +114,7 @@ export async function downloadToFile(
   try {
     fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
     const res = await fetchDownload(url, timeout.signal, options.responseTimeoutMs);
+    await rejectInsecureRedirect(url, res);
     if (!res.ok || !res.body) {
       throw new PanelError('server.deploy.downloadHttpFailed', { status: res.status, url });
     }
@@ -93,7 +143,8 @@ export async function downloadToFile(
     }
 
     // 只把完整 part 文件提升为最终缓存文件；最终路径不会被用作下载中的暂存区。
-    if (isUsableCoreCache(dest)) {
+    // 带校验值时 part 已核对过，总是替换已有文件：已有文件未经本次核对，不能优先保留。
+    if (!options.expected && isUsableCoreCache(dest)) {
       fs.rmSync(part, { force: true });
       renamed = true;
     } else {
@@ -209,7 +260,10 @@ function waitForCacheDownload(flight: CacheDownloadFlight, signal?: AbortSignal)
   });
 }
 
-/** 按最终缓存路径合并并发下载，避免多个任务同时覆盖同一个核心文件。 */
+/**
+ * 按最终缓存路径合并并发下载，避免多个任务同时覆盖同一个核心文件。
+ * 已有缓存按计划的校验值核对后才复用，不符时删掉重新下载。
+ */
 export async function ensureCoreCache(
   plan: DownloadPlan,
   cachePath: string,
@@ -218,9 +272,14 @@ export async function ensureCoreCache(
   signal?: AbortSignal,
 ): Promise<void> {
   if (signal?.aborted) throw abortError(signal);
-  if (isUsableCoreCache(cachePath)) return;
 
+  // 同一路径正在下载时直接加入，不去核对（或删除）下载完成前的旧文件。
   let flight = cacheDownloadFlights.get(cachePath);
+  if (!flight) {
+    if (await verifyCoreCache(cachePath, plan.expected, signal)) return;
+    // 核对是异步的，期间可能已有别的调用发起了下载。
+    flight = cacheDownloadFlights.get(cachePath);
+  }
   if (!flight) {
     const controller = new AbortController();
     const callbacks = new Set<PlanProgress>();

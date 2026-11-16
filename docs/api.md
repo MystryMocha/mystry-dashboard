@@ -415,7 +415,7 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 | PUT | `/api/instances/:id/lan` | Body `{ enabled, peers?, useSharedPeers? }`。`peers` 最多 8 个，每个必须是 `tcp://`、`udp://`、`ws://`、`wss://` 或 `quic://` 加主机和端口（ws/wss 可带结尾 `/`），服务端规范化并去重；省略的字段保持原值。关掉共享节点又没有自定义节点时返回 400 `server.lan.peersRequired` |
 | GET | `/api/instances/:id/lan/friend` | 给朋友的说明。含网络密钥，只应交给要一起玩的人 |
 
-面板端 EasyTier 在每次启动时挑一个随机空闲端口，同时监听 TCP 与 UDP（EasyTier 会自动补上同端口的 IPv6），供 IPv6 或同一局域网的朋友直接连接；朋友端仍不监听。连接需要网络名和密钥（`private_mode`），也不会为其他网络中转。Windows 上面板在启动前添加名为 `MystryDashboard-LAN-<实例 id>` 的入站放行规则（游戏 TCP 端口只限本实例虚拟 IP；监听端口的 TCP 与 UDP），停止、崩溃或面板关闭时按名字删除；加不上时 `warning` 为 `server.lan.firewallFailed`。面板异常退出时规则可能残留，下次启动同一实例会先删后加。
+面板端 EasyTier 在每次启动时挑一个随机空闲端口，同时监听 TCP 与 UDP（EasyTier 会自动补上同端口的 IPv6），供 IPv6 或同一局域网的朋友直接连接；朋友端仍不监听。连接需要网络名和密钥（`private_mode`），也不会为其他网络中转。Windows 上面板在启动前添加名为 `MystryDashboard-LAN-<实例 id>` 的入站放行规则（游戏 TCP 端口只限本实例虚拟 IP；监听端口的 TCP 与 UDP 只限面板启动的 easytier-core 程序，限定程序的规则加不上时退回不限程序），停止、崩溃或面板关闭时按名字删除；加不上时 `warning` 为 `server.lan.firewallFailed`。面板异常退出时残留的规则会在下次面板启动时按本面板已知的实例 ID（有虚拟局域网记录或 `DATA_DIR/lan/<id>` 工作目录）清扫，之后停止、关闭虚拟局域网或删除实例时也会补删；不按 `MystryDashboard-LAN-` 前缀删除，避免误删其他面板的规则。
 
 游戏没在运行时客户端不会启动，但已保存的开关和将要使用的虚拟地址仍会返回。`server-ip` 若指向某一块网卡，虚拟局域网不会启动。实例停止、崩溃或面板关闭时，对应的 EasyTier 会退出。Windows 上面板和朋友的命令都需要管理员权限，否则创建不了虚拟网卡。
 

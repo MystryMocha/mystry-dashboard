@@ -11,7 +11,7 @@ import { prepareTaskStaging, promoteTaskStagingToInstance, removeTaskStagingTree
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { PanelError, throwIfAborted } from '../utils/errors.js';
-import { ensureCoreCache, isUsableCoreCache } from './core-download.js';
+import { ensureCoreCache, verifyCoreCache } from './core-download.js';
 import { runInstaller, writeUserJvmArgs } from './core-installer.js';
 import { createDownloadPlan, getDownloadSource, officialCandidate, type DownloadPlan } from './download-sources.js';
 import { prefetchInstallerFiles } from './installer-prefetch.js';
@@ -79,14 +79,17 @@ export async function deployCore(input: DeployCoreInput) {
           );
           const installerDest = resolveSafePath(dir, installerName);
 
-          if (isUsableCoreCache(cachePath)) {
+          // 先解析下载计划再看缓存：缓存不分来源共用，要按官方 Maven 的校验值核对后才能执行。
+          // 离线时取不到 .sha256，计划不带校验值，非空缓存仍可直接使用。
+          throwIfAborted(signal);
+          const plan = await resolveInstallerDownload(input.coreType, input.mcVersion, loaderVersion, signal);
+          if (await verifyCoreCache(cachePath, plan.expected, signal)) {
             throwIfAborted(signal);
             report(20, { key: 'server.deploy.progress.usingCachedInstaller' });
             fs.copyFileSync(cachePath, installerDest);
           } else {
             throwIfAborted(signal);
             report(15, { key: 'server.deploy.progress.downloadingInstaller' });
-            const plan = await resolveInstallerDownload(input.coreType, input.mcVersion, loaderVersion, signal);
             await ensureCoreCache(plan, cachePath, installerName, (ratio, source) => {
               report(15 + ratio * 40, {
                 key: 'server.deploy.progress.downloadingInstallerFrom',
@@ -174,7 +177,8 @@ export async function deployCore(input: DeployCoreInput) {
           }
           const cachePath = path.join(config.cacheDir, cacheBasename.replace(/[^\w.-]+/g, '_'));
 
-          if (isUsableCoreCache(cachePath)) {
+          // 缓存按计划的校验值核对后才复用，不符的会被删掉并重新下载。
+          if (await verifyCoreCache(cachePath, plan.expected, signal)) {
             throwIfAborted(signal);
             report(60, { key: 'server.deploy.progress.usingCache' });
             fs.copyFileSync(cachePath, destJar);
