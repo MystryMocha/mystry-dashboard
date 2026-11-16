@@ -37,6 +37,13 @@ export function issueConsoleTicket(userId: string, instanceId: string): {
   return { ticket, expiresIn: config.consoleTicketTtlSeconds };
 }
 
+/** 密码修改或重置后作废该用户所有尚未使用的控制台 ticket。 */
+export function revokeConsoleTickets(userId: string): void {
+  for (const [ticket, value] of tickets) {
+    if (value.userId === userId) tickets.delete(ticket);
+  }
+}
+
 /** 校验并立即消费 ticket；无论实例是否匹配，成功找到的 ticket 都不会再次可用。 */
 export function consumeConsoleTicket(
   ticket: string,

@@ -46,7 +46,7 @@ CPU 按整机逻辑核总容量归一至 0–100%；进程内存是驻留内存�
 | GET | `/api/auth/status` | 否 | `{ needsSetup: boolean }` |
 | POST | `/api/auth/setup` | `X-Setup-Token` | 仅用户表为空时可用；Body：`{ username, password }` → `{ token, user }` |
 | POST | `/api/auth/login` | 否 | Body：`{ username, password }` → `{ token, user }` 或 401 |
-| POST | `/api/auth/password` | JWT | Body：`{ currentPassword, newPassword }` → `{ ok: true }`；当前密码错误返回 400。已签发的 JWT 不会失效，到期前仍可使用 |
+| POST | `/api/auth/password` | JWT | Body：`{ currentPassword, newPassword }` → `{ ok: true, token, user }`；当前密码错误返回 400。成功后此前签发的 JWT 全部失效（包括这次请求用的），调用方改用响应里的 `token`，见 [令牌失效](#令牌失效) |
 | GET | `/api/auth/me` | 是 | `{ user }` |
 
 ### setup 请求
@@ -62,6 +62,19 @@ X-Setup-Token: <SETUP_TOKEN>
 ```
 
 用户创建成功后 setup 接口不再可用。`mystryctl` 和 `PanelManager` 会用这个接口自动创建 `admin`，并在成功后移除 `SETUP_TOKEN`。密钥格式要求见 [配置说明](configuration.zh-CN.md#首次启动必需配置)。
+
+### 令牌失效
+
+`users` 表的 `token_version` 记录令牌版本，签发的 JWT 带上 `tv` 字段。每次请求除了验签和有效期（`JWT_EXPIRES_IN`，默认 2 小时），还要求 `tv` 与数据库一致；用户不存在也返回 **401**（`server.common.unauthorized`）。
+
+修改密码（`POST /api/auth/password`）和本机重置密码（`POST /api/launcher/reset-password`）成功后版本加 1，因此：
+
+- 此前签发的所有 JWT 下一次请求即返回 401。修改密码的响应带新令牌，发起修改的会话可以继续使用；重置密码不签发令牌，所有会话都要重新登录。
+- 旧令牌签发、还没用掉的控制台 ticket 和尚未开流的下载 ticket 同时作废；下载 ticket 状态变为 `failed`。
+- 已打开的控制台 WebSocket 以关闭码 **1008** 断开，客户端需要用当前有效的令牌重新申请 ticket。
+- 已经开始传输的下载不打断，它在开流时已通过授权。
+
+0.2.0-preview.3 及更早签发的令牌没有 `tv`，按版本 0 处理：升级后在过期前仍然可用，第一次改密或重置后失效。旧数据库启动时自动补 `token_version` 列，已有用户从 0 开始。
 
 ## 系统 `/api/system`
 
@@ -341,7 +354,7 @@ POST /api/instances/<id>/console-ticket
 Authorization: Bearer <token>
 ```
 
-然后连接：`ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`。ticket 默认 60 秒有效且只能建立一次连接。
+然后连接：`ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`。ticket 默认 60 秒有效且只能建立一次连接。修改或重置密码后，未用的 ticket 作废，已建立的连接以关闭码 1008 断开，见 [令牌失效](#令牌失效)。
 
 连接数、入站消息大小、命令长度和发送速率的上限见 [配置说明](configuration.zh-CN.md) 中 `MAX_CONSOLE_*` 等变量；超过限制时服务端不会向实例 stdin 写入。
 

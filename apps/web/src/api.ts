@@ -66,9 +66,11 @@ export const UNAUTHORIZED_EVENT = 'mystry:unauthorized';
 /** 这些路径的 401 是业务结果（如密码错误），不能当作会话失效处理。 */
 const AUTH_EXEMPT_PATHS = ['/api/auth/login', '/api/auth/setup', '/api/auth/status'];
 
-function handleUnauthorized(path: string): void {
+function handleUnauthorized(path: string, usedToken: string | null): void {
   if (AUTH_EXEMPT_PATHS.some((exempt) => path.startsWith(exempt))) return;
   if (!getToken()) return;
+  // 请求发出后令牌已被换发（例如本页刚改完密码）：旧令牌的 401 不能清掉新令牌。
+  if (getToken() !== usedToken) return;
   setToken(null);
   window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
 }
@@ -99,7 +101,7 @@ export async function api<T>(
   }
 
   if (!res.ok) {
-    if (res.status === 401) handleUnauthorized(path);
+    if (res.status === 401) handleUnauthorized(path, token);
     const message =
       typeof data === 'object' && data && 'error' in data
         ? String((data as { error: string }).error)

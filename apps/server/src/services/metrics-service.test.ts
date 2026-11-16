@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import os from 'node:os';
+import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import Fastify from 'fastify';
 import jwt from '@fastify/jwt';
@@ -35,20 +37,25 @@ test('本平台真实采集仅查询目标进程并返回累计 CPU 和驻留内
 });
 
 test('真实监测路由拒绝未认证请求，认证后返回资源快照', async () => {
-  // 路由测试不初始化数据库，不读写用户实例，也不使用真实密钥。
+  // 认证要核对令牌版本，路由测试使用临时数据目录里的空库，不读写用户实例，也不使用真实密钥。
+  const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-metrics-route-test-'));
   process.env.JWT_SECRET = randomBytes(32).toString('hex');
   process.env.SETUP_TOKEN = randomBytes(32).toString('hex');
   process.env.LAUNCHER_TOKEN = randomBytes(32).toString('hex');
-  process.env.MYSTRY_DATA_DIR = os.tmpdir();
+  process.env.MYSTRY_DATA_DIR = dataRoot;
   const { systemRoutes } = await import('../routes/system.js');
   const { registerAuthHooks } = await import('../routes/auth.js');
+  const { initDb, closeDb } = await import('../db.js');
+  const { setupAdmin } = await import('./auth-service.js');
+  initDb();
+  const user = setupAdmin('metrics-test', 'metrics-test-password');
   const app = Fastify();
   await app.register(jwt, { secret: process.env.JWT_SECRET });
   registerAuthHooks(app);
   await app.register(systemRoutes);
   try {
     assert.equal((await app.inject('/api/system/metrics')).statusCode, 401);
-    const token = app.jwt.sign({ id: 'metrics-test', username: 'metrics-test' });
+    const token = app.jwt.sign({ id: user.id, username: user.username, tv: user.tokenVersion });
     const response = await app.inject({ url: '/api/system/metrics', headers: { authorization: `Bearer ${token}` } });
     assert.equal(response.statusCode, 200);
     const data = response.json();
@@ -56,5 +63,9 @@ test('真实监测路由拒绝未认证请求，认证后返回资源快照', as
     assert.ok(data.disk.totalBytes > 0);
     assert.deepEqual(data.instances, {});
     assert.ok(Number.isFinite(Date.parse(data.sampledAt)));
-  } finally { await app.close(); }
+  } finally {
+    await app.close();
+    closeDb();
+    fs.rmSync(dataRoot, { recursive: true, force: true });
+  }
 });

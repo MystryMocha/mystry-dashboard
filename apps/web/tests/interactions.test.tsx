@@ -13,6 +13,8 @@ import { TaskCenter } from '../src/components/TaskCenter';
 import { ConsolePanel } from '../src/components/ConsolePanel';
 import { BackupsTab } from '../src/components/BackupsTab';
 import { ConfigTab } from '../src/components/ConfigTab';
+import { ChangePasswordDialog } from '../src/components/ChangePasswordDialog';
+import { api, getToken } from '../src/api';
 import { App } from '../src/App';
 import { AuthProvider } from '../src/auth';
 import { Terminal } from '@xterm/xterm';
@@ -844,4 +846,51 @@ test('联机页默认「同一网络」：列出可复制的地址，并能转�
   expect(writeText).toHaveBeenCalledWith('[2408:8207:ab::10]:25565');
   await user.click(screen.getByRole('button', { name: '改用虚拟局域网' }));
   expect(await screen.findByRole('button', { name: '虚拟局域网', pressed: true })).toBeTruthy();
+});
+
+test('修改密码成功后换上新令牌并说明其他设备需重新登录', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const bodies: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/auth/password' && options?.method === 'POST') {
+      bodies.push(String(options.body));
+      return new Response(JSON.stringify({ ok: true, token: 'fresh-token', user: { id: 'tester', username: '测试员' } }));
+    }
+    return baseFetch(url, options);
+  }));
+  localStorage.setItem('mystry_token', 'stale-token');
+  render(<ChangePasswordDialog onClose={() => {}} />);
+  await user.type(screen.getByLabelText('当前密码'), 'password1234');
+  await user.type(screen.getByLabelText('新密码'), 'changed-password');
+  await user.type(screen.getByLabelText('确认新密码'), 'changed-password');
+  await user.click(screen.getByRole('button', { name: '修改密码' }));
+  expect(await screen.findByText('密码已修改。当前页面保持登录，其他浏览器和设备需要用新密码重新登录。')).toBeTruthy();
+  expect(getToken()).toBe('fresh-token');
+  expect(bodies).toEqual(['{"currentPassword":"password1234","newPassword":"changed-password"}']);
+});
+
+test('令牌已换发时，旧令牌请求返回的 401 不会清掉新令牌', async () => {
+  let respond!: (response: Response) => void;
+  vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { respond = resolve; })));
+  const onUnauthorized = vi.fn();
+  window.addEventListener('mystry:unauthorized', onUnauthorized);
+  try {
+    localStorage.setItem('mystry_token', 'stale-token');
+    const stale = api('/api/system/metrics').catch((error: unknown) => error);
+    localStorage.setItem('mystry_token', 'fresh-token');
+    respond(new Response(JSON.stringify({ error: 'expired', code: 'server.common.unauthorized' }), { status: 401 }));
+    await stale;
+    expect(getToken()).toBe('fresh-token');
+    expect(onUnauthorized).not.toHaveBeenCalled();
+
+    // 当前令牌本身被拒绝时照常退出登录。
+    const current = api('/api/system/metrics').catch((error: unknown) => error);
+    respond(new Response(JSON.stringify({ error: 'expired', code: 'server.common.unauthorized' }), { status: 401 }));
+    await current;
+    expect(getToken()).toBeNull();
+    expect(onUnauthorized).toHaveBeenCalledTimes(1);
+  } finally {
+    window.removeEventListener('mystry:unauthorized', onUnauthorized);
+  }
 });

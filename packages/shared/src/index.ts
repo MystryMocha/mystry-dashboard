@@ -426,6 +426,13 @@ export interface AuthUser {
   username: string;
 }
 
+/** 修改密码成功：旧令牌全部失效，当前会话改用这里换发的新令牌继续登录。 */
+export interface ChangePasswordResult {
+  ok: true;
+  token: string;
+  user: AuthUser;
+}
+
 export interface ConsoleMessage {
   type: 'output' | 'status' | 'error' | 'history';
   /** `error` 帧为英文说明（或 Node.js 原始错误文本） */

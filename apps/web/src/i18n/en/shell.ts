@@ -23,7 +23,7 @@ export default {
   'shell.password.confirm': 'Confirm New Password',
   'shell.password.help': 'Use at least 12 characters.',
   'shell.password.mismatch': "The new passwords don't match.",
-  'shell.password.changed': 'Your password has been changed.',
+  'shell.password.changed': "Your password has been changed. You're still signed in here; other browsers and devices must sign in again.",
   'shell.error.title': 'Something Went Wrong',
   'shell.error.reload': 'Reload Page',
 
