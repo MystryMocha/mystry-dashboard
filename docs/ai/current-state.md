@@ -91,6 +91,7 @@
 - 便携包固定内置 Node.js `22.23.1`；源码运行仍遵循 `>=22`。
 - 默认监听 `127.0.0.1:3000`；Vite 开发端口为 `127.0.0.1:5173`。
 - 最终数据根目录优先使用 `MYSTRY_DATA_DIR`，否则使用 `DATA_DIR`；实例固定为该根目录的 `instances/<id>`，不得浏览或管理整台机器。
+- 数据根和 `BACKUP_DIR` 所在上级路径中的符号链接或 junction 在 `config.ts` 里解析为真实路径，目录本身及数据根内部的链接仍被拒绝（D-030）。服务端和仓库脚本的入口判断都比较解析后的真实路径（`utils/real-path.ts`、`scripts/is-main-module.mjs`），安装或仓库路径含链接时不会静默退出。
 - 同机目录交接（界面称「从本机文件夹导入」）只接收 `DATA_DIR/imports` 下的单层目录 ID，不能提交绝对路径；该目录仅为复制源，不是实例工作目录。
 - 导入时的核心与版本识别：`server-launch-detect.ts` 按启动文件名判断核心类型，并从文件名或 Forge args 目录名认 `1.7`–`1.21.x` 的 Minecraft 版本（`custom` 与 NeoForge 不认）。来源预检（`ExistingServerSourceInfo.coreType` / `mcVersion`）和导入结果共用这套判断，导入页据此预填表单。请求里 `coreType` 省略或为 `custom` 表示自动识别（界面选项名为「自动识别」），`mcVersion` 留空时用识别到的版本；ZIP 导入在解压后才识别，预览阶段不给出。
 - 旧版外部实例路径只用于迁移状态判断；面板不会读取、启动、搬迁或删除旧外部目录。

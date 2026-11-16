@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
-import { pathToFileURL } from 'node:url';
+import { isMainModule } from '../is-main-module.mjs';
 
 function parseArguments(argv) {
   const result = {};
@@ -118,7 +118,7 @@ async function main() {
   console.log(`已生成 CycloneDX SBOM：${result.outputPath}（${result.componentCount} 个生产组件）`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (isMainModule(import.meta.url)) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

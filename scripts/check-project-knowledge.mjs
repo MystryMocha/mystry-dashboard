@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMainModule } from './is-main-module.mjs';
 
 const FACTS_PATH = 'docs/ai/project-facts.json';
 const ROUTES_DIR = 'apps/server/src/routes';
@@ -274,7 +274,6 @@ async function main() {
   console.log('项目知识库检查通过');
 }
 
-const executedFile = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
-if (executedFile === import.meta.url) {
+if (isMainModule(import.meta.url)) {
   await main();
 }

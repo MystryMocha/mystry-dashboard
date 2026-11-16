@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { checkProjectKnowledge } from './check-project-knowledge.mjs';
+
+const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 
 async function write(root, relative, content = '') {
   const target = path.join(root, relative);
@@ -115,4 +119,28 @@ test('Claude Code 入口缺失会失败', async (t) => {
   await fs.rm(path.join(root, 'CLAUDE.md'));
   const errors = await checkProjectKnowledge(root);
   assert.ok(errors.some((error) => error.includes('AI 入口') && error.includes('CLAUDE.md')));
+});
+
+test('经符号链接或 junction 路径运行时仍会执行检查，不会静默通过', async (t) => {
+  const root = await createFixture(t);
+  await fs.rm(path.join(root, 'CLAUDE.md'));
+  // 复制脚本到临时目录再建链接，测试不在仓库里创建链接。
+  const base = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-knowledge-link-'));
+  const real = path.join(base, 'real');
+  const link = path.join(base, 'link');
+  await fs.mkdir(real);
+  for (const name of ['check-project-knowledge.mjs', 'is-main-module.mjs']) {
+    await fs.copyFile(path.join(scriptsDir, name), path.join(real, name));
+  }
+  await fs.symlink(real, link, process.platform === 'win32' ? 'junction' : 'dir');
+  t.after(async () => {
+    await fs.rm(link, { force: true });
+    await fs.rm(base, { recursive: true, force: true });
+  });
+
+  const result = spawnSync(process.execPath, [path.join(link, 'check-project-knowledge.mjs'), root], {
+    encoding: 'utf8',
+  });
+  assert.equal(result.status, 1, `应发现缺失的 CLAUDE.md 并失败：${result.stdout}${result.stderr}`);
+  assert.match(result.stderr, /CLAUDE\.md/);
 });

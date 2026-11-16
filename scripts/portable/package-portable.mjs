@@ -6,7 +6,8 @@ import path from 'node:path';
 import process from 'node:process';
 import { pipeline } from 'node:stream/promises';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
+import { isMainModule } from '../is-main-module.mjs';
 import yazl from 'yazl';
 import { fetchNodeRuntime } from './fetch-node-runtime.mjs';
 
@@ -458,7 +459,7 @@ async function main() {
   console.log(`便携包已生成：${result.archivePath}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (isMainModule(import.meta.url)) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
