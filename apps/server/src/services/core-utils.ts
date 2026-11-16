@@ -2,7 +2,7 @@ import type { ServerMessageKey } from '@mystry/shared';
 import { abortError, PanelError } from '../utils/errors.js';
 
 /** PaperMC 要求 User-Agent 标明软件名与联系方式 */
-export const USER_AGENT = 'MinecraftMystryDashboard/0.2 (+https://github.com/MystryWorks/mystry-dashboard)';
+export const USER_AGENT = 'MinecraftMystryDashboard/0.2 (+https://github.com/MystryMocha/mystry-dashboard)';
 
 export type TimeoutAbort = {
   signal: AbortSignal;
