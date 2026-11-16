@@ -1,11 +1,15 @@
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import dgram from 'node:dgram';
+import fs from 'node:fs';
 import net from 'node:net';
+import path from 'node:path';
 import type { InstanceLan, LanStatus, PanelMessage } from '@mystry/shared';
 import { config } from '../config.js';
+import { getDb } from '../db.js';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
 import { PanelError } from '../utils/errors.js';
 import { readServerProperties } from './config-service.js';
+import { getInstanceRow } from './instance-service.js';
 import {
   LAN_SHARED_PEERS,
   lanCoreArgs,
@@ -23,7 +27,7 @@ import {
   removeLanFiles,
   writeLanFile,
 } from './lan-service.js';
-import { closeLanFirewall, openLanFirewall } from './lan-firewall.js';
+import { closeLanFirewall, lanFirewallApplies, openLanFirewall } from './lan-firewall.js';
 import { lanCliPath, lanCorePath, lanInstalled, lanPlatformSupported } from './lan-runtime.js';
 import { processManager } from './process-manager.js';
 
@@ -42,8 +46,15 @@ interface LanRuntime {
   warning: PanelMessage | null;
 }
 
+const INSTANCE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 const runtimes = new Map<string, LanRuntime>();
 const tails = new Map<string, Promise<void>>();
+/**
+ * 本进程已确认删过防火墙规则的实例。面板崩溃或被结束后重启时没有运行状态，规则是否残留只能当作未知：
+ * 不在这里、又归本面板所有（有虚拟局域网记录或工作目录）的实例，在停止、关闭、删除或启动清扫时都要按名字删一次。
+ * 每次加规则前移出；同一 DATA_DIR 只有一个面板进程，所以确认结果在本进程内可信。
+ */
+const firewallCleared = new Set<string>();
 let shuttingDown = false;
 let attached = false;
 let spawner: (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess = spawn;
@@ -94,6 +105,7 @@ export function resetLanRuntimeForTests(): void {
   shuttingDown = false;
   runtimes.clear();
   tails.clear();
+  firewallCleared.clear();
   spawner = spawn;
   cliRunner = null;
   gameStatus = (instanceId) => processManager.getStatus(instanceId);
@@ -116,6 +128,26 @@ export function attachLanLifecycle(): void {
       void enqueue(instanceId, () => stopInstanceLan(instanceId)).catch(() => undefined);
     }
   });
+  // 不等待：每次 netsh 最多 10 秒，不能拖慢面板启动；顺序由各实例队列保证。
+  void sweepLanFirewall().catch(() => undefined);
+}
+
+/**
+ * 启动清扫：面板崩溃或被结束时规则会留在系统里，而重启后没有对应的运行状态。
+ * 只对归本面板所有的实例 ID 按名字删：数据库里有虚拟局域网记录的（含已关闭的），
+ * 以及 DATA_DIR/lan 下还留着工作目录的（实例已删但上次没删成规则）。不按前缀删全部
+ * MystryDashboard-LAN-*：用别的 DATA_DIR 的面板可能正在用它自己的规则。
+ * 同步排进各实例队列，先于之后的启动；轮到时已有运行状态就跳过（启动时已先删后加）。
+ */
+export async function sweepLanFirewall(): Promise<void> {
+  if (!lanFirewallApplies()) return;
+  const rows = getDb().prepare('SELECT instance_id FROM instance_lans').all() as Array<{ instance_id: string }>;
+  const ids = new Set([...rows.map((row) => row.instance_id), ...listLanWorkDirIds()]);
+  await Promise.all([...ids].map((instanceId) => enqueue(instanceId, async () => {
+    if (!await removeLeftoverLanFirewall(instanceId)) return;
+    // 实例已删除、只剩工作目录：规则确认删过后把目录（含网络密钥）一并清掉，之后不再每次启动都清扫它。
+    if (!runtimes.has(instanceId) && !getInstanceRow(instanceId)) removeLanFiles(instanceId);
+  })));
 }
 
 export async function shutdownLan(): Promise<void> {
@@ -227,15 +259,18 @@ export async function syncInstanceLan(instanceId: string): Promise<InstanceLan> 
     warning: null,
   };
   runtimes.set(instanceId, runtime);
+  // 一旦尝试加规则，之前「已确认删过」的结论就不再成立（加了一半再回滚也可能没回滚干净）。
+  firewallCleared.delete(instanceId);
   const firewall = await openLanFirewall({
     instanceId,
     virtualIp: lanVirtualIp(row.octet),
     gamePort: bind.port,
     listenPort,
+    corePath: lanFirewallProgramPath(),
   });
   if (runtimes.get(instanceId)?.generation !== generation) {
     // 等防火墙期间已被停止或替换：本代加上的规则由自己收回。
-    if (firewall === 'applied' && !runtimes.has(instanceId)) await closeLanFirewall(instanceId);
+    if (firewall === 'applied' && !runtimes.has(instanceId)) await removeLanFirewall(instanceId);
     return describeInstanceLan(instanceId);
   }
   runtime.firewallOpened = firewall === 'applied';
@@ -297,14 +332,21 @@ export async function syncInstanceLanQueued(instanceId: string): Promise<Instanc
 
 export async function removeInstanceLan(instanceId: string): Promise<void> {
   await enqueue(instanceId, async () => {
-    await stopInstanceLan(instanceId);
+    // 删除实例时虚拟局域网记录已随实例级联删除，只剩工作目录说明这个 ID 归本面板所有（任意 ID 不会触发 netsh）。
+    // netsh 没跑成时不立刻重试（每次最多等 10 秒），留着目录让下次启动清扫按它补删。
+    const hadRuntime = runtimes.has(instanceId);
+    if (!await stopInstanceLan(instanceId)) return;
+    // 有运行状态时停止只按本代标记删；加规则失败后的回滚是否干净不确定，这里补删一次。
+    if (hadRuntime && !await removeLeftoverLanFirewall(instanceId)) return;
     removeLanFiles(instanceId);
   });
 }
 
-async function stopInstanceLan(instanceId: string): Promise<void> {
+/** 返回 false 表示删规则时 netsh 没跑成，规则是否还在不确定。 */
+async function stopInstanceLan(instanceId: string): Promise<boolean> {
   const runtime = runtimes.get(instanceId);
-  if (!runtime) return;
+  // 没有运行状态不代表没有规则：面板上次可能是被结束的。
+  if (!runtime) return removeLeftoverLanFirewall(instanceId);
   // 删除条目即让旧代次失效：所有回调和探测循环都按 runtimes 里当前条目的代次比对。
   const child = runtime.child;
   const firewallOpened = runtime.firewallOpened;
@@ -324,7 +366,61 @@ async function stopInstanceLan(instanceId: string): Promise<void> {
     child.kill();
     await exited;
   }
-  if (firewallOpened) await closeLanFirewall(instanceId);
+  if (firewallOpened) return removeLanFirewall(instanceId);
+  // 加规则失败时 openLanFirewall 已回滚，这里不再删；回滚是否干净不确定，之后没有运行状态时再补删。
+  return true;
+}
+
+/** 按名字删规则并记下结果：netsh 跑完才算确认删过；返回 false 表示没跑成，规则是否还在不确定，之后再试。 */
+async function removeLanFirewall(instanceId: string): Promise<boolean> {
+  const done = await closeLanFirewall(instanceId);
+  if (done) firewallCleared.add(instanceId);
+  return done;
+}
+
+/**
+ * 没有运行状态时补删可能残留的规则；返回 false 表示 netsh 没跑成。
+ * 规则只会在写好工作目录后、为有虚拟局域网记录的实例添加，所以两者都没有的 ID 不归本面板，不调用 netsh；
+ * 本进程已确认删过、或已有运行状态（启动时已先删后加）时也不调用，免得每个实例每次停服都起一次 netsh。
+ */
+async function removeLeftoverLanFirewall(instanceId: string): Promise<boolean> {
+  if (!lanFirewallApplies() || firewallCleared.has(instanceId) || runtimes.has(instanceId)) return true;
+  if (!getInstanceLanRow(instanceId) && !lanWorkDirExists(instanceId)) return true;
+  return removeLanFirewall(instanceId);
+}
+
+function lanWorkDirExists(instanceId: string): boolean {
+  try {
+    return fs.statSync(lanWorkDir(instanceId)).isDirectory();
+  } catch {
+    // 非法 ID（lanWorkDir 会抛错）或目录不存在
+    return false;
+  }
+}
+
+/** DATA_DIR/lan 下的实例工作目录名，只认合法实例 ID 形式的普通目录。 */
+function listLanWorkDirIds(): string[] {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(path.join(config.dataDir, 'lan'), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries.filter((entry) => entry.isDirectory() && INSTANCE_ID.test(entry.name)).map((entry) => entry.name);
+}
+
+/**
+ * 监听端口规则限定的程序，就是实际启动的 lanCorePath()，只来自面板自己的运行时目录。
+ * subst 盘、映射盘只在当前用户会话里有效，防火墙服务未必认得，所以先解析成真实路径（同时展开 8.3 短名）；
+ * 解析失败就用启动时的原路径。
+ */
+function lanFirewallProgramPath(): string {
+  const corePath = lanCorePath();
+  try {
+    return fs.realpathSync.native(corePath);
+  } catch {
+    return corePath;
+  }
 }
 
 async function probeAddress(

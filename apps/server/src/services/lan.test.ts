@@ -106,10 +106,11 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     renderLanToml,
     serverIpBlocksLan,
   } = await import('./lan-config.js');
-  const { setLanFirewallForTests } = await import('./lan-firewall.js');
+  const { lanFirewallRuleArgs, openLanFirewall, setLanFirewallForTests } = await import('./lan-firewall.js');
   const { getInstanceLanRow, saveInstanceLan } = await import('./lan-service.js');
   const {
     describeInstanceLan,
+    removeInstanceLan,
     renderLanFriendConfig,
     resetLanRuntimeForTests,
     setLanCliRunnerForTests,
@@ -117,7 +118,9 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     setLanProbeIntervalsForTests,
     setLanSpawnerForTests,
     shutdownLan,
+    sweepLanFirewall,
     syncInstanceLan,
+    syncInstanceLanQueued,
   } = await import('./lan-manager.js');
   const { lanCorePath, lanPlatformSupported, lanRuntimeDir, resolveLanAsset } = await import('./lan-runtime.js');
   const { createInstance } = await import('./instance-service.js');
@@ -237,7 +240,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   assert.deepEqual(running.sharedPeers, [...LAN_SHARED_PEERS]);
   assert.equal(running.useSharedPeers, true);
   assert.ok(running.listenPort && running.listenPort !== 25565 && running.listenPort !== config.port);
-  // 先按名字删旧规则，再加三条：游戏端口只限虚拟 IP，监听端口 TCP 与 UDP。
+  // 先按名字删旧规则，再加三条：游戏端口只限虚拟 IP；监听端口 TCP 与 UDP 只限实际启动的 easytier-core。
   const ruleName = `name=MystryDashboard-LAN-${first.id}`;
   assert.deepEqual(firewallCalls[0], ['advfirewall', 'firewall', 'delete', 'rule', ruleName]);
   const adds = firewallCalls.slice(1);
@@ -245,9 +248,11 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   for (const args of adds) {
     assert.deepEqual(args.slice(0, 9), ['advfirewall', 'firewall', 'add', 'rule', ruleName, 'dir=in', 'action=allow', 'profile=any', 'enable=yes']);
   }
+  // 程序路径是面板自己的运行时路径（解析成真实路径），作为单独的数组参数传入，不拼命令行。
+  const programArg = `program=${fs.realpathSync.native(lanCorePath())}`;
   assert.deepEqual(adds[0]?.slice(9), ['protocol=TCP', 'localport=25565', `localip=${running.virtualIp}`]);
-  assert.deepEqual(adds[1]?.slice(9), ['protocol=TCP', `localport=${running.listenPort}`]);
-  assert.deepEqual(adds[2]?.slice(9), ['protocol=UDP', `localport=${running.listenPort}`]);
+  assert.deepEqual(adds[1]?.slice(9), ['protocol=TCP', `localport=${running.listenPort}`, programArg]);
+  assert.deepEqual(adds[2]?.slice(9), ['protocol=UDP', `localport=${running.listenPort}`, programArg]);
   assert.equal(running.joinAddress, `${running.virtualIp}:25565`);
   assert.match(running.virtualIp ?? '', /^10\.126\.(?:[1-9]|[1-9]\d|1[0-9]\d|2[0-4]\d|25[0-4])\.1$/);
   assert.notEqual(running.virtualIp, '10.126.126.1');
@@ -399,6 +404,225 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     const restored = saveInstanceLan(first.id, { enabled: true, peers: [], useSharedPeers: true });
     assert.deepEqual(restored.peers, []);
     assert.ok(renderLanFriendConfig(first.id).includes(LAN_SHARED_PEERS[0]));
+  });
+
+  const deleteArgs = (id: string) => ['advfirewall', 'firewall', 'delete', 'rule', `name=MystryDashboard-LAN-${id}`];
+  /** 记录 netsh 参数的假执行器；code 决定每条命令的退出码（-1 表示没能运行或超时）。 */
+  const recordingRunner = (code: (args: readonly string[]) => number = () => 0) => ({
+    platform: 'win32' as NodeJS.Platform,
+    runner: async (args: readonly string[]) => {
+      firewallCalls.push([...args]);
+      return code(args);
+    },
+  });
+  /** 模拟面板崩溃后重启：内存里的运行状态全部丢失，系统里的防火墙规则还在。 */
+  const simulateRestart = () => {
+    resetLanRuntimeForTests();
+    setLanSpawnerForTests(() => fakeChild() as unknown as ChildProcess);
+    setLanCliRunnerForTests(async () => JSON.stringify({ ipv4_addr: `${describeReadyIp()}/24` }));
+    setLanGameStatusForTests(() => 'running');
+  };
+
+  await t.test('面板重启后没有运行状态，停服或关闭虚拟局域网仍按名字删规则', async () => {
+    simulateRestart();
+    setLanFirewallForTests(recordingRunner());
+    // 先在「上一次面板进程」里把规则加上，再模拟面板被结束。
+    assert.equal((await syncInstanceLan(first.id)).status, 'running');
+    simulateRestart();
+
+    // 实例停服：没有运行状态，但有虚拟局域网记录，仍要删。
+    firewallCalls.length = 0;
+    setLanGameStatusForTests(() => 'stopped');
+    await syncInstanceLan(first.id);
+    assert.deepEqual(firewallCalls, [deleteArgs(first.id)]);
+    // 本进程确认删过后，再停服不重复调用 netsh。
+    await syncInstanceLan(first.id);
+    assert.equal(firewallCalls.length, 1);
+
+    // netsh 没能运行（超时等）时结果未知，之后关闭虚拟局域网时再删。
+    simulateRestart();
+    setLanGameStatusForTests(() => 'stopped');
+    setLanFirewallForTests(recordingRunner(() => -1));
+    firewallCalls.length = 0;
+    await syncInstanceLan(first.id);
+    assert.deepEqual(firewallCalls, [deleteArgs(first.id)]);
+    setLanFirewallForTests(recordingRunner());
+    saveInstanceLan(first.id, { enabled: false });
+    await syncInstanceLan(first.id);
+    assert.deepEqual(firewallCalls, [deleteArgs(first.id), deleteArgs(first.id)]);
+    saveInstanceLan(first.id, { enabled: true });
+
+    // 从没开过虚拟局域网的实例没有记录，停服不调用 netsh。
+    const plain = createInstance({ name: 'Plain', acceptEula: true });
+    firewallCalls.length = 0;
+    await syncInstanceLan(plain.id);
+    assert.equal(firewallCalls.length, 0);
+
+    // 其他系统上什么都不做。
+    simulateRestart();
+    setLanGameStatusForTests(() => 'stopped');
+    setLanFirewallForTests({ ...recordingRunner(), platform: 'linux' });
+    await syncInstanceLan(first.id);
+    assert.equal(firewallCalls.length, 0);
+    setLanFirewallForTests(recordingRunner());
+  });
+
+  await t.test('启动清扫只删归本面板的实例（有记录或工作目录），跳过已重新启动的，不按前缀删', async () => {
+    simulateRestart();
+    setLanFirewallForTests(recordingRunner());
+    // second 已关闭虚拟局域网但记录还在：旧版本留下的规则也要清。
+    saveInstanceLan(second.id, { enabled: false });
+    const noLan = createInstance({ name: 'NoLan', acceptEula: true });
+    assert.equal(getInstanceLanRow(noLan.id), null);
+    firewallCalls.length = 0;
+    // 与 attachLanLifecycle 一样不等清扫，紧接着排一个启动：清扫先进队列，不会删掉启动刚加的规则。
+    const sweeping = sweepLanFirewall();
+    const started = syncInstanceLanQueued(first.id);
+    await sweeping;
+    assert.equal((await started).status, 'running');
+    const named = (id: string) => (args: string[]) => args[4] === `name=MystryDashboard-LAN-${id}`;
+    const forFirst = firewallCalls.filter(named(first.id));
+    assert.deepEqual(forFirst.map((args) => args[2]), ['delete', 'delete', 'add', 'add', 'add']);
+    assert.deepEqual(firewallCalls.filter(named(second.id)), [deleteArgs(second.id)]);
+    // 只按已知 ID 精确删除：没有记录的实例、别的面板的规则（如按前缀匹配）都不碰。
+    assert.equal(firewallCalls.length, forFirst.length + 1);
+    assert.equal(firewallCalls.some(named(noLan.id)), false);
+
+    // 已有运行状态的跳过；本进程已确认删过的不重复。
+    firewallCalls.length = 0;
+    await sweepLanFirewall();
+    assert.equal(firewallCalls.length, 0);
+
+    // 其他系统上清扫不调用 netsh。
+    simulateRestart();
+    setLanFirewallForTests({ ...recordingRunner(), platform: 'linux' });
+    await sweepLanFirewall();
+    assert.equal(firewallCalls.length, 0);
+    setLanFirewallForTests(recordingRunner());
+    saveInstanceLan(second.id, { enabled: true });
+  });
+
+  await t.test('删除实例时即使没有运行状态、记录已随实例级联删除也删规则；任意 ID 不触发 netsh', async () => {
+    const { deleteInstance } = await import('./instance-service.js');
+    simulateRestart();
+    setLanFirewallForTests(recordingRunner());
+    const lanDir = (id: string) => path.join(dataRoot, 'lan', id);
+    /** 建实例、开虚拟局域网并真的启动一次（写好工作目录、加上规则），再模拟面板被结束。 */
+    const startedThenKilled = async (name: string, port: string) => {
+      const info = createInstance({ name, acceptEula: true });
+      saveInstanceLan(info.id, { enabled: true });
+      writeServerProperties(info.id, { 'server-ip': '', 'server-port': port });
+      await syncInstanceLan(info.id);
+      assert.ok(fs.existsSync(lanDir(info.id)));
+      simulateRestart();
+      return info;
+    };
+    const doomed = await startedThenKilled('Doomed', '25569');
+    // 与 DELETE /api/instances/:id 相同的顺序：先删实例（虚拟局域网记录级联删除），再收尾虚拟局域网。
+    await deleteInstance(doomed.id);
+    assert.equal(getInstanceLanRow(doomed.id), null);
+    firewallCalls.length = 0;
+    await removeInstanceLan(doomed.id);
+    assert.deepEqual(firewallCalls, [deleteArgs(doomed.id)]);
+    assert.equal(fs.existsSync(lanDir(doomed.id)), false);
+
+    // 不归本面板的 ID（没有记录也没有工作目录）：即使格式合法也不调用 netsh，免得删到别的面板的同名规则。
+    firewallCalls.length = 0;
+    await removeInstanceLan('neverCreated01');
+    assert.equal(firewallCalls.length, 0);
+
+    // 删除时 netsh 没跑成：保留工作目录，下次启动清扫按它补删，确认后再清掉目录。
+    const stubborn = await startedThenKilled('Stubborn', '25570');
+    await deleteInstance(stubborn.id);
+    setLanFirewallForTests(recordingRunner(() => -1));
+    firewallCalls.length = 0;
+    await removeInstanceLan(stubborn.id);
+    assert.deepEqual(firewallCalls, [deleteArgs(stubborn.id)]);
+    assert.ok(fs.existsSync(lanDir(stubborn.id)));
+    simulateRestart();
+    setLanFirewallForTests(recordingRunner());
+    firewallCalls.length = 0;
+    await sweepLanFirewall();
+    assert.deepEqual(firewallCalls.filter((args) => args[4] === `name=MystryDashboard-LAN-${stubborn.id}`), [deleteArgs(stubborn.id)]);
+    assert.equal(fs.existsSync(lanDir(stubborn.id)), false);
+
+    // 加规则失败（已回滚）后删除：停止时不删，删除时仍补删一次。
+    const flaky = createInstance({ name: 'Flaky', acceptEula: true });
+    saveInstanceLan(flaky.id, { enabled: true });
+    writeServerProperties(flaky.id, { 'server-ip': '', 'server-port': '25568' });
+    setLanFirewallForTests(recordingRunner((args) => (args[2] === 'add' ? 1 : 0)));
+    assert.equal((await syncInstanceLan(flaky.id)).warning?.key, 'server.lan.firewallFailed');
+    await deleteInstance(flaky.id);
+    firewallCalls.length = 0;
+    await removeInstanceLan(flaky.id);
+    assert.deepEqual(firewallCalls, [deleteArgs(flaky.id)]);
+    assert.equal(fs.existsSync(path.join(dataRoot, 'lan', flaky.id)), false);
+
+    // 其他系统上删除实例不调用 netsh。
+    const other = createInstance({ name: 'Other', acceptEula: true });
+    saveInstanceLan(other.id, { enabled: true });
+    setLanFirewallForTests({ ...recordingRunner(), platform: 'linux' });
+    await deleteInstance(other.id);
+    firewallCalls.length = 0;
+    await removeInstanceLan(other.id);
+    assert.equal(firewallCalls.length, 0);
+    setLanFirewallForTests(recordingRunner());
+  });
+
+  await t.test('监听规则只限 easytier-core；带程序的规则加不上就退回不限程序，路径不合适不收窄', async () => {
+    // 宿主机上的绝对路径，带空格：Linux CI 上同样适用。
+    const corePath = path.join(dataRoot, 'First Last', 'easytier-core.exe');
+    const input = { instanceId: 'probe-1', virtualIp: '10.126.12.1', gamePort: 25565, listenPort: 41234, corePath };
+    const rules = lanFirewallRuleArgs(input);
+    assert.deepEqual(rules.map((rule) => rule.args.slice(9)), [
+      ['protocol=TCP', 'localport=25565', 'localip=10.126.12.1'],
+      ['protocol=TCP', 'localport=41234', `program=${corePath}`],
+      ['protocol=UDP', 'localport=41234', `program=${corePath}`],
+    ]);
+    // 游戏端口规则不限程序，也没有退回参数；监听规则退回时只去掉 program=。
+    assert.equal(rules[0]?.fallback, null);
+    assert.deepEqual(rules[1]?.fallback, rules[1]?.args.slice(0, -1));
+    assert.deepEqual(rules[2]?.fallback, rules[2]?.args.slice(0, -1));
+
+    // netsh 不接受 program= 时退回不限程序的规则，结果仍是已加上（不比收窄前差）。
+    setLanFirewallForTests(recordingRunner((args) => (args.some((arg) => arg.startsWith('program=')) ? 1 : 0)));
+    firewallCalls.length = 0;
+    assert.equal(await openLanFirewall(input), 'applied');
+    assert.deepEqual(firewallCalls, [
+      deleteArgs('probe-1'),
+      rules[0]?.args,
+      rules[1]?.args,
+      rules[1]?.fallback,
+      rules[2]?.args,
+      rules[2]?.fallback,
+    ]);
+
+    // 退回的规则也加不上时整体回滚。
+    setLanFirewallForTests(recordingRunner((args) => (args[2] === 'add' && args.includes('protocol=UDP') ? 1 : 0)));
+    firewallCalls.length = 0;
+    assert.equal(await openLanFirewall(input), 'failed');
+    assert.deepEqual(firewallCalls.at(-1), deleteArgs('probe-1'));
+
+    // 路径为空、不是绝对路径、带引号、% 或控制字符时不收窄。
+    for (const bad of [
+      null,
+      'easytier-core.exe',
+      path.join(dataRoot, 'a"b', 'easytier-core.exe'),
+      path.join(dataRoot, '%TEMP%', 'easytier-core.exe'),
+      `${corePath}\n`,
+    ]) {
+      const plain = lanFirewallRuleArgs({ ...input, corePath: bad });
+      assert.ok(
+        plain.every((rule) => rule.fallback === null && !rule.args.some((arg) => arg.startsWith('program='))),
+        String(bad),
+      );
+    }
+
+    // 参数不合法时只报加不上，不抛错，也不调用 netsh。
+    setLanFirewallForTests(recordingRunner());
+    firewallCalls.length = 0;
+    assert.equal(await openLanFirewall({ ...input, virtualIp: '192.168.1.1' }), 'failed');
+    assert.equal(firewallCalls.length, 0);
   });
 
   await t.test('手动上传的压缩包只认钉死的摘要，不对就不装', async () => {
