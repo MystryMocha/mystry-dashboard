@@ -1,6 +1,6 @@
 import { useI18n } from '../i18n';
 
-const MINECRAFT_EULA_URL = 'https://aka.ms/MinecraftEULA';
+export const MINECRAFT_EULA_URL = 'https://aka.ms/MinecraftEULA';
 
 /** 部署、导入、空实例和实例设置共用的 EULA 同意勾选框；默认不勾选，必须由用户主动同意。 */
 export function EulaCheckbox({

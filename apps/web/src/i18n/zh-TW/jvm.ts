@@ -51,6 +51,8 @@ export default {
   'java.warn.mismatch.default': '系統預設 Java 是 Java {actual}，建議使用 Java {recommended}；版本不符時伺服器可能無法啟動。',
   'java.warn.unavailable': '之前選擇的 Java 已無法使用，儲存前請點「重新偵測」並重新選擇。',
   'java.error.load': '無法讀取本機的 Java 清單：{error}',
+  'java.download.version': '下載 Java {java}',
+  'java.download.any': '下載 Java',
 
   // EULA 勾选
   'eula.agree': '我已閱讀並同意 <link>Minecraft EULA</link>（面板會據此寫入 eula.txt）',

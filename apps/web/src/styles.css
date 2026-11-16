@@ -2085,6 +2085,29 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 /* ========== 导入 ========== */
 .import-mode-switch,
 .multiplayer-mode-switch { align-self: flex-start; }
+
+/* 同一网络直连：地址用等宽字体，一行一个，右侧是复制按钮 */
+.direct-block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.direct-title { margin: 0; font-size: 15px; font-weight: 600; }
+.direct-address-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.direct-address-list li { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.direct-address {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--fill-2);
+  font-family: var(--mono);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.direct-notice { min-height: 1.5em; }
+
+/* 启动失败原因提示：标题、说明和操作按钮上下排列 */
+.start-issue { margin-bottom: 12px; }
+.start-issue-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.start-issue-actions .btn { align-self: auto; }
 .import-handoff-note ol { margin: 6px 0; padding-left: 18px; line-height: 1.75; font-size: 13.5px; }
 .import-handoff-note p { color: var(--label-2); font-size: 13px; }
 .import-zip-lead { font-size: 13.5px; }

@@ -23,6 +23,7 @@ import { EulaCheckbox } from '../components/EulaCheckbox';
 import { FilesTab } from '../components/FilesTab';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
+import { StartIssueBanner } from '../components/StartIssueBanner';
 import { InstanceStatusPill } from '../components/StatusPill';
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
 import { errorMessage } from '../errors';
@@ -38,8 +39,30 @@ import {
   isProcessAlive,
 } from '../instance-status';
 
-function ConsoleTab({ instance }: { instance: InstanceInfo }) {
-  return <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} />;
+function ConsoleTab({
+  instance,
+  busy,
+  onAgreeEulaAndStart,
+}: {
+  instance: InstanceInfo;
+  busy: boolean;
+  onAgreeEulaAndStart: () => void;
+}) {
+  // 提示只放在控制台页：实例设置页有自己的 EULA 勾选草稿，两处同时改会互相覆盖。
+  const issue = canStartInstance(instance.status) ? instance.startIssue ?? null : null;
+  return (
+    <>
+      {issue && (
+        <StartIssueBanner
+          issue={issue}
+          instanceId={instance.id}
+          busy={busy}
+          onAgreeEulaAndStart={onAgreeEulaAndStart}
+        />
+      )}
+      <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} />
+    </>
+  );
 }
 
 function MigrationPanel({ instance, onAdopt }: { instance: InstanceInfo; onAdopt: () => Promise<void> }) {
@@ -282,6 +305,14 @@ export function InstancePage() {
     void run(id, () => controlInstance(id, action, options));
   }
 
+  /** 用户在提示里点了「同意并启动」：先记下同意，启动时面板会据此写入 eula.txt。 */
+  function agreeEulaAndStart() {
+    void run(id, async () => {
+      await api(instanceApi(id), { method: 'PATCH', json: { acceptEula: true } });
+      await controlInstance(id, 'start');
+    });
+  }
+
   if (!instance) {
     return (
       <div className="page">
@@ -400,7 +431,10 @@ export function InstancePage() {
           <MigrationPanel instance={instance} onAdopt={load} />
         ) : (
           <Routes>
-            <Route index element={<ConsoleTab instance={instance} />} />
+            <Route
+              index
+              element={<ConsoleTab instance={instance} busy={busy} onAgreeEulaAndStart={agreeEulaAndStart} />}
+            />
             <Route path="files" element={<FilesTab instanceId={instance.id} />} />
             <Route path="config" element={<ConfigTab instanceId={instance.id} />} />
             <Route path="backups" element={<BackupsTab instance={instance} onRestored={() => void load()} />} />

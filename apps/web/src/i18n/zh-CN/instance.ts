@@ -41,6 +41,17 @@ export default {
   'instance.settings.unsaved.savingTitle': '正在保存设置…',
   'instance.settings.unsaved.description': '离开设置页会丢失尚未保存的实例设置。',
 
+  // 启动失败原因提示（控制台上方）
+  'instance.startIssue.eula.title': '同意 Minecraft EULA 后才能启动这个服务器',
+  'instance.startIssue.eula.body': 'Minecraft 服务器必须先同意 <link>Minecraft EULA</link> 才能运行。点「同意并启动」表示你已阅读并同意该协议，面板会写入 eula.txt 并启动服务器。',
+  'instance.startIssue.eula.action': '同意并启动',
+  'instance.startIssue.java.title': '这个服务器需要 Java {java}',
+  'instance.startIssue.java.titleUnknown': '这个服务器需要换一个 Java 版本',
+  'instance.startIssue.javaTooNew.body': '启动时用的 Java 版本太新，服务器刚启动就退出了。请安装 Java {java}，然后打开「实例设置」，点「重新探测」，选择 Java {java}，保存后再启动。',
+  'instance.startIssue.javaTooOld.body': '启动时用的 Java 版本太旧，服务器刚启动就退出了。请安装 Java {java}，然后打开「实例设置」，点「重新探测」，选择 Java {java}，保存后再启动。',
+  'instance.startIssue.java.bodyUnknown': '启动时用的 Java 版本和这个服务器不匹配，服务器刚启动就退出了。请查看服务端或整合包要求的 Java 版本并安装，然后打开「实例设置」，点「重新探测」，选择它，保存后再启动。',
+  'instance.startIssue.java.openSettings': '打开实例设置',
+
   // 未保存修改弹窗（设置与参数配置共用）
   'instance.unsaved.savingDescription': '保存完成后会自动继续离开；保存期间无法放弃或取消。',
   'instance.unsaved.confirm': '放弃修改并离开',

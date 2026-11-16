@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FolderDown, Globe, Network, Plus } from 'lucide-react';
+import { FolderDown, Globe, Network, Plus, Wifi } from 'lucide-react';
 import type { InstanceInfo } from '@mystry/shared';
 import { api } from '../api';
+import { DirectSection } from '../components/DirectSection';
 import { LanSection } from '../components/LanSection';
 import { MultiplayerTab } from '../components/MultiplayerTab';
 import { PageHeader } from '../components/PageHeader';
@@ -10,13 +11,14 @@ import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n } from '../i18n';
 
-const METHODS = ['lan', 'frp'] as const;
+const METHODS = ['direct', 'lan', 'frp'] as const;
 type MultiplayerMethod = (typeof METHODS)[number];
 
+/** 没指定或不认识的方式落到「同一网络」：它不用安装和配置，是最容易成功的一种。 */
 function multiplayerMethod(value: string | null): MultiplayerMethod {
-  return value === 'frp' ? 'frp' : 'lan';
+  return METHODS.find((method) => method === value) ?? 'direct';
 }
-/** 联机是面板级入口。先选定实例，再用分段切换虚拟局域网或 frp，一次只显示一种。 */
+/** 联机是面板级入口。先选定实例，再用分段切换同一网络、虚拟局域网或 frp，一次只显示一种。 */
 export function MultiplayerPage() {
   const { t } = useI18n();
   const [params, setParams] = useSearchParams();
@@ -92,6 +94,15 @@ export function MultiplayerPage() {
           <div className="segmented multiplayer-mode-switch" role="group" aria-label={t('multiplayer.method.ariaLabel')}>
             <button
               type="button"
+              className={`segmented-item${method === 'direct' ? ' active' : ''}`}
+              aria-pressed={method === 'direct'}
+              onClick={() => chooseMethod('direct')}
+            >
+              <Wifi size={15} aria-hidden="true" />
+              {t('multiplayer.method.direct')}
+            </button>
+            <button
+              type="button"
               className={`segmented-item${method === 'lan' ? ' active' : ''}`}
               aria-pressed={method === 'lan'}
               onClick={() => chooseMethod('lan')}
@@ -109,6 +120,11 @@ export function MultiplayerPage() {
               {t('multiplayer.method.frp')}
             </button>
           </div>
+          {selected && method === 'direct' && (
+            <div className="form-stack settings-workspace">
+              <DirectSection key={selected.id} instance={selected} onChooseVirtualLan={() => chooseMethod('lan')} />
+            </div>
+          )}
           {selected && method === 'lan' && (
             <div className="form-stack settings-workspace">
               <LanSection key={selected.id} instanceId={selected.id} />

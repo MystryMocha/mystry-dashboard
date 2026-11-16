@@ -7,6 +7,8 @@ import { DashboardPage } from '../src/pages/DashboardPage';
 import { DeployPage } from '../src/pages/DeployPage';
 import { ImportPage } from '../src/pages/ImportPage';
 import { NodesPage } from '../src/pages/NodesPage';
+import { InstancePage } from '../src/pages/InstancePage';
+import { MultiplayerPage } from '../src/pages/MultiplayerPage';
 import { TaskCenter } from '../src/components/TaskCenter';
 import { ConsolePanel } from '../src/components/ConsolePanel';
 import { BackupsTab } from '../src/components/BackupsTab';
@@ -706,4 +708,79 @@ test('参数配置遇到选项之外的值时原样显示，不误显示成第�
   const gamemode = screen.getByRole('combobox', { name: '默认游戏模式' }) as HTMLSelectElement;
   expect(gamemode.value).toBe('creative');
   expect(within(gamemode).queryByRole('option', { name: 'creative' })).toBeNull();
+});
+
+test('未同意 EULA 的启动失败给出提示，「同意并启动」先保存同意再启动', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const calls: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const method = options?.method ?? 'GET';
+    if (url === '/api/instances/test' && method === 'GET') {
+      return new Response(JSON.stringify({ ...instance, name: '测试服', acceptEula: false, startIssue: { kind: 'eula', requiredJava: null } }));
+    }
+    if (method !== 'GET' && String(url).startsWith('/api/instances/test') && !String(url).includes('console-ticket')) {
+      calls.push(`${method} ${url} ${options?.body ?? ''}`.trim());
+      return new Response('{}');
+    }
+    return baseFetch(url, options);
+  }));
+  const router = createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  );
+  render(<RouterProvider router={router} />);
+  const banner = await screen.findByRole('alert');
+  expect(banner.textContent).toContain('同意 Minecraft EULA 后才能启动这个服务器');
+  expect(within(banner).getByRole('link', { name: 'Minecraft EULA' }).getAttribute('href')).toBe('https://aka.ms/MinecraftEULA');
+  await user.click(within(banner).getByRole('button', { name: '同意并启动' }));
+  await waitFor(() => expect(calls).toEqual([
+    'PATCH /api/instances/test {"acceptEula":true}',
+    'POST /api/instances/test/start',
+  ]));
+});
+
+test('Java 版本不符的启动失败给出需要的版本、下载链接和实例设置入口', async () => {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
+    url === '/api/instances/test'
+      ? new Response(JSON.stringify({ ...instance, name: '测试服', status: 'crashed', startIssue: { kind: 'java-too-new', requiredJava: 8 } }))
+      : baseFetch(url, options)
+  )));
+  const router = createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  );
+  render(<RouterProvider router={router} />);
+  const banner = await screen.findByRole('alert');
+  expect(banner.textContent).toContain('这个服务器需要 Java 8');
+  expect(banner.textContent).toContain('Java 版本太新');
+  expect(within(banner).getByRole('link', { name: '下载 Java 8' }).getAttribute('href')).toBe('https://adoptium.net/temurin/releases/?version=8');
+  expect(within(banner).getByRole('link', { name: '打开实例设置' }).getAttribute('href')).toBe('/instances/test/settings');
+});
+
+test('联机页默认「同一网络」：列出可复制的地址，并能转到虚拟局域网', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23', '10.0.0.5'], serverIpBlocked: false }
+      : url === '/api/lan/runtime' ? { version: '0.0.0', installed: true, platformSupported: true }
+      : url === '/api/instances/test/lan' ? { instanceId: 'test', enabled: false, status: 'disabled', localPort: 25565, virtualIp: null, joinAddress: null, serverIpBlocked: false, runtimeInstalled: true, detail: null }
+      : null;
+    return data ? new Response(JSON.stringify(data)) : baseFetch(url, options);
+  }));
+  const writeText = vi.fn(async () => {});
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  mount(<MultiplayerPage />);
+  expect(await screen.findByRole('button', { name: '同一网络', pressed: true })).toBeTruthy();
+  expect(await screen.findByText('192.168.1.23:25565')).toBeTruthy();
+  expect(screen.getByText('10.0.0.5:25565')).toBeTruthy();
+  expect(screen.getByText('这台电脑有多个地址，先试 192.168 开头的那个。')).toBeTruthy();
+  // 实例没在运行时先提示启动。
+  expect(screen.getByText('请先启动服务器。服务器运行时朋友才能加入。')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '复制 192.168.1.23:25565' }));
+  expect(writeText).toHaveBeenCalledWith('192.168.1.23:25565');
+  expect(await screen.findByText('已复制 192.168.1.23:25565。')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '改用虚拟局域网' }));
+  expect(await screen.findByRole('button', { name: '虚拟局域网', pressed: true })).toBeTruthy();
 });

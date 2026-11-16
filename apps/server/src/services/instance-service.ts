@@ -53,6 +53,7 @@ function rowToInfo(row: InstanceRow): InstanceInfo {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     acceptEula: Boolean(row.accept_eula),
+    startIssue: processManager.getStartIssue(row.id),
   };
 }
 

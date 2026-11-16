@@ -4,6 +4,7 @@ import { recommendedJavaMajor, type JavaDetectResult, type JavaRuntimeInfo } fro
 import { detectDefaultJava, listJavaRuntimes } from '../api';
 import { errorMessage } from '../errors';
 import { useI18n } from '../i18n';
+import { javaDownloadUrl } from '../java-download';
 
 /**
  * Java 运行时选择器：
@@ -123,6 +124,17 @@ export function JavaRuntimeSelect({
             actual: resolvedMajor,
             recommended,
           })}
+          {' '}
+          <a href={javaDownloadUrl(recommended)} target="_blank" rel="noreferrer" className="link">
+            {t('java.download.version', { java: recommended })}
+          </a>
+        </p>
+      )}
+      {!value && !loading && defaultJava !== null && !defaultJava.available && (
+        <p className="field-warn">
+          <a href={javaDownloadUrl(recommended)} target="_blank" rel="noreferrer" className="link">
+            {recommended != null ? t('java.download.version', { java: recommended }) : t('java.download.any')}
+          </a>
         </p>
       )}
       {value && !loading && (!selected || !selected.available) && (
