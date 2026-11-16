@@ -106,6 +106,28 @@ export interface NodeSecretResult {
   secret: string;
 }
 
+/**
+ * 面板从控制台输出里认出的启动失败原因：
+ * eula 为尚未同意 Minecraft EULA；java-too-new / java-too-old 为所用 Java 版本过新或过旧。
+ */
+export type InstanceStartIssueKind = 'eula' | 'java-too-new' | 'java-too-old';
+
+export interface InstanceStartIssue {
+  kind: InstanceStartIssueKind;
+  /** 这个服务端需要的 Java 主版本；无法判断或与 Java 无关时为 null。 */
+  requiredJava: number | null;
+}
+
+/** GET /api/instances/:id/local-network 响应：和这台电脑在同一网络的朋友可以直接连接的地址。 */
+export interface InstanceLocalNetwork {
+  /** server.properties 的游戏端口；无法读取或不是有效端口时为 null。 */
+  port: number | null;
+  /** 这台电脑的局域网 IPv4 地址，不含回环和链路本地地址。 */
+  addresses: string[];
+  /** server-ip 绑定了具体地址时为 true，此时同一网络的朋友可能连不上。 */
+  serverIpBlocked: boolean;
+}
+
 export interface InstanceInfo {
   id: string;
   name: string;
@@ -125,6 +147,8 @@ export interface InstanceInfo {
   createdAt: string;
   updatedAt: string;
   acceptEula: boolean;
+  /** 最近一次启动没成功且原因可识别时给出；再次启动、面板重启或实例正常运行后清空。 */
+  startIssue?: InstanceStartIssue | null;
 }
 
 export interface CreateInstanceInput {

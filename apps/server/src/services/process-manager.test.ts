@@ -113,6 +113,60 @@ test('首次启动写入普通难度，已有 server.properties 不覆盖', asyn
   );
 });
 
+test('未同意 EULA 退出记为已停止并给出原因；Java 不符记为崩溃；再次启动清空原因', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const info = createInstance({ name: 'start-issue' });
+  fs.writeFileSync(path.join(defaultInstanceDir(info.id), 'server.jar'), 'stub-jar');
+  const row = getInstanceRow(info.id)! as InstanceRow;
+
+  const children: ChildProcessWithoutNullStreams[] = [];
+  const manager = new ProcessManager(
+    () => {
+      const child = fakeChild();
+      children.push(child);
+      return child;
+    },
+    async () => 'java',
+  );
+  const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+  await manager.start(row);
+  children[0].stdout.emit('data', Buffer.from(
+    '[13:23:04] [Server thread/INFO]: You need to agree to the EULA in order to run the server. Go to eula.txt for more info.\n',
+  ));
+  await flush();
+  children[0].emit('exit', 0, null);
+  assert.equal(manager.getStatus(info.id), 'stopped');
+  assert.deepEqual(manager.getStartIssue(info.id), { kind: 'eula', requiredJava: null });
+
+  await manager.start(row);
+  assert.equal(manager.getStartIssue(info.id), null, '启动中不应保留上一次的原因');
+  children[1].stderr.emit('data', Buffer.from(
+    'java.lang.ClassCastException: class jdk.internal.loader.ClassLoaders$AppClassLoader cannot be cast to class java.net.URLClassLoader\n',
+  ));
+  await flush();
+  children[1].emit('exit', 1, null);
+  assert.equal(manager.getStatus(info.id), 'crashed');
+  assert.deepEqual(manager.getStartIssue(info.id), { kind: 'java-too-new', requiredJava: 8 });
+
+  // 用户主动停止后的退出不做诊断。
+  await manager.start(row);
+  children[2].stderr.emit('data', Buffer.from('java.lang.UnsupportedClassVersionError: x (class file version 65.0)\n'));
+  await flush();
+  const stopping = manager.stop(info.id);
+  await flush();
+  children[2].emit('exit', 0, null);
+  await stopping;
+  assert.equal(manager.getStatus(info.id), 'stopped');
+  assert.equal(manager.getStartIssue(info.id), null);
+});
+
 test('普通 stop 超时不得隐式 SIGKILL', async (t) => {
   prepareTempDataRoot(t);
   process.env.MYSTRY_TEST_STOP_GRACE_MS = '40';

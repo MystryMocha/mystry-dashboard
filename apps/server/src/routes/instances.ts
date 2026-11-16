@@ -14,6 +14,7 @@ import {
 import { deleteInstanceBackups } from '../services/backup-service.js';
 import { removeInstanceFrp } from '../services/frp-manager.js';
 import { removeInstanceLan } from '../services/lan-manager.js';
+import { describeLocalNetwork } from '../services/local-network-service.js';
 import {
   isInstanceOperationConflictError,
   isInstanceStopPendingError,
@@ -58,6 +59,16 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     const inst = getInstance(req.params.id);
     if (!inst) return reply.code(404).send(panelErrorBody('server.instance.notFound'));
     return inst;
+  });
+
+  // 同一网络直连：只读返回本机局域网地址和游戏端口，不开端口也不改配置。
+  app.get<{ Params: { id: string } }>('/api/instances/:id/local-network', async (req, reply) => {
+    if (!getInstanceRow(req.params.id)) return reply.code(404).send(panelErrorBody('server.instance.notFound'));
+    try {
+      return describeLocalNetwork(req.params.id);
+    } catch (err) {
+      return sendRouteError(reply, err);
+    }
   });
 
   app.post<{

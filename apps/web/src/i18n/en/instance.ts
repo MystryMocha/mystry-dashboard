@@ -39,6 +39,17 @@ export default {
   'instance.settings.unsaved.savingTitle': 'Saving settings…',
   'instance.settings.unsaved.description': 'If you leave Settings, your unsaved instance settings will be lost.',
 
+  // 启动失败原因提示（控制台上方）
+  'instance.startIssue.eula.title': 'Agree to the Minecraft EULA to start this server',
+  'instance.startIssue.eula.body': 'A Minecraft server runs only after you accept the <link>Minecraft EULA</link>. Selecting "Agree and Start" means you have read and agree to it. The panel then writes eula.txt and starts the server.',
+  'instance.startIssue.eula.action': 'Agree and Start',
+  'instance.startIssue.java.title': 'This server needs Java {java}',
+  'instance.startIssue.java.titleUnknown': 'This server needs a different Java version',
+  'instance.startIssue.javaTooNew.body': 'The Java that started it is too new, so the server stopped right away. Install Java {java}. Then open Settings, select "Rescan", choose Java {java}, save, and start again.',
+  'instance.startIssue.javaTooOld.body': 'The Java that started it is too old, so the server stopped right away. Install Java {java}. Then open Settings, select "Rescan", choose Java {java}, save, and start again.',
+  'instance.startIssue.java.bodyUnknown': 'The Java that started it doesn\'t match this server, so it stopped right away. Check which Java version the server or modpack asks for and install it. Then open Settings, select "Rescan", choose that Java, save, and start again.',
+  'instance.startIssue.java.openSettings': 'Open Settings',
+
   // 未保存修改弹窗（设置与参数配置共用）
   'instance.unsaved.savingDescription': 'You\'ll leave automatically once saving finishes. You can\'t discard or cancel while saving.',
   'instance.unsaved.confirm': 'Discard and Leave',

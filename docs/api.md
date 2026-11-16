@@ -113,6 +113,11 @@ Java 状态响应准确结构为：
 | POST | `/api/instances/:id/stop` | 停止；`?force=1` 强杀。普通停止超时仍在停止中时返回 **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
 | POST | `/api/instances/:id/restart` | 重启 |
 | POST | `/api/instances/:id/command` | Body：`{ command: string }`，发送控制台命令 |
+| GET | `/api/instances/:id/local-network` | 同一网络直连用的地址 `InstanceLocalNetwork`：`{ port, addresses, serverIpBlocked }`。只读，不开端口也不改配置 |
+
+`InstanceInfo.startIssue` 在最近一次启动没成功且原因可识别时给出 `{ kind, requiredJava }`，否则为 `null`：`kind` 为 `eula`（尚未同意 Minecraft EULA）、`java-too-new` 或 `java-too-old`（所用 Java 过新或过旧，`requiredJava` 是需要的主版本，无法判断时为 `null`）。它由面板从该次进程的控制台输出里按固定句式识别，只存在内存里；再次启动、删除实例或面板重启后清空。服务端打印过 `Done (` 之后的退出不归因于 Java 版本。进程自己以退出码 0 结束（未同意 EULA、游戏内执行 `stop`）时状态为 `stopped`，非 0 才是 `crashed`。
+
+`local-network` 的 `addresses` 是这台电脑的局域网 IPv4 地址（不含回环、`169.254.*` 和能认出的虚拟网卡，如 WSL、虚拟机、组网或代理软件的网卡；全是虚拟网卡时照常列出。最多 6 个，`192.168.*` 排在前面），`port` 取自 `server.properties` 的 `server-port`，无效时为 `null`。`server-ip` 留空或为 `0.0.0.0` 时返回全部地址；等于其中一个地址时只返回它；其余情况 `serverIpBlocked` 为 `true` 且 `addresses` 为空。
 
 实例目录固定为最终数据根目录的 `instances/<id>`。最终数据根优先取 `MYSTRY_DATA_DIR`，否则取 `DATA_DIR`；创建、部署、导入和启动都不会接受另一个实例目录，`jarFile` 也只能表示实例根目录内的相对文件。
 

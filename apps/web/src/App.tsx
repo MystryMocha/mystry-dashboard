@@ -60,6 +60,7 @@ function documentTitleKeyFor(pathname: string, needsSetup: boolean): MessageKey 
   if (pathname === '/deploy') return 'nav.deploy';
   if (pathname === '/import') return 'nav.import';
   if (pathname === '/nodes') return 'nav.machine';
+  if (pathname === '/multiplayer') return 'nav.multiplayer';
   return null;
 }
 

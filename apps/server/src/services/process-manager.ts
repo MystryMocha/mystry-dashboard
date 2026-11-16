@@ -3,7 +3,12 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Writable } from 'node:stream';
-import { renderPanelMessage, type InstanceStatus, type ServerMessageKey } from '@mystry/shared';
+import {
+  renderPanelMessage,
+  type InstanceStartIssue,
+  type InstanceStatus,
+  type ServerMessageKey,
+} from '@mystry/shared';
 import type { InstanceRow } from '../db.js';
 import { config } from '../config.js';
 import { assertSafeInstanceRoot, resolveDirFromRow, resolveSafePath } from '../utils/path.js';
@@ -12,6 +17,7 @@ import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
 import { ensureServerPropertiesDefaults } from './config-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
+import { diagnoseStartFailure } from './start-diagnosis.js';
 import { errorMessage, PanelError } from '../utils/errors.js';
 
 const { maxCommandBytes, maxConsoleBufferBytes, maxConsoleChunkBytes, maxConsoleStdinBytes } = config;
@@ -60,7 +66,10 @@ type ManagedProcess = {
   stdinBackpressured: boolean;
 };
 
-type ProcessSnapshot = Pick<ManagedProcess, 'status' | 'buffer' | 'bufferBytes'>;
+type ProcessSnapshot = Pick<ManagedProcess, 'status' | 'buffer' | 'bufferBytes'> & {
+  /** 最近一次退出时认出的启动失败原因；下次启动会随快照一起清掉。 */
+  startIssue: InstanceStartIssue | null;
+};
 
 export type MinecraftProcessSpawner = (
   command: string,
@@ -150,6 +159,12 @@ export class ProcessManager extends EventEmitter {
     return this.processes.get(instanceId)?.status
       ?? this.snapshots.get(instanceId)?.status
       ?? 'stopped';
+  }
+
+  /** 最近一次启动失败的可识别原因；实例在运行、从未启动或原因不明时为 null。 */
+  getStartIssue(instanceId: string): InstanceStartIssue | null {
+    if (this.processes.has(instanceId)) return null;
+    return this.snapshots.get(instanceId)?.startIssue ?? null;
   }
 
   /** 只向本机采集器提供面板当前持有的活进程，不接受外部 PID。 */
@@ -436,14 +451,19 @@ export class ProcessManager extends EventEmitter {
       child.on('exit', (code, signal) => {
         if (this.processes.get(instance.id) !== managed) return;
         const wasStopping = managed.status === 'stopping';
-        const status = wasStopping ? 'stopped' : 'crashed';
+        // 进程自己以退出码 0 结束（未同意 EULA、游戏内执行 stop 等）不算崩溃。
+        const status = wasStopping || code === 0 ? 'stopped' : 'crashed';
+        // 不是用户要求的停止时，从输出里找可以直接告诉用户怎么办的原因。
+        const startIssue = wasStopping
+          ? null
+          : diagnoseStartFailure(managed.buffer.join(''), instance.mc_version);
         const none = renderPanelMessage({ key: 'server.instance.consoleNone' });
         const line = renderPanelMessage({
           key: 'server.instance.consoleProcessExited',
           params: { code: code ?? none, signal: signal ?? none },
         });
         this.appendOutput(instance.id, `\n${line}\n`);
-        this.archiveProcess(instance.id, managed, status);
+        this.archiveProcess(instance.id, managed, status, startIssue);
       });
     } catch (error) {
       this.processes.delete(instance.id);
@@ -503,15 +523,18 @@ export class ProcessManager extends EventEmitter {
     instanceId: string,
     managed: ManagedProcess,
     status: Extract<InstanceStatus, 'stopped' | 'crashed'>,
+    startIssue: InstanceStartIssue | null = null,
   ): void {
     managed.status = status;
-    this.emitStatus(instanceId, status);
     this.processes.delete(instanceId);
+    // 先存快照再发状态事件：监听方收到事件后立即查询，要能读到这次的诊断结果。
     this.snapshots.set(instanceId, {
       status,
       buffer: [...managed.buffer],
       bufferBytes: managed.bufferBytes,
+      startIssue,
     });
+    this.emitStatus(instanceId, status);
   }
 
   private appendOutput(instanceId: string, text: string | Buffer): void {

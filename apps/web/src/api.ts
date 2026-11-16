@@ -12,6 +12,7 @@ import type {
   InstanceTunnelInput,
   InstanceLan,
   InstanceLanInput,
+  InstanceLocalNetwork,
   LanRuntimeInfo,
   JavaRuntimeListResult,
   JavaDetectResult,
@@ -375,6 +376,10 @@ export async function getLanRuntime() {
 
 export async function installLanRuntime() {
   return api<LanRuntimeInfo>('/api/lan/runtime', { method: 'POST' });
+}
+
+export async function getInstanceLocalNetwork(instanceId: string) {
+  return api<InstanceLocalNetwork>(instanceApi(instanceId, '/local-network'));
 }
 
 export async function getInstanceLan(instanceId: string) {
