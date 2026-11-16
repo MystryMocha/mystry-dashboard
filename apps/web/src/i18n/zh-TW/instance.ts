@@ -52,6 +52,12 @@ export default {
   'instance.startIssue.java.bodyUnknown': '啟動時使用的 Java 版本和這個伺服器不相符，伺服器剛啟動就結束了。請查看伺服器端或整合包要求的 Java 版本並安裝，然後開啟「實例設定」，點「重新偵測」，選擇它，儲存後再啟動。',
   'instance.startIssue.java.openSettings': '開啟實例設定',
 
+  // 启动成功后的下一步提示（控制台上方）
+  'instance.ready.title': '伺服器已啟動，現在可以進入伺服器了。',
+  'instance.ready.body': '想讓朋友加入？「聯機」頁會列出要傳給他們的位址。',
+  'instance.ready.action': '邀請朋友',
+  'instance.ready.dismiss': '不再提示',
+
   // 未保存修改弹窗（设置与参数配置共用）
   'instance.unsaved.savingDescription': '儲存完成後會自動繼續離開；儲存期間無法捨棄或取消。',
   'instance.unsaved.confirm': '捨棄修改並離開',

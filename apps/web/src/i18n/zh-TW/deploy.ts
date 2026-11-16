@@ -54,5 +54,5 @@ export default {
   'deploy.guide.after.title': '部署完成後',
   'deploy.guide.after.start': '在實例頁點「啟動」，等主控台出現 <code>Done</code>。',
   'deploy.guide.after.local': '在同一台電腦的遊戲中新增伺服器位址 <code>127.0.0.1</code>。',
-  'deploy.guide.after.friends': '朋友要加入，需要你的區域網路或公用 IP 位址，並在防火牆開放連接埠（預設 25565）。',
+  'deploy.guide.after.friends': '想讓朋友加入，請開啟「聯機」頁：它會列出要傳給朋友的位址，朋友不在同一網路時也有其他辦法。',
 } satisfies Record<keyof typeof en, string>;

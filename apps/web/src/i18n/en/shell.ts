@@ -1,6 +1,6 @@
 /** 应用外壳（侧栏、工具栏、底部标签栏、外观与语言弹层、启动与异常页）文案（英文主表）。 */
 export default {
-  'shell.pageTitle.workspace': 'Instance Workspace',
+  'shell.pageTitle.workspace': 'Instance',
   'shell.pageTitle.fallback': 'Admin Console',
   // 浏览器标签标题：页面名在前、品牌名在后；实例页的页面名为「标签 · 实例名」。
   'shell.docTitle': '{page} · Mystry Dashboard',

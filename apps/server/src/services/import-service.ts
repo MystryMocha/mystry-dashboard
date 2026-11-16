@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import type { CoreType } from '@mystry/shared';
 import { config } from '../config.js';
 import { registerPromotedInstance } from './instance-service.js';
-import { detectServerLaunchTarget } from './server-launch-detect.js';
+import { detectServerLaunchTarget, resolveImportedCoreType } from './server-launch-detect.js';
 import {
   assertSafeInstanceRoot,
   resolveSafePath,
@@ -110,8 +110,8 @@ export async function importZipPackage(options: {
         report(90, { key: 'server.imports.progress.registering' });
         registerPromotedInstance(instanceId, {
           name: options.name,
-          coreType: options.coreType ?? launchTarget.coreType,
-          mcVersion: options.mcVersion?.trim() || undefined,
+          coreType: resolveImportedCoreType(options.coreType, launchTarget.coreType),
+          mcVersion: options.mcVersion?.trim() || launchTarget.mcVersion || undefined,
           jarFile: launchTarget.value,
           jvmArgs: options.jvmArgs,
           acceptEula: options.acceptEula,

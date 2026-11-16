@@ -17,7 +17,7 @@ import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
 import { ensureServerPropertiesDefaults } from './config-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
-import { diagnoseStartFailure } from './start-diagnosis.js';
+import { diagnoseStartFailure, hasFinishedStarting } from './start-diagnosis.js';
 import { errorMessage, PanelError } from '../utils/errors.js';
 
 const { maxCommandBytes, maxConsoleBufferBytes, maxConsoleChunkBytes, maxConsoleStdinBytes } = config;
@@ -64,6 +64,8 @@ type ManagedProcess = {
   bufferBytes: number;
   stdinAvailable: boolean;
   stdinBackpressured: boolean;
+  /** 服务端打印过完成启动的标志行，玩家可以进服。 */
+  ready: boolean;
 };
 
 type ProcessSnapshot = Pick<ManagedProcess, 'status' | 'buffer' | 'bufferBytes'> & {
@@ -165,6 +167,12 @@ export class ProcessManager extends EventEmitter {
   getStartIssue(instanceId: string): InstanceStartIssue | null {
     if (this.processes.has(instanceId)) return null;
     return this.snapshots.get(instanceId)?.startIssue ?? null;
+  }
+
+  /** 服务端是否已完成启动、可以进服；正在停止或没在运行时为 false。 */
+  isReady(instanceId: string): boolean {
+    const managed = this.processes.get(instanceId);
+    return managed?.status === 'running' && managed.ready;
   }
 
   /** 只向本机采集器提供面板当前持有的活进程，不接受外部 PID。 */
@@ -398,6 +406,7 @@ export class ProcessManager extends EventEmitter {
       bufferBytes: 0,
       stdinAvailable: true,
       stdinBackpressured: false,
+      ready: false,
     };
     this.snapshots.delete(instance.id);
     this.processes.set(instance.id, managed);
@@ -423,6 +432,10 @@ export class ProcessManager extends EventEmitter {
         if (managed.status === 'starting') {
           managed.status = 'running';
           this.emitStatus(instance.id, 'running');
+        }
+        // 标志行可能被拆在相邻两块输出里，所以连同上一块一起看。
+        if (!managed.ready && hasFinishedStarting(managed.buffer.slice(-2).join(''))) {
+          managed.ready = true;
         }
       };
 

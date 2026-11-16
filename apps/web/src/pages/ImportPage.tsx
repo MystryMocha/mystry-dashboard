@@ -24,7 +24,7 @@ type ImportMode = 'directory' | 'zip';
 
 const IMPORT_PREVIEW_SESSION_KEY = 'mystry_import_preview_id';
 
-// 核心名是技术名词不翻译；只有「自动识别 / 自定义」存文案键，渲染时再取当前语言。
+// 核心名是技术名词不翻译；只有「自动识别」存文案键，渲染时再取当前语言。提交的 custom 由服务端按识别结果替换。
 const coreTypeOptions: Array<{ value: CoreType; label: string; labelKey?: MessageKey }> = [
   { value: 'custom', label: '', labelKey: 'import.form.coreType.auto' },
   { value: 'paper', label: 'Paper' },
@@ -137,8 +137,11 @@ export function ImportPage() {
       : file !== null || Boolean(preview && jvmValid));
 
   useEffect(() => {
-    if (selectedSource?.ready) setCoreType(selectedSource.coreType);
-  }, [selectedSource?.id, selectedSource?.ready, selectedSource?.coreType]);
+    if (!selectedSource?.ready) return;
+    setCoreType(selectedSource.coreType);
+    // 从文件名认出的版本先填上，Java 选择处才能提前提示版本是否合适；用户仍可改。
+    setMcVersion(selectedSource.mcVersion ?? '');
+  }, [selectedSource?.id, selectedSource?.ready, selectedSource?.coreType, selectedSource?.mcVersion]);
 
   useEffect(() => {
     setDetectedChoice(null);

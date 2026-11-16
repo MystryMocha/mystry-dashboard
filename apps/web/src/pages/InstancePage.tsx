@@ -23,6 +23,7 @@ import { EulaCheckbox } from '../components/EulaCheckbox';
 import { FilesTab } from '../components/FilesTab';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
+import { ReadyHint } from '../components/ReadyHint';
 import { StartIssueBanner } from '../components/StartIssueBanner';
 import { InstanceStatusPill } from '../components/StatusPill';
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
@@ -60,6 +61,7 @@ function ConsoleTab({
           onAgreeEulaAndStart={onAgreeEulaAndStart}
         />
       )}
+      {instance.status === 'running' && instance.ready && <ReadyHint instanceId={instance.id} />}
       <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} />
     </>
   );

@@ -378,3 +378,49 @@ test('关闭后拒绝新的 start', async (t) => {
   assert.equal(spawnCount, 0);
   assert.equal(manager.getRunningCount(), 0);
 });
+
+test('打印过完成启动的标志行后标记为可以进服；停止或退出后清除', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const info = createInstance({ name: 'ready-flag' });
+  fs.writeFileSync(path.join(defaultInstanceDir(info.id), 'server.jar'), 'stub-jar');
+  const row = getInstanceRow(info.id)! as InstanceRow;
+
+  const children: ChildProcessWithoutNullStreams[] = [];
+  const manager = new ProcessManager(
+    () => {
+      const child = fakeChild();
+      children.push(child);
+      return child;
+    },
+    async () => 'java',
+  );
+  const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+  assert.equal(manager.isReady(info.id), false);
+  await manager.start(row);
+  children[0].stdout.emit('data', Buffer.from('[13:23:04] [Server thread/INFO]: Preparing spawn area: 83%\n'));
+  // 玩家聊天里出现同样的字不算。
+  children[0].stdout.emit('data', Buffer.from('[13:23:05] [Server thread/INFO]: <Steve> Done (1s)\n'));
+  await flush();
+  assert.equal(manager.getStatus(info.id), 'running');
+  assert.equal(manager.isReady(info.id), false);
+
+  // 标志行被拆在两块输出里也要认出来。
+  children[0].stdout.emit('data', Buffer.from('[13:23:09] [Server thread/INFO]: Do'));
+  children[0].stdout.emit('data', Buffer.from('ne (4.512s)! For help, type "help"\n'));
+  await flush();
+  assert.equal(manager.isReady(info.id), true);
+
+  const stopping = manager.stop(info.id);
+  await flush();
+  assert.equal(manager.isReady(info.id), false, '正在停止时不再提示可以进服');
+  children[0].emit('exit', 0, null);
+  await stopping;
+  assert.equal(manager.isReady(info.id), false);
+});

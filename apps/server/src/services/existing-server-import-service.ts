@@ -17,7 +17,14 @@ import {
 import { registerPromotedInstance } from './instance-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { detectJvmConfigFile, jvmConfigFileFingerprint } from './jvm-detection-service.js';
-import { detectJarFile, detectServerLaunchTarget, isModLoaderScanLimitError, type ModLoaderScanBudget } from './server-launch-detect.js';
+import {
+  describeJarLaunchTarget,
+  detectJarFile,
+  detectServerLaunchTarget,
+  isModLoaderScanLimitError,
+  resolveImportedCoreType,
+  type ModLoaderScanBudget,
+} from './server-launch-detect.js';
 import { recordTaskStaging, runBackgroundTask } from './task-service.js';
 import {
   prepareTaskStaging,
@@ -111,16 +118,12 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
 
     const jarFile = detectJarFile(sourceDir);
     if (jarFile) {
+      const described = describeJarLaunchTarget(jarFile);
       const info: ExistingServerSourceInfo = {
         id: sourceId,
         launchTarget: jarFile,
-        coreType: jarFile.toLowerCase().includes('paper')
-          ? 'paper'
-          : jarFile.toLowerCase().includes('fabric')
-            ? 'fabric'
-            : jarFile === 'server.jar'
-              ? 'vanilla'
-              : 'custom',
+        coreType: described.coreType,
+        ...(described.mcVersion ? { mcVersion: described.mcVersion } : {}),
         modifiedAt: stat.mtime.toISOString(),
         ready: true,
       };
@@ -134,6 +137,7 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
           id: sourceId,
           launchTarget: launchTarget.value,
           coreType: launchTarget.coreType,
+          ...(launchTarget.mcVersion ? { mcVersion: launchTarget.mcVersion } : {}),
           modifiedAt: stat.mtime.toISOString(),
           ready: true,
         };
@@ -401,8 +405,8 @@ export async function importExistingServerDirectory(input: ImportExistingServerI
       promoteTaskStagingToInstance(taskId, instanceId);
       registerPromotedInstance(instanceId, {
         name: input.name.trim(),
-        coreType: input.coreType ?? copiedLaunchTarget.coreType,
-        mcVersion: input.mcVersion?.trim() || undefined,
+        coreType: resolveImportedCoreType(input.coreType, copiedLaunchTarget.coreType),
+        mcVersion: input.mcVersion?.trim() || copiedLaunchTarget.mcVersion || undefined,
         jarFile: copiedLaunchTarget.value,
         jvmArgs: input.jvmArgs,
         acceptEula: input.acceptEula,
