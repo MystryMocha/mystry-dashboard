@@ -536,6 +536,14 @@ async function createInitialAdmin({ setupToken }, connection) {
 }
 
 async function resetPassword() {
+  // 新密码只能显示在终端里：输出被重定向或走管道时会进文件或日志。
+  // 必须在请求服务端之前判断并拒绝；先重置再隐藏密码会让用户登录不了。
+  if (!process.stdout.isTTY) {
+    throw new Error(text(
+      `当前输出不是终端（被重定向或通过管道传出），为避免新密码写进文件或日志，没有重置密码。请在终端窗口里直接运行：${managerCommand} reset-password`,
+      `Output is not a terminal (it is redirected or piped), so the password was not reset; otherwise the new password could end up in a file or log. Run ${managerCommand} reset-password directly in a terminal window.`,
+    ));
+  }
   const values = await loadConfiguration();
   if (!(await isManagedPanelRunning(values, await readState()))) {
     throw new Error(text('面板未运行。请先启动面板，再重置密码。', 'The panel is not running. Start it first, then reset the password.'));
@@ -610,8 +618,8 @@ async function announceStarted({ configuration, connection }) {
     showCredentials(text('首次启动，已创建管理员账号：', 'First run. The administrator account has been created:'), credentials);
   } else {
     console.log(text(
-      `已创建管理员 ${credentials.username}。当前输出不是终端，没有显示密码；请运行 ${managerCommand} reset-password 生成新密码。`,
-      `Created administrator ${credentials.username}. Output is not a terminal, so the password was not shown. Run ${managerCommand} reset-password to generate a new one.`,
+      `已创建管理员 ${credentials.username}。当前输出不是终端，没有显示密码；请在终端窗口里运行 ${managerCommand} reset-password 生成新密码。`,
+      `Created administrator ${credentials.username}. Output is not a terminal, so the password was not shown. Run ${managerCommand} reset-password in a terminal window to generate a new one.`,
     ));
   }
 }
