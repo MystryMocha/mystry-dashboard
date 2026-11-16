@@ -58,6 +58,7 @@ Double-clicking shows a menu. Its language follows your system (Chinese on a Chi
 .\PanelManager.cmd status
 .\PanelManager.cmd logs
 .\PanelManager.cmd open
+.\PanelManager.cmd reset-password
 .\PanelManager.cmd help
 ```
 
@@ -86,7 +87,7 @@ export MYSTRY_DATA_DIR="${HOME}/mystry-test"
 ./PanelManager.sh start
 ```
 
-On the first run with an empty user database, it automatically generates random secrets and creates the administrator `admin` with a random 16-character password, which is shown only once in the window. Do not share the password or `panel.env` in chats, repositories or screenshots. The available commands are `start`, `foreground`, `stop`, `restart`, `rebuild`, `status`, `logs`, `open`, `reset-password` and `help`. `rebuild` safely stops the panel first, then reinstalls dependencies, builds and starts again, the same as `PanelManager.cmd rebuild` on Windows.
+On the first run with an empty user database, it automatically generates random secrets and creates the administrator `admin` with a random 16-character password, which is shown only once in the window. Do not share the password or `panel.env` in chats, repositories or screenshots. The available commands are `start`, `foreground`, `stop`, `restart`, `rebuild`, `mirror`, `status`, `logs`, `open`, `reset-password` and `help`. `rebuild` safely stops the panel first, then reinstalls dependencies, builds and starts again, the same as `PanelManager.cmd rebuild` on Windows.
 
 ## Manual Install and First-Time Configuration
 
@@ -151,13 +152,19 @@ It listens on **http://127.0.0.1:3000** by default, with the frontend and backen
 
 ## Set Up Administrator
 
-The portable build, the source launcher and a manual run all share the same setup page.
+Open the panel address in your browser (`http://127.0.0.1:3000` by default, or `http://127.0.0.1:5173` in manual development mode).
 
-1. Open the panel address shown by the launcher. The default is `http://127.0.0.1:3000` for the combined panel and `http://127.0.0.1:5173` for manual development.
-2. When you start with `PanelManager` or `mystryctl`, the launcher has already created the administrator. Sign in with the username and password shown in the window, then click the key icon at the bottom left to change the password. If you forget the password, run `reset-password` while the panel is running to generate a new one. For a manual run with an empty user database, the page shows **Set Up Administrator**. In **Setup Token**, enter the `SETUP_TOKEN` you configured. For the default configuration locations, see [Configuration](configuration.md). Do not share the token or the configuration file.
-3. Enter a username (2–64 characters after leading and trailing whitespace is removed) and a password (at least 12 characters, and no more than 72 bytes in UTF-8), then click **Create and Continue**. On success you enter the panel.
-4. If an administrator already exists, the page shows **Sign In**. Sign in with that account. The setup token cannot be used as a sign-in password.
-5. In manual configuration mode, when you're done, remove `SETUP_TOKEN` from the configuration file actually in use and restart the panel. The source launcher and `mystryctl` clean it up automatically. If the automatic cleanup didn't finish, you can also remove it from the current configuration file and restart.
+### Started with `mystryctl` or `PanelManager` (Recommended)
+
+1. On the first run, the launcher has already created the `admin` account with a random 16-character password (shown once in the launcher window), so the browser opens directly to **Sign In**.
+2. Sign in with `admin` and the password from the launcher window, then click the key icon at the bottom left to set your own password (at least 12 characters).
+3. If you forget the password later, run `reset-password` in a terminal while the panel is running to generate a new one.
+
+### Started Manually (`npm start` / `npm run dev:server`)
+
+1. With an empty user database, the page shows **Set Up Administrator**. In **Setup Token**, enter the `SETUP_TOKEN` from your configuration file (see [Configuration](configuration.md)). Do not share the token or configuration file.
+2. Enter a username (2–64 characters after trimming whitespace) and a password (at least 12 characters, and no more than 72 bytes in UTF-8), then click **Create and Continue**.
+3. Once the administrator is created, remove `SETUP_TOKEN` from your configuration file and restart the panel (`mystryctl` and `PanelManager` clean it up automatically). If an administrator already exists, the page shows **Sign In**; `SETUP_TOKEN` cannot be used as a sign-in password.
 
 Once you see the **Instances** page, follow [Step-by-Step Tutorials: Your First Server](tutorials.md#tutorial-1-your-first-server-paper-recommended) to deploy an instance, then start the Minecraft server.
 
