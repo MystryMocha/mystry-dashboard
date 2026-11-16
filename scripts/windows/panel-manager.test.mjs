@@ -88,6 +88,30 @@ test('PanelManager 拒绝未知命令和多余参数', { skip: process.platform 
   assert.equal(extra.status, 2, `${extra.stdout}\n${extra.stderr}`);
 });
 
+test('PanelManager reset-password 在输出不是终端时拒绝并返回非 0', { skip: process.platform !== 'win32' }, () => {
+  // 输出走管道：mystryctl 必须在请求服务端之前拒绝，退出码经 PowerShell 原样返回。
+  const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-reset-'));
+  try {
+    const result = spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, 'reset-password'],
+      {
+        env: {
+          ...cleanEnvironment(),
+          MYSTRY_CONFIG_PATH: path.join(testRoot, '.env'),
+          MYSTRY_DATA_DIR: path.join(testRoot, 'data'),
+        },
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout + result.stderr, /当前输出不是终端[\s\S]*没有重置密码/);
+    assert.doesNotMatch(result.stdout + result.stderr, /^[ \t]*密码：/m);
+  } finally {
+    fs.rmSync(testRoot, { recursive: true, force: true });
+  }
+});
+
 test('PanelManager.cmd 调用 Windows PowerShell 前清空 PSModulePath', () => {
   // 从 pwsh 7 里运行时会继承 7.x 的模块路径，5.1 加载到不兼容的模块后找不到 Get-FileHash。
   const launcher = fs.readFileSync(path.resolve(scriptDirectory, '../../PanelManager.cmd'), 'utf8');

@@ -144,6 +144,15 @@ function workspaceEntry(relative) {
   ].some((entry) => normalized === entry || normalized.startsWith(`${entry}/`));
 }
 
+/**
+ * 便携包里的路径只用可打印 ASCII。Windows 自带的 tar（bsdtar）在非 UTF-8 代码页下（已在中文 GBK 下实测）
+ * 转换不了 ZIP 里的非 ASCII 文件名，会跳过该条目并以错误退出，冒烟和用户用 tar 解压都会失败。
+ * 生产依赖里这样命名的只有测试夹具（例如 @fastify/send 的 `test/fixtures/snow ☃`），运行时用不到。
+ */
+export function isArchiveSafeName(name) {
+  return /^[ -~]+$/.test(name);
+}
+
 async function copyProductionDependencies(source, destination) {
   await fsp.cp(source, destination, {
     recursive: true,
@@ -151,7 +160,8 @@ async function copyProductionDependencies(source, destination) {
     force: true,
     filter: (current) => {
       const relative = path.relative(path.dirname(source), current);
-      return !workspaceEntry(relative);
+      // 目录被过滤时整棵子树都不复制。
+      return !workspaceEntry(relative) && isArchiveSafeName(path.basename(current));
     },
   });
   const sharedDestination = path.join(destination, '@mystry', 'shared');
@@ -181,6 +191,8 @@ async function collectFiles(rootDir) {
       const absolute = path.join(current, entry.name);
       const relative = path.relative(rootDir, absolute).split(path.sep).join('/');
       if (entry.isSymbolicLink()) throw new Error(`便携包中不允许出现符号链接：${relative}`);
+      // 依赖已在复制时过滤；面板自己的文件出现非 ASCII 名称时在打包阶段就失败，不留到用户解压时。
+      if (!isArchiveSafeName(entry.name)) throw new Error(`便携包中不允许出现非 ASCII 文件名：${relative}`);
       if (entry.isDirectory()) {
         await visit(absolute);
       } else if (entry.isFile() && relative !== 'manifest.json') {
@@ -239,10 +251,11 @@ Commands:
 
 Important notes:
 1. Node.js is bundled. You don't need to install Node or run npm install.
-2. This package doesn't include the Java runtime Minecraft needs. It uses the java on your system PATH by default. You can also scan for and select another installed runtime in the panel.
-3. This preview doesn't register a system service or start automatically at boot.
-4. The config, data and logs folders are created on first start. When you upgrade, stop the panel and keep these folders.
-5. The panel only listens on 127.0.0.1 by default. Don't expose the panel port directly to the untrusted public internet.
+2. First start creates the admin account and a random 16-character password shown once in the window (default address: http://127.0.0.1:3000). Use reset-password locally if you forget it.
+3. This package doesn't include the Java runtime Minecraft needs. It uses the java on your system PATH by default. You can also scan for and select another installed runtime in the panel.
+4. This preview doesn't register a system service or start automatically at boot.
+5. The config, data and logs folders are created on first start. When you upgrade, stop the panel and keep these folders.
+6. The panel only listens on 127.0.0.1 by default. Don't expose the panel port directly to the untrusted public internet.
 
 Project home: https://github.com/MystryMocha/mystry-dashboard
 
@@ -263,10 +276,11 @@ Linux / macOS：
 
 重要说明：
 1. 本包自带 Node.js，不需要安装 Node 或运行 npm install。
-2. 本包不含 Minecraft Java；默认使用系统 PATH 中的 java，也可在面板中扫描并选择其他已安装运行时。
-3. 本预览版不会注册系统服务，也不会开机自动启动。
-4. config、data、logs 由首次启动创建。升级时请停止面板，并保留这些目录。
-5. 默认只监听 127.0.0.1。不要把面板端口直接暴露到不可信公网。
+2. 首次启动会自动创建管理员 admin 和随机 16 位密码，只在窗口里显示一次（默认访问地址 http://127.0.0.1:3000）；忘记密码可在面板运行期间执行 reset-password 重置。
+3. 本包不含 Minecraft Java；默认使用系统 PATH 中的 java，也可在面板中扫描并选择其他已安装运行时。
+4. 本预览版不会注册系统服务，也不会开机自动启动。
+5. config、data、logs 由首次启动创建。升级时请停止面板，并保留这些目录。
+6. 默认只监听 127.0.0.1。不要把面板端口直接暴露到不可信公网。
 
 项目主页：https://github.com/MystryMocha/mystry-dashboard
 `;

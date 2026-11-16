@@ -10,9 +10,14 @@ import test from 'node:test';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createChecksums } from './create-checksums.mjs';
-import { createPortableReadme } from './package-portable.mjs';
+import { createPortableReadme, isArchiveSafeName } from './package-portable.mjs';
 import { createReleaseMetadata } from './package-release.mjs';
-import { assertLogsShowLine, lastLogLine } from './smoke-checks.mjs';
+import {
+  assertLogsShowLine,
+  assertNoCredentialsShown,
+  assertRequestNotLogged,
+  lastLogLine,
+} from './smoke-checks.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +29,16 @@ test('便携脚本均可由 Node 直接解析', async () => {
       encoding: 'utf8',
     });
     assert.equal(result.status, 0, `${script}\n${result.stderr}`);
+  }
+});
+
+test('便携包路径只收可打印 ASCII，Windows 自带 tar 才能在任何代码页下解压', () => {
+  for (const name of ['index.js', 'snow man', '@fastify', 'a-b_c.d~', 'mystry-dashboard']) {
+    assert.equal(isArchiveSafeName(name), true, name);
+  }
+  // @fastify/send 的测试夹具目录名就是这样，bsdtar 在非 UTF-8 代码页下（已在 GBK 下实测）会跳过它并报错退出。
+  for (const name of ['snow ☃', '中文.txt', 'café', '', 'tab	name']) {
+    assert.equal(isArchiveSafeName(name), false, JSON.stringify(name));
   }
 });
 
@@ -196,9 +211,9 @@ test('菜单命令出错时也先显示错误并等待回车', async (t) => {
 });
 
 /** 异步运行控制器：测试进程里的伪造面板要在它运行期间响应请求，不能用 spawnSync。 */
-function runController(command, env) {
+function runController(command, env, nodeArgs = []) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), command], {
+    const child = spawn(process.execPath, [...nodeArgs, path.join(scriptDir, 'mystryctl.mjs'), command], {
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -254,6 +269,95 @@ test('按配置文件中的 DATA_DIR 找运行状态；指纹不匹配时不发�
   assert.equal(shutdownRequested, false, '指纹不匹配时不应请求安全关闭接口');
 });
 
+/**
+ * 测试进程里的伪造面板：健康检查返回固定指纹，并记录重置密码请求。
+ * state.json 指向测试进程自身的 PID，控制器就把它当作自己启动的面板。
+ */
+async function startFakeManagedPanel(t) {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-reset-'));
+  const fingerprint = 'reset-fingerprint';
+  const launcherToken = 'c'.repeat(64);
+  const resetRequests = [];
+  const server = http.createServer((request, response) => {
+    response.setHeader('Content-Type', 'application/json');
+    if (request.url === '/api/launcher/reset-password') {
+      let body = '';
+      request.on('data', (chunk) => { body += chunk; });
+      request.on('end', () => {
+        resetRequests.push({ token: request.headers['x-launcher-token'], body: JSON.parse(body) });
+        response.end(JSON.stringify({ username: 'admin' }));
+      });
+      return;
+    }
+    response.end(JSON.stringify({ ok: true, service: 'mystry-dashboard', processFingerprint: fingerprint }));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    await fsp.rm(home, { recursive: true, force: true });
+  });
+
+  const configPath = path.join(home, 'config', 'panel.env');
+  await fsp.mkdir(path.dirname(configPath), { recursive: true });
+  await fsp.writeFile(configPath, `PORT=${server.address().port}\nLAUNCHER_TOKEN=${launcherToken}\n`, 'utf8');
+  const launcherDir = path.join(home, 'data', 'launcher');
+  await fsp.mkdir(launcherDir, { recursive: true });
+  await fsp.writeFile(
+    path.join(launcherDir, 'state.json'),
+    JSON.stringify({ version: 1, pid: process.pid, fingerprint }),
+    'utf8',
+  );
+  const preload = path.join(home, 'force-stdout-tty.mjs');
+  await fsp.writeFile(preload, "Object.defineProperty(process.stdout, 'isTTY', { value: true });\n", 'utf8');
+  const env = {
+    ...process.env,
+    MYSTRY_HOME: home,
+    MYSTRY_CONFIG_PATH: configPath,
+    MYSTRY_DATA_DIR: path.join(home, 'data'),
+    MYSTRY_LANG: 'zh-CN',
+  };
+  for (const name of ['DATA_DIR', 'PORT', 'HOST']) delete env[name];
+  return { env, launcherToken, resetRequests, terminalArgs: ['--import', pathToFileURL(preload).href] };
+}
+
+test('reset-password：输出不是终端时先拒绝，不请求服务端', async (t) => {
+  const panel = await startFakeManagedPanel(t);
+  for (const language of ['zh-CN', 'en-US']) {
+    const result = await runController('reset-password', { ...panel.env, MYSTRY_LANG: language });
+    assert.equal(result.code, 1, result.output);
+    assert.match(result.output, language === 'zh-CN' ? /当前输出不是终端[\s\S]*没有重置密码/ : /not a terminal[\s\S]*not reset/);
+    assert.match(result.output, /reset-password/);
+    assert.doesNotThrow(() => assertNoCredentialsShown(result.output, 'reset-password'));
+  }
+  // 面板在运行且受管，仍然一次都没有请求重置：用户原来的密码保持有效。
+  assert.equal(panel.resetRequests.length, 0, '拒绝前不应请求重置接口');
+});
+
+for (const language of ['zh-CN', 'en-US']) {
+  test(`reset-password：终端里重置并显示新密码（${language}）`, async (t) => {
+    const panel = await startFakeManagedPanel(t);
+    const result = await runController(
+      'reset-password',
+      { ...panel.env, MYSTRY_LANG: language },
+      panel.terminalArgs,
+    );
+    assert.equal(result.code, 0, result.output);
+    assert.equal(panel.resetRequests.length, 1);
+    const [{ token, body }] = panel.resetRequests;
+    assert.equal(token, panel.launcherToken);
+    assert.match(body.password, /^[A-HJ-NP-Za-km-z2-9]{16}$/);
+    assert.equal(result.output.includes(body.password), true, '终端里应显示新密码');
+    assert.equal(result.output.includes(panel.launcherToken), false, '令牌不应出现在输出里');
+    // 发布冒烟靠这个检查拦截密码，分隔线和密码行要各自认得出控制器的真实输出；报错也不能回显密码。
+    const rejectsWithoutEcho = (error) => /密码块/.test(error.message) && !error.message.includes(body.password);
+    assert.throws(() => assertNoCredentialsShown(result.output, 'reset-password'), rejectsWithoutEcho);
+    const withoutDivider = result.output.replace(/^=+\r?$/gm, '');
+    assert.throws(() => assertNoCredentialsShown(withoutDivider, 'reset-password'), rejectsWithoutEcho);
+    const withoutPasswordLine = result.output.split(/\r?\n/).filter((line) => !line.includes(body.password)).join('\n');
+    assert.throws(() => assertNoCredentialsShown(withoutPasswordLine, 'reset-password'), rejectsWithoutEcho);
+  });
+}
+
 test('界面语言跟随 MYSTRY_LANG 和 LANG，非中文一律用英文', () => {
   const help = (env) => {
     const result = spawnSync(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'help'], {
@@ -303,6 +407,33 @@ test('冒烟的日志检查在每种界面语言下都成立', async (t) => {
     assertLogsShowLine(result.stdout, expectedLine);
   }
   assert.throws(() => assertLogsShowLine('--- Recent stdout ---\n', expectedLine), /缺少/);
+});
+
+test('冒烟的密码检查认得两种语言的密码行，不误报未显示密码的提示', () => {
+  assert.throws(() => assertNoCredentialsShown('  Password: abc\n', 'sample'), /密码块/);
+  assert.throws(() => assertNoCredentialsShown('  密码：abc\n', 'sample'), /密码块/);
+  assert.throws(() => assertNoCredentialsShown(`x\r\n${'='.repeat(64)}\r\n`, 'sample'), /密码块/);
+  assert.doesNotThrow(() => assertNoCredentialsShown(
+    'Created administrator admin. Output is not a terminal, so the password was not shown.\n'
+      + '已创建管理员 admin。当前输出不是终端，没有显示密码；\n',
+    'sample',
+  ));
+});
+
+test('冒烟用请求日志证明接口未被调用；日志不记请求时判失败', () => {
+  const request = (url) => JSON.stringify({ level: 30, time: 1, msg: 'incoming request', req: { method: 'GET', url } });
+  const log = [request('/api/health'), request('/api/auth/status?probe=1'), 'plain line', ''].join('\n');
+  const forbidden = '/api/launcher/reset-password';
+  assert.doesNotThrow(() => assertRequestNotLogged(log, forbidden, '/api/auth/status'));
+  assert.throws(
+    () => assertRequestNotLogged(`${log}${request(forbidden)}\n`, forbidden, '/api/auth/status'),
+    /被请求过/,
+  );
+  // 没有对照请求时「没看到」不能当作「没请求」。
+  assert.throws(
+    () => assertRequestNotLogged('{"msg":"Server listening"}\n', forbidden, '/api/auth/status'),
+    /无法确认/,
+  );
 });
 
 test('校验和脚本稳定排序并排除自身', async () => {
@@ -584,7 +715,13 @@ for (const [name, terminal] of [['终端里显示账号和密码', true], ['输�
     assert.match(body.password, /^[A-HJ-NP-Za-km-z2-9]{16}$/);
     assert.equal(output.includes(token), false, '令牌不应出现在输出里');
     assert.equal(output.includes(body.password), terminal);
-    if (!terminal) assert.match(output, /reset-password/);
+    // 发布冒烟用同一个检查判断首次启动是否写出了密码。
+    if (terminal) {
+      assert.throws(() => assertNoCredentialsShown(output, 'foreground'), /密码块/);
+    } else {
+      assert.doesNotThrow(() => assertNoCredentialsShown(output, 'foreground'));
+      assert.match(output, /reset-password/);
+    }
     assert.doesNotMatch(await fsp.readFile(configPath, 'utf8'), /SETUP_TOKEN/);
     assert.equal(fs.readdirSync(path.join(home, 'logs')).some((name) => (
       fs.readFileSync(path.join(home, 'logs', name), 'utf8').includes(body.password)

@@ -39,6 +39,26 @@ test('Linux 上的启动器可直接转发帮助命令', { skip: process.platfor
   assert.match(result.stdout, /start\s+后台启动面板/);
 });
 
+test('Linux 启动器的 reset-password 在输出不是终端时拒绝并返回非 0', { skip: process.platform !== 'linux' }, async (t) => {
+  // 输出走管道：mystryctl 必须在请求服务端之前拒绝，exec 后退出码原样返回。
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-reset-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const result = spawnSync('bash', [launcherPath, 'reset-password'], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      MYSTRY_LANG: 'zh-CN',
+      MYSTRY_CONFIG_PATH: path.join(root, 'panel.env'),
+      MYSTRY_DATA_DIR: path.join(root, 'data'),
+    },
+  });
+
+  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /当前输出不是终端[\s\S]*没有重置密码/);
+  assert.doesNotMatch(result.stdout + result.stderr, /^[ \t]*密码：/m);
+});
+
 test('Linux 启动器按所选下载源安装依赖', { skip: process.platform !== 'linux' }, async (t) => {
   // 在临时目录放一份启动器，npm 和控制器都用替身，只看实际传给 npm 的参数。
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-mirror-'));
