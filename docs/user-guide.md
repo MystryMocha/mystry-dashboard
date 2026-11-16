@@ -1,385 +1,390 @@
-# 使用指南
+# User Guide
 
-本文按页面说明面板的功能和日常操作。第一次使用请先看 [快速开始](getting-started.md)，手把手的开服流程见 [分步教程](tutorials.md)。
+**English** · [简体中文](user-guide.zh-CN.md)
 
----
-
-## 面板是做什么的？
-
-Mystry Dashboard 运行在你**本机**上：用网页管理多个 Minecraft **服务端**（不是启动游戏客户端）。你可以下载或导入服务端、启动 Java 进程、看日志、改配置、管文件。
-
-每个实例的文件都放在面板数据目录下的 `instances/<id>`，由面板自动分配，不能改到别处，也不能浏览电脑上的其他文件夹。数据目录的位置和结构见 [配置说明](configuration.md#数据目录)。
-
-面板默认地址是 `http://127.0.0.1:3000`，只监听本机，外网无法直接访问。
+This guide explains the panel's features and everyday tasks, page by page. If this is your first time, read [Getting Started](getting-started.md) first. For hands-on walkthroughs of running a server, see [Step-by-Step Tutorials](tutorials.md).
 
 ---
 
-## 界面导览
+## What Does the Panel Do?
 
-界面参照 Apple 的设计风格：左侧是悬浮的半透明 **侧栏**，右侧是 **主内容区**；右上角的按钮组放着「任务中心」「语言」和「外观」。每个页面以大标题开头，向下滚动后标题会收进顶部工具栏。
+Mystry Dashboard runs on **your own computer**. You use a web page to manage several Minecraft **servers** (it doesn't launch the game client). You can download or import servers, start the Java process, read logs, change settings and manage files.
+
+Each instance's files live in `instances/<id>` under the panel's data directory. The panel assigns this folder automatically. You can't move it elsewhere, and you can't browse other folders on the computer. For where the data directory is and how it's laid out, see [Configuration](configuration.md#data-directory).
+
+The panel's default address is `http://127.0.0.1:3000`. It listens on this computer only, so it can't be reached directly from the internet.
+
+---
+
+## Interface Tour
+
+The interface follows Apple's design style: a floating, translucent **sidebar** on the left and the **main content area** on the right. The button group at the top right holds "Task Center", "Language" and "Appearance". Each page starts with a large title. When you scroll down, the title collapses into the top toolbar.
 
 ```
-┌─────────────────┐                  [任务中心][语言][外观]
-│ Mystry Dashboard│  大标题                        [主要操作]
-│                 │  说明
-│ 服务器          │  ───────────────────────────────────
-│  [实例总览]     │  主内容（卡片 / 分组列表 / 控制台）
-│  [当前工作台]   │
-│ 部署与维护      │
-│  [一键部署]     │
-│  [导入服务端]   │  ┌ 底部悬浮操作栏（保存 / 开始部署）┐
-│  [联机]         │  └─────────────────────────────┘
-│  [本机环境]     │
-│ 用户名 [退出]   │
-└─────────────────┘
+┌──────────────────────┐             [Task Center][Language][Appearance]
+│ Mystry Dashboard     │  Large title                    [Primary action]
+│                      │  Description
+│ Servers              │  ───────────────────────────────────
+│  [Instances]         │  Main content (cards / grouped lists / console)
+│  [Current Workspace] │
+│ Deploy & Maintain    │
+│  [Quick Deploy]      │
+│  [Import Server]     │  ┌ Floating bottom action bar (Save / Start Deploy) ┐
+│  [Multiplayer]       │  └──────────────────────────────────────────────────┘
+│  [This Machine]      │
+│ Username [Sign Out]  │
+└──────────────────────┘
 ```
 
-| 侧栏入口 | 路由 | 作用 |
+| Sidebar Entry | Route | What It Does |
 |----------|------|------|
-| 实例总览 | `/` | 所有实例列表与快捷启停 |
-| 当前工作台 | `/instances/<实例ID>` | 进入某个实例后出现，指向正在查看的实例 |
-| 一键部署 | `/deploy` | 从官方源下载并安装核心 |
-| 导入服务端 | `/import` | 从本机导入文件夹复制，或上传 zip 解压成实例 |
-| 联机 | `/multiplayer` | 把某个实例的游戏端口开放给朋友。可用自己的 frp 服务器，也可以开虚拟局域网 |
-| 本机环境 | `/nodes` | 查看这台电脑的系统、CPU、内存与实例数量 |
-| 任务中心（右上角） | — | 从右侧浮出最近的部署和导入任务；离开部署页后仍会更新，直到完成或失败 |
-| 语言（右上角） | — | 选择 **自动 / English / 简体中文 / 繁體中文**；自动时按浏览器语言：繁体中文（台湾、香港、澳门）显示繁體中文，其他中文显示简体中文，其他语言显示英文。选择保存在本浏览器，登录页右上角也能切换 |
-| 外观（右上角） | — | 选择 **自动 / 浅色 / 深色** 外观（自动跟随系统），以及蓝色、紫色、Mystry 粉、绿色、石墨五种强调色；选择保存在本浏览器 |
-| 退出登录 | — | 退出当前浏览器的登录 |
+| Instances | `/` | Lists all instances, with quick start and stop |
+| Current Workspace | `/instances/<instance ID>` | Appears after you open an instance and points to the one you're viewing |
+| Quick Deploy | `/deploy` | Downloads and installs a core from the official source |
+| Import Server | `/import` | Copies a server from a local import folder, or extracts an uploaded zip into an instance |
+| Multiplayer | `/multiplayer` | Opens an instance's game port to friends. You can use your own frp server or open a virtual LAN |
+| This Machine | `/nodes` | Shows this computer's system, CPU, memory and number of instances |
+| Task Center (top right) | — | Slides in from the right with recent deploy and import tasks. It keeps updating after you leave the deploy page, until each task completes or fails |
+| Language (top right) | — | Choose **Auto / English / 简体中文 / 繁體中文**. With Auto, the panel follows your browser language: Traditional Chinese (Taiwan, Hong Kong, Macau) shows 繁體中文, other Chinese shows 简体中文, and every other language shows English. The choice is saved in this browser. You can also switch it at the top right of the sign-in page |
+| Appearance (top right) | — | Choose the **Auto / Light / Dark** appearance (Auto follows the system) and one of five accent colors: Blue, Purple, Mystry Pink, Green or Graphite. The choice is saved in this browser |
+| Sign Out | — | Signs this browser out |
 
-实例详情页顶部有 **控制台 / 文件管理 / 参数配置 / 备份 / 实例设置** 五个分段按钮。
+The top of the instance details page has five segmented buttons: **Console / Files / Properties / Backups / Settings**.
 
-平板宽度（1024 像素及以下）时，侧栏收进左上角的「打开导航菜单」；手机宽度（768 像素及以下）时，底部还会出现 **总览 / 部署 / 导入 / 联机 / 本机** 标签栏，弹窗改为从底部升起的面板。按 Escape 或点遮罩可以关闭菜单、弹窗和任务中心。
+At tablet width (1024 pixels and below), the sidebar collapses into "Open navigation menu" at the top left. At phone width (768 pixels and below), a tab bar with **Overview / Deploy / Import / Join / Machine** also appears at the bottom, and dialogs become sheets that rise from the bottom. Press Escape or click the backdrop to close menus, dialogs and the Task Center.
 
-> 从旧版本升级时，原来保存的主题会自动换算：Mystry 暗色/亮色 → 深色/浅色 + Mystry 粉，Codex → 绿色，Grok → 石墨。
-
----
-
-## 登录与账号
-
-第一次打开面板时要创建管理员，步骤见 [初始化管理员](getting-started.md#初始化管理员)。当前版本只能有一个管理员，创建后不能再注册第二个账号。
-
-### 日常登录
-
-- 标题 **「登录面板」** → 输入账号密码 → **「登录」**。
-- 登录状态保存在当前浏览器，默认 2 小时后过期，过期或清除站点数据后需要重新登录。
-
-### 安全建议
-
-- 使用强密码；面板能读写实例文件并启动进程，等同于高权限工具。
-- 不要在公共电脑上保持登录状态。
-- 不要把配置文件里的密钥和初始化令牌发给其他人或提交到仓库。
+> When you upgrade from an older version, your saved theme is converted automatically: Mystry Dark/Light → Dark/Light + Mystry Pink, Codex → Green, Grok → Graphite.
 
 ---
 
-## 实例总览
+## Sign-In and Account
 
-**作用**：一眼看到所有服的状态，并做日常操作。
+On the first run with the launcher, the administrator `admin` is created automatically with a random password, and both are shown in the launcher window. When you run the panel by hand, you create the administrator yourself. See [Set Up Administrator](getting-started.md#set-up-administrator) for the steps. The current version allows only one administrator. After it's created, you can't register a second account.
 
-页面顶部的指标卡显示实例状态、主机 CPU、主机内存和数据盘剩余空间。点击异常数量可只看待处理的实例，再点一次恢复全部。运行中的实例卡片显示进程的 CPU 和实际内存占用；「最大内存」是给 Java 设置的堆内存上限（`-Xmx`），两者不是一回事。首次采样显示「采集中…」，当前系统不支持的指标显示「暂不可用」；监测失败时保留旧值并标注可能过期，可点「重试监测」。
+### Signing In
 
-| 列 / 区域 | 说明 |
+- Title **"Sign In"** → enter your username and password → **"Sign In"**.
+- The sign-in is saved in the current browser and expires after 2 hours by default. After it expires, or after you clear site data, you need to sign in again.
+- To change your password, click the key icon at the bottom left, then enter your current password and a new one (at least 12 characters).
+
+### Security Tips
+
+- Use a strong password. The panel can read and write instance files and start processes, so treat it as a high-privilege tool.
+- Don't stay signed in on a public computer.
+- Don't send the administrator password, or the secrets and setup token in the config file, to anyone, and don't commit them to a repository.
+
+---
+
+## Instances
+
+**Purpose**: see the status of all your servers at a glance and do everyday tasks.
+
+The metric cards at the top of the page show instance status, host CPU, host memory and free space on the data disk. Click the issues count to show only the instances that need attention. Click it again to show all of them. A running instance's card shows the process's CPU and actual memory use. "Max Memory" is the heap limit set for Java (`-Xmx`). The two are not the same thing. The first sample shows "Collecting…", and metrics the current system doesn't support show "Unavailable". If monitoring fails, the old values stay on screen, marked as possibly out of date, and you can click "Retry Monitoring".
+
+| Column / Area | Description |
 |-----------|------|
-| 名称 | 点击进入该实例详情 |
-| 核心 | `paper`、`fabric`、`vanilla`、`forge`、`neoforge`、`custom` 等 |
-| 版本 | Minecraft 版本号（自定义导入可能为 `-`） |
-| 状态 | 彩色徽章，见下表 |
-| 操作 | 查看实例及当前可执行的启动/停止；重启、强制停止、删除收在「更多操作」中 |
+| Name | Click to open that instance's details |
+| Core | `paper`, `fabric`, `vanilla`, `forge`, `neoforge`, `custom` and so on |
+| Version | Minecraft version number (may be `-` for custom imports) |
+| Status | A colored badge; see the table below |
+| Actions | Open the instance, plus whichever of start/stop is available right now. Restart, Force Stop and Delete are under "More Actions" |
 
-实例状态和指标每 5 秒自动刷新，切到其他标签页时暂停。实例列表右上角有 **一键部署**、**导入服务端** 和 **创建空实例**（自己上传 `server.jar` 时用）。刷新失败时保留上次的数据，并提示可能已过期。
+Instance status and metrics refresh automatically every 5 seconds, and pause while you're on another browser tab. At the top right of the instance list are **Quick Deploy**, **Import Server** and **Create Empty Instance** (for when you upload your own `server.jar`). If a refresh fails, the last data stays on screen with a note that it may be out of date.
 
-### 实例状态
+### Instance Status
 
-| 界面显示 | 含义 | 你可做的 |
+| Shown in the UI | Meaning | What You Can Do |
 |----------|------|----------|
-| 已停止 | 没有运行中的 Java 进程 | 可启动 |
-| 启动中 | 正在拉起进程 | 等待 |
-| 运行中 | 服务端已启动 | 可进游戏、发控制台命令 |
-| 停止中 | 正在结束进程 | 等待 |
-| 已崩溃 | 进程异常退出 | 看控制台日志排错 |
-| ▲ 待迁移 | 旧版外部实例，尚未接管 | 见 [旧版外部实例接管](#旧版外部实例接管) |
+| Stopped | No Java process is running | Start it |
+| Starting | The process is starting up | Wait |
+| Running | The server has started | Join the game, send console commands |
+| Stopping | The process is shutting down | Wait |
+| Crashed | The process exited abnormally | Check the console log to troubleshoot |
+| ▲ Needs Migration | A legacy external instance that hasn't been adopted yet | See [Adopting a Legacy External Instance](#adopting-a-legacy-external-instance) |
 
-**按钮逻辑**
+**Button behavior**
 
-- **启动**：仅在非「运行中」时可用。
-- **停止**：仅在非「已停止」时可用。
-- **重启**：任意时刻可点（会先停再启），确认弹窗会提示中断风险。
-- **强制停止**：立即结束进程，可能损坏世界，需确认；建议先试普通停止。
-- **删除**：须先停止实例；需要输入实例名称确认，会删除面板里的记录和该实例目录的全部文件，不可恢复。旧版外部目录不会被访问或删除。
+- **Start**: available only when the instance isn't "Running".
+- **Stop**: available only when the instance isn't "Stopped".
+- **Restart**: available at any time (it stops, then starts). The confirmation dialog warns about the interruption.
+- **Force Stop**: ends the process immediately and may corrupt the world. It asks for confirmation. Try a normal stop first.
+- **Delete**: stop the instance first. You have to type the instance name to confirm. It deletes the record in the panel and every file in that instance's folder, and it can't be undone. Legacy external folders are never accessed or deleted.
 
 ---
 
-## 一键部署（表单说明）
+## Quick Deploy (Form Reference)
 
-从 Mojang / Paper / Fabric / Forge / NeoForge 下载文件并创建实例。下载慢或连不上时，可以到 [下载来源](#下载来源) 换成国内镜像。
+Downloads files from Mojang / Paper / Fabric / Forge / NeoForge and creates an instance. If downloads are slow or can't connect, go to [Download Source](#download-source) and switch to China Mirrors.
 
-| 字段 | 说明 |
+| Field | Description |
 |------|------|
-| 实例名称 | 在总览中显示的名字，默认「我的服务器」 |
-| 核心类型 | Paper / Fabric / Forge / NeoForge / Vanilla；默认选中新手推荐的 Paper |
-| 游戏版本 | 选定核心后自动加载版本列表，并默认选中最新正式版 |
-| Paper 构建版本（可选） | 仅 Paper；留空时使用最新构建（优先稳定版） |
-| Loader / Forge / NeoForge 版本（可选） | 模组加载器版本；Fabric 另有 Installer 版本。留空时使用最新稳定版 |
-| JVM 设置 | 选择最大内存与优化方案；高级区可设置 Xms 和附加参数，见 [JVM 配置器](#jvm-配置器) |
-| Java 运行时 | 默认「系统默认 Java」，也可点「重新探测」后选择其他已安装的 Java，见 [Java 运行时](#java-运行时) |
-| Minecraft EULA | 默认不勾选；必须勾选「我已阅读并同意 Minecraft EULA」才能开始部署，启动时写入 `eula=true` |
+| Instance Name | The name shown on the Instances page. Defaults to "My Server" |
+| Core Type | Paper / Fabric / Forge / NeoForge / Vanilla. Paper, recommended for beginners, is selected by default |
+| Game Version | After you pick a core, the version list loads automatically and the latest release is selected by default |
+| Paper Build (Optional) | Paper only. Leave it empty to use the latest build (stable preferred) |
+| Loader / Forge / NeoForge Version (Optional) | The mod loader version. Fabric also has an Installer Version. Leave it empty to use the latest stable version |
+| JVM Settings | Choose the max memory and an optimization preset. The advanced section lets you set Xms and extra arguments; see [JVM Configurator](#jvm-configurator) |
+| Java Runtime | Defaults to "System Default Java". You can also click "Rescan" and choose another installed Java; see [Java Runtime](#java-runtime) |
+| Minecraft EULA | Unchecked by default. You must check "I have read and agree to the Minecraft EULA" before you can start deploying. `eula=true` is written at startup |
 
-页面右侧的新手指引说明各核心的适用场景和部署后的进服步骤。
+The beginner guide on the right side of the page explains what each core is for and how to join the server after deploying.
 
-点击 **「开始部署」** 后出现进度条与文字说明（下载、解压、安装等），完成后 **自动跳转** 到新实例页。
+After you click **"Start Deploy"**, a progress bar and status text appear (downloading, extracting, installing and so on). When it finishes, the panel **goes automatically** to the new instance page.
 
-面板默认同一时间只执行一个部署或导入任务，其余任务显示为「排队」，这是正常状态，不要重复提交；排队位置也满时页面会提示稍后重试。单个任务执行超过 30 分钟会失败。这些上限可在 [配置说明](configuration.md) 中调整。
+By default the panel runs only one deploy or import task at a time. Other tasks show as "Queued". This is normal, so don't submit again. If the queue is full too, the page tells you to try again later. A single task fails if it runs longer than 30 minutes. You can adjust these limits in [Configuration](configuration.md).
 
-**Forge / NeoForge 提示**：会下载官方安装器并执行安装，时间可能较长，请勿关闭面板。
+**Forge / NeoForge note**: the panel downloads the official installer and runs it. This can take a long time. Don't close the panel.
 
-### JVM 配置器
+### JVM Configurator
 
-一键部署、导入、创建空实例和实例设置使用同一个配置器。基础界面只需要选择最大内存和优化方案，最终参数会在下方预览；高级区域可改为手动 `Xms` 并填写附加参数。
+Quick Deploy, import, Create Empty Instance and Settings all use the same configurator. In the basic view you only choose the max memory and an optimization preset, and the final arguments are previewed below. In the advanced section you can switch to a manual `Xms` and enter extra arguments.
 
-- **兼容优先**：只生成内存参数，`Xms` 自动取 `min(1 GiB, Xmx)`。
-- **G1 均衡**：在兼容内存基础上启用 G1、并行引用处理和 200 ms 暂停目标，仅在已识别 Java 8 / 17 / 21 / 25 时可选。
-- **Paper Aikar**：仅 Paper 与已识别 Java 8 / 17 / 21 / 25 可选，自动令 `Xms=Xmx`；低于 6 GiB 会提示警告。界面同时显示冻结版本、复核日期和 PaperMC 官方来源。
+- **Compatibility First**: generates memory arguments only. `Xms` is set automatically to `min(1 GiB, Xmx)`.
+- **G1 Balanced**: on top of the compatibility memory settings, enables G1, parallel reference processing and a 200 ms pause target. Available only when Java 8 / 17 / 21 / 25 has been detected.
+- **Paper Aikar**: available only for Paper with a detected Java 8 / 17 / 21 / 25. It sets `Xms=Xmx` automatically and shows a warning below 6 GiB. The UI also shows the frozen version, the review date and the official PaperMC source.
 
-推荐最大内存约为本机总内存的 25%，按 512 MiB 向下取整，通常不低于 2 GiB、不高于 8 GiB，并为系统预留至少 2 GiB；低内存机器可降到 1 GiB，读不到内存时回退 2 GiB。
+The recommended max memory is about 25% of this computer's total memory, rounded down to a multiple of 512 MiB. It's normally no lower than 2 GiB and no higher than 8 GiB, and it leaves at least 2 GiB for the system. On low-memory machines it can drop to 1 GiB. If memory can't be read, it falls back to 2 GiB.
 
-资源偏高、Java 版本未验证和 Paper 内存不足只是警告。下面这些会阻止保存：未闭合的引号、内存参数重复或 `Xms` 大于 `Xmx`、互相冲突的 GC 参数，以及由面板负责的启动参数（`-jar`、classpath、模块启动、`@argfile`、`nogui` 等）。
+High resource use, an unverified Java version and too little memory for Paper are only warnings. The following block saving: unclosed quotes, duplicate memory arguments or an `Xms` greater than `Xmx`, conflicting GC arguments, and launch arguments that the panel manages (`-jar`, classpath, module launch, `@argfile`, `nogui` and so on).
 
 ---
 
-## 导入已有服务端（表单说明）
+## Import an Existing Server (Form Reference)
 
-页面提供两种方式，都会复制出一个新的托管实例，不会让实例直接在原目录运行。
+The page offers two methods. Both copy the server into a new managed instance. Neither lets the instance run directly in the original folder.
 
-### 从本机文件夹导入
+### Import from a Local Folder
 
-适用于服务端已经部署在面板所在机器，但当前不由面板管理的情况：
+Use this when the server is already set up on the machine that runs the panel but isn't managed by the panel yet:
 
-1. 在原控制台正常停止服务器，确认世界保存完成。
-2. 把完整服务端目录复制到数据目录下的 `imports/<目录名>`（默认是面板所在文件夹里的 `data/imports`）。不要只复制 jar；世界、插件、模组和配置都应一并复制。
-3. 打开侧栏 **导入服务端 → 从本机文件夹导入**，点 **刷新目录**，在「选择要导入的文件夹」中选择它。
-4. 若根目录检测到 `user_jvm_args.txt`，明确选择 **沿用检测参数 / 使用面板推荐 / 自定义配置**；解析失败时不能沿用。
-5. 核对实例名称、核心类型、Minecraft 版本、JVM 设置和 Java 运行时，点 **复制并接管**。
-6. 等待任务完成并跳转到实例页，先检查文件和配置，再从面板启动。
+1. Stop the server normally from its original console and make sure the world has finished saving.
+2. Copy the complete server folder to `imports/<folder name>` under the data directory (by default, `data/imports` in the panel folder). Don't copy only the jar. Copy the worlds, plugins, mods and configs along with it.
+3. Open **Import Server → Import from a Local Folder** in the sidebar, click **Refresh Folders**, and choose the folder under "Folder to Import".
+4. If `user_jvm_args.txt` is found in the root folder, explicitly choose **Use Detected Arguments / Use Panel Recommendation / Custom Configuration**. If parsing failed, you can't use the detected arguments.
+5. Check the instance name, core type, Minecraft version, JVM settings and Java runtime, then click **Copy and Import**. The core type and version are filled in from the launch file name (for example, `forge-1.12.2-….jar` fills in Forge and 1.12.2). You can change them if they're wrong. If the core type stays on **Auto-detect**, the panel's detection result is used.
+6. Wait for the task to finish and take you to the instance page. Check the files and settings first, then start the server from the panel.
 
-> 不要在原服务器仍运行时复制。面板无法锁定外部进程，运行中复制可能得到不一致的世界数据。
+> Don't copy while the original server is still running. The panel can't lock an external process, and copying a running server can give you inconsistent world data.
 
-面板只列出 `imports` 下的第一层文件夹，不能选择电脑上的其他位置。复制前会检查：
+The panel lists only the top-level folders in `imports`. You can't choose anywhere else on the computer. Before copying, it checks that:
 
-- 文件夹里没有符号链接、目录联接和设备文件之类的特殊文件；
-- 它不是另一个面板实例的目录（根目录有 `.mystry-instance.json`）；
-- 文件数不超过 20 万、总大小不超过 100 GiB（可在 [配置说明](configuration.md) 中调整），目标磁盘空间足够。
+- the folder contains no special files such as symbolic links, directory junctions or device files;
+- it isn't another panel instance's folder (one with `.mystry-instance.json` in its root);
+- it has no more than 200,000 files and is no larger than 100 GiB in total (adjustable in [Configuration](configuration.md)), and the target disk has enough space.
 
-原文件夹和 `imports` 里的副本都不会被面板修改或删除；确认新实例运行正常后，可以自行删掉 `imports` 里的副本。
+The panel never changes or deletes the original folder or the copy in `imports`. Once you've confirmed that the new instance runs properly, you can delete the copy in `imports` yourself.
 
-### 上传 ZIP
+### Upload a ZIP
 
-| 字段 | 说明 |
+| Field | Description |
 |------|------|
-| 安装包（`.zip`） | 必选；默认最大 512 MiB，解压后的条目数和总大小也有上限 |
-| 实例名称 | 预检成功后填写，同部署 |
-| 核心类型 / Minecraft 版本 | 可选；用于实例展示和 Java 版本提示，启动文件仍由面板探测 |
-| JVM 设置 | 预检成功后使用统一配置器；检测到参数时必须明确选择处理方式 |
-| Java 运行时 | 默认使用系统默认 Java，也可选择面板已探测到的其他 Java |
-| Minecraft EULA | 默认不勾选；原服务端的 `eula.txt` 已同意时可保持不勾选，勾选后启动时写入 `eula=true` |
+| Server Archive (`.zip`) | Required. Up to 512 MiB by default. The number of entries and the total size after extraction are also limited |
+| Instance Name | Filled in after the check succeeds. Same as for deploy |
+| Core Type / Minecraft Version | Optional. Used for how the instance is shown and for the Java version hint. The launch file is still detected by the panel |
+| JVM Settings | Uses the shared configurator after the check succeeds. If arguments were detected, you must explicitly choose how to handle them |
+| Java Runtime | Uses the system default Java by default. You can also choose another Java that the panel has found |
+| Minecraft EULA | Unchecked by default. If the original server's `eula.txt` is already accepted, you can leave it unchecked. When checked, `eula=true` is written at startup |
 
-导入分两步：
+Importing takes two steps:
 
-1. 点 **上传并预检**：面板检查 ZIP 结构和大小，并读取根目录（或唯一顶层文件夹）中的 `user_jvm_args.txt`。
-2. 确认实例、Java 和 JVM 设置后点 **确认配置并导入**，这时才开始后台导入。
+1. Click **Upload and Check**: the panel checks the ZIP's structure and size, and reads `user_jvm_args.txt` from the root folder (or from the only top-level folder).
+2. Confirm the instance, Java and JVM settings, then click **Confirm and Import**. Only then does the background import start.
 
-预检结果保留 30 分钟。在同一个浏览器标签页里刷新或离开再回来，可以继续确认；也可以点取消，立即删除上传的临时文件。过期或面板重启后需要重新上传。
+The check result is kept for 30 minutes. If you refresh, or leave and come back, in the same browser tab, you can carry on and confirm. You can also cancel, which deletes the uploaded temporary file right away. After the result expires or the panel restarts, you need to upload again.
 
-导入时，如果 zip 里只有一层根文件夹，会自动展平到实例根目录；面板会自动找出服务端 jar，或现代 Forge / NeoForge 的启动参数文件。任务排队已满时页面会提示稍后重试，预检结果会保留，不必重新上传。
-
----
-
-## 下载来源
-
-在 **本机环境** 页可以选择面板从哪里下载文件，保存后立即生效，不需要重启：
-
-- **官方来源**（默认）：直接连接 Mojang、PaperMC、FabricMC、Forge、NeoForge 和 GitHub，不连接任何第三方镜像。
-- **国内镜像**：Vanilla、Forge、NeoForge 和版本列表使用 [BMCLAPI](https://bmclapidoc.bangbang93.com/)，frp 和 EasyTier 使用公共 GitHub 镜像。镜像失败时自动改用官方来源。
-
-国内镜像由第三方运营，面板只使用能核对校验值的文件，校验不符会丢弃并换下一个来源。
-
-选了国内镜像后，这些内容仍然走官方：
-
-- Paper 和 Fabric 的服务端文件，它们没有可靠的镜像。
-- Forge 和 NeoForge 安装器的部分文件，所以网络完全连不上 Mojang 时安装可能失败。
-- 服务端第一次启动时自己下载的文件（如 Fabric 的依赖）。
-
-已经下载到本地缓存的文件不会重新下载，切换来源对它们没有影响。
+During the import, if the zip contains only a single root folder, it's flattened into the instance root automatically. The panel finds the server jar by itself, or the launch arguments file for modern Forge / NeoForge. If the task queue is full, the page tells you to try again later. The check result is kept, so you don't need to upload again.
 
 ---
 
-## Java 运行时
+## Download Source
 
-面板不自动安装 Java，也不接受手填 Java 路径。各游戏版本需要的 Java 见 [分步教程：装好 Java](tutorials.md#1-装好-java)。
+On the **This Machine** page you can choose where the panel downloads files from. The setting takes effect as soon as you save it. No restart is needed:
 
-默认使用运行面板的环境里 PATH 中的 `java`，界面显示为「系统默认 Java」；可以在同一环境中执行 `java -version` 检查它的版本。
+- **Official** (default): connects directly to Mojang, PaperMC, FabricMC, Forge, NeoForge and GitHub, and never to any third-party mirror.
+- **China Mirrors**: Vanilla, Forge, NeoForge and version lists use [BMCLAPI](https://bmclapidoc.bangbang93.com/), and frp and EasyTier use public GitHub mirrors. If a mirror fails, the panel switches to the official source automatically.
 
-要使用其他已安装的 Java，在「一键部署」、导入页或「实例设置」中的 **Java 运行时** 点「重新探测」。面板只在 `JAVA_HOME` 和常见安装目录中查找，并逐个运行验证。列表中标为「不可用」的条目表示最近一次探测没有再找到它，需要重新选择。选定的 Java 在每次启动实例和执行 Forge / NeoForge 安装器前都会再验证一次。
+The China mirrors are run by third parties. The panel only uses files whose checksums it can verify. A file that doesn't match is discarded and the next source is tried.
 
-版本不匹配时，控制台常见 `UnsupportedClassVersionError` 或无法启动。
+With China Mirrors selected, these still come from the official sources:
+
+- Paper and Fabric server files, because they have no reliable mirror.
+- Some files for the Forge and NeoForge installers, so installation can fail if your network can't reach Mojang at all.
+- Files the server downloads by itself the first time it starts (such as Fabric's dependencies).
+
+Files already in the local cache aren't downloaded again, so switching the source doesn't affect them.
 
 ---
 
-## 实例详情
+## Java Runtime
 
-顶部显示实例名、核心、版本、状态，以及 **启动 / 停止 / 重启 / 强制停止**；左上角的「‹ 实例总览」回到总览。
+The panel doesn't install Java automatically and doesn't accept a hand-typed Java path. For the Java each game version needs, see [Step-by-Step Tutorials: Install Java](tutorials.md#1-install-java).
 
-### 控制台
+By default the panel uses the `java` on the PATH of the environment it runs in, shown in the UI as "System Default Java". You can run `java -version` in the same environment to check its version.
 
-- 实时显示服务端的输出。
-- **输入命令 + 回车** 发送到服务端（与游戏内控制台一致）；下方的「常用命令」可一键发送 `list`、`save-all` 等。
-- 连接断开或刷新页面后会自动重连，并先显示最近的历史输出。
-- 单条命令长度和每分钟可发送的命令数有上限，超出时页面会提示，见 [配置说明](configuration.md)。
-- 若显示「登录已失效」或「控制台连接凭证无效」，尝试 **退出登录再登录**。
+To use another installed Java, click "Rescan" next to **Java Runtime** in "Quick Deploy", on the import page or in "Settings". The panel looks only in `JAVA_HOME` and common install locations, and verifies each one by running it. An entry marked "Unavailable" in the list wasn't found in the latest scan, so you need to choose again. The selected Java is verified once more every time an instance starts and before the Forge / NeoForge installer runs.
 
-### 文件管理
+When the version doesn't match, the console commonly shows `UnsupportedClassVersionError`, or the server fails to start.
 
-只能操作当前实例根目录里的文件：
+---
 
-| 位置 | 操作 |
+## Instance Details
+
+The top shows the instance name, core, version and status, along with **Start / Stop / Restart / Force Stop**. "‹ Instances" at the top left takes you back to the Instances page.
+
+### Console
+
+- Shows the server's output in real time.
+- **Type a command + Enter** sends it to the server (the same as the in-game console). "Common Commands" below sends `list`, `save-all` and others with one click.
+- After the connection drops or you refresh the page, it reconnects automatically and shows the recent output history first.
+- The length of a single command and the number of commands you can send per minute are limited. The page tells you when you go over; see [Configuration](configuration.md).
+- If it shows "Your session has expired" or "The console connection ticket is invalid", try **signing out and signing in again**.
+
+### Files
+
+You can only work with files inside the current instance's root folder:
+
+| Where | Action |
 |------|------|
-| 顶部左侧 | **‹** 返回上级目录；路径按层级显示，点任意一级可直接跳回 |
-| 顶部右侧 | **刷新**、**新建文件夹**（弹窗输入名称）、**上传** 文件到当前目录 |
-| 点击文件夹 / 文本文件 | 进入文件夹，或直接打开编辑 |
-| 每一项右侧「…」 | **下载**（仅文件）、**编辑**（仅文本文件）、**重命名**、**删除** |
+| Top left | **‹** goes up to the parent folder. The path is shown level by level; click any level to jump straight back to it |
+| Top right | **Refresh**, **New Folder** (enter the name in a dialog), **Upload** a file to the current folder |
+| Click a folder / text file | Opens the folder, or opens the file for editing |
+| "…" at the right of each item | **Download** (files only), **Edit** (text files only), **Rename**, **Delete** |
 
-**编辑** 会在弹窗中打开文件内容，点 **保存** 写回磁盘；大文件和二进制文件不能在线编辑。
+**Edit** opens the file's content in a dialog. Click **Save** to write it back to disk. Large files and binary files can't be edited online.
 
-路径相对于实例根目录。修改 `mods`、`plugins`、世界数据前建议 **先停服**。
+Paths are relative to the instance root. Before you change `mods`, `plugins` or world data, it's best to **stop the server first**.
 
-下载由浏览器直接保存，大文件也不会占满页面内存；默认最多同时 4 个下载，繁忙时会提示「下载繁忙，请稍后重试」。需要整目录拷贝时，停服后用系统的文件管理器操作实例目录。
+Downloads are saved directly by the browser, so even large files don't fill up the page's memory. By default at most 4 downloads run at the same time. When it's busy, you see "Downloads are busy. Try again later." To copy a whole folder, stop the server and use your system's file manager on the instance folder.
 
-删除文件或文件夹统一使用确认弹窗；删除文件夹会连同其中内容一起删除，弹窗会显示路径并提示不可恢复。
+Deleting a file or folder always uses a confirmation dialog. Deleting a folder also deletes everything in it. The dialog shows the path and warns that it can't be undone.
 
-### 参数配置
+### Properties
 
-- 常用 `server.properties` 键按基础、多人和权限、世界、性能分组展示，开关类设置用开关切换；未收录的键保留在「高级选项」中。
-- 底部悬浮栏的 **保存配置** 保存后需 **重启实例** 才能生效（页面有说明）。
-- 页面会标记未保存的修改，离开页面或关闭标签页前会确认是否放弃。
-- 与直接编辑 `server.properties` 文件等价。
-- 1.13 及更早的服务端用数字保存难度和游戏模式。表单照常显示名称，保存时写回数字。
-- 服务器简介等文字里的中文写入文件时会变成 `\uXXXX`，新旧版本的服务端都能正确读取。之前已经变成乱码的简介不能自动恢复，要重新填写一次。
+- Common `server.properties` keys are shown in the General, Multiplayer & Permissions, World and Performance groups. On/off settings use switches. Keys that aren't listed stay under "Advanced".
+- After you save with **Save Properties** in the floating bar at the bottom, you need to **restart the instance** for the changes to take effect (the page says so).
+- The page marks unsaved changes, and asks whether to discard them before you leave the page or close the tab.
+- It's equivalent to editing the `server.properties` file directly.
+- Servers on 1.13 and earlier store difficulty and game mode as numbers. The form still shows names, and writes numbers back when you save.
+- Chinese characters in text such as the Server Description become `\uXXXX` when written to the file. Both old and new server versions read this correctly. A description that already turned into garbled text can't be recovered automatically. You need to enter it again.
 
-### 联机
+### Multiplayer
 
-要让朋友加入这个服，打开侧栏 **部署与维护** 里的 **联机**，再选择实例。页面上的分段用来切换 **同一网络**、**虚拟局域网** 和 **frp 穿透**，一次只显示一种；换过去不会关掉其他方式里已经保存的设置。面板只会转发这个实例的游戏端口，不会把管理页面暴露出去，也不用填写任何程序路径。
+To let friends join this server, open **Multiplayer** under **Deploy & Maintain** in the sidebar, then choose the instance. Once the server has finished loading the world, a notice above the instance console also says "The server is up. You can join now." Click **Invite Friends** to go straight to this page. If you don't want to see the notice again, click **Don't Show Again**. The segmented control on the page switches between **Same Network**, **Virtual LAN** and **frp Tunnel**, and shows one at a time. Switching doesn't turn off the settings you've already saved under the other methods. The panel only forwards this instance's game port. It doesn't expose the admin pages, and you never have to enter a program path.
 
-- **同一网络**：朋友和这台电脑连着同一个 Wi-Fi 或路由器时用。页面直接显示要发给朋友的地址，点 **复制** 发过去即可，不用安装或设置任何东西。这台电脑有公网 IPv6 时，下面还会多出一个 **IPv6 地址**，不在身边的朋友如果也有 IPv6 可以直接用它加入；连不上时请在路由器里只放行游戏端口，不要整个关掉路由器的 IPv6 防火墙，或者改用虚拟局域网。
-  - 服务器第一次启动时，Windows 可能会弹窗询问是否允许 Java 访问网络，要选「允许」。
-  - 电脑有多个地址时，先试 `192.168` 开头的那个。
+- **Same Network**: for when friends are connected to the same Wi-Fi or router as this computer. The page shows the address to send to your friends. Click **Copy** and send it. There's nothing to install or set up. If this computer has a public IPv6 address, an **IPv6 Address for Friends Elsewhere** also appears below. Friends who aren't nearby can join with it directly if they have IPv6 too. If they can't connect, allow only the game port in your router and don't turn off the router's IPv6 firewall entirely, or use Virtual LAN instead.
+  - The first time the server starts, Windows may ask whether to allow Java to access the network. Choose "Allow".
+  - If the computer has several addresses, try the one that starts with `192.168` first.
 
-- **虚拟局域网**：不需要自己的公网服务器。打开后把说明发给朋友，对方按原样运行命令，再用页面上的虚拟地址加入。
-  - Windows 上要以管理员身份启动面板，朋友也要以管理员身份运行命令，否则创建不了虚拟网卡。
-  - 打洞失败时，流量经社区共享节点中转，内容用网络密钥加密。
-  - 拿到网络密钥的人都能进入这个虚拟局域网并连上游戏端口，不要公开发出去。
-- **frp 穿透**：需要一台自己的 frp 服务器（地址、端口和令牌）。
-  - **公网端口**：朋友在 Minecraft 的多人游戏里直接添加页面上的地址。
-  - **中转内网** / **直连内网**：下载「朋友配置」发给对方。对方用官方 frpc 打开后，连接自己电脑上的 `127.0.0.1` 和页面显示的端口。这个文件里有令牌，只发给要一起玩的人。
+- **Virtual LAN**: you don't need a public server of your own. Turn it on and send the instructions to your friends. They run the command as it is, then join using the virtual address shown on the page.
+  - On Windows, start the panel as administrator. Friends must also run the command as administrator, or the virtual network adapter can't be created.
+  - When hole punching fails, traffic is relayed through community-shared nodes, encrypted with the network secret.
+  - Anyone who gets the network secret can enter this virtual LAN and reach the game port. Don't post it publicly.
+- **frp Tunnel**: needs an frp server of your own (address, port and token).
+  - **Public Port**: friends add the address shown on the page directly in Minecraft's multiplayer menu.
+  - **Relayed Intranet** / **Direct Intranet**: download the "friend config" and send it to them. They open it with the official frpc, then connect to `127.0.0.1` on their own computer and the port shown on the page. This file contains the token. Send it only to the people you're playing with.
 
-先启动实例，联机才会打开。如果游戏配置里的 `server-ip` 写成了某一块网卡的地址，要先清空它，否则外网连不进来。
+Multiplayer opens only after the instance is started. If `server-ip` in the game config is set to the address of one specific network adapter, clear it first, or connections from outside can't get in.
 
-### 备份
+### Backups
 
-**立即备份** 把整个实例目录打包成一份备份（世界、配置、mods、plugins 都在里面）。服务器运行中也能备份：面板会先暂停自动保存并把世界写入磁盘，打包完再恢复自动保存，玩家不用下线；启动中或停止中时要等它完成。
+**Back Up Now** packs the whole instance folder into one backup (worlds, configs, mods and plugins are all in it). You can back up while the server is running: the panel first pauses auto-save and writes the world to disk, then turns auto-save back on when packing is done. Players don't have to log off. If the instance is starting or stopping, wait for that to finish.
 
-| 位置 | 操作 |
+| Where | Action |
 |------|------|
-| 顶部右侧 | **刷新**、**上传备份**（之前下载的 `.tar.gz`，校验通过才会出现在列表里）、**立即备份** |
-| 每一项右侧「…」 | **下载**、**还原**、**删除** |
+| Top right | **Refresh**, **Upload Backup** (a `.tar.gz` you downloaded earlier; it appears in the list only after it passes verification), **Back Up Now** |
+| "…" at the right of each item | **Download**, **Restore**, **Delete** |
 
-**还原** 前要先停止服务器。还原会用备份替换实例目录的全部文件，之后新增的文件会被删除；弹窗里的「先备份当前文件」默认勾选，会先自动生成一份「还原前自动备份」，还原错了可以再还原回来。备份会先完整校验，文件损坏或被改动时不会动实例目录。如果备份时用的服务端 jar 和现在不同（比如之后升级过版本），还原后面板里的服务端文件、核心类型和版本会一起改回备份时的值。
+Stop the server before you **Restore**. Restoring replaces every file in the instance folder with the backup, and files added since then are deleted. "Back up the current files first" in the dialog is checked by default. It automatically creates a "Before restore" backup first, so you can restore back if you got it wrong. The backup is fully verified first. If the file is damaged or has been altered, the instance folder isn't touched. If the server jar at backup time differs from the current one (for example, you've upgraded since), the server file, core type and version in the panel are also set back to their values from the backup after the restore.
 
-备份默认放在数据目录的 `backups/` 下，可用 `BACKUP_DIR` 放到另一块磁盘，见 [配置说明](configuration.md#数据目录)。备份只包含这个实例的文件，不包含账号和面板里的实例设置。删除实例时默认连同它的备份一起删除，取消勾选「同时删除该实例的备份」则备份留在 `backups/` 里，但不再显示在面板中；整个面板的备份见 [备份与迁移](tutorials.md#教程-8备份与迁移)。
+Backups are stored under `backups/` in the data directory by default. You can use `BACKUP_DIR` to put them on another disk; see [Configuration](configuration.md#data-directory). A backup contains only this instance's files. It doesn't include accounts or the instance's settings in the panel. Deleting an instance also deletes its backups by default. If you uncheck "Also delete this instance's backups", the backups stay in `backups/` but no longer appear in the panel. For backing up the whole panel, see [Backup and Migration](tutorials.md#tutorial-8-backup-and-migration).
 
-### 实例设置
+### Settings
 
-| 字段 | 说明 |
+| Field | Description |
 |------|------|
-| 名称 | 可改 |
-| Jar 文件名 | 相对实例目录，如 `server.jar` |
-| JVM 设置 | 使用统一配置器修改内存、预设和高级参数；改后建议重启 |
-| Minecraft EULA | 勾选后每次启动会写 `eula=true` 到 `eula.txt`；不勾选时保留实例目录中原有的 `eula.txt` |
-| 安装路径 | 只读，显示实例目录的完整路径；由面板分配，创建后不可修改 |
-| Java 运行时 | 默认「系统默认 Java」，或选择面板探测到的其他 Java；可重新探测 |
+| Name | Editable |
+| Jar File Name | Relative to the instance folder, such as `server.jar` |
+| JVM Settings | Use the shared configurator to change memory, the preset and advanced arguments. A restart is recommended after changes |
+| Minecraft EULA | When checked, `eula=true` is written to `eula.txt` on every start. When unchecked, the existing `eula.txt` in the instance folder is kept |
+| Install Path | Read-only. Shows the full path of the instance folder. The panel assigns it, and it can't be changed after creation |
+| Java Runtime | Defaults to "System Default Java", or choose another Java that the panel has found. You can rescan |
 
-点 **保存设置** 后页面会显示「设置已保存」或失败原因；离开页面前同样会确认是否放弃未保存的修改。
-
----
-
-## 数据存在哪里？
-
-实例列表、账号和任务记录在数据目录的 `panel.db`，实例文件在 `instances/<id>/`。完整结构和修改位置的方法见 [配置说明](configuration.md#数据目录)，备份方法见 [备份与迁移](tutorials.md#教程-8备份与迁移)。
-
-删除实例会删掉该实例目录的全部内容。旧版外部目录不由面板访问或删除。
+After you click **Save Settings**, the page shows "Settings saved." or the reason it failed. Before you leave the page, it likewise asks whether to discard unsaved changes.
 
 ---
 
-## 旧版外部实例接管
+## Where Is Data Stored?
 
-旧版外部实例是数据库中仍记录旧目录、但尚未迁入面板托管根目录的实例。面板不会访问旧目录，也不会自动搬迁或删除它。
+The instance list, accounts and task records are in `panel.db` in the data directory. Instance files are in `instances/<id>/`. For the full layout and how to change the location, see [Configuration](configuration.md#data-directory). For how to back up, see [Backup and Migration](tutorials.md#tutorial-8-backup-and-migration).
 
-1. 停止该实例，并停止面板服务。
-2. 用操作系统的复制工具，将旧外部目录完整复制到数据目录下的 `instances/<id>`。
-3. 启动面板，进入对应实例（总览中显示「▲ 待迁移」），点击 **接管托管目录**。
-4. 接管成功后，实例才按面板托管目录处理；旧目录仍由用户自行保留或管理。
-
-若目标目录为空、不完整、ID 不对应或实例仍在运行，接管会失败。请不要在面板中尝试通过文件页访问旧目录。
+Deleting an instance deletes everything in that instance's folder. Legacy external folders are not accessed or deleted by the panel.
 
 ---
 
-## 常见问题
+## Adopting a Legacy External Instance
 
-### 部署或导入一直卡住
+A legacy external instance is one whose database record still points to an old folder and that hasn't been moved into the panel's managed root yet. The panel doesn't access the old folder, and it doesn't move or delete it automatically.
 
-- 页面显示「排队」时属于正常状态，会一直刷新到完成或失败。
-- 检查本机能否访问外网（Mojang、Paper、Fabric、Forge 等）。在中国大陆可以试试把 [下载来源](#下载来源) 换成国内镜像。
-- 看进度条的文字停在哪一步；Forge / NeoForge 安装尤其慢。
-- 任务中心里会显示失败原因；面板日志里可能有更详细的错误，可用启动器的 `logs` 命令查看。
+1. Stop the instance, and stop the panel service.
+2. Using your operating system's copy tools, copy the whole old external folder to `instances/<id>` under the data directory.
+3. Start the panel, open the instance (shown as "▲ Needs Migration" on the Instances page), and click **Adopt Managed Directory**.
+4. Only after adoption succeeds is the instance handled as a panel-managed folder. The old folder stays yours to keep or manage.
 
-### 启动后立即退出或「已崩溃」
-
-先看 **控制台** 上方有没有提示。面板能认出下面两种原因，并直接给出下一步：
-
-- **还没同意 Minecraft EULA**：状态是「已停止」。点提示里的 **同意并启动** 即可；也可以在 **实例设置** 中勾选 Minecraft EULA。
-- **Java 版本太新或太旧**：提示会写出这个服务器需要的 Java 版本。点 **下载 Java** 安装后，打开 **实例设置**，点 **重新探测**，选中它，保存后再启动。
-
-没有提示时：
-
-1. 看控制台最后几行错误。
-2. 在 **实例设置** 检查 Jar 文件名和 JVM 参数。
-3. 确认使用的 Java 可用且版本匹配，见 [Java 运行时](#java-运行时)。
-
-### 游戏连不上服务器
-
-- 服务端是否 **运行中** 且控制台已出现 `Done`。
-- `server.properties` 里 **server-port** 是否与游戏填的端口一致。
-- 本机测试用 `127.0.0.1`；局域网用主机局域网 IP。
-- 防火墙是否放行 Java 或该端口。
-
-### 提示「登录已失效」
-
-- 重新 **登录**。
-- 初始化管理员失败时，确认填写的是当前配置文件里的 `SETUP_TOKEN`，并且还没有创建过管理员。
-
-### 导入 zip 失败
-
-- 确认是 **zip** 且不超过 512 MiB；提示超过大小限制时，换一个小一点的包或调大上限。
-- 提示繁忙时，等当前上传结束后再试。
-- 包内是否包含服务端 jar（不是仅客户端）。
-- 包内有指向包外路径的条目时，面板会拒绝导入。
-
-### 忘记管理员密码
-
-当前无「忘记密码」功能。需停服后自行处理数据目录里 `panel.db` 的 `users` 表，或删除 `panel.db` 重新初始化（会丢失实例注册信息，磁盘上的实例文件仍在）。重新初始化时必须重新配置 `SETUP_TOKEN`。
+Adoption fails if the target folder is empty, incomplete, doesn't match the ID, or the instance is still running. Don't try to reach the old folder through the Files page in the panel.
 
 ---
 
-## 下一步
+## Common Problems
 
-- [分步教程](tutorials.md)：从零开 Paper 服、导入 zip、联机、模组服与备份
-- [配置说明](configuration.md)：配置文件、安全与数据目录
-- [API 参考](api.md)：接口与自动化集成
+### A Deploy or Import Is Stuck
+
+- "Queued" on the page is normal. It keeps refreshing until the task completes or fails.
+- Check whether this computer can reach the internet (Mojang, Paper, Fabric, Forge and so on). In mainland China, try switching [Download Source](#download-source) to China Mirrors.
+- See which step the progress text stopped at. Forge / NeoForge installs are especially slow.
+- The Task Center shows why a task failed. The panel log may have more detailed errors. You can view it with the launcher's `logs` command.
+
+### The Server Exits Right After Starting or Shows "Crashed"
+
+First check whether there's a notice above the **Console**. The panel recognizes the two causes below and gives you the next step directly:
+
+- **You haven't agreed to the Minecraft EULA yet**: the status is "Stopped". Click **Agree and Start** in the notice. You can also check Minecraft EULA in **Settings**.
+- **The Java version is too new or too old**: the notice states the Java version this server needs. Click **Download Java** and install it. Then open **Settings**, click **Rescan**, select it, save, and start again.
+
+If there's no notice:
+
+1. Read the last few error lines in the console.
+2. Check the Jar File Name and JVM arguments in **Settings**.
+3. Make sure the Java in use is available and the version matches; see [Java Runtime](#java-runtime).
+
+### The Game Can't Connect to the Server
+
+- Is the server **Running**, and has `Done` appeared in the console?
+- Does **server-port** in `server.properties` match the port entered in the game?
+- For a test on this computer, use `127.0.0.1`. On a LAN, use the host's LAN IP.
+- Does the firewall allow Java or that port?
+
+### You See "Your session has expired"
+
+- **Sign in** again.
+- If you run the panel by hand and setting up the administrator fails, make sure you entered the `SETUP_TOKEN` from the current config file, and that no administrator has been created yet.
+
+### A ZIP Import Fails
+
+- Make sure it's a **zip** and no larger than 512 MiB. If it says the size limit is exceeded, use a smaller archive or raise the limit.
+- If it says it's busy, wait for the current upload to finish and try again.
+- Does the archive contain a server jar (not just a client)?
+- If the archive has entries that point to paths outside it, the panel refuses the import.
+
+### You Forgot the Administrator Password
+
+While the panel is running, run the `reset-password` command on the computer that runs the panel: `.\mystryctl.cmd reset-password` for the portable build on Windows, `./mystryctl reset-password` for the portable build on Linux, and `.\PanelManager.cmd reset-password` or `./PanelManager.sh reset-password` for the source build. The window shows a new random password, only once. After signing in, click the key icon at the bottom left to change it to your own.
+
+If you run the panel by hand without the launcher, this command isn't available. You need to stop the panel and handle the `users` table in `panel.db` in the data directory yourself, or delete `panel.db` and set up again (instance registrations are lost; the instance files on disk remain). When you set up again, you must configure `SETUP_TOKEN` again.
+
+---
+
+## Next Steps
+
+- [Step-by-Step Tutorials](tutorials.md): start a Paper server from scratch, import a zip, multiplayer, modded servers and backups
+- [Configuration](configuration.md): config file, security and the data directory
+- [API reference](api.md) (Chinese): endpoints and automation

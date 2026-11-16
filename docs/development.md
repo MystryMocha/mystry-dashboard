@@ -4,7 +4,7 @@
 
 先阅读 [项目开发规则](../CLAUDE.md)，运行 `git status --short --branch` 确认当前分支和已有修改。使用 Node.js ≥ 22，在仓库根目录执行命令。
 
-首次运行须完成 [手动安装与密钥配置](getting-started.md#手动安装与首次配置)，然后分别运行 `npm.cmd run dev:server` 与 `npm.cmd run dev:web`。Windows PowerShell 使用 `npm.cmd`；下文 `npm` 示例适用于 Linux/macOS，脚本名相同。
+首次运行须完成 [手动安装与密钥配置](getting-started.zh-CN.md#手动安装与首次配置)，然后分别运行 `npm.cmd run dev:server` 与 `npm.cmd run dev:web`。Windows PowerShell 使用 `npm.cmd`；下文 `npm` 示例适用于 Linux/macOS，脚本名相同。
 
 后端默认 `http://127.0.0.1:3000`，开发界面 `http://127.0.0.1:5173`，Vite 代理 `/api` 和 `/ws`。修改后端端口时同步检查 `apps/web/vite.config.ts`。
 
@@ -127,6 +127,6 @@ node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.3-windows
 
 - [贡献指南](../CONTRIBUTING.md)
 - [架构设计](architecture.md)
-- [配置说明](configuration.md)
+- [配置说明](configuration.zh-CN.md)
 - [便携预览版](portable-release.zh-CN.md)
 - [AI 项目知识库](ai/README.md)

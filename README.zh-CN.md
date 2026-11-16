@@ -6,7 +6,7 @@
 
 面板是独立的 Node.js 程序，不是客户端模组，无需安装 Fabric / Forge 来运行面板自身。
 
-[快速开始](docs/getting-started.md) · [文档中心](docs/README.md) · [分步教程](docs/tutorials.md) · [贡献指南](CONTRIBUTING.md)
+[快速开始](docs/getting-started.zh-CN.md) · [文档中心](docs/README.zh-CN.md) · [分步教程](docs/tutorials.zh-CN.md) · [贡献指南](CONTRIBUTING.md)
 
 ## 功能
 
@@ -26,21 +26,21 @@
 
 - 当前只管理内置本机节点 `local`，远程 Agent 与远程节点创建尚未开放。
 - 实例工作目录固定为最终数据根下的 `instances/<id>`；面板不提供全盘浏览或外部目录绑定。
-- 同机已有服务端需先停止，再复制到数据目录的 `imports/` 下导入，原目录保留；步骤见 [从本机文件夹导入](docs/user-guide.md#从本机文件夹导入)。
+- 同机已有服务端需先停止，再复制到数据目录的 `imports/` 下导入，原目录保留；步骤见 [从本机文件夹导入](docs/user-guide.zh-CN.md#从本机文件夹导入)。
 - 任务可能排队；面板重启后，遗留任务会标记失败，不会自动续跑。
-- 联机有几个前提：Windows 上要以管理员身份启动面板才能用虚拟局域网，朋友也要以管理员身份运行命令；打洞失败时，流量经社区共享节点中转，内容用网络密钥加密；frp 需要自备服务器。拿到网络密钥或朋友配置的人都能连上这个游戏端口，只发给信任的人。详见 [联机](docs/user-guide.md#联机)。
-- 备份只针对单个实例目录：没有定时自动备份和保留策略，也不包含面板数据库 `panel.db`；整面板迁移见 [备份与迁移](docs/tutorials.md#教程-8备份与迁移)。
+- 联机有几个前提：Windows 上要以管理员身份启动面板才能用虚拟局域网，朋友也要以管理员身份运行命令；打洞失败时，流量经社区共享节点中转，内容用网络密钥加密；frp 需要自备服务器。拿到网络密钥或朋友配置的人都能连上这个游戏端口，只发给信任的人。详见 [联机](docs/user-guide.zh-CN.md#联机)。
+- 备份只针对单个实例目录：没有定时自动备份和保留策略，也不包含面板数据库 `panel.db`；整面板迁移见 [备份与迁移](docs/tutorials.zh-CN.md#教程-8备份与迁移)。
 
 ## 快速开始
 
-先选择运行方式，再按 [初始化管理员](docs/getting-started.md#初始化管理员) 进入面板。
+先选择运行方式，再按 [初始化管理员](docs/getting-started.zh-CN.md#初始化管理员) 进入面板。
 
 | 运行方式 | 环境要求 | 入口 |
 |---|---|---|
 | 便携预览版 | 发布目标为 Windows x64 / Linux x64；包内自带 Node.js | [下载、校验与启动](docs/portable-release.zh-CN.md) |
 | Windows 源码管理器 | Node.js ≥ 22 | 双击仓库根目录 `PanelManager.cmd` |
 | Linux / WSL 源码管理器 | Node.js ≥ 22 | 运行下方命令 |
-| 手动开发 | Node.js ≥ 22，两个开发终端 | [安装与配置](docs/getting-started.md#手动安装与首次配置)、[开发指南](docs/development.md) |
+| 手动开发 | Node.js ≥ 22，两个开发终端 | [安装与配置](docs/getting-started.zh-CN.md#手动安装与首次配置)、[开发指南](docs/development.md) |
 
 Windows PowerShell：
 
@@ -59,7 +59,7 @@ chmod +x PanelManager.sh
 
 Minecraft 服务端所需的 **Java 需要另行安装**。实例默认使用面板环境 PATH 中的 `java`，也可选择面板探测并验证的本机运行时。
 
-**依赖下载慢？** 源码管理器用 npm 安装依赖。运行 `.\PanelManager.cmd mirror` 或 `./PanelManager.sh mirror` 可以选择下载源：跟随 npm 自身配置（默认）、npm 官方，或国内镜像（npmmirror、腾讯云、华为云），见 [npm 下载源](docs/configuration.md#npm-下载源)。便携版自带依赖，不需要设置。
+**依赖下载慢？** 源码管理器用 npm 安装依赖。运行 `.\PanelManager.cmd mirror` 或 `./PanelManager.sh mirror` 可以选择下载源：跟随 npm 自身配置（默认）、npm 官方，或国内镜像（npmmirror、腾讯云、华为云），见 [npm 下载源](docs/configuration.zh-CN.md#npm-下载源)。便携版自带依赖，不需要设置。
 
 ### 便携预览版
 
@@ -67,22 +67,22 @@ Minecraft 服务端所需的 **Java 需要另行安装**。实例默认使用面
 
 ### 生产部署
 
-已按 [快速开始](docs/getting-started.md#手动安装与首次配置) 完成依赖安装和密钥配置后，可手动构建并启动：
+已按 [快速开始](docs/getting-started.zh-CN.md#手动安装与首次配置) 完成依赖安装和密钥配置后，可手动构建并启动：
 
 ```powershell
 npm.cmd run build
 npm.cmd start
 ```
 
-Linux/macOS 将 `npm.cmd` 换成 `npm`。后端托管构建后的 Web 页面；配置文件位置、监听地址与资源限制见 [配置说明](docs/configuration.md)。
+Linux/macOS 将 `npm.cmd` 换成 `npm`。后端托管构建后的 Web 页面；配置文件位置、监听地址与资源限制见 [配置说明](docs/configuration.zh-CN.md)。
 
 ## 数据与安全
 
-最终数据根优先使用 `MYSTRY_DATA_DIR`，其次 `DATA_DIR`，默认是仓库或便携包下的 `data/`。文档中的 `DATA_DIR/...` 均表示最终解析后的数据根，其中的目录结构见 [配置说明](docs/configuration.md#数据目录)。
+最终数据根优先使用 `MYSTRY_DATA_DIR`，其次 `DATA_DIR`，默认是仓库或便携包下的 `data/`。文档中的 `DATA_DIR/...` 均表示最终解析后的数据根，其中的目录结构见 [配置说明](docs/configuration.zh-CN.md#数据目录)。
 
-默认仅监听本机回环地址。面板具有实例文件读写与进程执行权限，对外访问前请阅读 [安全政策](SECURITY.md) 与 [配置说明](docs/configuration.md)。密钥及运行数据不得提交到仓库。
+默认仅监听本机回环地址。面板具有实例文件读写与进程执行权限，对外访问前请阅读 [安全政策](SECURITY.md) 与 [配置说明](docs/configuration.zh-CN.md)。密钥及运行数据不得提交到仓库。
 
-旧版外部目录的迁移步骤见 [旧版外部实例接管](docs/user-guide.md#旧版外部实例接管)；备份前先安全停止实例和面板。
+旧版外部目录的迁移步骤见 [旧版外部实例接管](docs/user-guide.zh-CN.md#旧版外部实例接管)；备份前先安全停止实例和面板。
 
 ## 项目结构与开发
 

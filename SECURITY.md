@@ -42,7 +42,7 @@
 - 联机只开放所选实例的游戏端口，不暴露面板。面板下载钉死版本的官方 frpc 和 EasyTier，并校验 SHA-256。虚拟局域网打洞失败时，流量经社区共享节点中转，内容用网络密钥加密；Windows 上需要以管理员身份运行面板。网络密钥和 frp 朋友配置都等同于连接该游戏端口的凭据，只发给信任的人。
 - 部署 / 导入任务支持排队并受执行超时保护；控制台限制并发连接、命令大小与速率、入站消息和 stdin 缓冲。
 
-详见 [docs/configuration.md](docs/configuration.md)。
+详见 [docs/configuration.zh-CN.md](docs/configuration.zh-CN.md)。
 
 ## 致谢
 
