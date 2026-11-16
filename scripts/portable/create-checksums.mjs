@@ -4,7 +4,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { pipeline } from 'node:stream/promises';
-import { pathToFileURL } from 'node:url';
+import { isMainModule } from '../is-main-module.mjs';
 
 async function hashFile(filePath) {
   const hash = crypto.createHash('sha256');
@@ -30,7 +30,7 @@ export async function createChecksums(directory) {
   return output;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (isMainModule(import.meta.url)) {
   const directory = process.argv[2] || 'release';
   createChecksums(directory)
     .then((output) => console.log(`已生成：${output}`))

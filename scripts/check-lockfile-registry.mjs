@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { isMainModule } from './is-main-module.mjs';
 import { NPM_MIRRORS, OFFICIAL_REGISTRY } from './npm-mirror.mjs';
 
 /**
@@ -49,6 +50,6 @@ function main() {
   console.log('package-lock.json 只包含官方下载地址。');
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main();
 }

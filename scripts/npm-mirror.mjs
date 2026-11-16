@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { isMainModule } from './is-main-module.mjs';
 
 /**
  * 源码启动器安装依赖时使用的 npm 下载源。
@@ -102,7 +103,7 @@ function main() {
   throw new Error(text('用法：npm-mirror.mjs registry | show | set <名称或编号>', 'Usage: npm-mirror.mjs registry | show | set <name or number>'));
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   try {
     main();
   } catch (error) {

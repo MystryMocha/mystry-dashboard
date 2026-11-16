@@ -15,7 +15,9 @@ function createSandbox(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-npm-mirror-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, 'scripts'));
-  fs.copyFileSync(path.join(scriptDirectory, 'npm-mirror.mjs'), path.join(root, 'scripts', 'npm-mirror.mjs'));
+  for (const name of ['npm-mirror.mjs', 'is-main-module.mjs']) {
+    fs.copyFileSync(path.join(scriptDirectory, name), path.join(root, 'scripts', name));
+  }
   const run = (args, env = {}) => {
     const environment = { ...process.env, MYSTRY_LANG: 'zh-CN', ...env };
     if (!('MYSTRY_NPM_MIRROR' in env)) delete environment.MYSTRY_NPM_MIRROR;

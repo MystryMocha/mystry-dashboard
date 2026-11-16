@@ -46,7 +46,9 @@ test('Linux 启动器按所选下载源安装依赖', { skip: process.platform !
   await fs.mkdir(path.join(root, 'scripts', 'portable'), { recursive: true });
   await fs.mkdir(path.join(root, 'bin'));
   await fs.copyFile(launcherPath, path.join(root, 'PanelManager.sh'));
-  await fs.copyFile(path.join(projectRoot, 'scripts', 'npm-mirror.mjs'), path.join(root, 'scripts', 'npm-mirror.mjs'));
+  for (const name of ['npm-mirror.mjs', 'is-main-module.mjs']) {
+    await fs.copyFile(path.join(projectRoot, 'scripts', name), path.join(root, 'scripts', name));
+  }
   await fs.writeFile(path.join(root, 'scripts', 'portable', 'mystryctl.mjs'), '', 'utf8');
   await fs.writeFile(path.join(root, 'package-lock.json'), '{}', 'utf8');
   const npmLog = path.join(root, 'npm.log');

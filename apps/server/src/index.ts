@@ -1,6 +1,4 @@
 import type { Socket } from 'node:net';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
@@ -28,6 +26,7 @@ import {
 import { processManager } from './services/process-manager.js';
 import { createRateLimitHook } from './services/security-service.js';
 import { errorBody, PanelError, panelErrorBody } from './utils/errors.js';
+import { isMainModule } from './utils/real-path.js';
 import {
   getTaskActivity,
   recoverInterruptedTasks,
@@ -339,7 +338,7 @@ async function main() {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((err) => {
     console.error(err);
     process.exit(1);

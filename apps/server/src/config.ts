@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
+import { resolveRealPath } from './utils/real-path.js';
 
 for (const arg of process.argv) {
   const match = /^--mystry-fingerprint=(.+)$/.exec(arg);
@@ -26,15 +27,35 @@ const configPath = configuredConfigPath
 // 开发模式默认读取仓库 .env；便携包由 mystryctl 指向 config/panel.env。
 dotenv.config({ path: configPath });
 
+const realParentCache = new Map<string, string>();
+
+/**
+ * 只解析目录所在上级路径（安装位置）中的符号链接和 junction，目录本身保持原名。
+ * 例如 /home 本身是链接的发行版、或安装在 junction 下时，实例目录的安全检查会把真实路径
+ * 判为逃逸；在这里先换成真实路径即可。目录本身是链接、或目录内部有链接时，仍由
+ * utils/path.ts 照旧拒绝。按配置值缓存，避免每次访问配置都逐级 lstat。
+ */
+function withRealParent(dir: string): string {
+  let real = realParentCache.get(dir);
+  if (real === undefined) {
+    const parent = path.dirname(dir);
+    real = parent === dir ? dir : path.join(resolveRealPath(parent), path.basename(dir));
+    realParentCache.set(dir, real);
+  }
+  return real;
+}
+
 function resolveDataDir(): string {
   const configured = process.env.MYSTRY_DATA_DIR?.trim() || process.env.DATA_DIR?.trim() || 'data';
-  return resolveFromHome(configured, homeDir);
+  return withRealParent(resolveFromHome(configured, homeDir));
 }
 
 /** 备份目录：BACKUP_DIR 未设置时为数据根下的 backups；相对值按 MYSTRY_HOME（或仓库根）解析。 */
 function resolveBackupDir(): string {
   const configured = process.env.BACKUP_DIR?.trim();
-  return configured ? resolveFromHome(configured, homeDir) : path.join(resolveDataDir(), 'backups');
+  return configured
+    ? withRealParent(resolveFromHome(configured, homeDir))
+    : path.join(resolveDataDir(), 'backups');
 }
 
 function parsePositiveInt(name: string, fallback: number): number {
