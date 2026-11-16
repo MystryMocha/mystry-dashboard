@@ -17,6 +17,8 @@ export const DEPLOY_MESSAGES = {
   'server.deploy.neoforgeVersionInvalid': "Can't parse the NeoForge version: {version}",
   'server.deploy.vanillaVersionNotFound': "Vanilla version {version} wasn't found.",
   'server.deploy.vanillaNoServerJar': 'This version has no official server jar: {version}',
+  'server.deploy.vanillaManifestNeedsMojang': "Deploying Vanilla reads the version manifest from Mojang even with the Mainland China mirror, because it supplies the checksums for mirrored files, and it couldn't be loaded. {attempts}Check that launchermeta.mojang.com can be reached, and then try again.",
+  'server.deploy.vanillaMetadataUntrusted': "The version information for Vanilla {version} can't be verified: it points outside Mojang's servers or has no checksum.",
   'server.deploy.paperNoBuilds': 'Paper {version} has no available builds.',
   'server.deploy.paperBuildNotFound': 'Paper {version} has no build #{build}.',
   'server.deploy.paperNoDownloadUrl': 'Paper {version}#{build} has no download URL.',

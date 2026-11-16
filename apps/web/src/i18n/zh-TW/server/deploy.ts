@@ -19,6 +19,8 @@ export default {
   'server.deploy.neoforgeVersionInvalid': '無法解析 NeoForge 版本：{version}',
   'server.deploy.vanillaVersionNotFound': '找不到 Vanilla 版本：{version}',
   'server.deploy.vanillaNoServerJar': '此版本沒有官方伺服器 jar：{version}',
+  'server.deploy.vanillaManifestNeedsMojang': '部署 Vanilla 時，即使選了國內鏡像也要從 Mojang 讀取版本清單（鏡像檔案的校驗值來自它），這次沒能讀取。{attempts}請確認能連上 launchermeta.mojang.com 後重試。',
+  'server.deploy.vanillaMetadataUntrusted': 'Vanilla {version} 的版本資訊無法核對：網址不在 Mojang 官方伺服器上，或缺少校驗值',
   'server.deploy.paperNoBuilds': 'Paper {version} 沒有可用的建置',
   'server.deploy.paperBuildNotFound': 'Paper {version} 沒有建置 #{build}',
   'server.deploy.paperNoDownloadUrl': 'Paper {version}#{build} 缺少下載網址',

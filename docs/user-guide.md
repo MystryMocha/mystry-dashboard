@@ -203,7 +203,7 @@ During the import, if the zip contains only a single root folder, it's flattened
 On the **This Machine** page you can choose where the panel downloads files from. The setting takes effect as soon as you save it. No restart is needed:
 
 - **Official** (default): connects directly to Mojang, PaperMC, FabricMC, Forge, NeoForge and GitHub, and never to any third-party mirror.
-- **China Mirrors**: Vanilla, Forge, NeoForge and version lists use [BMCLAPI](https://bmclapidoc.bangbang93.com/), and frp and EasyTier use public GitHub mirrors. If a mirror fails, the panel switches to the official source automatically.
+- **China Mirrors**: Vanilla, Forge, NeoForge and version lists use [BMCLAPI](https://bmclapidoc.bangbang93.com/), and frp and EasyTier use public GitHub mirrors. Deploying Vanilla still reads the version manifest from Mojang, because the checksums for the mirrored files come from it. If a mirror fails, the panel switches to the official source automatically.
 
 The China mirrors are run by third parties. The panel only uses files whose checksums it can verify. A file that doesn't match is discarded and the next source is tried.
 
@@ -282,7 +282,7 @@ To let friends join this server, open **Multiplayer** under **Deploy & Maintain*
   - When hole punching fails, traffic is relayed through community-shared nodes, encrypted with the network secret.
   - **Relay nodes**: by default the community-shared nodes are run by volunteers. They can go offline at any time, and may be far from you and your friends. Under **Your Relay Nodes** you can add your own nodes, one per line (for example `tcp://relay.example.com:11010`), or clear **Also use community shared nodes** to use only your own. After changing nodes, send the new instructions to your friends again.
   - **Direct connection**: the panel also opens a direct connection port. Friends who have IPv6 or are on the same LAN can connect without a relay.
-  - **Windows Firewall**: the panel adds firewall rules that allow only the game port on the virtual address and the direct connection port, and removes them when the virtual LAN stops. If you once blocked Java in a Windows Firewall prompt, first delete that block rule under "Windows Defender Firewall → Advanced settings → Inbound Rules".
+  - **Windows Firewall**: the panel adds firewall rules that allow only the game port on the virtual address and the direct connection port, and removes them when the virtual LAN stops. The direct connection rules apply only to the EasyTier program the panel starts. If the panel was closed abnormally, leftover rules are removed the next time it starts. If you once blocked Java in a Windows Firewall prompt, first delete that block rule under "Windows Defender Firewall → Advanced settings → Inbound Rules".
   - Anyone who gets the network secret can enter this virtual LAN and reach the game port. Don't post it publicly.
 - **frp Tunnel**: needs an frp server of your own (address, port and token).
   - **Public Port**: friends add the address shown on the page directly in Minecraft's multiplayer menu.
@@ -384,7 +384,7 @@ If there's no notice:
 
 ### You Forgot the Administrator Password
 
-While the panel is running, run the `reset-password` command on the computer that runs the panel: `.\mystryctl.cmd reset-password` for the portable build on Windows, `./mystryctl reset-password` for the portable build on Linux, and `.\PanelManager.cmd reset-password` or `./PanelManager.sh reset-password` for the source build. The window shows a new random password, only once. After signing in, click the key icon at the bottom left to change it to your own.
+While the panel is running, run the `reset-password` command on the computer that runs the panel: `.\mystryctl.cmd reset-password` for the portable build on Windows, `./mystryctl reset-password` for the portable build on Linux, and `.\PanelManager.cmd reset-password` or `./PanelManager.sh reset-password` for the source build. The window shows a new random password, only once. Run it directly in a terminal window: if its output is redirected to a file or piped, the command refuses and the old password stays valid. After signing in, click the key icon at the bottom left to change it to your own.
 
 Resetting the password signs out every browser and device, including the ones you're using. Open the panel again and sign in with the new password.
 

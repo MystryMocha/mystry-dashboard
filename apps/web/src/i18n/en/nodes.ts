@@ -27,7 +27,7 @@ export default {
   'nodes.downloadSource.official': 'Official',
   'nodes.downloadSource.china': 'China Mirrors',
   'nodes.downloadSource.official.desc': 'Files come straight from Mojang, PaperMC, FabricMC, Forge, NeoForge, and GitHub. The panel never contacts third-party mirrors.',
-  'nodes.downloadSource.china.desc': 'Vanilla, Forge, NeoForge, and version lists use BMCLAPI, and frp and EasyTier use public GitHub mirrors. Mirrored files are checked against their checksums before use. If a mirror fails, the panel falls back to the official source.',
+  'nodes.downloadSource.china.desc': 'Vanilla, Forge, NeoForge, and version lists use BMCLAPI, and frp and EasyTier use public GitHub mirrors. Mirrored files are checked against their checksums before use, so deploying Vanilla still reads the version manifest from Mojang, where those checksums come from. If a mirror fails, the panel falls back to the official source.',
   'nodes.downloadSource.china.limits': "Paper and Fabric server files don't have a reliable mirror, so they still come from the official sites. Forge and NeoForge installers still contact Mojang for some files, and a server can download more files the first time it starts.",
   'nodes.downloadSource.saved': 'Saved. New downloads use this source.',
   'nodes.downloadSource.hint': 'Download source: {source}.',

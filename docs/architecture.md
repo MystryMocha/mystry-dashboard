@@ -250,7 +250,9 @@ DATA_DIR/
 
 | 文件 | 官方来源 | 国内镜像（依次尝试） | 校验 |
 |------|----------|----------------------|------|
-| Vanilla 版本列表与 jar | Mojang | BMCLAPI → Mojang | jar 按版本详情里的 SHA-1 |
+| Vanilla 版本列表 | Mojang | BMCLAPI → Mojang | 无 |
+| Vanilla 部署用的版本清单 | Mojang | 同官方：清单是校验链的根，不走镜像 | — |
+| Vanilla 版本详情与 jar | Mojang | BMCLAPI → Mojang | 详情按清单里的 SHA-1，jar 按详情里的 SHA-1 |
 | Paper 版本与 jar | `fill.papermc.io` | 同官方，没有可靠镜像 | jar 按 Fill 接口的 SHA-256 |
 | Fabric 版本列表 | Fabric Meta | BMCLAPI `/fabric-meta` → Fabric Meta | 无 |
 | Fabric 服务端 jar | Fabric Meta 现场生成 | 同官方，BMCLAPI 不提供 | 无 |
@@ -264,7 +266,9 @@ DATA_DIR/
 规则：
 
 - **校验值未知时不用镜像**。`createDownloadPlan()` 在没有校验值时丢弃所有镜像地址，只留官方地址。BMCLAPI 的 Maven 路径会跳转到社区节点，公共 GitHub 代理的运营方也不可知，所以镜像给的文件必须能和可信的校验值对上才用。
-- **校验值不能来自社区节点**。BMCLAPI 只有 JSON 列表接口由主站直接返回，`/maven`、`/v1/packages`、`/v1/objects` 都会 302 到 USTC、CERNET 或志愿者节点。Forge / NeoForge 的 `.sha256` 因此只读官方 Maven。Vanilla 是一条校验链：清单由主站直接返回，清单里的 SHA-1 核对版本详情，版本详情里的 SHA-1 核对 jar；清单没有 SHA-1 或详情对不上时改用 Mojang 的详情。
+- **校验值不能来自社区节点**。BMCLAPI 只有 JSON 列表接口由主站直接返回，`/maven`、`/v1/packages`、`/v1/objects` 都会 302 到 USTC、CERNET 或志愿者节点。Forge / NeoForge 的 `.sha256` 因此只读官方 Maven。Vanilla 的清单在 BMCLAPI 上同样会被 302 到社区节点，所以部署时清单只从 Mojang 取（版本列表仍可走镜像）：清单里的 SHA-1 核对版本详情，版本详情里的 SHA-1 核对 jar，详情和 jar 才能用镜像。详情和 jar 的地址必须是 Mojang 的 https 地址，清单或详情缺 SHA-1 时直接报错，不退回到不校验的下载。
+- **缓存复用前复核**。核心缓存只按核心类型和版本命名、不分来源，计划带校验值时每次使用前按它重新核对，不符就删除重下；计划没有校验值时（Fabric、离线取不到 `.sha256` 的安装器）只看文件非空。
+- **https 不降级**。请求 https 地址时，跟随跳转后的最终地址不是 https 就拒绝，元数据和文件下载都一样；只检查最终地址，中间经过 http 再回到 https 的跳转链目前拦不住。
 - **校验在写入最终路径之前**。文件边下载边算摘要，不符就丢弃，换下一个来源。
 - **列表结果不算校验**。版本列表来自镜像时最多显示错版本，不会让未校验的文件进入实例。
 - **BMCLAPI 有限流**。实测同一地址 60 秒内超过 10 次返回 429（2026-11-05，按地址计，不同文件互不影响）。这里不做等待：429 和其他失败一样换下一个来源。

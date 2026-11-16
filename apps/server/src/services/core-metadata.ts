@@ -10,9 +10,11 @@ import {
   createDownloadPlan,
   describeFailures,
   getDownloadSource,
+  isMojangUrl,
   mavenMirrorUrl,
   mojangMirrorUrl,
   officialCandidate,
+  rejectInsecureRedirect,
   withMirror,
   type DownloadPlan,
   type ExpectedDigest,
@@ -63,6 +65,7 @@ async function fetchMetadataText(url: string, signal?: AbortSignal): Promise<str
       headers: { 'User-Agent': USER_AGENT },
       signal: timeout.signal,
     });
+    await rejectInsecureRedirect(url, response);
     if (!response.ok) {
       try {
         await response.body?.cancel();
@@ -367,9 +370,11 @@ export async function listNeoForgeLoaders(
   ], signal);
 }
 
-type VanillaDetail = { downloads?: { server?: { url: string; sha1?: string } } };
+type VanillaDetail = { downloads?: { server?: { url?: string; sha1?: string } } };
 
-/** 读取镜像上的版本详情。它会被转到社区节点，所以要先对上清单里的 SHA-1，jar 的校验值才可信。 */
+const SHA1_HEX = /^[0-9a-f]{40}$/i;
+
+/** 读取版本详情并对上清单里的 SHA-1：镜像会把它转到社区节点，官方地址也一样核对，jar 的校验值才可信。 */
 async function fetchVerifiedDetail(url: string, sha1: string, signal: AbortSignal): Promise<VanillaDetail> {
   const text = await fetchText(url, signal);
   if (createHash('sha1').update(text).digest('hex') !== sha1.toLowerCase()) {
@@ -379,34 +384,53 @@ async function fetchVerifiedDetail(url: string, sha1: string, signal: AbortSigna
 }
 
 /**
- * 解析 Vanilla 服务端的下载计划。信任链：清单由 BMCLAPI 主站直接返回（不跳转）或来自 Mojang，
- * 清单里的 SHA-1 核对版本详情，版本详情里的 SHA-1 核对 jar，社区节点改动任何一环都会被发现。
+ * 解析 Vanilla 服务端的下载计划。信任链：清单里的 SHA-1 核对版本详情，版本详情里的 SHA-1 核对 jar。
+ * 清单是这条链的根，两种来源都只从 Mojang 取：BMCLAPI 会把清单 302 到社区节点，
+ * 节点改了清单就能连同详情和 jar 的校验值一起改，镜像上的清单无从核对。
+ * 国内来源下详情和 jar 仍先试 BMCLAPI，校验值都来自 Mojang 的清单。版本列表只列版本号，仍可走镜像。
+ * 详情和 jar 的地址都必须是 Mojang 的 https 地址、校验值都必须给出（Mojang 一向提供），
+ * 否则直接报错，不退回到不校验的下载。
  */
 export async function resolveVanillaDownload(
   mcVersion: string,
   signal: AbortSignal,
   source: DownloadSource = getDownloadSource(),
 ): Promise<DownloadPlan> {
-  const manifest = await loadMojangManifest(source, signal);
+  let manifest: MojangManifest;
+  try {
+    manifest = await loadMojangManifest('official', signal);
+  } catch (error) {
+    if (signal.aborted || source !== 'china') throw error;
+    // 国内来源下清单同样只走 Mojang：说明原因，免得用户以为是镜像出了问题。
+    throw new PanelError('server.deploy.vanillaManifestNeedsMojang', {
+      attempts: describeFailures([{ source: 'Mojang', error }]),
+    });
+  }
   const entry = manifest.versions.find((v) => v.id === mcVersion);
   if (!entry) throw new PanelError('server.deploy.vanillaVersionNotFound', { version: mcVersion });
-  const mirrorDetailUrl = mojangMirrorUrl(entry.url);
   const detailSha1 = entry.sha1;
+  if (!isMojangUrl(entry.url) || !detailSha1 || !SHA1_HEX.test(detailSha1)) {
+    throw new PanelError('server.deploy.vanillaMetadataUntrusted', { version: mcVersion });
+  }
+  const mirrorDetailUrl = mojangMirrorUrl(entry.url);
   const detail = await loadMetadata<VanillaDetail>(source, [
-    ...(mirrorDetailUrl && detailSha1
+    ...(mirrorDetailUrl
       ? [{
           label: BMCLAPI_LABEL,
           mirror: true,
           load: () => fetchVerifiedDetail(mirrorDetailUrl, detailSha1, signal),
         }]
       : []),
-    { label: 'Mojang', load: () => fetchJson<VanillaDetail>(entry.url, signal) },
+    { label: 'Mojang', load: () => fetchVerifiedDetail(entry.url, detailSha1, signal) },
   ], signal);
   const server = detail.downloads?.server;
   if (!server?.url) throw new PanelError('server.deploy.vanillaNoServerJar', { version: mcVersion });
+  if (!isMojangUrl(server.url) || !server.sha1 || !SHA1_HEX.test(server.sha1)) {
+    throw new PanelError('server.deploy.vanillaMetadataUntrusted', { version: mcVersion });
+  }
   return createDownloadPlan(
     withMirror(source, officialCandidate('Mojang', server.url), mojangMirrorUrl(server.url)),
-    server.sha1 ? { algorithm: 'sha1', hex: server.sha1 } : undefined,
+    { algorithm: 'sha1', hex: server.sha1 },
   );
 }
 

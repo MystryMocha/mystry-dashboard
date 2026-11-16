@@ -301,7 +301,16 @@ test('Vanilla 下载计划带上 SHA-1，国内来源优先镜像', async (t) =>
     downloads: { server: { url: 'https://piston-data.mojang.com/v1/objects/abc/server.jar', sha1: 'a'.repeat(40) } },
   });
   const calls = mockFetch(t, {
+    // 镜像上的清单即使被社区节点改过也不会被读取：解析下载计划时清单只取自 Mojang。
     'https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json': () => Response.json({
+      versions: [{
+        id: '1.21.1',
+        type: 'release',
+        url: 'https://piston-meta.mojang.com/v1/packages/evil/1.21.1.json',
+        sha1: 'e'.repeat(40),
+      }],
+    }),
+    'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json': () => Response.json({
       versions: [{
         id: '1.21.1',
         type: 'release',
@@ -317,7 +326,10 @@ test('Vanilla 下载计划带上 SHA-1，国内来源优先镜像', async (t) =>
     'https://bmclapi2.bangbang93.com/v1/objects/abc/server.jar',
     'https://piston-data.mojang.com/v1/objects/abc/server.jar',
   ]);
-  assert.ok(calls.every((url) => url.includes('bmclapi')));
+  assert.deepEqual(calls, [
+    'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json',
+    'https://bmclapi2.bangbang93.com/v1/packages/abc/1.21.1.json',
+  ]);
 });
 
 test('社区节点改动版本详情时不采信它的校验值，改用 Mojang 的详情', async (t) => {
@@ -328,7 +340,7 @@ test('社区节点改动版本详情时不采信它的校验值，改用 Mojang 
     downloads: { server: { url: 'https://piston-data.mojang.com/v1/objects/evil/server.jar', sha1: 'e'.repeat(40) } },
   });
   mockFetch(t, {
-    'https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json': () => Response.json({
+    'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json': () => Response.json({
       versions: [{
         id: '1.21.1',
         type: 'release',
@@ -344,18 +356,210 @@ test('社区节点改动版本详情时不采信它的校验值，改用 Mojang 
   assert.equal(plan.candidates.at(-1)!.url, genuineUrl);
 });
 
-test('清单没有详情 SHA-1 时不读镜像上的版本详情', async (t) => {
+test('国内来源连不上 Mojang 清单时说明清单必须走官方，不改用镜像清单', async (t) => {
   const { resolveVanillaDownload } = await import('./core-metadata.js');
   const calls = mockFetch(t, {
-    'https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json': () => Response.json({
+    'https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json': () => Response.json({ versions: [] }),
+  });
+  await assert.rejects(resolveVanillaDownload('1.21.1', new AbortController().signal, 'china'), (error) => {
+    assert.ok(hasMessageKey(error, 'server.deploy.vanillaManifestNeedsMojang'));
+    assert.match((error as PanelError).message, /Mojang: the server couldn't be reached\./);
+    return true;
+  });
+  assert.deepEqual(calls, ['https://launchermeta.mojang.com/mc/game/version_manifest_v2.json']);
+});
+
+test('清单没有详情 SHA-1 时拒绝，不读任何来源的版本详情', async (t) => {
+  const { resolveVanillaDownload } = await import('./core-metadata.js');
+  const calls = mockFetch(t, {
+    'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json': () => Response.json({
       versions: [{ id: '1.21.1', type: 'release', url: 'https://piston-meta.mojang.com/v1/packages/abc/1.21.1.json' }],
     }),
     'https://piston-meta.mojang.com/v1/packages/abc/1.21.1.json': () => Response.json({
       downloads: { server: { url: 'https://piston-data.mojang.com/v1/objects/abc/server.jar', sha1: 'a'.repeat(40) } },
     }),
   });
-  await resolveVanillaDownload('1.21.1', new AbortController().signal, 'china');
-  assert.ok(!calls.includes('https://bmclapi2.bangbang93.com/v1/packages/abc/1.21.1.json'));
+  await assert.rejects(
+    resolveVanillaDownload('1.21.1', new AbortController().signal, 'china'),
+    (error) => hasMessageKey(error, 'server.deploy.vanillaMetadataUntrusted'),
+  );
+  assert.deepEqual(calls, ['https://launchermeta.mojang.com/mc/game/version_manifest_v2.json']);
+});
+
+/** 一份 Vanilla 清单加版本详情的替身：详情文本按原样返回，清单里的 SHA-1 与它对应。 */
+function vanillaRoutes(
+  detailUrl: string,
+  server: { url?: string; sha1?: string },
+  manifestUrl = 'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json',
+): Record<string, () => Response> {
+  const detail = JSON.stringify({ downloads: { server } });
+  return {
+    [manifestUrl]: () => Response.json({
+      versions: [{ id: '1.21.1', type: 'release', url: detailUrl, sha1: sha1(detail) }],
+    }),
+    [detailUrl]: () => new Response(detail),
+    ...(mojangMirror(detailUrl) ? { [mojangMirror(detailUrl)!]: () => new Response(detail) } : {}),
+  };
+}
+
+function mojangMirror(url: string): string | null {
+  const parsed = new URL(url);
+  return parsed.hostname.endsWith('.mojang.com') ? `https://bmclapi2.bangbang93.com${parsed.pathname}` : null;
+}
+
+test('清单里的版本详情地址不在 Mojang 时拒绝，也不去请求它', async (t) => {
+  const { resolveVanillaDownload } = await import('./core-metadata.js');
+  const server = { url: 'https://piston-data.mojang.com/v1/objects/abc/server.jar', sha1: 'a'.repeat(40) };
+  for (const detailUrl of [
+    'https://evil.invalid/v1/packages/abc/1.21.1.json',
+    'http://piston-meta.mojang.com/v1/packages/abc/1.21.1.json',
+    'https://piston-meta.mojang.com.evil.invalid/v1/packages/abc/1.21.1.json',
+  ]) {
+    const calls = mockFetch(t, vanillaRoutes(detailUrl, server));
+    await assert.rejects(
+      resolveVanillaDownload('1.21.1', new AbortController().signal, 'china'),
+      (error) => hasMessageKey(error, 'server.deploy.vanillaMetadataUntrusted'),
+      detailUrl,
+    );
+    assert.ok(!calls.includes(detailUrl), detailUrl);
+    t.mock.restoreAll();
+  }
+});
+
+test('版本详情里的服务端地址不在 Mojang 时拒绝，不生成下载计划', async (t) => {
+  const { resolveVanillaDownload } = await import('./core-metadata.js');
+  const detailUrl = 'https://piston-meta.mojang.com/v1/packages/abc/1.21.1.json';
+  for (const source of ['official', 'china'] as const) {
+    for (const url of ['https://evil.invalid/server.jar', 'http://piston-data.mojang.com/v1/objects/abc/server.jar']) {
+      mockFetch(t, vanillaRoutes(detailUrl, { url, sha1: 'a'.repeat(40) },
+        source === 'official' ? 'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json' : undefined));
+      await assert.rejects(
+        resolveVanillaDownload('1.21.1', new AbortController().signal, source),
+        (error) => hasMessageKey(error, 'server.deploy.vanillaMetadataUntrusted'),
+        `${source} ${url}`,
+      );
+      t.mock.restoreAll();
+    }
+  }
+});
+
+test('版本详情缺少服务端 SHA-1 时拒绝，不退回到不校验的下载', async (t) => {
+  const { resolveVanillaDownload } = await import('./core-metadata.js');
+  const detailUrl = 'https://piston-meta.mojang.com/v1/packages/abc/1.21.1.json';
+  const url = 'https://piston-data.mojang.com/v1/objects/abc/server.jar';
+  for (const server of [{ url }, { url, sha1: 'not-a-sha1' }]) {
+    for (const source of ['official', 'china'] as const) {
+      mockFetch(t, vanillaRoutes(detailUrl, server,
+        source === 'official' ? 'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json' : undefined));
+      await assert.rejects(
+        resolveVanillaDownload('1.21.1', new AbortController().signal, source),
+        (error) => hasMessageKey(error, 'server.deploy.vanillaMetadataUntrusted'),
+        `${source} ${JSON.stringify(server)}`,
+      );
+      t.mock.restoreAll();
+    }
+  }
+});
+
+test('官方地址返回的版本详情与清单 SHA-1 不符时同样拒绝', async (t) => {
+  const { resolveVanillaDownload } = await import('./core-metadata.js');
+  const detailUrl = 'https://piston-meta.mojang.com/v1/packages/abc/1.21.1.json';
+  const genuine = JSON.stringify({
+    downloads: { server: { url: 'https://piston-data.mojang.com/v1/objects/abc/server.jar', sha1: 'a'.repeat(40) } },
+  });
+  const tampered = JSON.stringify({
+    downloads: { server: { url: 'https://piston-data.mojang.com/v1/objects/evil/server.jar', sha1: 'e'.repeat(40) } },
+  });
+  const manifest = () => Response.json({
+    versions: [{ id: '1.21.1', type: 'release', url: detailUrl, sha1: sha1(genuine) }],
+  });
+  mockFetch(t, {
+    'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json': manifest,
+    [detailUrl]: () => new Response(tampered),
+  });
+  await assert.rejects(
+    resolveVanillaDownload('1.21.1', new AbortController().signal, 'official'),
+    (error) => hasMessageKey(error, 'server.system.downloadChecksumMismatch'),
+  );
+  t.mock.restoreAll();
+
+  // 国内来源下镜像和官方都不符：两个来源都报校验失败，不会采用任何一份。
+  mockFetch(t, {
+    'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json': manifest,
+    'https://bmclapi2.bangbang93.com/v1/packages/abc/1.21.1.json': () => new Response(tampered),
+    [detailUrl]: () => new Response(tampered),
+  });
+  await assert.rejects(resolveVanillaDownload('1.21.1', new AbortController().signal, 'china'), (error) => {
+    assert.ok(hasMessageKey(error, 'server.system.metadataAllSourcesFailed'));
+    const text = (error as PanelError).message;
+    assert.match(text, /BMCLAPI: the file failed its checksum check/);
+    assert.match(text, /Mojang: the file failed its checksum check/);
+    return true;
+  });
+});
+
+/** 带最终地址的响应替身：Response 构造出来没有 url，用它模拟跟随跳转后的结果。 */
+function redirectedResponse(body: string, finalUrl: string): Response {
+  const response = new Response(body);
+  Object.defineProperty(response, 'url', { value: finalUrl });
+  return response;
+}
+
+test('https 请求被跳转到 http 时拒绝，元数据和文件下载都一样', async (t) => {
+  const { fetchText } = await import('./core-metadata.js');
+  const { downloadToFile, downloadFromPlan } = await import('./core-download.js');
+  const dir = tempDir(t);
+  const content = '核心内容';
+  mockFetch(t, {
+    'https://meta.invalid/list.json': () => redirectedResponse('[]', 'http://plain.invalid/list.json'),
+    'https://mirror.invalid/core.jar': () => redirectedResponse(content, 'http://plain.invalid/core.jar'),
+    'https://official.invalid/core.jar': () => redirectedResponse(content, 'https://node.invalid/core.jar'),
+  });
+  await assert.rejects(
+    fetchText('https://meta.invalid/list.json'),
+    (error) => hasMessageKey(error, 'server.system.downloadInsecureRedirect'),
+  );
+  const dest = path.join(dir, 'core.jar');
+  await assert.rejects(
+    downloadToFile('https://mirror.invalid/core.jar', dest),
+    (error) => hasMessageKey(error, 'server.system.downloadInsecureRedirect'),
+  );
+  assert.deepEqual(fs.readdirSync(dir), [], '不落地任何文件');
+
+  // 跳转到 https 社区节点照常可用；被拒绝的来源在汇总错误里有自己的原因。
+  await downloadFromPlan(
+    {
+      candidates: [
+        { label: 'Mirror', url: 'https://mirror.invalid/core.jar', mirror: true },
+        { label: 'Official', url: 'https://official.invalid/core.jar', mirror: false },
+      ],
+      expected: { algorithm: 'sha256', hex: sha256(content) },
+    },
+    dest,
+    { name: 'core.jar' },
+  );
+  assert.equal(fs.readFileSync(dest, 'utf8'), content);
+  await assert.rejects(
+    downloadFromPlan(
+      {
+        candidates: [
+          { label: 'Mirror', url: 'https://mirror.invalid/core.jar', mirror: true },
+          { label: 'Other', url: 'https://mirror.invalid/core.jar', mirror: true },
+        ],
+        expected: { algorithm: 'sha256', hex: sha256(content) },
+      },
+      path.join(dir, 'other.jar'),
+      { name: 'core.jar' },
+    ),
+    (error) => {
+      assert.ok(hasMessageKey(error, 'server.system.downloadAllSourcesFailed'));
+      assert.match(
+        renderPanelMessage((error as PanelError).toPanelMessage()),
+        /Mirror: the server redirected to an address without HTTPS\. /,
+      );
+      return true;
+    },
+  );
 });
 
 test('安装器校验值只取自官方 Maven，取不到时不使用镜像', async (t) => {
@@ -608,7 +812,7 @@ test('预取把通过校验的依赖放到安装器要找的位置，失败的�
     'https://bmclapi2.bangbang93.com/maven/good/a.jar': () => new Response('依赖 A'),
     'https://bmclapi2.bangbang93.com/maven/bad/b.jar': () => new Response('被篡改的内容'),
     'https://bmclapi2.bangbang93.com/maven/escape/../../../c.jar': () => new Response('依赖 C'),
-    'https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json': () => Response.json({
+    'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json': () => Response.json({
       versions: [{
         id: '1.21.1',
         type: 'release',
