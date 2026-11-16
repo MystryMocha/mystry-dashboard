@@ -211,6 +211,8 @@ export function initDb(): void {
       network_name TEXT NOT NULL,
       network_secret TEXT NOT NULL,
       ipv4_octet INTEGER NOT NULL,
+      custom_peers TEXT NOT NULL DEFAULT '[]',
+      use_shared_peers INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE
@@ -238,6 +240,14 @@ export function initDb(): void {
   }
   if (!cols.some((c) => c.name === 'java_runtime_id')) {
     db.exec('ALTER TABLE instances ADD COLUMN java_runtime_id TEXT');
+  }
+  // 虚拟局域网的自定义中继节点：旧库补列，默认沿用社区共享节点，行为不变。
+  const lanCols = db.prepare('PRAGMA table_info(instance_lans)').all() as Array<{ name: string }>;
+  if (!lanCols.some((c) => c.name === 'custom_peers')) {
+    db.exec("ALTER TABLE instance_lans ADD COLUMN custom_peers TEXT NOT NULL DEFAULT '[]'");
+  }
+  if (!lanCols.some((c) => c.name === 'use_shared_peers')) {
+    db.exec('ALTER TABLE instance_lans ADD COLUMN use_shared_peers INTEGER NOT NULL DEFAULT 1');
   }
   const runtimeCols = db.prepare('PRAGMA table_info(java_runtimes)').all() as Array<{ name: string }>;
   if (!runtimeCols.some((c) => c.name === 'available')) {

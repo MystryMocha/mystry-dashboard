@@ -10,6 +10,7 @@ import {
 } from '@mystry/shared';
 import { sendRouteError } from '../http-errors.js';
 import { panelErrorBody } from '../utils/errors.js';
+import { removeUploadTemp, streamToUploadTemp } from '../services/upload-service.js';
 import { getInstanceRow } from '../services/instance-service.js';
 import {
   describeInstanceTunnel,
@@ -24,13 +25,21 @@ import {
   saveInstanceTunnel,
   updateFrpEndpoint,
 } from '../services/frp-service.js';
-import { ensureFrpcInstalled, frpcInstalled, frpcPlatformSupported } from '../services/frp-runtime.js';
+import {
+  ensureFrpcInstalled,
+  FRPC_ARCHIVE_BYTE_LIMIT,
+  frpcArchiveInfo,
+  frpcInstalled,
+  frpcPlatformSupported,
+  installFrpcFromArchive,
+} from '../services/frp-runtime.js';
 
 function runtimeInfo(): FrpRuntimeInfo {
   return {
     version: FRP_CLIENT_VERSION,
     installed: frpcInstalled(),
     platformSupported: frpcPlatformSupported(),
+    archive: frpcArchiveInfo(),
   };
 }
 
@@ -47,6 +56,24 @@ export async function frpRoutes(app: FastifyInstance): Promise<void> {
       return runtimeInfo();
     } catch (err) {
       return sendRouteError(reply, err);
+    }
+  });
+
+  // 连不上 GitHub 时，用户在别处下载同名官方压缩包再上传；只按钉死的 SHA-256 接受。
+  app.post('/api/frp/runtime/upload', async (req, reply) => {
+    let temp: string | null = null;
+    try {
+      if (!frpcPlatformSupported()) return reply.code(400).send(panelErrorBody('server.frp.platformUnsupported'));
+      const file = await req.file({ limits: { fileSize: FRPC_ARCHIVE_BYTE_LIMIT } });
+      if (!file) return reply.code(400).send(panelErrorBody('server.frp.uploadMissing'));
+      temp = await streamToUploadTemp(file.file, 'frp-runtime', { maxBytes: FRPC_ARCHIVE_BYTE_LIMIT });
+      await installFrpcFromArchive(temp);
+      await syncEnabledTunnels();
+      return runtimeInfo();
+    } catch (err) {
+      return sendRouteError(reply, err);
+    } finally {
+      if (temp) removeUploadTemp(temp);
     }
   });
 

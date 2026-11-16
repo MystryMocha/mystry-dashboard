@@ -1,13 +1,15 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useId, useRef, useState } from 'react';
 import { TriangleAlert } from 'lucide-react';
-import type { InstanceLan, LanRuntimeInfo, LanStatus } from '@mystry/shared';
+import { LAN_CUSTOM_PEER_LIMIT, type InstanceLan, type LanRuntimeInfo, type LanStatus } from '@mystry/shared';
 import { StatusPill, type StatusTone } from './StatusPill';
+import { RuntimeArchiveUpload } from './RuntimeArchiveUpload';
 import {
   fetchFriendLanInstructions,
   getInstanceLan,
   getLanRuntime,
   installLanRuntime,
   saveInstanceLan,
+  uploadLanRuntime,
 } from '../api';
 import { DownloadSourceHint } from './DownloadSourceSection';
 import { errorMessage } from '../errors';
@@ -29,16 +31,36 @@ function statusTone(status: LanStatus): StatusTone {
   return 'stopped';
 }
 
-/** 实例虚拟局域网。只开关官方 EasyTier，不提供原始配置或可执行路径。 */
+/** 文本框里一行一个节点；空行忽略，格式由服务端校验。 */
+function parsePeers(text: string): string[] {
+  return text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
+}
+
+/** 实例虚拟局域网。只开关官方 EasyTier 和中继节点，不提供原始配置或可执行路径。 */
 export function LanSection({ instanceId }: { instanceId: string }) {
   const { t, tm } = useI18n();
+  const peersId = useId();
   const [runtime, setRuntime] = useState<LanRuntimeInfo | null>(null);
   const [lan, setLan] = useState<InstanceLan | null>(null);
   const [enabled, setEnabled] = useState(false);
+  const [peersText, setPeersText] = useState('');
+  const [useSharedPeers, setUseSharedPeers] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // 用户改过的字段不被轮询结果覆盖，保存后才重新跟随服务端。
   const enabledTouched = useRef(false);
+  const peersTouched = useRef(false);
+
+  const apply = useCallback((next: InstanceLan) => {
+    setLan(next);
+    if (!enabledTouched.current) setEnabled(next.enabled);
+    if (!peersTouched.current) {
+      setPeersText(next.peers.join('\n'));
+      setUseSharedPeers(next.useSharedPeers);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     const [nextRuntime, nextLan] = await Promise.all([
@@ -46,9 +68,8 @@ export function LanSection({ instanceId }: { instanceId: string }) {
       getInstanceLan(instanceId),
     ]);
     setRuntime(nextRuntime);
-    setLan(nextLan);
-    if (!enabledTouched.current) setEnabled(nextLan.enabled);
-  }, [instanceId]);
+    apply(nextLan);
+  }, [apply, instanceId]);
 
   const refresh = useCallback(() => {
     void load().catch((err: unknown) => setError(errorMessage(err)));
@@ -56,13 +77,16 @@ export function LanSection({ instanceId }: { instanceId: string }) {
 
   usePolling(refresh, lan?.status === 'starting' ? 2000 : 5000);
 
+  const peers = parsePeers(peersText);
+  const tooManyPeers = peers.length > LAN_CUSTOM_PEER_LIMIT;
+
   async function save() {
     setBusy(true);
     try {
-      const saved = await saveInstanceLan(instanceId, { enabled });
-      setLan(saved);
+      const saved = await saveInstanceLan(instanceId, { enabled, peers, useSharedPeers });
       enabledTouched.current = false;
-      setEnabled(saved.enabled);
+      peersTouched.current = false;
+      apply(saved);
       setNotice(t('multiplayer.lan.saved'));
       setError('');
     } catch (err) {
@@ -76,11 +100,27 @@ export function LanSection({ instanceId }: { instanceId: string }) {
     setBusy(true);
     try {
       setRuntime(await installLanRuntime());
-      setLan(await getInstanceLan(instanceId));
+      apply(await getInstanceLan(instanceId));
       setError('');
     } catch (err) {
       setError(errorMessage(err));
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function upload(file: File) {
+    setBusy(true);
+    setUploading(true);
+    try {
+      setRuntime(await uploadLanRuntime(file));
+      apply(await getInstanceLan(instanceId));
+      setNotice(t('multiplayer.runtime.uploaded'));
+      setError('');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setUploading(false);
       setBusy(false);
     }
   }
@@ -137,6 +177,9 @@ export function LanSection({ instanceId }: { instanceId: string }) {
           <DownloadSourceHint />
         </div>
       )}
+      {runtime?.platformSupported && !runtime.installed && runtime.archive && (
+        <RuntimeArchiveUpload archive={runtime.archive} busy={busy} uploading={uploading} onUpload={upload} />
+      )}
       {runtime?.installed && (
         <p className="field-help">{t('multiplayer.lan.runtime.installed', { version: runtime.version })}</p>
       )}
@@ -146,19 +189,78 @@ export function LanSection({ instanceId }: { instanceId: string }) {
           <span>{t('multiplayer.lan.enable')}</span>
         </label>
         <p className="field-help">{t('multiplayer.lan.admin')}</p>
+        <p className="field-help">{t('multiplayer.lan.firewall')}</p>
         <div className="callout callout-warning">
           <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
           <p>{t('multiplayer.lan.trust')}</p>
         </div>
+
+        <div className="field">
+          <label htmlFor={peersId}>{t('multiplayer.lan.peers.label')}</label>
+          <textarea
+            id={peersId}
+            className="mono"
+            rows={3}
+            value={peersText}
+            disabled={busy}
+            placeholder="tcp://relay.example.com:11010"
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+            aria-describedby={`${peersId}-help`}
+            onChange={(event) => { peersTouched.current = true; setPeersText(event.target.value); }}
+          />
+          <p id={`${peersId}-help`} className="field-help">
+            {t('multiplayer.lan.peers.help', { limit: LAN_CUSTOM_PEER_LIMIT })}
+          </p>
+          {tooManyPeers && (
+            <p className="error" role="alert">
+              {t('multiplayer.lan.peers.tooMany', { limit: LAN_CUSTOM_PEER_LIMIT })}
+            </p>
+          )}
+        </div>
+        <label className="checkbox-field">
+          <input type="checkbox" checked={useSharedPeers} disabled={busy} onChange={(event) => { peersTouched.current = true; setUseSharedPeers(event.target.checked); }} />
+          <span>{t('multiplayer.lan.peers.shared')}</span>
+        </label>
+        {lan && (
+          <p className="field-help">
+            {t('multiplayer.lan.peers.sharedHelp')}{' '}
+            {lan.sharedPeers.map((peer, index) => (
+              <span key={peer}>
+                {index > 0 && ', '}
+                <code>{peer}</code>
+              </span>
+            ))}
+          </p>
+        )}
+        {!useSharedPeers && peers.length === 0 && (
+          <p className="error" role="alert">{t('multiplayer.lan.peers.required')}</p>
+        )}
+
         {lan?.detail && <p className="callout" role="status">{tm(lan.detail)}</p>}
+        {lan?.warning && (
+          <div className="callout callout-warning" role="status">
+            <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
+            <p>{tm(lan.warning)}</p>
+          </div>
+        )}
         {lan && (
           <div className="instance-meta">
             <StatusPill tone={statusTone(lan.status)}>{t(STATUS_KEY[lan.status])}</StatusPill>
             {lan.joinAddress && <span>{t('multiplayer.lan.join', { address: lan.joinAddress })}</span>}
           </div>
         )}
+        {lan?.listenPort && lan.status === 'running' && (
+          <p className="field-help">{t('multiplayer.lan.direct', { port: lan.listenPort })}</p>
+        )}
         <div className="instance-actions">
-          <button className={runtime?.platformSupported && !runtime.installed ? 'btn' : 'btn btn-primary'} type="button" disabled={busy} onClick={() => void save()}>
+          <button
+            className={runtime?.platformSupported && !runtime.installed ? 'btn' : 'btn btn-primary'}
+            type="button"
+            disabled={busy || tooManyPeers || (!useSharedPeers && peers.length === 0)}
+            onClick={() => void save()}
+          >
             {t('multiplayer.lan.save')}
           </button>
           {lan?.enabled && (

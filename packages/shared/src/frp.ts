@@ -42,6 +42,17 @@ export interface FrpRuntimeInfo {
   version: string;
   installed: boolean;
   platformSupported: boolean;
+  /** 本机平台对应的官方压缩包。连不上 GitHub 时，用户可从任意镜像下载同名文件再上传，面板按摘要核对。 */
+  archive: RuntimeArchiveInfo | null;
+}
+
+/** 钉死的官方压缩包：文件名、SHA-256 与官方下载地址。平台不支持时为 null。 */
+export interface RuntimeArchiveInfo {
+  name: string;
+  sha256: string;
+  url: string;
+  /** 上传上限（字节） */
+  maxBytes: number;
 }
 
 export interface InstanceTunnel {

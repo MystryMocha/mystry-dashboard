@@ -11,6 +11,9 @@
 - 「本机环境」页新增下载来源设置，可选官方来源（默认）或国内镜像，保存后立即生效。国内镜像下 Vanilla、Forge、NeoForge 和版本列表走 BMCLAPI，frp 和 EasyTier 走公共 GitHub 镜像，失败时自动改用官方来源；Paper 和 Fabric 的服务端文件仍走官方。`panel_settings` 表在启动时自动创建，无需手动迁移。
 - 部署页和联机客户端安装提示显示当前下载来源；下载进度显示正在使用的来源。
 - Vanilla、Paper、Forge、NeoForge 的下载现在按官方校验值核对，不符的文件不会进入缓存。
+- 联机的两种方式在下载客户端失败时都可以改为手动安装：页面列出官方压缩包的文件名、SHA-256 和官方地址，在任意设备（官方或镜像）下载后上传，摘要一致才会安装。给朋友的 EasyTier 说明里也写上了 Windows 压缩包的文件名和 SHA-256。
+- 虚拟局域网可以填写自己的中继节点（一行一个，最多 8 个），也可以关掉内置的社区共享节点只用自己的；朋友的命令使用同一份节点。`instance_lans` 表启动时自动新增 `custom_peers`、`use_shared_peers` 两列，旧设置默认继续使用社区共享节点。
+- Windows 上打开虚拟局域网时，面板添加名为 `MystryDashboard-LAN-<实例 id>` 的防火墙放行规则：游戏 TCP 端口（只限本实例的虚拟地址）和 EasyTier 监听端口的 TCP/UDP，停止时按名字删除。规则加不上时页面给出提示，虚拟局域网照常运行。
 
 ### Changed
 
@@ -18,6 +21,7 @@
 - 双击 `mystryctl.cmd` 后面板在后台运行，窗口只显示账号和重要日志，不再先进菜单。关掉窗口不影响面板和服务端，重新打开后按 Ctrl+C 安全停止。菜单改用 `mystryctl.cmd menu` 打开。
 - 启动窗口不再显示 Node 实验功能提示和 Windows 数据目录权限提示，后者写入日志文件。
 - 官方来源下 Forge 版本列表改用 `files.minecraftforge.net`，NeoForge 版本列表只用 `maven.neoforged.net`，不再访问第三方的 BMCLAPI。
+- 虚拟局域网改为在一个随机空闲端口上监听 TCP 与 UDP（EasyTier 会同时监听 IPv6），有 IPv6 或在同一局域网的朋友可以直接连上，不再全靠打洞或中转。
 
 ### Fixed
 

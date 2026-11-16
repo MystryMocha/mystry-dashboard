@@ -9,6 +9,7 @@ export type {
   FrpTransport,
   InstanceTunnel,
   InstanceTunnelInput,
+  RuntimeArchiveInfo,
   TunnelMode,
   TunnelStatus,
 } from './frp.js';
@@ -18,7 +19,7 @@ export type {
   LanRuntimeInfo,
   LanStatus,
 } from './lan.js';
-export { EASYTIER_VERSION, LAN_STATUSES } from './lan.js';
+export { EASYTIER_VERSION, LAN_CUSTOM_PEER_LIMIT, LAN_STATUSES } from './lan.js';
 export { FRP_CLIENT_VERSION, FRP_TRANSPORTS, TUNNEL_MODES, TUNNEL_STATUSES } from './frp.js';
 
 /** 本机资源快照；空值表示尚无有效采样，不等同于零占用。 */

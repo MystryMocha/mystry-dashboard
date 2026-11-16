@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { FRP_CLIENT_VERSION } from '@mystry/shared';
+import { FRP_CLIENT_VERSION, type RuntimeArchiveInfo } from '@mystry/shared';
 import { config } from '../config.js';
 import { forceSecureSensitiveFile } from '../utils/data-dir-permissions.js';
 import { PanelError } from '../utils/errors.js';
@@ -12,6 +12,9 @@ import { readZipEntryBuffer } from './zip-service.js';
 
 const ARCHIVE_BYTE_LIMIT = 32 * 1024 * 1024;
 const BINARY_BYTE_LIMIT = 24 * 1024 * 1024;
+
+/** 手动上传压缩包的上限，与下载上限一致。 */
+export const FRPC_ARCHIVE_BYTE_LIMIT = ARCHIVE_BYTE_LIMIT;
 
 interface FrpcAsset {
   archive: string;
@@ -39,6 +42,17 @@ export function resolveFrpcAsset(platform: NodeJS.Platform, arch: string): FrpcA
   const asset = ASSETS[`${platform}:${arch}`];
   if (!asset) throw new PanelError('server.frp.platformUnsupported');
   return asset;
+}
+
+function frpcArchiveUrl(asset: FrpcAsset): string {
+  return `https://github.com/fatedier/frp/releases/download/v${FRP_CLIENT_VERSION}/${asset.archive}`;
+}
+
+/** 本机平台对应的官方压缩包信息，供连不上 GitHub 时手动下载后上传。 */
+export function frpcArchiveInfo(): RuntimeArchiveInfo | null {
+  if (!frpcPlatformSupported()) return null;
+  const asset = resolveFrpcAsset(process.platform, process.arch);
+  return { name: asset.archive, sha256: asset.sha256, url: frpcArchiveUrl(asset), maxBytes: ARCHIVE_BYTE_LIMIT };
 }
 
 export function frpcRuntimeDir(): string {
@@ -70,14 +84,36 @@ let installing: Promise<void> | null = null;
 export async function ensureFrpcInstalled(): Promise<void> {
   if (frpcInstalled()) return;
   if (!installing) {
-    installing = installFrpc().finally(() => {
+    installing = installFrpc(downloadArchive, 'server.frp.checksumMismatch').finally(() => {
       installing = null;
     });
   }
   await installing;
 }
 
-async function installFrpc(): Promise<void> {
+/**
+ * 用用户上传的压缩包安装。只认钉死的官方摘要，所以文件来自哪个镜像都无所谓；
+ * 调用方负责删除 source。
+ */
+export async function installFrpcFromArchive(source: string): Promise<void> {
+  if (installing) await installing.catch(() => undefined);
+  if (frpcInstalled()) return;
+  installing = installFrpc(
+    async (_asset, destination) => {
+      fs.copyFileSync(source, destination);
+      forceSecureSensitiveFile(destination);
+    },
+    'server.frp.uploadMismatch',
+  ).finally(() => {
+    installing = null;
+  });
+  await installing;
+}
+
+async function installFrpc(
+  acquire: (asset: FrpcAsset, destination: string) => Promise<void>,
+  mismatchKey: 'server.frp.checksumMismatch' | 'server.frp.uploadMismatch',
+): Promise<void> {
   const asset = resolveFrpcAsset(process.platform, process.arch);
   const dir = frpcRuntimeDir();
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -87,9 +123,9 @@ async function installFrpc(): Promise<void> {
   try {
     // 崩溃可能留下旧文件，而下载不会覆盖已存在的目标。
     fs.rmSync(archivePath, { force: true });
-    await downloadArchive(asset, archivePath);
+    await acquire(asset, archivePath);
     const digest = createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
-    if (digest !== asset.sha256) throw new PanelError('server.frp.checksumMismatch');
+    if (digest !== asset.sha256) throw new PanelError(mismatchKey);
     const bytes = await extractMember(archivePath, asset.member);
     const tempBinary = `${binaryPath}.partial`;
     fs.writeFileSync(tempBinary, bytes, { mode: 0o700 });
