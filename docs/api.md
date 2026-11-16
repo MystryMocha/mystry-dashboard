@@ -61,7 +61,7 @@ X-Setup-Token: <SETUP_TOKEN>
 {"username":"admin","password":"至少 12 位的强密码"}
 ```
 
-用户创建成功后 setup 接口不再可用。`mystryctl` 和 `PanelManager` 会用这个接口自动创建 `admin`，并在成功后移除 `SETUP_TOKEN`。密钥格式要求见 [配置说明](configuration.md#首次启动必需配置)。
+用户创建成功后 setup 接口不再可用。`mystryctl` 和 `PanelManager` 会用这个接口自动创建 `admin`，并在成功后移除 `SETUP_TOKEN`。密钥格式要求见 [配置说明](configuration.zh-CN.md#首次启动必需配置)。
 
 ## 系统 `/api/system`
 
@@ -116,6 +116,8 @@ Java 状态响应准确结构为：
 | GET | `/api/instances/:id/local-network` | 同一网络直连用的地址 `InstanceLocalNetwork`：`{ port, addresses, publicIpv6, serverIpBlocked }`。只读，不开端口也不改配置 |
 
 `InstanceInfo.startIssue` 在最近一次启动没成功且原因可识别时给出 `{ kind, requiredJava }`，否则为 `null`：`kind` 为 `eula`（尚未同意 Minecraft EULA）、`java-too-new` 或 `java-too-old`（所用 Java 过新或过旧，`requiredJava` 是需要的主版本，无法判断时为 `null`）。它由面板从该次进程的控制台输出里按固定句式识别，只存在内存里；再次启动、删除实例或面板重启后清空。服务端打印过 `Done (` 之后的退出不归因于 Java 版本。进程自己以退出码 0 结束（未同意 EULA、游戏内执行 `stop`）时状态为 `stopped`，非 0 才是 `crashed`。
+
+`InstanceInfo.ready` 表示本次运行服务端已打印过完成启动的 `Done (` 行、玩家可以进服；状态为 `running` 但世界还在加载时为 `false`，正在停止或没在运行时也为 `false`。它同样只存在内存里。
 
 `local-network` 的 `addresses` 是这台电脑的局域网 IPv4 地址（不含回环、`169.254.*` 和能认出的虚拟网卡，如 WSL、虚拟机、组网或代理软件的网卡；全是虚拟网卡时照常列出。最多 6 个，`192.168.*` 排在前面），`port` 取自 `server.properties` 的 `server-port`，无效时为 `null`。`server-ip` 留空或为 `0.0.0.0` 时返回全部地址；等于其中一个地址时只返回它；其余情况 `serverIpBlocked` 为 `true` 且 `addresses` 为空。`publicIpv6` 是实体网卡上的公网 IPv6 地址（`2000::/3`，不含 6to4、Teredo 和文档示例段，最多 3 个），只在 `server-ip` 留空、为 `*` 或 `::` 时给出，`0.0.0.0` 或具体地址时为空；面板不区分固定地址和系统的临时地址，也不检测路由器是否放行。
 
@@ -179,7 +181,7 @@ Authorization: Bearer <token>
 
 已认证的 `DELETE .../download-ticket/:ticket` 仅在 ticket、当前用户和 URL 中的实例 ID 三者都匹配，且 ticket 仍为 `reserved` 时取消并立即释放预占槽位，返回 **204**。已进入 `streaming` 时不改变流或槽位，返回 **409**；票据不存在、所属用户或实例不匹配时统一返回 **404**。
 
-上传文件超过 `MAX_UPLOAD_BYTES` 时返回 **413**；上传或下载的并发容量已满时返回 **429**。相关超时见 [配置说明](configuration.md)。
+上传文件超过 `MAX_UPLOAD_BYTES` 时返回 **413**；上传或下载的并发容量已满时返回 **429**。相关超时见 [配置说明](configuration.zh-CN.md)。
 
 ## 实例备份 `/api/instances/:id/backups`
 
@@ -236,6 +238,7 @@ Authorization: Bearer <token>
       "id": "paper-survival",
       "launchTarget": "paper.jar",
       "coreType": "paper",
+      "mcVersion": "1.20.4",
       "modifiedAt": "2026-08-02T10:00:00.000Z",
       "ready": true,
       "detectedJvmConfig": {
@@ -249,7 +252,9 @@ Authorization: Bearer <token>
 }
 ```
 
-`id` 只是 `DATA_DIR/imports` 下的单层目录名，不是系统路径。创建任务示例：
+`id` 只是 `DATA_DIR/imports` 下的单层目录名，不是系统路径。`coreType` 按启动文件名判断（`paper`、`fabric`、`neoforge`、`forge`，`server.jar` 与 `minecraft_server*` 为 `vanilla`，其余为 `custom`）。`mcVersion` 是从启动文件名或 Forge args 目录名里认出的 `1.7`–`1.21.x` 版本号，认不出、核心为 `custom` 或 NeoForge 时省略。
+
+两种导入的请求里，`coreType` 省略或为 `custom` 都表示自动识别，以面板在复制或解压后的识别结果为准；填了其他类型则照填的来。`mcVersion` 留空时用识别到的版本，认不出就保持为空。创建任务示例：
 
 ```json
 {
@@ -263,7 +268,7 @@ Authorization: Bearer <token>
 }
 ```
 
-提交前应停止原服务器。复制前的检查与限制见 [从本机文件夹导入](user-guide.md#从本机文件夹导入)。成功或失败都不会删除源目录；失败时会清理新建的半成品实例。
+提交前应停止原服务器。复制前的检查与限制见 [从本机文件夹导入](user-guide.zh-CN.md#从本机文件夹导入)。成功或失败都不会删除源目录；失败时会清理新建的半成品实例。
 
 目录根部存在普通 `user_jvm_args.txt` 时，来源信息可包含 `detectedJvmConfig`。文件最大 64 KiB；不读取子目录文件，不跟随链接，也不解析或执行 `.bat` / `.sh`。检测到参数后，Web 要求用户明确选择沿用、面板推荐或自定义；解析失败时 `canonicalArgs` 为 `null`，不能沿用。`issues[]` 每项含稳定的 `code`、`severity` 和英文 `message`；共享 JVM 校验产生的诊断另带 `key`（`server.jvm.issue.*`）与 `params` 供界面翻译。
 
@@ -338,7 +343,7 @@ Authorization: Bearer <token>
 
 然后连接：`ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`。ticket 默认 60 秒有效且只能建立一次连接。
 
-连接数、入站消息大小、命令长度和发送速率的上限见 [配置说明](configuration.md) 中 `MAX_CONSOLE_*` 等变量；超过限制时服务端不会向实例 stdin 写入。
+连接数、入站消息大小、命令长度和发送速率的上限见 [配置说明](configuration.zh-CN.md) 中 `MAX_CONSOLE_*` 等变量；超过限制时服务端不会向实例 stdin 写入。
 
 ### 服务端 → 客户端消息（JSON）
 

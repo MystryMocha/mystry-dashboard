@@ -35,7 +35,7 @@ The first public preview supports **Minecraft: Java Edition** servers. Mystry Da
 
 ## Quick start
 
-Pick how you want to run it, then [create the first admin account](docs/getting-started.md#初始化管理员).
+Pick how you want to run it, then [sign in for the first time](docs/getting-started.md#set-up-administrator).
 
 | Option | Requirements | How |
 |---|---|---|
@@ -59,7 +59,7 @@ chmod +x PanelManager.sh
 
 The source launcher checks your environment, installs dependencies, generates a config file with random secrets, then builds and starts the panel. Open `http://127.0.0.1:3000` in your browser. During manual development, the Vite dev server runs at `http://127.0.0.1:5173`.
 
-Launcher commands: `start`, `foreground`, `stop`, `restart`, `rebuild` (source only), `status`, `logs`, `open`, `mirror` (source only) and `help`. `PanelManager.cmd` and `mystryctl` open an interactive menu when run without a command; `PanelManager.sh` starts the panel.
+Launcher commands: `start`, `foreground`, `stop`, `restart`, `rebuild` (source only), `status`, `logs`, `open`, `reset-password`, `mirror` (source only) and `help`. Run without a command, `PanelManager.cmd` opens an interactive menu, `mystryctl` starts the panel in the background and shows its logs, and `PanelManager.sh` starts the panel.
 
 **Java is not included.** Install the Java version your Minecraft server needs. By default a server uses the `java` on the panel's `PATH`, or you can pick a runtime the panel has detected and verified.
 
@@ -70,7 +70,7 @@ Launcher commands: `start`, `foreground`, `stop`, `restart`, `rebuild` (source o
 | 1.17 to 1.20.4 | 17 |
 | 1.16.5 and earlier | 8 |
 
-**Slow dependency downloads?** The source launchers install dependencies with npm. Run `.\PanelManager.cmd mirror` or `./PanelManager.sh mirror` to choose a download source: npm's own configuration (the default), the official registry, or a mainland China mirror (npmmirror, Tencent Cloud or Huawei Cloud). See [npm download source](docs/configuration.md#npm-下载源). Portable packages bundle their dependencies, so they don't need this.
+**Slow dependency downloads?** The source launchers install dependencies with npm. Run `.\PanelManager.cmd mirror` or `./PanelManager.sh mirror` to choose a download source: npm's own configuration (the default), the official registry, or a mainland China mirror (npmmirror, Tencent Cloud or Huawei Cloud). See [npm download source](docs/configuration.md#npm-registry). Portable packages bundle their dependencies, so they don't need this.
 
 ### Portable preview
 
@@ -113,10 +113,10 @@ Upload sizes, timeouts, concurrency and other limits are all configurable. The f
 
 - Only the built-in local node (`local`) is available. Remote agents and remote nodes are not enabled yet.
 - Each server lives in `instances/<id>` under the data root. The panel does not browse the rest of your disk or bind to outside folders.
-- To import a server that's already on the machine, stop it and copy it into the data directory's `imports/` folder first. See [import from a local folder](docs/user-guide.md#从本机文件夹导入).
+- To import a server that's already on the machine, stop it and copy it into the data directory's `imports/` folder first. See [import from a local folder](docs/user-guide.md#import-from-a-local-folder).
 - Tasks can queue. If the panel restarts, unfinished tasks are marked as failed and do not resume.
-- Backups cover one server folder at a time. There are no scheduled backups or retention rules yet, and the panel database (`panel.db`) is not included. See [backup and migration](docs/tutorials.md#教程-8备份与迁移).
-- Multiplayer has a few requirements. On Windows, the virtual LAN only works if you start the panel as administrator, and your friends must run their command as administrator too. If a direct connection fails, traffic is relayed through shared community nodes, encrypted with the network key. frp needs a server of your own. Anyone with the network key or the friend config can reach that game port, so share them only with people you trust. See [multiplayer](docs/user-guide.md#联机).
+- Backups cover one server folder at a time. There are no scheduled backups or retention rules yet, and the panel database (`panel.db`) is not included. See [backup and migration](docs/tutorials.md#tutorial-8-backup-and-migration).
+- Multiplayer has a few requirements. On Windows, the virtual LAN only works if you start the panel as administrator, and your friends must run their command as administrator too. If a direct connection fails, traffic is relayed through shared community nodes, encrypted with the network key. frp needs a server of your own. Anyone with the network key or the friend config can reach that game port, so share them only with people you trust. See [multiplayer](docs/user-guide.md#multiplayer).
 - There is one admin account. Sessions can't be listed or revoked, and there is no 2FA or role system yet.
 
 ## Security

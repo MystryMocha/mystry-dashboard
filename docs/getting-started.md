@@ -1,50 +1,52 @@
-# 快速开始
+# Getting Started
 
-先选择一种运行方式，启动成功后统一按 [初始化管理员](#初始化管理员) 操作：
+**English** · [简体中文](getting-started.zh-CN.md)
 
-| 方式 | 适合 | 环境与入口 |
+First pick one way to run the panel. Once it has started, follow [Set Up Administrator](#set-up-administrator), which is the same for every option:
+
+| Option | Best for | Environment and entry point |
 |---|---|---|
-| 便携版 | 直接使用面板 | Windows/Linux x64，自带 Node.js，使用 `mystryctl` |
-| 源码管理器 | 从源码构建并统一启停 | Node.js ≥ 22，使用 `PanelManager` |
-| 手动开发 | 修改前后端代码 | Node.js ≥ 22，运行两个开发终端 |
+| Portable build | Just using the panel | Windows/Linux x64, bundles Node.js, uses `mystryctl` |
+| Source launcher | Building from source and starting/stopping everything in one place | Node.js ≥ 22, uses `PanelManager` |
+| Manual development | Changing the frontend or backend code | Node.js ≥ 22, runs two development terminals |
 
-所有方式均需另行准备服务端所需的 Java。macOS 没有本 Preview 便携包。配置文件随入口不同而变化，见 [配置文件对照表](configuration.md)；文档中的 `DATA_DIR/...` 表示最终数据根，`MYSTRY_DATA_DIR` 优先于 `DATA_DIR`。
+With every option, you need to install the Java your server requires yourself. There is no portable package for macOS in this Preview. The configuration file differs by entry point; see the [configuration file comparison table](configuration.md). In these docs, `DATA_DIR/...` means the final data root, and `MYSTRY_DATA_DIR` takes priority over `DATA_DIR`.
 
-Windows PowerShell 使用 `npm.cmd`；下文通用 npm 脚本在 Linux/macOS 使用 `npm`。
+Windows PowerShell uses `npm.cmd`. For the generic npm scripts below, use `npm` on Linux/macOS.
 
-## 便携版（普通用户推荐）
+## Portable Build (Recommended for Most Users)
 
-便携包已经包含 Node.js、生产依赖和构建产物。Windows 解压后双击 `mystryctl.cmd`；Linux x64 解压后运行：
+The portable package already contains Node.js, production dependencies and the build output. On Windows, extract it and double-click `mystryctl.cmd`. On Linux x64, extract it and run:
 
 ```bash
 chmod +x mystryctl
 ./mystryctl start
 ```
 
-无需执行 `npm install`。请先安装适配目标服务端的 Java；可用 `java -version` 检查默认 PATH 运行时，或在面板中探测并选择其他已安装运行时。完整平台列表、校验、升级和限制见 [便携预览版](portable-release.zh-CN.md)。
+You don't need to run `npm install`. Install a Java version that suits your target server first. You can check the default PATH runtime with `java -version`, or scan for and select another installed runtime in the panel. For the full platform list, verification, upgrades and limitations, see [Portable Preview](portable-release.md).
 
-## 源码运行环境要求
+## Requirements for Running from Source
 
-| 依赖 | 要求 |
+| Dependency | Requirement |
 |------|------|
-| Node.js | **≥ 22**（使用内置 `node:sqlite`，无需编译原生 SQLite 模块） |
-| Java | 默认使用 PATH 中的 `java`；部署页和实例设置可选择面板扫描并验证的本机运行时 |
-| 操作系统 | 源码管理器支持 Windows（`PanelManager.cmd`）与 Linux / WSL（`PanelManager.sh`）；便携产物由 Windows x64 与 Linux x64 分别构建和冒烟验证 |
+| Node.js | **≥ 22** (uses the built-in `node:sqlite`, so no native SQLite module needs compiling) |
+| Java | Uses the `java` on PATH by default; the deploy page and instance settings let you select a local runtime that the panel has scanned and verified |
+| Operating system | The source launcher supports Windows (`PanelManager.cmd`) and Linux / WSL (`PanelManager.sh`); the portable artifacts are built and smoke-tested separately on Windows x64 and Linux x64 |
 
-面板不接受手填 Java 完整路径。先在运行面板的同一用户环境中执行 `java -version` 检查默认 PATH；需要其他已安装 Java 时，在部署页或实例设置中使用「重新探测」后的选择器。
+The panel does not accept a hand-typed full Java path. First run `java -version` in the same user environment that runs the panel to check the default PATH. If you need a different installed Java, click **Rescan** on the deploy page or in the instance settings, then use the selector.
 
-## Windows 一键管理（推荐）
+## One-Click Management on Windows (Recommended)
 
-安装 Node.js 22 或更高版本后，双击仓库根目录的 `PanelManager.cmd`。它会自动完成：
+After you install Node.js 22 or later, double-click `PanelManager.cmd` in the repository root. It automatically:
 
-1. 检查 Node 和 npm。
-2. 按 `package-lock.json` 安装依赖，并构建 shared、server 和 web；源码和锁文件没变时跳过。
-3. 没有 `.env` 时从 `.env.example` 复制一份。
-4. 交给跨平台控制器 `mystryctl`：生成互不相同的随机密钥、检查 Java、后台启动面板并打开浏览器。
+1. Checks Node and npm.
+2. Installs dependencies according to `package-lock.json`, and builds shared, server and web. It skips this when the source and lock file haven't changed.
+3. Copies `.env.example` to `.env` if there is no `.env`.
+4. Hands over to the cross-platform controller `mystryctl`, which generates random secrets that all differ from each other, checks Java, starts the panel in the background and opens your browser.
 
-依赖下载慢或失败时，运行 `.\PanelManager.cmd mirror` 换一个 npm 下载源，见 [npm 下载源](configuration.md#npm-下载源)。
+If dependency downloads are slow or fail, run `.\PanelManager.cmd mirror` to choose another npm download source. See [npm download source](configuration.md#npm-registry).
 
-双击会显示菜单，语言跟随系统（中文系统显示中文，其他显示英文，可用 `MYSTRY_LANG` 指定，见[启动器语言](configuration.md#启动器语言)）。也可以直接使用：
+Double-clicking shows a menu. Its language follows your system (Chinese on a Chinese system, English otherwise; you can set it with `MYSTRY_LANG`, see [launcher language](configuration.md#launcher-language)). You can also run these directly:
 
 ```powershell
 .\PanelManager.cmd start
@@ -59,24 +61,24 @@ chmod +x mystryctl
 .\PanelManager.cmd help
 ```
 
-启动、停止、状态和日志与 Linux 的 `PanelManager.sh`、便携版的 `mystryctl` 是同一套实现，只是配置默认用仓库根目录的 `.env`（设置了 `MYSTRY_CONFIG_PATH` 时用它指定的文件），数据目录按其中的 `DATA_DIR`。日志在仓库根目录的 `logs/`。
+Start, stop, status and logs share one implementation with `PanelManager.sh` on Linux and `mystryctl` in the portable build. The only difference is that the configuration defaults to `.env` in the repository root (or the file set by `MYSTRY_CONFIG_PATH`, if you set it), and the data directory follows the `DATA_DIR` in that file. Logs are in `logs/` in the repository root.
 
-后台停止和重启会先取消部署/导入任务，再逐个安全停止正在运行的 Minecraft 实例；不要直接在任务管理器中强杀 Node 进程。
+A background stop or restart first cancels deploy/import tasks, then safely stops each running Minecraft instance one by one. Do not force-kill the Node process in Task Manager.
 
-若已有 `.env` 中的密钥不是 64 位十六进制字符串，PanelManager 会先将原文件备份到数据目录下的 `launcher/config-backups/`，再生成合规的新密钥。更换 `JWT_SECRET` 会使旧登录令牌失效，但不会删除管理员、实例或 Minecraft 存档。
+If a secret in your existing `.env` is not a 64-character hexadecimal string, PanelManager first backs up the original file to `launcher/config-backups/` under the data directory, then generates new valid secrets. Changing `JWT_SECRET` invalidates old sign-in tokens, but it does not delete the administrator, instances or Minecraft worlds.
 
-## Linux / WSL 源码一键管理
+## One-Click Source Management on Linux / WSL
 
-在仓库根目录执行：
+Run these in the repository root:
 
 ```bash
 chmod +x PanelManager.sh
 ./PanelManager.sh start
 ```
 
-`PanelManager.sh` 检查 Node.js 22、按锁文件补装依赖并构建源码，再交给跨平台控制器 `mystryctl` 生成配置、启动和安全停止。它默认把配置写到 `config/panel.env`、数据写到仓库 `data/`；两者均被 Git 忽略。
+`PanelManager.sh` checks for Node.js 22, installs any missing dependencies according to the lock file and builds the source. It then hands over to the cross-platform controller `mystryctl` to generate the configuration, start the panel and stop it safely. By default it writes the configuration to `config/panel.env` and the data to `data/` in the repository. Both are ignored by Git.
 
-如需隔离 WSL 测试数据，请在启动、停止、查看状态等每次操作前使用相同的环境变量：
+If you want to keep WSL test data separate, use the same environment variables before every operation, including start, stop and status:
 
 ```bash
 export MYSTRY_CONFIG_PATH="${HOME}/mystry-test/config/panel.env"
@@ -84,20 +86,20 @@ export MYSTRY_DATA_DIR="${HOME}/mystry-test"
 ./PanelManager.sh start
 ```
 
-首次空用户库会自动生成随机密钥，创建管理员 `admin` 和随机 16 位密码，并只在窗口里显示一次。不要把密码或 `panel.env` 分享到聊天、仓库或截图中。可用命令为 `start`、`foreground`、`stop`、`restart`、`rebuild`、`status`、`logs`、`open`、`reset-password` 和 `help`；其中 `rebuild` 会先安全停止面板，再重新安装依赖、构建并启动，和 Windows 的 `PanelManager.cmd rebuild` 相同。
+On the first run with an empty user database, it automatically generates random secrets and creates the administrator `admin` with a random 16-character password, which is shown only once in the window. Do not share the password or `panel.env` in chats, repositories or screenshots. The available commands are `start`, `foreground`, `stop`, `restart`, `rebuild`, `status`, `logs`, `open`, `reset-password` and `help`. `rebuild` safely stops the panel first, then reinstalls dependencies, builds and starts again, the same as `PanelManager.cmd rebuild` on Windows.
 
-## 手动安装与首次配置
+## Manual Install and First-Time Configuration
 
-在仓库根目录执行：
+Run these in the repository root:
 
 ```bash
 npm install
 npm run build -w @mystry/shared
 ```
 
-仅首次配置时复制环境变量模板；已有 `.env` 请保留并检查所需字段。
+Copy the environment variable template only for the first-time configuration. If you already have a `.env`, keep it and check the required fields.
 
-Windows PowerShell：
+Windows PowerShell:
 
 ```powershell
 if (-not (Test-Path -LiteralPath .env)) {
@@ -105,102 +107,102 @@ if (-not (Test-Path -LiteralPath .env)) {
 }
 ```
 
-Linux/macOS：
+Linux/macOS:
 
 ```bash
 if [ ! -e .env ]; then cp .env.example .env; fi
 ```
 
-编辑 `.env`，按 [首次启动必需配置](configuration.md#首次启动必需配置) 生成并填写 `JWT_SECRET` 和 `SETUP_TOKEN`。`SETUP_TOKEN` 只用于初始化管理员，创建管理员后从 `.env` 移除并重启面板即可。
+Edit `.env`. Generate and fill in `JWT_SECRET` and `SETUP_TOKEN` as described in [Required Settings for First Start](configuration.md#required-settings-for-first-start). `SETUP_TOKEN` is only used to set up the administrator. After you create the administrator, remove it from `.env` and restart the panel.
 
-## 开发模式
+## Development Mode
 
-需要同时运行后端与前端（前端通过 Vite 代理访问 API）。
+You need to run the backend and the frontend at the same time (the frontend reaches the API through the Vite proxy).
 
-**终端 1 — 后端**（默认 `http://127.0.0.1:3000`）：
+**Terminal 1 — backend** (default `http://127.0.0.1:3000`):
 
 ```bash
 npm run dev:server
 ```
 
-**终端 2 — 前端**（默认 `http://127.0.0.1:5173`）：
+**Terminal 2 — frontend** (default `http://127.0.0.1:5173`):
 
 ```bash
 npm run dev:web
 ```
 
-浏览器访问 **http://127.0.0.1:5173**，继续按下方 [初始化管理员](#初始化管理员) 完成首启。
+Open **http://127.0.0.1:5173** in your browser, then follow [Set Up Administrator](#set-up-administrator) below to finish the first start.
 
-## 生产部署
+## Production Deployment
 
-一次性构建所有工作区包：
+Build all workspace packages in one go:
 
 ```bash
 npm run build
 ```
 
-启动后端（会托管 `apps/web/dist` 静态资源）：
+Start the backend (it serves the static assets in `apps/web/dist`):
 
 ```bash
 npm start
 ```
 
-默认监听 **http://127.0.0.1:3000**，前后端同端口访问。
+It listens on **http://127.0.0.1:3000** by default, with the frontend and backend on the same port.
 
-## 初始化管理员
+## Set Up Administrator
 
-便携版、源码管理器和手动运行共用同一个初始化页面。
+The portable build, the source launcher and a manual run all share the same setup page.
 
-1. 打开管理器显示的面板地址；默认整合面板为 `http://127.0.0.1:3000`，手动开发为 `http://127.0.0.1:5173`。
-2. 用 `PanelManager` 或 `mystryctl` 启动时，管理器已创建好管理员：用窗口里显示的用户名和密码登录，再点左下角的钥匙图标修改密码。忘记密码时，在面板运行期间执行 `reset-password` 生成新密码。手动运行时，空用户库会显示「初始化管理员」，在「初始化令牌」中填入自己配置的 `SETUP_TOKEN`。默认配置位置见 [配置说明](configuration.md)，请勿把令牌或配置文件分享出去。
-3. 填写用户名（去除首尾空白后 2–64 个字符）与密码（至少 12 个字符，UTF-8 编码不超过 72 字节），点击「创建并进入」，成功后进入面板。
-4. 已创建管理员时，页面显示「登录面板」，使用该账号登录即可。初始化令牌不能用作登录密码。
-5. 手动配置模式完成后，从实际使用的配置文件移除 `SETUP_TOKEN` 并重启面板；源码管理器和 `mystryctl` 提供自动清理。若自动清理未完成，也可从当前配置文件移除后重启。
+1. Open the panel address shown by the launcher. The default is `http://127.0.0.1:3000` for the combined panel and `http://127.0.0.1:5173` for manual development.
+2. When you start with `PanelManager` or `mystryctl`, the launcher has already created the administrator. Sign in with the username and password shown in the window, then click the key icon at the bottom left to change the password. If you forget the password, run `reset-password` while the panel is running to generate a new one. For a manual run with an empty user database, the page shows **Set Up Administrator**. In **Setup Token**, enter the `SETUP_TOKEN` you configured. For the default configuration locations, see [Configuration](configuration.md). Do not share the token or the configuration file.
+3. Enter a username (2–64 characters after leading and trailing whitespace is removed) and a password (at least 12 characters, and no more than 72 bytes in UTF-8), then click **Create and Continue**. On success you enter the panel.
+4. If an administrator already exists, the page shows **Sign In**. Sign in with that account. The setup token cannot be used as a sign-in password.
+5. In manual configuration mode, when you're done, remove `SETUP_TOKEN` from the configuration file actually in use and restart the panel. The source launcher and `mystryctl` clean it up automatically. If the automatic cleanup didn't finish, you can also remove it from the current configuration file and restart.
 
-看到总览后，按 [分步教程：第一次开服](tutorials.md#教程-1第一次开服推荐-paper) 部署实例，再启动 Minecraft 服务端。
+Once you see the **Instances** page, follow [Step-by-Step Tutorials: Your First Server](tutorials.md#tutorial-1-your-first-server-paper-recommended) to deploy an instance, then start the Minecraft server.
 
-## 常用 npm 脚本
+## Common npm Scripts
 
-| 命令 | 作用 |
+| Command | What it does |
 |------|------|
-| `npm run dev:server` | 后端热重载开发（`@mystry/server`） |
-| `npm run dev:web` | 前端 Vite 开发服务器（`@mystry/web`） |
-| `npm run build` | 构建 shared → server → web |
-| `npm run portable:test` | 验证便携控制器和发布辅助脚本 |
-| `npm run audit:production` | 使用官方 registry 检查生产依赖，阻断 high / critical |
-| `npm start` | 运行生产后端 |
+| `npm run dev:server` | Backend development with hot reload (`@mystry/server`) |
+| `npm run dev:web` | Frontend Vite development server (`@mystry/web`) |
+| `npm run build` | Builds shared → server → web |
+| `npm run portable:test` | Verifies the portable controller and the release helper scripts |
+| `npm run audit:production` | Checks production dependencies against the official registry and blocks on high / critical |
+| `npm start` | Runs the production backend |
 
-## 五分钟上手路径
+## Five-Minute Quick Path
 
-| 步骤 | 做什么 | 在哪里 |
+| Step | What to do | Where |
 |------|--------|--------|
-| 1 | 按所选入口准备配置、创建管理员并登录 | 管理器提示或当前配置文件、登录页 |
-| 2 | 部署 Paper（或导入已有服务端） | 侧栏「一键部署」/「导入服务端」 |
-| 3 | 点「启动」 | 实例详情或总览 |
-| 4 | 等控制台出现 `Done` | 实例 →「控制台」 |
-| 5 | 游戏添加服务器 `127.0.0.1` | Minecraft 客户端 |
+| 1 | Prepare the configuration for your chosen entry point, create the administrator and sign in | Launcher messages or the current configuration file, sign-in page |
+| 2 | Deploy Paper (or import an existing server) | **Quick Deploy** / **Import Server** in the sidebar |
+| 3 | Click **Start** | Instance details or the **Instances** page |
+| 4 | Wait for `Done` to appear in the console | Instance → **Console** |
+| 5 | Add the server `127.0.0.1` in the game | Minecraft client |
 
-详细步骤见 [分步教程](tutorials.md) 与 [使用指南](user-guide.md)。
+For detailed steps, see [Step-by-Step Tutorials](tutorials.md) and the [User Guide](user-guide.md).
 
-## 首次使用检查清单
+## First-Time Checklist
 
-1. 安装符合服务端要求的 Java；默认运行时可在面板环境中用 `java -version` 检查，也可稍后在面板内选择扫描到的运行时。
-2. 确认已配置不同的 64 位十六进制 `JWT_SECRET` 与 `SETUP_TOKEN`；管理器自动生成，手动运行需自行填写。
-3. 管理器启动时用窗口里显示的账号登录；手动配置模式在登录页填写「初始化令牌」、用户名和密码来创建管理员，完成后移除 `SETUP_TOKEN` 并重启。
-4. 通过「一键部署」或「导入已有服务端」创建第一个实例；同机已有的服务端按 [从本机文件夹导入](user-guide.md#从本机文件夹导入) 操作。
-5. 在实例详情中启动服务，并在「控制台」查看日志。
-6. 改端口、难度等：实例 →「参数配置」→ 保存后 **重启**。
+1. Install a Java version that meets your server's requirements. You can check the default runtime with `java -version` in the panel's environment, or select a scanned runtime in the panel later.
+2. Make sure `JWT_SECRET` and `SETUP_TOKEN` are set to different 64-character hexadecimal values. The launcher generates them automatically; for a manual run you fill them in yourself.
+3. If you started with the launcher, sign in with the account shown in the window. In manual configuration mode, enter the **Setup Token**, a username and a password on the sign-in page to create the administrator, then remove `SETUP_TOKEN` and restart.
+4. Create your first instance with **Quick Deploy** or **Import an Existing Server**. For a server that already exists on the same machine, follow [Import from a Local Folder](user-guide.md#import-from-a-local-folder).
+5. Start the server from the instance details, and view the logs in **Console**.
+6. To change the port, difficulty and so on: Instance → **Properties** → save, then **restart**.
 
-## 故障排查
+## Troubleshooting
 
-| 现象 | 可能原因 | 处理 |
+| Symptom | Possible cause | What to do |
 |------|----------|------|
-| 面板启动失败并提示密钥 | 未配置或格式不是 64 位十六进制 | 为 `JWT_SECRET` 和首次启动所需的 `SETUP_TOKEN` 分别生成随机值 |
-| 初始化返回 401 | 初始化令牌缺失或与当前配置不一致 | 在页面填写当前配置文件里的 `SETUP_TOKEN` |
-| 初始化返回 409 | 管理员已创建 | 刷新页面，使用已有账号登录 |
-| 前端 401 | 未登录或 token 过期 | 重新登录 |
-| 启动实例失败 | jar 不存在，或默认 PATH / 已绑定 Java 运行时不可用、版本不匹配 | 检查实例根目录、实例设置中的运行时状态和控制台日志 |
-| 部署超时 | 网络无法访问 Mojang / Paper / Fabric API，或任务超过执行超时 | 检查防火墙、代理、任务中心里的失败原因和相关超时配置 |
-| 端口占用 | 面板端口或 Minecraft 服务端端口冲突 | 面板端口在当前入口配置文件中修改 `PORT`；游戏端口在实例 `server.properties` 中修改；开发模式还需同步 Vite 代理目标 |
+| The panel fails to start and mentions secrets | Not configured, or not in 64-character hexadecimal format | Generate separate random values for `JWT_SECRET` and for the `SETUP_TOKEN` needed on first start |
+| Setup returns 401 | The setup token is missing or doesn't match the current configuration | Enter the `SETUP_TOKEN` from the current configuration file on the page |
+| Setup returns 409 | The administrator has already been created | Refresh the page and sign in with the existing account |
+| Frontend gets 401 | Not signed in, or the token has expired | Sign in again |
+| An instance fails to start | The jar doesn't exist, or the default PATH / bound Java runtime is unavailable or the wrong version | Check the instance root directory, the runtime status in the instance settings and the console log |
+| Deployment times out | The network can't reach the Mojang / Paper / Fabric APIs, or the task exceeded its execution timeout | Check your firewall, proxy, the failure reason in the **Task Center** and the related timeout settings |
+| Port in use | The panel port or the Minecraft server port conflicts | Change `PORT` for the panel port in the configuration file of your current entry point; change the game port in the instance's `server.properties`; in development mode, also update the Vite proxy target |
 
-更多配置见 [配置说明](configuration.md)。
+For more configuration, see [Configuration](configuration.md).

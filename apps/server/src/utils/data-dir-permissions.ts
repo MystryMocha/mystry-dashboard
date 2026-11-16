@@ -36,7 +36,7 @@ function warnWindowsAclBoundary(targetPath: string): void {
     `无法在 Windows 上自动验证「${targetPath}」的 ACL。`
       + '请确保 DATA_DIR 仅当前运行面板的用户可读写；'
       + '若目录权限过宽，其他本机账户可能读取数据库与实例文件。'
-      + '详见 docs/configuration.md。',
+      + '详见 docs/configuration.zh-CN.md。',
   );
 }
 

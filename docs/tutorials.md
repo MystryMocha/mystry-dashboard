@@ -1,216 +1,217 @@
-# 分步教程
+# Step-by-Step Tutorials
 
-本文用「照着做就能完成」的方式，覆盖最常见的使用场景。若你尚未安装面板，请先阅读 [快速开始](getting-started.md)；各页面和字段的完整说明见 [使用指南](user-guide.md)。
+**English** · [简体中文](tutorials.zh-CN.md)
+
+These tutorials cover the most common tasks. Follow the steps as written and you'll get there. If you haven't installed the panel yet, read [Getting Started](getting-started.md) first. For a full description of every page and field, see the [User Guide](user-guide.md).
 
 ---
 
-## 教程 1：第一次开服（推荐 Paper）
+## Tutorial 1: Your First Server (Paper Recommended)
 
-适合：本机第一次用面板，想快速开一个可联机的小服。
+Best for: you're using the panel on this computer for the first time and want a small server that friends can join, quickly.
 
-### 1. 装好 Java
+### 1. Install Java
 
-Minecraft 服务端需要 Java，面板不会自动安装。按你要开的游戏版本安装对应的 Java：
+A Minecraft server needs Java, and the panel doesn't install it for you. Install the Java that matches the game version you want to run:
 
-| 游戏版本 | 需要的 Java |
+| Game version | Java required |
 |---|---|
-| 26.1 及以上（年份版本号） | Java 25 |
+| 26.1 and later (year-based version numbers) | Java 25 |
 | 1.20.5 – 1.21.x | Java 21 |
 | 1.17 – 1.20.4 | Java 17 |
-| 1.16.5 及更早 | Java 8 |
+| 1.16.5 and earlier | Java 8 |
 
-装好后可在命令行运行 `java -version` 确认。电脑上装了多个 Java 也没关系，部署时可以在面板里选择。
+After installing, you can run `java -version` in a terminal to confirm. It's fine to have several Java versions on your computer. You can choose one in the panel when you deploy.
 
-### 2. 启动面板并创建管理员
+### 2. Start the Panel and Sign In
 
-1. 启动面板：
-   - **便携版（推荐）**：解压后，Windows 双击 `mystryctl.cmd`，在菜单里直接按回车；启动完成后窗口会停住，看完提示再按回车关闭。Linux 在解压目录运行 `./mystryctl start`。不需要安装 Node.js。
-   - **源码版**：先安装 Node.js 22 或更高版本。Windows 双击仓库根目录的 `PanelManager.cmd`；Linux / WSL 运行 `./PanelManager.sh start`。第一次会自动安装依赖并构建，需要几分钟。
-2. 启动器会自动生成配置并打开浏览器；没有自动打开时，手动访问 `http://127.0.0.1:3000`。
-3. 页面显示「初始化管理员」：
-   - **初始化令牌**：启动器已经复制到剪贴板，在输入框里按 `Ctrl+V` 粘贴。剪贴板里没有时，打开面板配置文件（便携版和 Linux 为 `config/panel.env`，Windows 源码版为仓库根目录的 `.env`），复制 `SETUP_TOKEN=` 后面的值。
-   - **用户名**和**密码**：密码至少 12 个字符，请牢记，面板暂不支持找回密码。
-4. 点击「创建并进入」。启动器会在管理员创建后自动从配置中清除令牌，以后用账号密码登录即可。
+1. Start the panel:
+   - **Portable build (recommended)**: after extracting, on Windows double-click `mystryctl.cmd`. The panel runs in the background, and the window shows the account and important logs. Closing the window doesn't affect the panel or your servers. To stop the panel, double-click to open the window again and press `Ctrl+C`. On Linux, run `./mystryctl start` in the extracted folder. You don't need to install Node.js.
+   - **Source build**: install Node.js 22 or later first. On Windows, double-click `PanelManager.cmd` in the repository root. On Linux / WSL, run `./PanelManager.sh start`. The first run installs dependencies and builds automatically, which takes a few minutes.
+2. The launcher generates the configuration and opens your browser. If the browser doesn't open, go to `http://127.0.0.1:3000` yourself.
+3. On the first run, the launcher creates the administrator `admin` with a random password and shows them in the launcher window. The password is shown only this once, so note it down right away.
+4. The page shows "Sign In". Enter the username and password from the window, then click "Sign In".
+5. After signing in, click the key icon at the bottom left and change the password to your own (at least 12 characters). If you forget it, run the `reset-password` command while the panel is running (for example `.\mystryctl.cmd reset-password` for the portable build on Windows). The window shows a new password.
 
-不要把令牌、配置文件或包含它们的截图发给别人。想手动编写配置或用开发模式运行，见 [快速开始](getting-started.md#手动安装与首次配置)。
+Don't send the password, the config file, or screenshots that contain them to anyone. To write the configuration by hand or run in development mode, see [Getting Started](getting-started.md#manual-install-and-first-time-configuration).
 
-### 3. 一键部署 Paper
+### 3. Deploy Paper with Quick Deploy
 
-1. 左侧点击 **「一键部署」**（或在实例总览页右上角 **「一键部署」**）。
-2. 页面已默认选好 **Paper**（新手推荐，支持插件）和最新的正式版游戏版本，通常只需要：
-   - **实例名称**：例如 `我的生存服`。
-   - **游戏版本**：想和朋友用别的版本时，在下拉框里改选；客户端版本要和这里一致。
-   - **Java**：看下方提示，确认系统 Java 和推荐版本一致；不一致时按 [第 1 步](#1-装好-java) 安装，或在下拉框里选别的 Java。
-   - 勾选 **「我已阅读并同意 Minecraft EULA」**。不勾选时无法开始部署。
-3. **Paper 构建版本**、内存和优化方案保持默认即可：构建版本留空会自动使用最新构建（优先稳定版），内存按电脑总内存自动推荐。
-4. 点击 **「开始部署」**，等待进度条到 100%。任务可能先排队，页面会一直显示状态直到完成或失败，不要重复提交；也可以离开页面，在右上角「任务中心」里查看进度。
-5. 完成后会自动跳转到该实例的页面。实例文件由面板统一存放在数据目录的 `instances` 文件夹中，不需要也不能选择安装位置。
+1. Click **Quick Deploy** on the left (or **Quick Deploy** at the top right of the Instances page).
+2. The page already has **Paper** selected (recommended for beginners, supports plugins) along with the latest release game version. Usually you only need:
+   - **Instance Name**: for example `My Survival Server`.
+   - **Game Version**: if you and your friends want a different version, pick it in the dropdown. The game client version must match it.
+   - **Java Runtime**: read the hint below it and confirm the system Java matches the recommended version. If it doesn't, install the right one as described in [Step 1](#1-install-java), or choose another Java in the dropdown.
+   - Check **I have read and agree to the Minecraft EULA**. You can't start deploying without it.
+3. Leave **Paper Build**, memory and the optimization preset at their defaults. An empty build field uses the latest build (stable preferred), and memory is recommended from your computer's total memory.
+4. Click **Start Deploy** and wait for the progress bar to reach 100%. The task may be queued first. The page keeps showing its status until it completes or fails, so don't submit it again. You can also leave the page and follow the progress in the "Task Center" at the top right.
+5. When it finishes, you're taken to that instance's page automatically. The panel stores instance files in the `instances` folder of the data directory. You don't need to choose an install location, and you can't.
 
-> Forge / NeoForge 部署步骤类似，但会下载官方安装器并执行安装，耗时更长，见 [教程 4](#教程-4部署-forge-或-neoforge-模组服)。
+> Deploying Forge / NeoForge works in a similar way, but it downloads and runs the official installer, so it takes longer. See [Tutorial 4](#tutorial-4-deploy-a-forge-or-neoforge-modded-server).
 
-### 4. 启动服务端
+### 4. Start the Server
 
-1. 在实例页顶部点击 **「启动」**。
-2. 切到 **「控制台」**，等输出出现类似 `Done (xx.xxxs)! For help, type "help"`。状态徽章变成「运行中」只表示进程已启动，看到 `Done` 才能进服。
-3. 如果控制台提示 Java 版本不对（例如 `UnsupportedClassVersionError`），回到 [第 1 步](#1-装好-java) 安装对应的 Java，再在「实例设置」中选择它。
+1. Click **Start** at the top of the instance page.
+2. Switch to **Console** and wait for output like `Done (xx.xxxs)! For help, type "help"`. A status badge that says "Running" only means the process has started. You can join once you see `Done`.
+3. If the console reports a wrong Java version (for example `UnsupportedClassVersionError`), go back to [Step 1](#1-install-java) and install the matching Java, then select it in "Settings".
 
-### 5. 本机进游戏测试
+### 5. Test in the Game on the Same Computer
 
-1. 打开 Minecraft，版本需与 **游戏版本** 一致（Paper 服用对应原版版本进服）。
-2. 多人游戏 → 添加服务器 → 地址填 `127.0.0.1` 或 `localhost`。
-3. 若无法连接，到 **「参数配置」** 页检查 `server-port`（默认 25565），并确认本机没有其他程序占用该端口。
+1. Open Minecraft. The version must match the **Game Version** (for a Paper server, join with the matching vanilla version).
+2. Multiplayer → Add Server → enter `127.0.0.1` or `localhost` as the address.
+3. If you can't connect, check `server-port` on the **Properties** page (default 25565), and make sure no other program on this computer is using that port.
 
-### 6. 让朋友联机（同一局域网）
+### 6. Let Friends Join (Same LAN)
 
-1. 在 **「参数配置」** 页确认 `online-mode=true`（正版验证）或按你需要修改。
-2. 告诉朋友你的 **局域网 IP**（如 `192.168.1.100`）和端口（默认 `:25565`）。
-3. 朋友在游戏里添加服务器：`192.168.1.100:25565`。
+1. On the **Properties** page, confirm `online-mode=true` (account verification), or change it to suit your needs.
+2. Open **Multiplayer** in the sidebar and choose this instance. **Same Network** shows the address to send your friends (for example `192.168.1.100:25565`). Click **Copy** and send it to them.
+3. Your friends add the server in the game and enter that address.
 
-从外网访问需要路由器端口映射或内网穿透，本面板不自动处理，需自行配置网络。
-
----
-
-## 教程 2：导入已有的 zip 服务端
-
-适合：你已从别处下载整包服务端，或自己打包了 `server.jar` + 配置 + 世界。
-
-### 1. 准备 zip
-
-- 格式：**zip**（不是 rar / 7z）。
-- 大小：不超过约 **512 MiB**，并遵守 ZIP 条目和解压配额。
-- 内容：应包含可运行的服务端 jar（面板会自动探测，常见名为 `server.jar`、`paper.jar` 等）。
-- 若 zip 里只有**一层文件夹**（例如 `myserver/server.jar`），导入后会自动「展平」到实例根目录。
-
-### 2. 上传导入
-
-1. 侧栏 **「导入服务端」**，切换到 **「上传 ZIP 压缩包」**。
-2. 点击选择区选择 zip 文件（也可以直接把文件拖进去），再点击 **「上传并预检」**。
-3. 预检成功后填写 **实例名称**、核心和 Minecraft 版本。
-4. 若检测到 `user_jvm_args.txt`，明确选择 **沿用检测参数 / 使用面板推荐 / 自定义配置**；解析失败时不能沿用。
-5. 选择 Java 运行时和 JVM 优化方案，按需勾选 EULA（若包内尚无 `eula=true`）。
-6. 点击 **「确认配置并导入」**，等待后台任务完成。队列满时预览会保留，可稍后重试确认。
-
-实例目录由面板自动分配，不能指定。预检结果保留 30 分钟，在同一标签页刷新后可以继续确认；取消、过期或面板重启会删除上传的临时文件。
-
-### 3. 导入后检查
-
-1. 进入实例 **「实例设置」**，确认 **Jar 文件名** 与目录里实际 jar 一致。模组服 jar 名可能不是 `server.jar`，以探测结果为准。
-2. **「文件管理」** 页可查看 `mods`、`config` 等是否完整。
-3. **「启动」** 并在控制台看日志；若报 Java 版本错误，按 [教程 1 第 1 步](#1-装好-java) 安装匹配的 Java，再在「实例设置」中重新探测并选择它。
+If your friends aren't on the same Wi-Fi or router, switch to **Virtual LAN** or **frp Tunnel** on the Multiplayer page. See [User Guide: Multiplayer](user-guide.md#multiplayer) for the steps.
 
 ---
 
-## 教程 3：改端口、难度与可见性（server.properties）
+## Tutorial 2: Import an Existing Server from a ZIP
 
-1. 进入实例 → **「参数配置」** Tab。
-2. 常见项：
-   - `server-port`：监听端口（改后需重启实例）。
-   - `max-players`：最大玩家数。
-   - `difficulty`：`peaceful` / `easy` / `normal` / `hard`。
-   - `gamemode`：`survival` / `creative` 等。
-   - `white-list`：`true` 时仅白名单玩家可进（需在控制台执行 `whitelist add <玩家名>`）。
-   - `online-mode`：是否正版验证。
-3. 修改后点 **「保存配置」**。
-4. 实例页 **「重启」** 使配置生效（面板会提示：修改后需重启）。
+Best for: you downloaded a complete server package somewhere, or packed `server.jar` + configuration + world yourself.
 
-也可在 **「文件管理」** 中直接编辑 `server.properties`，与「参数配置」页效果相同。
+### 1. Prepare the ZIP
+
+- Format: **zip** (not rar / 7z).
+- Size: no more than about **512 MiB**, and within the ZIP entry and extraction limits.
+- Contents: it should include a runnable server jar (the panel detects it automatically; common names are `server.jar`, `paper.jar` and so on).
+- If the zip contains just **one top-level folder** (for example `myserver/server.jar`), it's "flattened" into the instance root directory on import.
+
+### 2. Upload and Import
+
+1. In the sidebar, open **Import Server** and switch to **Upload a ZIP**.
+2. Click the selection area and choose the zip file (you can also drag the file onto it), then click **Upload and Check**.
+3. After the check passes, fill in the **Instance Name**, the core and the Minecraft version.
+4. If `user_jvm_args.txt` is detected, explicitly choose **Use Detected Arguments / Use Panel Recommendation / Custom Configuration**. If parsing failed, you can't keep the detected arguments.
+5. Choose the Java runtime and the JVM optimization preset, and check the EULA box if needed (when the package doesn't already contain `eula=true`).
+6. Click **Confirm and Import** and wait for the background task to finish. If the queue is full, the preview is kept and you can confirm again later.
+
+The panel assigns the instance directory automatically. You can't specify it. The check result is kept for 30 minutes, and you can continue confirming after a refresh in the same tab. Cancelling, expiry, or a panel restart deletes the uploaded temporary file.
+
+### 3. Check After Importing
+
+1. Open the instance's **Settings** and confirm that **Jar File Name** matches the actual jar in the directory. A modded server's jar may not be named `server.jar`. Go by what was detected.
+2. On the **Files** page, check that `mods`, `config` and so on are complete.
+3. Click **Start** and read the log in the console. If it reports a Java version error, install the matching Java as described in [Tutorial 1, Step 1](#1-install-java), then rescan and select it in "Settings".
 
 ---
 
-## 教程 4：部署 Forge 或 NeoForge 模组服
+## Tutorial 3: Change the Port, Difficulty and Visibility (server.properties)
 
-1. **「一键部署」** → 核心类型选 **Forge** 或 **NeoForge**。
-2. 选择 **游戏版本**，再选对应的 **Forge / NeoForge 版本**（Loader 下拉框）。
-3. 页面会提示：需要先下载官方安装器并完成安装，**耗时比其他核心长**，请保持网络畅通。
-4. 部署完成后在 **「文件管理」** → `mods` 文件夹上传模组（需先 **停止** 实例）。
-5. 启动后若缺依赖，控制台会报错，按模组说明补装依赖或换兼容版本。
+1. Open the instance → the **Properties** tab.
+2. Common settings:
+   - `server-port`: the listening port (restart the instance after changing it).
+   - `max-players`: the maximum number of players.
+   - `difficulty`: `peaceful` / `easy` / `normal` / `hard`.
+   - `gamemode`: `survival` / `creative` and so on.
+   - `white-list`: when `true`, only whitelisted players can join (run `whitelist add <PlayerName>` in the console).
+   - `online-mode`: whether accounts are verified.
+3. After making changes, click **Save Properties**.
+4. Click **Restart** on the instance page to apply the configuration (the panel reminds you that changes need a restart).
 
-所需 Java 版本与原版相同，见 [教程 1 第 1 步](#1-装好-java)。
+You can also edit `server.properties` directly in **Files**. The result is the same as using the "Properties" page.
 
 ---
 
-## 教程 5：用控制台管理玩家与权限
+## Tutorial 4: Deploy a Forge or NeoForge Modded Server
 
-在实例 **「控制台」** 中，输入命令后 **回车** 发送（与游戏内控制台相同）。
+1. **Quick Deploy** → choose **Forge** or **NeoForge** as the core type.
+2. Choose the **Game Version**, then the matching **Forge / NeoForge Version** (the loader dropdown).
+3. The page tells you that the official installer has to be downloaded and run first, which **takes longer than other cores**. Keep your network connection stable.
+4. After deploying, upload mods to the `mods` folder in **Files** (**Stop** the instance first).
+5. If a dependency is missing after starting, the console reports an error. Install the dependency as the mod's instructions say, or switch to a compatible version.
 
-| 目的 | 示例命令 |
+The Java version required is the same as for vanilla. See [Tutorial 1, Step 1](#1-install-java).
+
+---
+
+## Tutorial 5: Manage Players and Permissions from the Console
+
+In the instance's **Console**, type a command and press **Enter** to send it (the same as the in-game console).
+
+| Goal | Example command |
 |------|----------|
-| 给玩家管理员 | `op 玩家名` |
-| 踢出玩家 | `kick 玩家名` |
-| 保存世界 | `save-all` |
-| 白名单 | `whitelist on` / `whitelist add 玩家名` |
-| 查看帮助 | `help` |
+| Make a player an operator | `op PlayerName` |
+| Kick a player | `kick PlayerName` |
+| Save the world | `save-all` |
+| Whitelist | `whitelist on` / `whitelist add PlayerName` |
+| Show help | `help` |
 
-控制台会保留最近的输出，刷新页面后会先显示这些历史输出。
-
----
-
-## 教程 6：上传地图或插件
-
-### 上传文件到实例目录
-
-1. **停止** 实例（修改世界或大型文件时建议先停服）。
-2. **「文件管理」** Tab → 进入目标目录（如 `world`、`plugins`、`mods`）。
-3. 点 **「上传」** 选择本地文件。
-4. **「新建文件夹」** 可创建子目录。
-5. 文本文件（如 `ops.json`、部分配置）可直接点文件名，或点右侧「…」里的 **「编辑」** 在线修改。
-6. 完成后 **「启动」** 或 **「重启」**。
-
-文件页只能操作当前实例根目录，不是全盘文件管理器。
-
-### Paper 插件
-
-- 将 `.jar` 插件放到 `plugins` 目录（需 Paper 核心，不是纯 Vanilla）。
+The console keeps the most recent output. After you refresh the page, it shows that earlier output first.
 
 ---
 
-## 教程 7：管理多个实例
+## Tutorial 6: Upload a Map or Plugins
 
-1. **实例总览** 列表每 5 秒自动刷新状态。
-2. 每个实例独立进程、独立端口（在各自 `server.properties` 里配置，**不要两个实例用同一端口**）。
-3. 从总览可 **启动 / 停止 / 重启 / 删除**：
-   - **删除** 会弹出确认，并删除该实例面板托管目录的全部磁盘文件，不可恢复。
-   - 运行中的实例需先 **停止** 才能删除。
-   - 旧外部目录不会被面板访问或删除。
-4. 侧栏底部可 **「退出登录」**；登录态保存在当前浏览器。
+### Upload Files to the Instance Directory
 
----
+1. **Stop** the instance (it's best to stop the server before changing the world or large files).
+2. The **Files** tab → go to the target directory (such as `world`, `plugins`, `mods`).
+3. Click **Upload** and choose a local file.
+4. **New Folder** creates a subdirectory.
+5. For text files (such as `ops.json` and some configuration files), click the file name, or click **Edit** in the "…" menu on the right, to edit them online.
+6. When you're done, click **Start** or **Restart**.
 
-## 教程 8：备份与迁移
+The Files page only works inside the current instance's root directory. It isn't a file manager for the whole disk.
 
-### 备份
+### Paper Plugins
 
-只想备份某个服务器的世界和文件，用实例页的 **备份** 分段即可，运行中也能一键备份、还原，见 [使用指南 - 备份](user-guide.md#备份)。下面是整个面板（含账号和实例设置）的备份方法。
-
-先正常停止所有 Minecraft 实例，再通过当前使用的管理器停止面板并确认已退出，随后复制数据。运行中直接复制世界文件或 SQLite 数据库，可能得到不一致的备份。
-
-建议复制完整数据根和当前入口使用的配置文件（见 [配置说明](configuration.md)），至少保留以下内容：
-
-- `DATA_DIR/panel.db`（实例列表与设置）
-- 每个实例的 `DATA_DIR/instances/<id>/` 完整目录
-
-若停止后仍存在 `panel.db-wal` 或 `panel.db-shm`，随数据根一并保留，不要手动删除。备份中包含账号和密钥，应放在受限位置；恢复前先备份当前数据，并使用独立副本演练。
-
-### 在同一台机器恢复
-
-1. 停面板进程。
-2. 还原 `panel.db` 与 `DATA_DIR/instances/<id>/`，保持相同的 `DATA_DIR` 和实例 ID。
-3. 启动面板并检查实例列表；必要时在实例页面执行 **接管托管目录**。
-
-### 接管面板外已有服务器
-
-先在原服务器控制台执行 `stop`，再按 [从本机文件夹导入](user-guide.md#从本机文件夹导入) 把它复制成面板实例；原目录不会被面板删除。
-
-### 从旧版外部目录迁移
-
-按 [旧版外部实例接管](user-guide.md#旧版外部实例接管) 操作：停止实例和面板，完整复制旧目录后点击 **接管托管目录**。
-
-### 仅迁移世界
-
-可在实例 **文件管理** 页下载 `world` 内单个文件；整目录拷贝请在停止实例（必要时再停止面板）后，用系统工具复制托管实例目录下的 `world`。
+- Put `.jar` plugins in the `plugins` directory (this needs the Paper core, not plain Vanilla).
 
 ---
 
-## 仍无法解决？
+## Tutorial 7: Manage Multiple Instances
 
-查看 [使用指南 - 常见问题](user-guide.md#常见问题) 与 [快速开始 - 故障排查](getting-started.md#故障排查)。
+1. The **Instances** list refreshes status automatically every 5 seconds.
+2. Each instance has its own process and its own port (set in its own `server.properties`; **don't let two instances use the same port**).
+3. From the Instances page you can **Start / Stop / Restart / Delete**:
+   - **Delete** asks for confirmation, then deletes every file on disk in that instance's panel-managed directory. This can't be undone.
+   - You must **Stop** a running instance before you can delete it.
+   - The panel doesn't access or delete legacy external directories.
+4. At the bottom of the sidebar you can **Sign Out**. Your sign-in is stored in the current browser.
+
+---
+
+## Tutorial 8: Backup and Migration
+
+### Backup
+
+If you only want to back up one server's world and files, use the **Backups** tab on the instance page. You can back up and restore with one click, even while the server is running. See [User Guide - Backups](user-guide.md#backups). The rest of this section describes how to back up the whole panel, including accounts and instance settings.
+
+First stop all Minecraft instances normally. Then stop the panel through the manager you're using and confirm it has exited. After that, copy the data. Copying world files or the SQLite database while they're in use can give you an inconsistent backup.
+
+We recommend copying the complete data root and the config file used by your current launch entry (see [Configuration](configuration.md)). Keep at least the following:
+
+- `DATA_DIR/panel.db` (instance list and settings)
+- The complete `DATA_DIR/instances/<id>/` directory of each instance
+
+If `panel.db-wal` or `panel.db-shm` still exist after stopping, keep them together with the data root. Don't delete them by hand. A backup contains accounts and secrets, so store it somewhere with restricted access. Before restoring, back up the current data first and rehearse with a separate copy.
+
+### Restore on the Same Machine
+
+1. Stop the panel process.
+2. Restore `panel.db` and `DATA_DIR/instances/<id>/`, keeping the same `DATA_DIR` and instance IDs.
+3. Start the panel and check the instance list. If needed, run **Adopt Managed Directory** on the instance page.
+
+### Take Over an Existing Server Outside the Panel
+
+First run `stop` in the original server's console. Then follow [Import from a Local Folder](user-guide.md#import-from-a-local-folder) to copy it into a panel instance. The panel doesn't delete the original directory.
+
+### Migrate from a Legacy External Directory
+
+Follow [Adopting a Legacy External Instance](user-guide.md#adopting-a-legacy-external-instance): stop the instance and the panel, copy the old directory completely, then click **Adopt Managed Directory**.
+
+### Migrate Only the World
+
+On the instance's **Files** page you can download individual files inside `world`. To copy the whole directory, stop the instance (and the panel too, if necessary), then use your system's tools to copy `world` from the managed instance directory.
+
+---
+
+## Still Stuck?
+
+See [User Guide: Common Problems](user-guide.md#common-problems) and [Getting Started: Troubleshooting](getting-started.md#troubleshooting).

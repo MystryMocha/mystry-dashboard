@@ -11,7 +11,7 @@ The repository is currently at version `v0.2.0-preview.3`. The release workflow 
 
 The packaging scripts for Linux ARM64 and macOS (Intel / Apple Silicon) still work locally, but those targets aren't in this preview's public release matrix. They're left for a later version.
 
-This table lists build targets and file names. It doesn't mean those assets have been published. Check the project's actual Release page before you download. If the asset you need isn't there, use the source launcher described in [Getting Started](getting-started.md) (Chinese only).
+This table lists build targets and file names. It doesn't mean those assets have been published. Check the project's actual Release page before you download. If the asset you need isn't there, use the source launcher described in [Getting Started](getting-started.md).
 
 This is a preview, not a system installer. You don't need to install Node.js or run `npm install`, but you do need to install the Java that Minecraft requires yourself. Instances use the `java` on your system `PATH` by default, and you can also select a scanned and verified local runtime in the panel. This stage doesn't use [Node SEA](https://nodejs.org/download/release/latest-jod/docs/api/single-executable-applications.html): that feature is still marked Active development and targets a single CommonJS main script, which doesn't suit the current layout of ESM, multiple packages and static frontend assets.
 

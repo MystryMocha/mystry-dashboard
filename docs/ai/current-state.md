@@ -15,6 +15,7 @@
 - 控制台前端按 ECMA-48 / ISO 6429 对 INFO（绿）、WARN（黄）、ERROR（红）等日志级别着色；服务端仍转发原始纯文本。
 - 多实例创建、编辑、删除、启动、停止、强制停止、重启和控制台命令。
 - 启动失败提示：进程不是因用户停止而退出时，`start-diagnosis.ts` 按固定句式从该次控制台输出里识别原因，写进 `InstanceInfo.startIssue`（只在内存，再次启动或面板重启后清空）。能识别的有未同意 EULA、Java 过新（旧版 Forge 的 LaunchWrapper 报错、核心自己的「Only up to Java N」）和 Java 过旧（`UnsupportedClassVersionError`、「requires running the server with Java N or above」）；服务端打印过 `Done (` 之后的退出不归因于 Java。实例控制台页上方的 `StartIssueBanner` 给出说明：EULA 可点「同意并启动」（先 `PATCH acceptEula`，再启动），Java 给出 Temurin 下载链接和实例设置入口。进程自己以退出码 0 结束时状态为「已停止」而不是「已崩溃」。Java 选择器在版本不符或找不到系统默认 Java 时也带下载链接。其他崩溃原因仍只有控制台原文。
+- 启动成功提示：`ProcessManager` 在输出里见到 `]: Done (` 后把该次运行标为就绪，经 `InstanceInfo.ready` 暴露（只在内存，停止中或退出后为 `false`）。控制台页上方的 `ReadyHint` 据此提示可以进服并链接到「联机」；「不再提示」记在浏览器 `localStorage`（`mystry_ready_hint_dismissed`），对所有实例生效。
 - 实例联机：侧栏「部署与维护」中的「联机」（`/multiplayer`）用分段在「同一网络」「虚拟局域网」和「frp 穿透」之间切换，默认「同一网络」，一次只显示一种，切换不改变其他方式已保存的设置。「同一网络」（`DirectSection`、`GET /api/instances/:id/local-network`、`local-network-service.ts`）只读显示这台电脑的局域网 IPv4 地址加游戏端口（按网卡名和网段去掉能认出的虚拟网卡），可逐个复制，并提示 Windows 防火墙弹窗和 `server-ip` 绑定问题；电脑有公网 IPv6 且 `server-ip` 不限制时，另外显示 `[地址]:端口` 供不在身边的朋友直连，并提醒只在路由器放行游戏端口（未在有公网 IPv6 的机器上实测）。它不开端口、不改配置，也不检测朋友是否真的连得上。frp 代管钉死版本的官方 frpc（Windows x64 与 Linux x64）。用户先选择实例，再填写自己的 frp 服务器地址、端口和令牌；面板只把该实例的 `server-port` 从 `127.0.0.1` 转出去，不暴露面板端口，也不接受可执行路径或原始配置。公网模式给出朋友可复制的加入地址；`stcp` / `xtcp` 可下载只应交给朋友的 visitor 配置。令牌不出现在 API 响应里。`server-ip` 绑定具体网卡时拒绝启动。实例停止或面板关闭时结束对应 frpc。见 D-023。
 - 实例虚拟局域网：同一「联机」页的分段可打开钉死版本的官方 EasyTier（Windows x64 与 Linux x64）。面板为该实例生成独立网络名和密钥，只放行游戏 TCP 端口；朋友用锁定命令加入虚拟地址。密钥不出现在状态接口里。`server-ip` 绑定具体网卡时拒绝启动。实例停止或面板关闭时结束对应进程。见 D-024。
 - Vanilla、Paper、Fabric、Forge、NeoForge 部署及 ZIP 导入。
@@ -91,6 +92,7 @@
 - 默认监听 `127.0.0.1:3000`；Vite 开发端口为 `127.0.0.1:5173`。
 - 最终数据根目录优先使用 `MYSTRY_DATA_DIR`，否则使用 `DATA_DIR`；实例固定为该根目录的 `instances/<id>`，不得浏览或管理整台机器。
 - 同机目录交接（界面称「从本机文件夹导入」）只接收 `DATA_DIR/imports` 下的单层目录 ID，不能提交绝对路径；该目录仅为复制源，不是实例工作目录。
+- 导入时的核心与版本识别：`server-launch-detect.ts` 按启动文件名判断核心类型，并从文件名或 Forge args 目录名认 `1.7`–`1.21.x` 的 Minecraft 版本（`custom` 与 NeoForge 不认）。来源预检（`ExistingServerSourceInfo.coreType` / `mcVersion`）和导入结果共用这套判断，导入页据此预填表单。请求里 `coreType` 省略或为 `custom` 表示自动识别（界面选项名为「自动识别」），`mcVersion` 留空时用识别到的版本；ZIP 导入在解压后才识别，预览阶段不给出。
 - 旧版外部实例路径只用于迁移状态判断；面板不会读取、启动、搬迁或删除旧外部目录。
 - `JWT_SECRET` 必填；空用户表时 `SETUP_TOKEN` 必填，管理器自动生成并用它创建 `admin`，随机 16 位密码只显示在窗口里；`LAUNCHER_TOKEN` 仅供本机 PanelManager 关闭和重置密码接口使用；已配置的三项必须互不相同。
 - Java 可执行路径只允许来自面板扫描注册（见 D-014）；请求只能提交运行时 ID，不得提交任意路径。

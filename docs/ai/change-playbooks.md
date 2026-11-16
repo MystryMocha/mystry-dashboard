@@ -52,11 +52,12 @@
 
 ## 文档与知识库
 
-1. 从 [文档中心](../README.md) 找到对应正文，核对源码、配置、共享契约、前端入口和测试。
+1. 从 [文档中心](../README.zh-CN.md) 找到对应正文，核对源码、配置、共享契约、前端入口和测试。
 2. 操作步骤和默认值只在一处正文维护，其他文档放链接，不复制第二份说明。
-3. 历史审查、计划和验证结果保留日期与适用范围；不把分支提交数、远程发布状态或旧审计结果写成长期有效事实。
-4. Windows 示例使用 `npm.cmd` 与 `.\PanelManager.cmd`；配置模板复制仅用于首次配置，不引导覆盖已有文件。
-5. 运行 `knowledge:check` 与 `knowledge:test`，额外核对标题锚点和阅读路径；提交前运行 `verify`。配置、路由、脚本或 AI 入口变化时同步机器事实。
+3. 面向用户的文档有英文和简体中文两份：`docs/README.md`、`getting-started.md`、`user-guide.md`、`tutorials.md`、`configuration.md`、`portable-release.md` 是英文，同名的 `*.zh-CN.md` 是中文。改其中一份必须同步另一份；英文里的界面名称以 `apps/web/src/i18n/en/*.ts` 的实际文案为准，中文文档之间互相链接 `*.zh-CN.md`，英文文档之间链接英文版。`api.md`、`architecture.md`、`development.md` 目前只有中文。
+4. 历史审查、计划和验证结果保留日期与适用范围；不把分支提交数、远程发布状态或旧审计结果写成长期有效事实。
+5. Windows 示例使用 `npm.cmd` 与 `.\PanelManager.cmd`；配置模板复制仅用于首次配置，不引导覆盖已有文件。
+6. 运行 `knowledge:check` 与 `knowledge:test`，额外核对标题锚点和阅读路径；提交前运行 `verify`。配置、路由、脚本或 AI 入口变化时同步机器事实。
 
 ## 完成声明
 

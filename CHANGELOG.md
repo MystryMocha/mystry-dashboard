@@ -65,7 +65,7 @@
 ### Removed
 
 - Windows 源码启动器去掉 `--lang` 参数和菜单中按 `L` 切换语言；改为自动跟随系统语言，需要固定时设置 `MYSTRY_LANG`。
-- 删除截图展示：产品介绍页 `docs/product-intro/` 与其中 8 张界面截图一并移除，README 和文档中心不再链接「界面导览」；界面说明以 [使用指南](docs/user-guide.md) 为准。
+- 删除截图展示：产品介绍页 `docs/product-intro/` 与其中 8 张界面截图一并移除，README 和文档中心不再链接「界面导览」；界面说明以 [使用指南](docs/user-guide.zh-CN.md) 为准。
 - 删除 `docs/wiki/` 导航页（内容都是指向正文的链接，与 `docs/README.md` 重复），以及产品介绍的 PDF、生成脚本 `build-pdf.py` 和旧截图。
 - 删除旧的一阶段 ZIP 导入接口 `POST /api/import`。Web 早已改用「上传预检 → 确认配置」的 `/api/import/previews` 流程；直接调用旧接口的脚本需要改走预览流程，否则会收到 404。
 
