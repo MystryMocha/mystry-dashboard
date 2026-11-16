@@ -9,8 +9,21 @@ process.env.SETUP_TOKEN = 'b'.repeat(64);
 process.env.LAUNCHER_TOKEN = 'c'.repeat(64);
 
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-local-network-test-'));
+process.env.MYSTRY_HOME = dataRoot;
 process.env.MYSTRY_DATA_DIR = dataRoot;
 test.after(() => fs.rmSync(dataRoot, { recursive: true, force: true }));
+
+function ipv6(address: string, internal = false): os.NetworkInterfaceInfo {
+  return {
+    address,
+    netmask: 'ffff:ffff:ffff:ffff::',
+    family: 'IPv6',
+    mac: '00:00:00:00:00:00',
+    internal,
+    cidr: `${address}/64`,
+    scopeid: 0,
+  };
+}
 
 function ipv4(address: string, internal = false): os.NetworkInterfaceInfo {
   return {
@@ -62,4 +75,61 @@ test('地址很多时只保留前几个', async () => {
   const addresses = listLanAddresses(many);
   assert.equal(addresses.length, 6);
   assert.equal(addresses[0], '192.168.0.2');
+});
+
+test('只列出实体网卡上的公网 IPv6 地址', async () => {
+  const { listPublicIpv6Addresses } = await import('./local-network-service.js');
+  assert.deepEqual(
+    listPublicIpv6Addresses({
+      lo: [ipv6('::1', true)],
+      WLAN: [
+        ipv4('192.168.2.124'),
+        ipv6('fe80::1234'),
+        ipv6('fd12:3456::1'),
+        ipv6('2408:8207:AB::10'),
+        ipv6('2408:8207:ab::10'),
+        ipv6('2002:c000:204::1'),
+        ipv6('2001:0:4136:e378::1'),
+        ipv6('2001:db8::1'),
+      ],
+      Tailscale: [ipv6('2a01:4f8::1'), ipv6('fd7a:115c:a1e0::1')],
+      empty: undefined,
+    }),
+    ['2408:8207:ab::10'],
+  );
+  const many = { eth0: Array.from({ length: 8 }, (_unused, index) => ipv6(`240e:1::${index + 1}`)) };
+  assert.equal(listPublicIpv6Addresses(many).length, 3);
+});
+
+test('server-ip 决定是否给出公网 IPv6：留空给出，0.0.0.0 或具体地址不给', async (t) => {
+  const { describeLocalNetwork } = await import('./local-network-service.js');
+  const { initDb, closeDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { writeServerProperties } = await import('./config-service.js');
+  initDb();
+  t.after(() => closeDb());
+  const instanceId = createInstance({ name: 'Alpha', acceptEula: true }).id;
+  const interfaces = { WLAN: [ipv4('192.168.1.23'), ipv6('2408:8207:ab::10')] };
+  const write = (serverIp: string) =>
+    writeServerProperties(instanceId, { 'server-port': '25570', 'server-ip': serverIp });
+
+  write('');
+  assert.deepEqual(describeLocalNetwork(instanceId, interfaces), {
+    port: 25570,
+    addresses: ['192.168.1.23'],
+    publicIpv6: ['2408:8207:ab::10'],
+    serverIpBlocked: false,
+  });
+  write('0.0.0.0');
+  assert.deepEqual(describeLocalNetwork(instanceId, interfaces).publicIpv6, []);
+  assert.deepEqual(describeLocalNetwork(instanceId, interfaces).addresses, ['192.168.1.23']);
+  write('192.168.1.23');
+  assert.deepEqual(describeLocalNetwork(instanceId, interfaces).publicIpv6, []);
+  write('203.0.113.9');
+  assert.deepEqual(describeLocalNetwork(instanceId, interfaces), {
+    port: 25570,
+    addresses: [],
+    publicIpv6: [],
+    serverIpBlocked: true,
+  });
 });

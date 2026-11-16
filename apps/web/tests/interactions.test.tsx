@@ -763,7 +763,7 @@ test('联机页默认「同一网络」：列出可复制的地址，并能转�
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
-    const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23', '10.0.0.5'], serverIpBlocked: false }
+    const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23', '10.0.0.5'], publicIpv6: ['2408:8207:ab::10'], serverIpBlocked: false }
       : url === '/api/lan/runtime' ? { version: '0.0.0', installed: true, platformSupported: true }
       : url === '/api/instances/test/lan' ? { instanceId: 'test', enabled: false, status: 'disabled', localPort: 25565, virtualIp: null, joinAddress: null, serverIpBlocked: false, runtimeInstalled: true, detail: null }
       : null;
@@ -781,6 +781,11 @@ test('联机页默认「同一网络」：列出可复制的地址，并能转�
   await user.click(screen.getByRole('button', { name: '复制 192.168.1.23:25565' }));
   expect(writeText).toHaveBeenCalledWith('192.168.1.23:25565');
   expect(await screen.findByText('已复制 192.168.1.23:25565。')).toBeTruthy();
+  // 有公网 IPv6 时另给一个带方括号的地址，并提醒只放行端口。
+  expect(screen.getByText('给不在身边的朋友：IPv6 地址')).toBeTruthy();
+  expect(screen.getByText(/只放行这台电脑的 25565 端口/)).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '复制 [2408:8207:ab::10]:25565' }));
+  expect(writeText).toHaveBeenCalledWith('[2408:8207:ab::10]:25565');
   await user.click(screen.getByRole('button', { name: '改用虚拟局域网' }));
   expect(await screen.findByRole('button', { name: '虚拟局域网', pressed: true })).toBeTruthy();
 });
