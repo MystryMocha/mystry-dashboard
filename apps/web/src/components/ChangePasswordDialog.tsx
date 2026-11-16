@@ -1,13 +1,16 @@
 import { useId, useState } from 'react';
-import type { ChangePasswordInput } from '@mystry/shared';
-import { api } from '../api';
+import type { ChangePasswordInput, ChangePasswordResult } from '@mystry/shared';
+import { api, setToken } from '../api';
 import { errorMessage } from '../errors';
 import { useI18n } from '../i18n';
 import { ConfirmDialog } from './ConfirmDialog';
 
 const PASSWORD_MIN_LENGTH = 12;
 
-/** 修改当前管理员密码。打开时才挂载：表单不留旧密码，输入框的 autoFocus 也不会抢走页面焦点。 */
+/**
+ * 修改当前管理员密码。打开时才挂载：表单不留旧密码，输入框的 autoFocus 也不会抢走页面焦点。
+ * 成功后服务端让所有旧令牌失效，这里换上响应里的新令牌，当前页面保持登录，其他设备需要重新登录。
+ */
 export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
   const [currentPassword, setCurrentPassword] = useState('');
@@ -35,7 +38,8 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
     setError('');
     try {
       const body: ChangePasswordInput = { currentPassword, newPassword };
-      await api('/api/auth/password', { method: 'POST', json: body });
+      const result = await api<ChangePasswordResult>('/api/auth/password', { method: 'POST', json: body });
+      setToken(result.token);
       setChanged(true);
     } catch (err) {
       setError(errorMessage(err));

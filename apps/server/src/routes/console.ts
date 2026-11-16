@@ -11,6 +11,7 @@ import { errorMessage, panelErrorBody, toPanelMessage } from '../utils/errors.js
 import { processManager } from '../services/process-manager.js';
 import { getInstance } from '../services/instance-service.js';
 import { issueConsoleTicket, consumeConsoleTicket } from '../services/console-ticket-service.js';
+import { onUserSessionsRevoked } from '../services/session-revocation-service.js';
 
 const { maxConsoleBufferBytes, maxConsoleChunkBytes } = config;
 const maxIncomingMessageBytes = config.maxConsoleIncomingBytes;
@@ -27,6 +28,9 @@ type ConsoleSocket = {
 };
 
 const socketClosedState = 3;
+
+/** 已通过 ticket 的控制台连接及其所属用户；修改或重置密码时据此断开旧登录打开的连接。 */
+const authenticatedSockets = new Map<ConsoleSocket, string>();
 
 function closeSocket(
   socket: ConsoleSocket,
@@ -111,6 +115,19 @@ function rawMessageByteLength(raw: unknown): number {
 }
 
 export async function consoleRoutes(app: FastifyInstance): Promise<void> {
+  // 连接凭一次性 ticket 建立，之后不再校验 JWT；会话撤销时主动断开，客户端会用新令牌重连。
+  const unsubscribeRevocation = onUserSessionsRevoked((userId) => {
+    for (const [socket, ownerId] of authenticatedSockets) {
+      if (ownerId !== userId) continue;
+      authenticatedSockets.delete(socket);
+      closeSocket(socket, 1008, 'Session revoked');
+      terminateSocketLater(socket);
+    }
+  });
+  app.addHook('onClose', async () => {
+    unsubscribeRevocation();
+  });
+
   app.post<{ Params: { id: string } }>(
     '/api/instances/:id/console-ticket',
     { preHandler: [app.authenticate] },
@@ -137,6 +154,7 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
         if (connectionReleased) return;
         connectionReleased = true;
         detachRealtimeListeners?.();
+        authenticatedSockets.delete(socket);
         activeConsoleConnections -= 1;
       };
       socket.on('close', releaseConnection);
@@ -154,12 +172,14 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
           terminateSocketLater(socket);
           return;
         }
-        if (!consumeConsoleTicket(ticket, req.params.id)) {
+        const owner = consumeConsoleTicket(ticket, req.params.id);
+        if (!owner) {
           sendSocketMessage(socket, errorFrame('server.instance.consoleTicketInvalid'));
           closeSocket(socket);
           terminateSocketLater(socket);
           return;
         }
+        authenticatedSockets.set(socket, owner.userId);
       } catch {
         sendSocketMessage(socket, errorFrame('server.common.unauthorized'));
         closeSocket(socket);

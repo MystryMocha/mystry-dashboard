@@ -24,7 +24,7 @@ export default {
   'shell.password.confirm': '确认新密码',
   'shell.password.help': '密码至少 12 个字符。',
   'shell.password.mismatch': '两次输入的新密码不一致。',
-  'shell.password.changed': '密码已修改。',
+  'shell.password.changed': '密码已修改。当前页面保持登录，其他浏览器和设备需要用新密码重新登录。',
   'shell.error.title': '页面出现异常',
   'shell.error.reload': '刷新页面',
 

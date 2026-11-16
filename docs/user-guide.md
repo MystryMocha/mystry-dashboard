@@ -66,12 +66,14 @@ On the first run with the launcher, the administrator `admin` is created automat
 - Title **"Sign In"** → enter your username and password → **"Sign In"**.
 - The sign-in is saved in the current browser and expires after 2 hours by default. After it expires, or after you clear site data, you need to sign in again.
 - To change your password, click the key icon at the bottom left, then enter your current password and a new one (at least 12 characters).
+- After you change the password, every other browser and device signed in to the panel is signed out right away and has to sign in with the new password. The page where you changed it stays signed in, and an open console reconnects by itself.
 
 ### Security Tips
 
 - Use a strong password. The panel can read and write instance files and start processes, so treat it as a high-privilege tool.
 - Don't stay signed in on a public computer.
 - Don't send the administrator password, or the secrets and setup token in the config file, to anyone, and don't commit them to a repository.
+- If you think someone else knows your password or is signed in to your panel, change the password, or reset it as described in [You Forgot the Administrator Password](#you-forgot-the-administrator-password). Their sign-in stops working right away.
 
 ---
 
@@ -378,6 +380,8 @@ If there's no notice:
 ### You Forgot the Administrator Password
 
 While the panel is running, run the `reset-password` command on the computer that runs the panel: `.\mystryctl.cmd reset-password` for the portable build on Windows, `./mystryctl reset-password` for the portable build on Linux, and `.\PanelManager.cmd reset-password` or `./PanelManager.sh reset-password` for the source build. The window shows a new random password, only once. After signing in, click the key icon at the bottom left to change it to your own.
+
+Resetting the password signs out every browser and device, including the ones you're using. Open the panel again and sign in with the new password.
 
 If you run the panel by hand without the launcher, this command isn't available. You need to stop the panel and handle the `users` table in `panel.db` in the data directory yourself, or delete `panel.db` and set up again (instance registrations are lost; the instance files on disk remain). When you set up again, you must configure `SETUP_TOKEN` again.
 

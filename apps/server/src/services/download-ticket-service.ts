@@ -180,6 +180,14 @@ export function cancelReservedDownloadTicket(
   return 'cancelled';
 }
 
+/** 密码修改或重置后作废该用户尚未开流的下载 ticket；已在传输的下载不打断。 */
+export function revokeReservedDownloadTickets(userId: string): void {
+  for (const [ticket, value] of tickets) {
+    if (value.userId !== userId || value.status !== 'reserved') continue;
+    endTicket(ticket, value, 'failed', { key: 'server.files.download.cancelled' });
+  }
+}
+
 export function completeDownloadStream(ticket: string): void {
   const value = tickets.get(ticket);
   if (!value) return;

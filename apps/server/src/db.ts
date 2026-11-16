@@ -12,6 +12,8 @@ export type UserRow = {
   id: string;
   username: string;
   password_hash: string;
+  /** 令牌版本：每次修改或重置密码加 1，签发的 JWT 带上它，版本不符即失效 */
+  token_version: number;
   created_at: string;
 };
 
@@ -118,6 +120,7 @@ export function initDb(): void {
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
+      token_version INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
 
@@ -213,6 +216,13 @@ export function initDb(): void {
       FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE
     );
   `);
+
+  // 兼容已有数据库：旧用户表补令牌版本列，已有用户从 0 开始。
+  // 单条 ALTER 本身是原子的，失败不会留下半迁移状态；旧令牌不带版本，按 0 处理，升级后仍可用到过期或改密。
+  const userCols = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
+  if (!userCols.some((c) => c.name === 'token_version')) {
+    db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0');
+  }
 
   // 兼容已有数据库：补齐实例目录安全字段
   let cols = db.prepare(`PRAGMA table_info(instances)`).all() as Array<{ name: string }>;

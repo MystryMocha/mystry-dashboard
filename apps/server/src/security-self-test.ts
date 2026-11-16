@@ -305,7 +305,13 @@ async function main(): Promise<void> {
     assert.equal((await changePasswordRequest(authorization, 'wrong-password', 'changed-password')).statusCode, 400);
     assert.equal((await changePasswordRequest(authorization, 'password1234', 'short')).statusCode, 400);
     assert.equal((await login('password1234')).statusCode, 200, '改密失败时旧密码必须仍然有效');
-    assert.equal((await changePasswordRequest(authorization, 'password1234', 'changed-password')).statusCode, 200);
+    const changedPassword = await changePasswordRequest(authorization, 'password1234', 'changed-password');
+    assert.equal(changedPassword.statusCode, 200);
+    // 改密后旧令牌立即失效，后续请求改用换发的新令牌。
+    const staleMe = await app.inject({ method: 'GET', url: '/api/auth/me', headers: authorization });
+    assert.equal(staleMe.statusCode, 401, '改密后此前签发的令牌必须失效');
+    authorization.authorization = `Bearer ${changedPassword.json<{ token: string }>().token}`;
+    assert.equal((await app.inject({ method: 'GET', url: '/api/auth/me', headers: authorization })).statusCode, 200);
     assert.equal((await login('password1234')).statusCode, 401);
     assert.equal((await login('changed-password')).statusCode, 200);
 
@@ -328,7 +334,14 @@ async function main(): Promise<void> {
     const reset = await resetPasswordRequest({ 'x-launcher-token': 'c'.repeat(64) }, 'password1234');
     assert.equal(reset.statusCode, 200);
     assert.deepEqual(reset.json(), { username: 'admin12' });
-    assert.equal((await login('password1234')).statusCode, 200);
+    assert.equal(
+      (await app.inject({ method: 'GET', url: '/api/auth/me', headers: authorization })).statusCode,
+      401,
+      '重置密码后此前签发的令牌必须失效',
+    );
+    const loginAfterReset = await login('password1234');
+    assert.equal(loginAfterReset.statusCode, 200);
+    authorization.authorization = `Bearer ${loginAfterReset.json<{ token: string }>().token}`;
 
     const taskList = await app.inject({
       method: 'GET',

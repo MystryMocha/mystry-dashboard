@@ -78,7 +78,7 @@
 
 - 远程节点创建由 `REMOTE_NODE_CREATION_ENABLED = false` 禁用；当前只有内置本机节点 `local`。
 - 任务元数据写入 SQLite，但队列、worker 和运行控制器位于内存；进程重启后不会续跑任务，而是把遗留的 `pending` / `running` 记录标记为失败，并**仅**清理可证明位于 `.mystry-staging` 且 marker 匹配的半成品目录。
-- 管理员认证使用浏览器 `localStorage` 中的 JWT；当前没有会话列表、撤销、2FA 或角色权限体系。
+- 管理员认证使用浏览器 `localStorage` 中的 JWT。JWT 带令牌版本 `tv`，`authenticate` 每次与 `users.token_version` 比对；修改密码或本机重置密码时版本加 1，旧令牌、未用的控制台 / 下载 ticket 立即失效，已开的控制台 WebSocket 断开，改密的会话换发新令牌（`auth-service.ts`、`session-revocation-service.ts`，见 D-029）。当前没有会话列表、单个会话撤销、2FA 或角色权限体系。
 - 数据库只有启动期兼容处理，没有通用、版本化迁移框架。
 - 实例默认使用面板进程 `PATH` 中的 `java`，也可绑定 `java_runtimes` 注册表中当前可用的运行时；绑定条目消失、路径变化或执行前验证失败时必须重新探测和选择。
 - 没有定时自动备份、备份保留策略和包含 `panel.db` 的整面板备份/恢复；也没有系统安装器、远程 Agent 执行协议或生产监控闭环。
