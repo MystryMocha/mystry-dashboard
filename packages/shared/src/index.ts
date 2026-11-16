@@ -151,6 +151,8 @@ export interface InstanceInfo {
   acceptEula: boolean;
   /** 最近一次启动没成功且原因可识别时给出；再次启动、面板重启或实例正常运行后清空。 */
   startIssue?: InstanceStartIssue | null;
+  /** 本次运行服务端已完成启动（打印过 Done），玩家可以进服；没在运行或还在加载时为 false。 */
+  ready?: boolean;
 }
 
 export interface CreateInstanceInput {
@@ -237,6 +239,8 @@ export interface ExistingServerSourceInfo {
   launchTarget: string | null;
   /** 根据启动文件推断的核心类型；无法识别时为 custom。 */
   coreType: CoreType;
+  /** 从启动文件名认出的 Minecraft 版本；认不出时省略。 */
+  mcVersion?: string;
   modifiedAt: string;
   ready: boolean;
   /** 从 user_jvm_args.txt 检测出的参数；不存在该文件时省略。 */

@@ -54,5 +54,5 @@ export default {
   'deploy.guide.after.title': '部署完成后',
   'deploy.guide.after.start': '在实例页点「启动」，等控制台出现 <code>Done</code>。',
   'deploy.guide.after.local': '同一台电脑的游戏里添加服务器地址 <code>127.0.0.1</code>。',
-  'deploy.guide.after.friends': '朋友加入需要你的局域网或公网地址，并放行防火墙端口（默认 25565）。',
+  'deploy.guide.after.friends': '想让朋友加入，打开「联机」页：它会给出要发给朋友的地址，朋友不在同一网络时也有别的办法。',
 } satisfies Record<keyof typeof en, string>;

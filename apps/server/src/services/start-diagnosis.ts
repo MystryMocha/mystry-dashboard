@@ -18,6 +18,11 @@ function javaMajor(value: string | undefined): number | null {
   return Number.isInteger(major) && major >= 5 && major <= 99 ? major : null;
 }
 
+/** 输出里是否出现过服务端完成启动的标志行。 */
+export function hasFinishedStarting(output: string): boolean {
+  return STARTED_RE.test(output);
+}
+
 /**
  * 从进程退出前的控制台输出判断启动失败原因。只认服务端或 JVM 的固定句式，
  * 认不出时返回 null，由界面按普通崩溃处理。

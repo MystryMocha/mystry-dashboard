@@ -52,6 +52,12 @@ export default {
   'instance.startIssue.java.bodyUnknown': '启动时用的 Java 版本和这个服务器不匹配，服务器刚启动就退出了。请查看服务端或整合包要求的 Java 版本并安装，然后打开「实例设置」，点「重新探测」，选择它，保存后再启动。',
   'instance.startIssue.java.openSettings': '打开实例设置',
 
+  // 启动成功后的下一步提示（控制台上方）
+  'instance.ready.title': '服务器已启动，现在可以进服了。',
+  'instance.ready.body': '想让朋友加入？「联机」页会给出要发给他们的地址。',
+  'instance.ready.action': '邀请朋友',
+  'instance.ready.dismiss': '不再提示',
+
   // 未保存修改弹窗（设置与参数配置共用）
   'instance.unsaved.savingDescription': '保存完成后会自动继续离开；保存期间无法放弃或取消。',
   'instance.unsaved.confirm': '放弃修改并离开',

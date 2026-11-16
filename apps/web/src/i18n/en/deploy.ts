@@ -52,5 +52,5 @@ export default {
   'deploy.guide.after.title': 'After Deploying',
   'deploy.guide.after.start': 'On the instance page, click "Start" and wait for <code>Done</code> in the console.',
   'deploy.guide.after.local': 'In the game on the same computer, add the server address <code>127.0.0.1</code>.',
-  'deploy.guide.after.friends': 'For friends to join, they need your LAN or public address, and you need to open the port in your firewall (25565 by default).',
+  'deploy.guide.after.friends': 'For friends to join, open Multiplayer. It shows the address to send them, and other ways to connect when they are not on your network.',
 } satisfies Record<string, string>;

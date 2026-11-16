@@ -57,7 +57,7 @@ export default {
   'instance.tab.settings': '实例设置',
 
   'empty.instances.title': '暂无 Minecraft 实例',
-  'empty.instances.body': '你可以从「一键部署」下载官方核心，或从同机目录及 ZIP 包导入已有服务端。',
+  'empty.instances.body': '你可以用「一键部署」下载官方核心，或从本机文件夹、ZIP 压缩包导入已有的服务端。',
   'error.instances.load': '实例列表暂时不可用，请检查面板连接后重试。',
 
   'common.loading': '加载中…',

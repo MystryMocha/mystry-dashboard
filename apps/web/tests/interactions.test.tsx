@@ -300,7 +300,7 @@ test('恢复预览和上传期间锁定 ZIP 选择与拖放', async () => {
   await waitFor(() => expect(button.disabled).toBe(false));
   fireEvent.change(document.querySelector('#existing-server-zip')!, { target: { files: [new File(['zip'], 'upload.zip')] } });
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
-  await user.click(screen.getByRole('button', { name: '上传并预检' }));
+  await user.click(screen.getByRole('button', { name: '上传并检查' }));
   expect(button.disabled).toBe(true);
   fireEvent.drop(button.parentElement!, { dataTransfer: { files: [new File(['x'], 'locked.zip')] } });
   expect(screen.queryByText('locked.zip')).toBeNull();
@@ -757,6 +757,62 @@ test('Java 版本不符的启动失败给出需要的版本、下载链接和实
   expect(banner.textContent).toContain('Java 版本太新');
   expect(within(banner).getByRole('link', { name: '下载 Java 8' }).getAttribute('href')).toBe('https://adoptium.net/temurin/releases/?version=8');
   expect(within(banner).getByRole('link', { name: '打开实例设置' }).getAttribute('href')).toBe('/instances/test/settings');
+});
+
+test('服务器完成启动后提示可以进服并指向联机；点「不再提示」后不再出现', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  let ready = false;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
+    url === '/api/instances/test'
+      ? new Response(JSON.stringify({ ...instance, name: '测试服', status: 'running', ready }))
+      : baseFetch(url, options)
+  )));
+  const open = () => render(<RouterProvider router={createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  )} />);
+
+  // 还在加载世界时不提示。
+  const loading = open();
+  expect(await screen.findByRole('heading', { name: '测试服' })).toBeTruthy();
+  expect(screen.queryByText('服务器已启动，现在可以进服了。')).toBeNull();
+  loading.unmount();
+
+  ready = true;
+  const started = open();
+  expect(await screen.findByText('服务器已启动，现在可以进服了。')).toBeTruthy();
+  expect(screen.getByRole('link', { name: '邀请朋友' }).getAttribute('href')).toBe('/multiplayer?instance=test');
+  await user.click(screen.getByRole('button', { name: '不再提示' }));
+  expect(screen.queryByText('服务器已启动，现在可以进服了。')).toBeNull();
+  started.unmount();
+
+  // 关掉后重新打开页面也不再出现。
+  open();
+  expect(await screen.findByRole('heading', { name: '测试服' })).toBeTruthy();
+  expect(screen.queryByText('服务器已启动，现在可以进服了。')).toBeNull();
+});
+
+test('从本机文件夹导入时带出识别到的核心类型和 Minecraft 版本', async () => {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
+    String(url).includes('/import/sources')
+      ? new Response(JSON.stringify({ sources: [{
+        id: 'old-forge',
+        launchTarget: 'forge-1.12.2-14.23.5.2860.jar',
+        coreType: 'forge',
+        mcVersion: '1.12.2',
+        modifiedAt: '2026-11-01T00:00:00.000Z',
+        ready: true,
+      }] }))
+      : baseFetch(url, options)
+  )));
+  mount(<ImportPage />);
+  const version = await screen.findByRole('textbox', { name: 'Minecraft 版本（可选）' }) as HTMLInputElement;
+  await waitFor(() => expect(version.value).toBe('1.12.2'));
+  expect((screen.getByRole('combobox', { name: '核心类型' }) as HTMLSelectElement).value).toBe('forge');
+  expect(screen.getByRole('option', { name: '自动识别' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: '复制并导入' })).toBeTruthy();
 });
 
 test('联机页默认「同一网络」：列出可复制的地址，并能转到虚拟局域网', async () => {

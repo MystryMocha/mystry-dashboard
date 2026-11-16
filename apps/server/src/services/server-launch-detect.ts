@@ -7,6 +7,8 @@ import { PanelError, throwIfAborted } from '../utils/errors.js';
 export type ServerLaunchTarget = {
   value: string;
   coreType: CoreType;
+  /** 从启动文件名里认出的 Minecraft 版本；认不出时为 null。 */
+  mcVersion: string | null;
 };
 
 export type ModLoaderScanBudget = {
@@ -136,19 +138,52 @@ function inferJarCoreType(jarFile: string): CoreType {
   return 'custom';
 }
 
+/**
+ * 「1.7」到「1.21.x」样式的版本号。前面不能紧挨数字或「数字.」，后面不能再跟数字段，
+ * 这样 Forge 自己的版本号（14.23.5.2860）和 NeoForge 的（21.1.77）不会被当成 Minecraft 版本。
+ */
+const MC_VERSION_IN_NAME_RE = /(?<!\d)(?<!\d\.)1\.(\d{1,2})(?:\.\d{1,2})?(?!\.?\d)/;
+
+/**
+ * 从启动文件名（如 forge-1.12.2-14.23.5.2860.jar、minecraft_server.1.12.2.jar，
+ * 或 Forge args 文件所在的 1.20.1-47.2.0 目录）里认 Minecraft 版本。
+ * 只在核心类型已认出时才用：自定义 jar 名字里的数字不一定是游戏版本。
+ */
+export function inferMcVersionFromLaunchTarget(target: string, coreType: CoreType): string | null {
+  if (coreType === 'custom' || coreType === 'neoforge') return null;
+  const match = MC_VERSION_IN_NAME_RE.exec(target.replace(/\\/g, '/'));
+  if (!match) return null;
+  const minor = Number(match[1]);
+  return minor >= 7 && minor <= 21 ? match[0] : null;
+}
+
+function launchTarget(value: string, coreType: CoreType): ServerLaunchTarget {
+  return { value, coreType, mcVersion: inferMcVersionFromLaunchTarget(value, coreType) };
+}
+
+/** 根目录里已找到的 jar 属于哪种核心、哪个版本。 */
+export function describeJarLaunchTarget(jarFile: string): ServerLaunchTarget {
+  return launchTarget(jarFile, inferJarCoreType(jarFile));
+}
+
+/** 导入表单的「自动识别 / 自定义」提交的是 custom：有识别结果时以识别结果为准。 */
+export function resolveImportedCoreType(requested: CoreType | undefined, detected: CoreType): CoreType {
+  return requested && requested !== 'custom' ? requested : detected;
+}
+
 /** 自动识别普通 jar 或现代 Forge/NeoForge args 启动目标。 */
 export async function detectServerLaunchTarget(
   dir: string,
   budget: ModLoaderScanBudget,
 ): Promise<ServerLaunchTarget | null> {
   const neoForgeArgs = await findModLoaderArgsFile(dir, 'neoforge', budget);
-  if (neoForgeArgs) return { value: `@args:${neoForgeArgs}`, coreType: 'neoforge' };
+  if (neoForgeArgs) return launchTarget(`@args:${neoForgeArgs}`, 'neoforge');
 
   const forgeArgs = await findModLoaderArgsFile(dir, 'forge', budget);
-  if (forgeArgs) return { value: `@args:${forgeArgs}`, coreType: 'forge' };
+  if (forgeArgs) return launchTarget(`@args:${forgeArgs}`, 'forge');
 
   const jarFile = detectJarFile(dir);
-  return jarFile ? { value: jarFile, coreType: inferJarCoreType(jarFile) } : null;
+  return jarFile ? launchTarget(jarFile, inferJarCoreType(jarFile)) : null;
 }
 
 export function isModLoaderScanLimitError(error: unknown): error is ModLoaderScanLimitError {

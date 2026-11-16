@@ -155,6 +155,9 @@ export function TaskCenter() {
           {tasks.map((task) => {
             const Icon = typeIcon[task.type] ?? Package;
             const active = task.status === 'pending' || task.status === 'running';
+            // 任务结束后的消息常常和状态词一样（都是「已完成」），重复的那条不显示。
+            const message = task.message ? tm(task.messageI18n, task.message) : '';
+            const showMessage = message !== '' && (active || message !== t(statusLabel[task.status]));
             return (
               <article key={task.id} className={`task-card status-${task.status}`}>
                 <div className="task-card-head">
@@ -173,7 +176,7 @@ export function TaskCenter() {
                   </div>
                 )}
 
-                {task.message && <p className="task-card-message">{tm(task.messageI18n, task.message)}</p>}
+                {showMessage && <p className="task-card-message">{message}</p>}
                 {task.status === 'failed' && task.error && (
                   <p className="task-card-error">{tm(task.errorI18n, task.error)}</p>
                 )}

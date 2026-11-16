@@ -50,6 +50,12 @@ export default {
   'instance.startIssue.java.bodyUnknown': 'The Java that started it doesn\'t match this server, so it stopped right away. Check which Java version the server or modpack asks for and install it. Then open Settings, select "Rescan", choose that Java, save, and start again.',
   'instance.startIssue.java.openSettings': 'Open Settings',
 
+  // 启动成功后的下一步提示（控制台上方）
+  'instance.ready.title': 'The server is up. You can join now.',
+  'instance.ready.body': 'Want friends to join? Multiplayer shows the address to send them.',
+  'instance.ready.action': 'Invite Friends',
+  'instance.ready.dismiss': 'Don\'t Show Again',
+
   // 未保存修改弹窗（设置与参数配置共用）
   'instance.unsaved.savingDescription': 'You\'ll leave automatically once saving finishes. You can\'t discard or cancel while saving.',
   'instance.unsaved.confirm': 'Discard and Leave',
