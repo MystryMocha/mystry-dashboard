@@ -244,7 +244,7 @@ Important notes:
 4. The config, data and logs folders are created on first start. When you upgrade, stop the panel and keep these folders.
 5. The panel only listens on 127.0.0.1 by default. Don't expose the panel port directly to the untrusted public internet.
 
-Project home: https://github.com/MystryWorks/mystry-dashboard
+Project home: https://github.com/MystryMocha/mystry-dashboard
 
 ----------------------------------------
 
@@ -268,7 +268,7 @@ Linux / macOS：
 4. config、data、logs 由首次启动创建。升级时请停止面板，并保留这些目录。
 5. 默认只监听 127.0.0.1。不要把面板端口直接暴露到不可信公网。
 
-项目主页：https://github.com/MystryWorks/mystry-dashboard
+项目主页：https://github.com/MystryMocha/mystry-dashboard
 `;
   await fsp.writeFile(destination, content, 'utf8');
 }
