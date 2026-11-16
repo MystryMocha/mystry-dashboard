@@ -10,6 +10,7 @@ import {
   installFrpRuntime,
   listFrpEndpoints,
   saveInstanceTunnel,
+  uploadFrpRuntime,
 } from '../api';
 import { DownloadSourceHint } from './DownloadSourceSection';
 import { errorMessage } from '../errors';
@@ -17,6 +18,7 @@ import { usePolling } from '../hooks/usePolling';
 import { useI18n, type MessageKey } from '../i18n';
 import { StatusPill, type StatusTone } from './StatusPill';
 import { ConfirmDialog } from './ConfirmDialog';
+import { RuntimeArchiveUpload } from './RuntimeArchiveUpload';
 
 const STATUS_KEY: Record<TunnelStatus, MessageKey> = {
   disabled: 'multiplayer.status.disabled',
@@ -81,6 +83,7 @@ export function MultiplayerTab({ instanceId }: { instanceId: string }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const loadError = useRef(false);
   const refresh = useCallback(async () => {
@@ -220,6 +223,22 @@ export function MultiplayerTab({ instanceId }: { instanceId: string }) {
     }
   }
 
+  async function upload(file: File) {
+    setBusy(true);
+    setUploading(true);
+    try {
+      setRuntime(await uploadFrpRuntime(file));
+      setTunnel(await getInstanceTunnel(instanceId));
+      setNotice(t('multiplayer.runtime.uploaded'));
+      setError('');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setUploading(false);
+      setBusy(false);
+    }
+  }
+
   const needsClient = Boolean(runtime?.platformSupported && !runtime.installed);
   const serverIsNext = !needsClient && endpoints.length === 0;
 
@@ -239,6 +258,9 @@ export function MultiplayerTab({ instanceId }: { instanceId: string }) {
           </button>
           <DownloadSourceHint />
         </div>
+      )}
+      {runtime?.platformSupported && !runtime.installed && runtime.archive && (
+        <RuntimeArchiveUpload archive={runtime.archive} busy={busy} uploading={uploading} onUpload={upload} />
       )}
       {runtime?.installed && (
         <p className="field-help">{t('multiplayer.runtime.installed', { version: runtime.version })}</p>

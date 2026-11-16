@@ -7,6 +7,7 @@ import {
 } from '@mystry/shared';
 import { sendRouteError } from '../http-errors.js';
 import { panelErrorBody } from '../utils/errors.js';
+import { removeUploadTemp, streamToUploadTemp } from '../services/upload-service.js';
 import { getInstanceRow } from '../services/instance-service.js';
 import {
   describeInstanceLan,
@@ -15,13 +16,21 @@ import {
   syncInstanceLanQueued,
 } from '../services/lan-manager.js';
 import { saveInstanceLan } from '../services/lan-service.js';
-import { ensureLanInstalled, lanInstalled, lanPlatformSupported } from '../services/lan-runtime.js';
+import {
+  ensureLanInstalled,
+  installLanFromArchive,
+  LAN_ARCHIVE_BYTE_LIMIT,
+  lanArchiveInfo,
+  lanInstalled,
+  lanPlatformSupported,
+} from '../services/lan-runtime.js';
 
 function runtimeInfo(): LanRuntimeInfo {
   return {
     version: EASYTIER_VERSION,
     installed: lanInstalled(),
     platformSupported: lanPlatformSupported(),
+    archive: lanArchiveInfo(),
   };
 }
 
@@ -38,6 +47,24 @@ export async function lanRoutes(app: FastifyInstance): Promise<void> {
       return runtimeInfo();
     } catch (err) {
       return sendRouteError(reply, err);
+    }
+  });
+
+  // 连不上 GitHub 时，用户在别处下载同名官方压缩包再上传；只按钉死的 SHA-256 接受。
+  app.post('/api/lan/runtime/upload', async (req, reply) => {
+    let temp: string | null = null;
+    try {
+      if (!lanPlatformSupported()) return reply.code(400).send(panelErrorBody('server.lan.platformUnsupported'));
+      const file = await req.file({ limits: { fileSize: LAN_ARCHIVE_BYTE_LIMIT } });
+      if (!file) return reply.code(400).send(panelErrorBody('server.lan.uploadMissing'));
+      temp = await streamToUploadTemp(file.file, 'lan-runtime', { maxBytes: LAN_ARCHIVE_BYTE_LIMIT });
+      await installLanFromArchive(temp);
+      await syncEnabledLans();
+      return runtimeInfo();
+    } catch (err) {
+      return sendRouteError(reply, err);
+    } finally {
+      if (temp) removeUploadTemp(temp);
     }
   });
 

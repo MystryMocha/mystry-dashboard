@@ -823,7 +823,7 @@ test('联机页默认「同一网络」：列出可复制的地址，并能转�
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23', '10.0.0.5'], publicIpv6: ['2408:8207:ab::10'], serverIpBlocked: false }
       : url === '/api/lan/runtime' ? { version: '0.0.0', installed: true, platformSupported: true }
-      : url === '/api/instances/test/lan' ? { instanceId: 'test', enabled: false, status: 'disabled', localPort: 25565, virtualIp: null, joinAddress: null, serverIpBlocked: false, runtimeInstalled: true, detail: null }
+      : url === '/api/instances/test/lan' ? { instanceId: 'test', enabled: false, status: 'disabled', localPort: 25565, virtualIp: null, joinAddress: null, serverIpBlocked: false, runtimeInstalled: true, peers: [], useSharedPeers: true, sharedPeers: ['tcp://public.easytier.example:11010'], listenPort: null, detail: null, warning: null }
       : null;
     return data ? new Response(JSON.stringify(data)) : baseFetch(url, options);
   }));

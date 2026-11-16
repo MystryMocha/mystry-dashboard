@@ -268,5 +268,12 @@ export const updateInstanceLanBodySchema = {
   required: ['enabled'],
   properties: {
     enabled: { type: 'boolean' },
+    // 与 LAN_CUSTOM_PEER_LIMIT 一致；具体格式由服务端逐条校验。
+    peers: {
+      type: 'array',
+      maxItems: 8,
+      items: { type: 'string', minLength: 1, maxLength: 255 },
+    },
+    useSharedPeers: { type: 'boolean' },
   },
 } as const;

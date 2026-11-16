@@ -389,8 +389,9 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/frp/runtime` | `{ version, installed, platformSupported }` |
-| POST | `/api/frp/runtime` | 下载并校验钉死的官方客户端；已安装则直接返回 |
+| GET | `/api/frp/runtime` | `{ version, installed, platformSupported, archive }`。`archive` 为本机平台的官方压缩包 `{ name, sha256, url, maxBytes }`，平台不支持时为 `null` |
+| POST | `/api/frp/runtime` | 从 GitHub 下载并校验钉死的官方客户端；已安装则直接返回 |
+| POST | `/api/frp/runtime/upload` | multipart 字段 `file`：上传用户自己下载的官方压缩包（可来自镜像）。只在 SHA-256 与 `archive.sha256` 一致时安装，否则 400 `server.frp.uploadMismatch`；超过 `maxBytes` 返回 413 |
 | GET | `/api/frp/endpoints` | 穿透服务器列表。不含令牌 |
 | POST | `/api/frp/endpoints` | 创建。Body 见 `createFrpEndpointBodySchema` |
 | PATCH | `/api/frp/endpoints/:id` | 更新。省略 `token` 或空字符串表示不改令牌。成功后会按新配置重新同步已启用的隧道 |
@@ -407,11 +408,14 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/lan/runtime` | `{ version, installed, platformSupported }` |
-| POST | `/api/lan/runtime` | 下载并校验钉死的官方客户端；已安装则直接返回 |
-| GET | `/api/instances/:id/lan` | 该实例的虚拟局域网状态 `InstanceLan`。不含网络密钥 |
-| PUT | `/api/instances/:id/lan` | 保存开关。Body 只有 `{ enabled }` |
+| GET | `/api/lan/runtime` | `{ version, installed, platformSupported, archive }`，`archive` 同上 |
+| POST | `/api/lan/runtime` | 从 GitHub 下载并校验钉死的官方客户端；已安装则直接返回 |
+| POST | `/api/lan/runtime/upload` | multipart 字段 `file`：上传用户自己下载的官方压缩包。只在 SHA-256 一致时安装，否则 400 `server.lan.uploadMismatch` |
+| GET | `/api/instances/:id/lan` | 该实例的虚拟局域网状态 `InstanceLan`。不含网络密钥；含 `peers`、`useSharedPeers`、`sharedPeers`、`listenPort` 和非阻断提示 `warning` |
+| PUT | `/api/instances/:id/lan` | Body `{ enabled, peers?, useSharedPeers? }`。`peers` 最多 8 个，每个必须是 `tcp://`、`udp://`、`ws://`、`wss://` 或 `quic://` 加主机和端口（ws/wss 可带结尾 `/`），服务端规范化并去重；省略的字段保持原值。关掉共享节点又没有自定义节点时返回 400 `server.lan.peersRequired` |
 | GET | `/api/instances/:id/lan/friend` | 给朋友的说明。含网络密钥，只应交给要一起玩的人 |
+
+面板端 EasyTier 在每次启动时挑一个随机空闲端口，同时监听 TCP 与 UDP（EasyTier 会自动补上同端口的 IPv6），供 IPv6 或同一局域网的朋友直接连接；朋友端仍不监听。连接需要网络名和密钥（`private_mode`），也不会为其他网络中转。Windows 上面板在启动前添加名为 `MystryDashboard-LAN-<实例 id>` 的入站放行规则（游戏 TCP 端口只限本实例虚拟 IP；监听端口的 TCP 与 UDP），停止、崩溃或面板关闭时按名字删除；加不上时 `warning` 为 `server.lan.firewallFailed`。面板异常退出时规则可能残留，下次启动同一实例会先删后加。
 
 游戏没在运行时客户端不会启动，但已保存的开关和将要使用的虚拟地址仍会返回。`server-ip` 若指向某一块网卡，虚拟局域网不会启动。实例停止、崩溃或面板关闭时，对应的 EasyTier 会退出。Windows 上面板和朋友的命令都需要管理员权限，否则创建不了虚拟网卡。
 

@@ -17,7 +17,7 @@ export default {
   'server.frp.localPortInvalid': 'server.properties 里的游戏端口不是有效端口',
   'server.frp.clientMissing': '尚未安装官方 frp 客户端',
   'server.frp.platformUnsupported': '这个操作系统没有钉死版本的官方 frp 客户端',
-  'server.frp.downloadFailed': '官方 frp 客户端下载失败',
+  'server.frp.downloadFailed': '无法从 GitHub 下载官方 frp 客户端。请在任意设备上下载本页列出的压缩包，再上传到这里',
   'server.frp.checksumMismatch': '下载的 frp 客户端与钉死的校验和不一致，已丢弃',
   'server.frp.extractFailed': '官方 frp 客户端压缩包无法解包',
   'server.frp.notRunning': '请先启动实例再开放隧道。只有游戏在运行时朋友才能连接',
@@ -26,4 +26,6 @@ export default {
   'server.frp.proxyFailed': '穿透服务器拒绝了游戏隧道。公网端口可能已被占用',
   'server.frp.exited': '隧道客户端已退出。游戏运行后再次保存联机设置即可重试',
   'server.frp.visitorUnavailable': '下载朋友配置前，需要先使用内网隧道',
+  'server.frp.uploadMissing': '请选择要上传的 frp 压缩包',
+  'server.frp.uploadMismatch': '这个文件不是本机对应的钉死版本官方 frp 压缩包。请核对本页显示的文件名和 SHA-256',
 } satisfies Record<keyof typeof FRP_MESSAGES, string>;

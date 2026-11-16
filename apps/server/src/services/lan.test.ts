@@ -101,10 +101,12 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   const { PanelError } = await import('../utils/errors.js');
   const { config } = await import('../config.js');
   const {
+    LAN_SHARED_PEERS,
     renderFriendInstructions,
     renderLanToml,
     serverIpBlocksLan,
   } = await import('./lan-config.js');
+  const { setLanFirewallForTests } = await import('./lan-firewall.js');
   const { getInstanceLanRow, saveInstanceLan } = await import('./lan-service.js');
   const {
     describeInstanceLan,
@@ -122,9 +124,19 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   const { writeServerProperties } = await import('./config-service.js');
 
   initDb();
+  // 不在测试机上真的改防火墙：按 Windows 行为记录 netsh 参数。
+  const firewallCalls: string[][] = [];
+  setLanFirewallForTests({
+    platform: 'win32',
+    runner: async (args) => {
+      firewallCalls.push([...args]);
+      return 0;
+    },
+  });
   t.after(async () => {
     await shutdownLan();
     resetLanRuntimeForTests();
+    setLanFirewallForTests(null);
     closeDb();
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
@@ -134,25 +146,30 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   assert.equal(serverIpBlocksLan('127.0.0.1'), true);
   assert.equal(serverIpBlocksLan('192.168.1.8'), true);
 
-  const rendered = renderLanToml({
+  const sample = {
     networkName: `mystry-${'ab'.repeat(16)}`,
     networkSecret: 'cd'.repeat(32),
     octet: 12,
     gamePort: 25565,
-  });
+    peers: [...LAN_SHARED_PEERS],
+    listenPort: 41234,
+  };
+  const rendered = renderLanToml(sample);
   assert.match(rendered, /ipv4 = "10\.126\.12\.1"/);
   assert.match(rendered, /tcp_whitelist = \["25565"\]/);
   assert.match(rendered, /udp_whitelist = \["1"\]/);
-  assert.match(rendered, /listeners = \[\]/);
+  // 监听同一端口的 TCP 与 UDP，EasyTier 会自动补上 [::]，朋友才能经 IPv6 直连。
+  assert.match(rendered, /listeners = \["tcp:\/\/0\.0\.0\.0:41234", "udp:\/\/0\.0\.0\.0:41234"\]/);
+  assert.match(rendered, /enable_ipv6 = true/);
   assert.match(rendered, /private_mode = true/);
   assert.match(rendered, /network_secret = "cdcd/);
+  for (const peer of LAN_SHARED_PEERS) assert.ok(rendered.includes(`uri = "${peer}"`));
   assert.doesNotMatch(rendered, /socks5|port_forward|proxy_network|0\.0\.0\.0:11010|enable_exit_node = true/);
-  const friend = renderFriendInstructions({
-    networkName: `mystry-${'ab'.repeat(16)}`,
-    networkSecret: 'cd'.repeat(32),
-    octet: 12,
-    gamePort: 25565,
-  });
+  assert.match(renderLanToml({ ...sample, listenPort: null }), /listeners = \[\]/);
+  const friend = renderFriendInstructions(sample);
+  assert.match(friend, /SHA-256: [0-9a-f]{64}/);
+  assert.match(friend, /easytier-windows-x86_64-v2\.6\.4\.zip/);
+  assert.doesNotMatch(friend, /41234/);
   assert.match(friend, /10\.126\.12\.1:25565/);
   assert.match(friend, /--tcp-whitelist 1/);
   assert.match(friend, /--udp-whitelist 1/);
@@ -213,8 +230,24 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     return child as unknown as ChildProcess;
   });
   setLanCliRunnerForTests(async () => JSON.stringify({ ipv4_addr: `${describeReadyIp()}/24` }));
+  firewallCalls.length = 0;
   const running = await syncInstanceLan(first.id);
   assert.equal(running.status, 'running');
+  assert.equal(running.warning, null);
+  assert.deepEqual(running.sharedPeers, [...LAN_SHARED_PEERS]);
+  assert.equal(running.useSharedPeers, true);
+  assert.ok(running.listenPort && running.listenPort !== 25565 && running.listenPort !== config.port);
+  // 先按名字删旧规则，再加三条：游戏端口只限虚拟 IP，监听端口 TCP 与 UDP。
+  const ruleName = `name=MystryDashboard-LAN-${first.id}`;
+  assert.deepEqual(firewallCalls[0], ['advfirewall', 'firewall', 'delete', 'rule', ruleName]);
+  const adds = firewallCalls.slice(1);
+  assert.equal(adds.length, 3);
+  for (const args of adds) {
+    assert.deepEqual(args.slice(0, 9), ['advfirewall', 'firewall', 'add', 'rule', ruleName, 'dir=in', 'action=allow', 'profile=any', 'enable=yes']);
+  }
+  assert.deepEqual(adds[0]?.slice(9), ['protocol=TCP', 'localport=25565', `localip=${running.virtualIp}`]);
+  assert.deepEqual(adds[1]?.slice(9), ['protocol=TCP', `localport=${running.listenPort}`]);
+  assert.deepEqual(adds[2]?.slice(9), ['protocol=UDP', `localport=${running.listenPort}`]);
   assert.equal(running.joinAddress, `${running.virtualIp}:25565`);
   assert.match(running.virtualIp ?? '', /^10\.126\.(?:[1-9]|[1-9]\d|1[0-9]\d|2[0-4]\d|25[0-4])\.1$/);
   assert.notEqual(running.virtualIp, '10.126.126.1');
@@ -229,6 +262,12 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   assert.equal(capturedEnv?.ET_NETWORK_SECRET, undefined);
   const toml = fs.readFileSync(path.join(dataRoot, 'lan', first.id, 'core.toml'), 'utf8');
   assert.match(toml, new RegExp(`network_secret = "${idle.networkSecret}"`));
+  assert.ok(toml.includes(`"tcp://0.0.0.0:${running.listenPort}"`));
+  // 同样的设置再同步一次不重启（监听端口不参与比较）。
+  firewallCalls.length = 0;
+  const resynced = await syncInstanceLan(first.id);
+  assert.equal(resynced.listenPort, running.listenPort);
+  assert.equal(firewallCalls.length, 0);
   assert.match(toml, /tcp_whitelist = \["25565"\]/);
   assert.doesNotMatch(capturedArgs.join(' '), new RegExp(idle.networkSecret));
   const instructions = renderLanFriendConfig(first.id);
@@ -281,6 +320,106 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     const settled = calls.length;
     await new Promise((resolve) => setTimeout(resolve, 150));
     assert.equal(calls.length, settled, '拿到地址后探测循环应退出');
+  });
+
+  await t.test('停止时删掉防火墙规则；规则加不上时给出提示但照常运行', async () => {
+    setLanCliRunnerForTests(async () => JSON.stringify({ ipv4_addr: `${describeReadyIp()}/24` }));
+    setLanSpawnerForTests(() => fakeChild() as unknown as ChildProcess);
+    const ruleName = `name=MystryDashboard-LAN-${first.id}`;
+    firewallCalls.length = 0;
+    setLanGameStatusForTests(() => 'stopped');
+    await syncInstanceLan(first.id);
+    assert.deepEqual(firewallCalls, [['advfirewall', 'firewall', 'delete', 'rule', ruleName]]);
+
+    setLanGameStatusForTests(() => 'running');
+    setLanFirewallForTests({
+      platform: 'win32',
+      runner: async (args) => {
+        firewallCalls.push([...args]);
+        return args[2] === 'add' ? 1 : 0;
+      },
+    });
+    const warned = await syncInstanceLan(first.id);
+    assert.equal(warned.status, 'running');
+    assert.equal(warned.warning?.key, 'server.lan.firewallFailed');
+    setLanGameStatusForTests(() => 'stopped');
+    firewallCalls.length = 0;
+    await syncInstanceLan(first.id);
+    // 失败时已回滚，停止不必再删。
+    assert.equal(firewallCalls.length, 0);
+    setLanGameStatusForTests(() => 'running');
+    setLanFirewallForTests({
+      platform: 'win32',
+      runner: async (args) => {
+        firewallCalls.push([...args]);
+        return 0;
+      },
+    });
+  });
+
+  await t.test('自定义中继节点：规范化、去重，可关掉社区共享节点，且朋友命令用同一份', async () => {
+    const custom = saveInstanceLan(first.id, {
+      enabled: true,
+      peers: ['  TCP://Relay.Example.com:11010 ', 'tcp://relay.example.com:11010', 'wss://[2001:DB8::1]:443/', ''],
+      useSharedPeers: false,
+    });
+    assert.deepEqual(custom.peers, ['tcp://relay.example.com:11010', 'wss://[2001:db8::1]:443/']);
+    assert.equal(custom.useSharedPeers, false);
+    // 省略字段表示不改。
+    const kept = saveInstanceLan(first.id, { enabled: true });
+    assert.deepEqual(kept.peers, custom.peers);
+    assert.equal(kept.useSharedPeers, false);
+    const text = renderLanFriendConfig(first.id);
+    assert.match(text, /--peers tcp:\/\/relay\.example\.com:11010 --peers wss:\/\/\[2001:db8::1\]:443\//);
+    for (const peer of LAN_SHARED_PEERS) assert.equal(text.includes(peer), false);
+    const described = describeInstanceLan(first.id);
+    assert.deepEqual(described.peers, custom.peers);
+    assert.equal(described.useSharedPeers, false);
+
+    const isKey = (key: string) => (error: unknown) => error instanceof PanelError && error.messageKey === key;
+    for (const bad of [
+      'http://relay.example.com:80',
+      'tcp://relay.example.com',
+      'tcp://relay.example.com:0',
+      'tcp://relay.example.com:11010/path',
+      'tcp://relay.example.com:11010" --socks5 1080',
+      'tcp://-bad-.example.com:11010',
+      'udp://[not-ipv6]:11010',
+      'wg://relay.example.com:11011',
+    ]) {
+      assert.throws(() => saveInstanceLan(first.id, { enabled: true, peers: [bad] }), isKey('server.lan.peerInvalid'), bad);
+    }
+    assert.throws(
+      () => saveInstanceLan(first.id, { enabled: true, peers: [], useSharedPeers: false }),
+      isKey('server.lan.peersRequired'),
+    );
+    // 失败的保存不改动已有设置。
+    assert.deepEqual(getInstanceLanRow(first.id)?.peers, custom.peers);
+
+    const restored = saveInstanceLan(first.id, { enabled: true, peers: [], useSharedPeers: true });
+    assert.deepEqual(restored.peers, []);
+    assert.ok(renderLanFriendConfig(first.id).includes(LAN_SHARED_PEERS[0]));
+  });
+
+  await t.test('手动上传的压缩包只认钉死的摘要，不对就不装', async () => {
+    const { installLanFromArchive, lanArchiveInfo, lanInstalled } = await import('./lan-runtime.js');
+    const info = lanArchiveInfo();
+    assert.ok(info);
+    assert.equal(info.name, asset.archive);
+    assert.equal(info.sha256, asset.sha256);
+    assert.equal(info.url, `https://github.com/EasyTier/EasyTier/releases/download/v2.6.4/${asset.archive}`);
+    await shutdownLan();
+    // 去掉前面伪造的安装标记，模拟尚未安装。
+    fs.rmSync(path.join(lanRuntimeDir(), 'archive.sha256'), { force: true });
+    const fake = path.join(dataRoot, 'not-easytier.zip');
+    fs.writeFileSync(fake, 'definitely not the official archive');
+    await assert.rejects(
+      installLanFromArchive(fake),
+      (error: unknown) => error instanceof PanelError && error.messageKey === 'server.lan.uploadMismatch',
+    );
+    assert.equal(lanInstalled(), false);
+    assert.equal(fs.existsSync(path.join(lanRuntimeDir(), 'archive.sha256')), false);
+    assert.equal(fs.existsSync(fake), true, '源文件由调用方删除');
   });
 
   function describeReadyIp(): string {

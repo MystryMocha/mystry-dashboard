@@ -372,12 +372,26 @@ export async function installFrpRuntime() {
   return api<FrpRuntimeInfo>('/api/frp/runtime', { method: 'POST' });
 }
 
+/** 连不上 GitHub 时上传自己下载的官方 frp 压缩包；服务端只按钉死的 SHA-256 接受。 */
+export async function uploadFrpRuntime(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return api<FrpRuntimeInfo>('/api/frp/runtime/upload', { method: 'POST', body: form });
+}
+
 export async function getLanRuntime() {
   return api<LanRuntimeInfo>('/api/lan/runtime');
 }
 
 export async function installLanRuntime() {
   return api<LanRuntimeInfo>('/api/lan/runtime', { method: 'POST' });
+}
+
+/** 连不上 GitHub 时上传自己下载的官方 EasyTier 压缩包；服务端只按钉死的 SHA-256 接受。 */
+export async function uploadLanRuntime(file: File) {
+  const form = new FormData();
+  form.append('file', file);
+  return api<LanRuntimeInfo>('/api/lan/runtime/upload', { method: 'POST', body: form });
 }
 
 export async function getInstanceLocalNetwork(instanceId: string) {

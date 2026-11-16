@@ -280,10 +280,15 @@ To let friends join this server, open **Multiplayer** under **Deploy & Maintain*
 - **Virtual LAN**: you don't need a public server of your own. Turn it on and send the instructions to your friends. They run the command as it is, then join using the virtual address shown on the page.
   - On Windows, start the panel as administrator. Friends must also run the command as administrator, or the virtual network adapter can't be created.
   - When hole punching fails, traffic is relayed through community-shared nodes, encrypted with the network secret.
+  - **Relay nodes**: by default the community-shared nodes are run by volunteers. They can go offline at any time, and may be far from you and your friends. Under **Your Relay Nodes** you can add your own nodes, one per line (for example `tcp://relay.example.com:11010`), or clear **Also use community shared nodes** to use only your own. After changing nodes, send the new instructions to your friends again.
+  - **Direct connection**: the panel also opens a direct connection port. Friends who have IPv6 or are on the same LAN can connect without a relay.
+  - **Windows Firewall**: the panel adds firewall rules that allow only the game port on the virtual address and the direct connection port, and removes them when the virtual LAN stops. If you once blocked Java in a Windows Firewall prompt, first delete that block rule under "Windows Defender Firewall → Advanced settings → Inbound Rules".
   - Anyone who gets the network secret can enter this virtual LAN and reach the game port. Don't post it publicly.
 - **frp Tunnel**: needs an frp server of your own (address, port and token).
   - **Public Port**: friends add the address shown on the page directly in Minecraft's multiplayer menu.
   - **Relayed Intranet** / **Direct Intranet**: download the "friend config" and send it to them. They open it with the official frpc, then connect to `127.0.0.1` on their own computer and the port shown on the page. This file contains the token. Send it only to the people you're playing with.
+
+If the panel can't reach GitHub and downloading the client fails, the page shows the file name and SHA-256 of the official archive. Download that file on any device, from the official page or a mirror, then click **Upload Archive**. The panel installs it only if the SHA-256 matches.
 
 Multiplayer opens only after the instance is started. If `server-ip` in the game config is set to the address of one specific network adapter, clear it first, or connections from outside can't get in.
 

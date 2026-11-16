@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
+import dgram from 'node:dgram';
 import net from 'node:net';
 import type { InstanceLan, LanStatus, PanelMessage } from '@mystry/shared';
 import { config } from '../config.js';
@@ -6,6 +7,7 @@ import { getMinecraftChildEnv } from '../utils/child-env.js';
 import { PanelError } from '../utils/errors.js';
 import { readServerProperties } from './config-service.js';
 import {
+  LAN_SHARED_PEERS,
   lanCoreArgs,
   lanFailureDetail,
   lanVirtualIp,
@@ -21,6 +23,7 @@ import {
   removeLanFiles,
   writeLanFile,
 } from './lan-service.js';
+import { closeLanFirewall, openLanFirewall } from './lan-firewall.js';
 import { lanCliPath, lanCorePath, lanInstalled, lanPlatformSupported } from './lan-runtime.js';
 import { processManager } from './process-manager.js';
 
@@ -32,6 +35,11 @@ interface LanRuntime {
   configHash: string;
   rpcPort: number;
   virtualIp: string | null;
+  /** EasyTier 监听端口（TCP/UDP 相同），供非打洞直连。 */
+  listenPort: number | null;
+  /** 本代是否已加上 Windows 防火墙规则，停止时据此删除。 */
+  firewallOpened: boolean;
+  warning: PanelMessage | null;
 }
 
 const runtimes = new Map<string, LanRuntime>();
@@ -41,6 +49,7 @@ let attached = false;
 let spawner: (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess = spawn;
 let cliRunner: ((rpcPort: number) => Promise<string>) | null = null;
 let gameStatus = (instanceId: string): string => processManager.getStatus(instanceId);
+let listenPortAllocator: (exclude: readonly number[]) => Promise<number> = allocateListenPort;
 // 全模块单调递增：停止会删掉 runtimes 条目，若从旧条目推算会恒为 1，旧探测循环的代次守卫就失效。
 let nextGeneration = 0;
 
@@ -70,6 +79,12 @@ export function setLanGameStatusForTests(next: ((instanceId: string) => string) 
   gameStatus = next ?? ((instanceId) => processManager.getStatus(instanceId));
 }
 
+export function setLanListenPortAllocatorForTests(
+  next: ((exclude: readonly number[]) => Promise<number>) | null,
+): void {
+  listenPortAllocator = next ?? allocateListenPort;
+}
+
 /** 测试用：缩短地址探测间隔，传 null 恢复默认。 */
 export function setLanProbeIntervalsForTests(next: LanProbeTiming | null): void {
   probeTiming = next ?? DEFAULT_PROBE_TIMING;
@@ -82,6 +97,7 @@ export function resetLanRuntimeForTests(): void {
   spawner = spawn;
   cliRunner = null;
   gameStatus = (instanceId) => processManager.getStatus(instanceId);
+  listenPortAllocator = allocateListenPort;
   probeTiming = DEFAULT_PROBE_TIMING;
 }
 
@@ -145,7 +161,12 @@ export function describeInstanceLan(instanceId: string): InstanceLan {
     joinAddress: confirmed && virtualIp && bind ? `${virtualIp}:${bind.port}` : null,
     serverIpBlocked: bind?.serverIpBlocked ?? false,
     runtimeInstalled: installed,
+    peers: row?.peers ?? [],
+    useSharedPeers: row?.useSharedPeers ?? true,
+    sharedPeers: [...LAN_SHARED_PEERS],
+    listenPort: runtime?.child ? runtime.listenPort : null,
     detail,
+    warning: enabled ? runtime?.warning ?? null : null,
   };
 }
 
@@ -156,7 +177,7 @@ export function renderLanFriendConfig(instanceId: string): string {
   if (!bind) throw new PanelError('server.lan.localPortInvalid');
   if (bind.error) throw new PanelError(bind.error.key);
   if (bind.serverIpBlocked) throw new PanelError('server.lan.serverIpBlocked');
-  return renderFriendInstructions(lanRenderInput(row, bind.port));
+  return renderFriendInstructions(lanRenderInput(row, bind.port, null));
 }
 
 export async function syncInstanceLan(instanceId: string): Promise<InstanceLan> {
@@ -172,9 +193,9 @@ export async function syncInstanceLan(instanceId: string): Promise<InstanceLan> 
     return describeInstanceLan(instanceId);
   }
   if (!lanPlatformSupported() || !lanInstalled()) return describeInstanceLan(instanceId);
-  const input = lanRenderInput(row, bind.port);
-  const toml = renderLanToml(input);
-  const configHash = toml;
+  // 比较用的配置键不含监听端口：端口每次启动重新分配，不能因此反复重启。
+  const keyInput = lanRenderInput(row, bind.port, null);
+  const configHash = renderLanToml(keyInput);
   const current = runtimes.get(instanceId);
   if (
     current
@@ -189,6 +210,8 @@ export async function syncInstanceLan(instanceId: string): Promise<InstanceLan> 
   if (shuttingDown || gameStatus(instanceId) !== 'running') return describeInstanceLan(instanceId);
   const generation = ++nextGeneration;
   const rpcPort = await allocateLoopbackPort();
+  const listenPort = await listenPortAllocator([rpcPort, bind.port, config.port]);
+  const input = { ...keyInput, listenPort };
   const cwd = lanWorkDir(instanceId);
   writeLanFile(input, instanceId);
   const runtime: LanRuntime = {
@@ -199,8 +222,24 @@ export async function syncInstanceLan(instanceId: string): Promise<InstanceLan> 
     configHash,
     rpcPort,
     virtualIp: null,
+    listenPort,
+    firewallOpened: false,
+    warning: null,
   };
   runtimes.set(instanceId, runtime);
+  const firewall = await openLanFirewall({
+    instanceId,
+    virtualIp: lanVirtualIp(row.octet),
+    gamePort: bind.port,
+    listenPort,
+  });
+  if (runtimes.get(instanceId)?.generation !== generation) {
+    // 等防火墙期间已被停止或替换：本代加上的规则由自己收回。
+    if (firewall === 'applied' && !runtimes.has(instanceId)) await closeLanFirewall(instanceId);
+    return describeInstanceLan(instanceId);
+  }
+  runtime.firewallOpened = firewall === 'applied';
+  if (firewall === 'failed') runtime.warning = { key: 'server.lan.firewallFailed' };
   let child: ChildProcess;
   try {
     child = spawner(lanCorePath(), lanCoreArgs(rpcPort), {
@@ -268,21 +307,24 @@ async function stopInstanceLan(instanceId: string): Promise<void> {
   if (!runtime) return;
   // 删除条目即让旧代次失效：所有回调和探测循环都按 runtimes 里当前条目的代次比对。
   const child = runtime.child;
+  const firewallOpened = runtime.firewallOpened;
   runtimes.delete(instanceId);
-  if (!child || child.exitCode !== null) return;
-  // 先挂退出监听再发信号，避免同步退出时错过事件、白等 2 秒。
-  const exited = new Promise<void>((resolve) => {
-    const timer = setTimeout(() => {
-      if (child.exitCode === null) child.kill('SIGKILL');
-      resolve();
-    }, 2000);
-    child.once('exit', () => {
-      clearTimeout(timer);
-      resolve();
+  if (child && child.exitCode === null) {
+    // 先挂退出监听再发信号，避免同步退出时错过事件、白等 2 秒。
+    const exited = new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        if (child.exitCode === null) child.kill('SIGKILL');
+        resolve();
+      }, 2000);
+      child.once('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
     });
-  });
-  child.kill();
-  await exited;
+    child.kill();
+    await exited;
+  }
+  if (firewallOpened) await closeLanFirewall(instanceId);
 }
 
 async function probeAddress(
@@ -406,6 +448,37 @@ function readBind(instanceId: string): { port: number; serverIpBlocked: boolean;
   return { port, serverIpBlocked: serverIpBlocksLan(properties['server-ip']), error: null };
 }
 
+/**
+ * 给 EasyTier 监听挑一个 TCP 与 UDP 都空闲的端口。只在回环地址上试绑，
+ * 不在 0.0.0.0 上监听，避免 Windows 为面板自己的 node.exe 弹出防火墙提示。
+ * 漏掉的冲突由 EasyTier 启动失败时的输出识别（listenPortUnavailable）。
+ */
+async function allocateListenPort(exclude: readonly number[]): Promise<number> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const port = await allocateLoopbackPort();
+    if (exclude.includes(port)) continue;
+    if (await udpPortFree(port)) return port;
+  }
+  throw new PanelError('server.lan.listenPortUnavailable');
+}
+
+function udpPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = dgram.createSocket('udp4');
+    socket.once('error', () => {
+      try {
+        socket.close();
+      } catch {
+        // 绑定失败的套接字可能已不在运行，忽略
+      }
+      resolve(false);
+    });
+    socket.bind({ port, address: '127.0.0.1', exclusive: true }, () => {
+      socket.close(() => resolve(true));
+    });
+  });
+}
+
 function allocateLoopbackPort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -440,5 +513,9 @@ function recordLanFailure(instanceId: string, error: unknown): void {
     configHash: current?.configHash ?? '',
     rpcPort: current?.rpcPort ?? 0,
     virtualIp: null,
+    listenPort: null,
+    // 保留标记，之后停止时仍会收回本代加上的防火墙规则。
+    firewallOpened: current?.firewallOpened ?? false,
+    warning: null,
   });
 }

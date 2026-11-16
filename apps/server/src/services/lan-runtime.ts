@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { EASYTIER_VERSION } from '@mystry/shared';
+import { EASYTIER_VERSION, type RuntimeArchiveInfo } from '@mystry/shared';
 import { config } from '../config.js';
 import { forceSecureSensitiveFile } from '../utils/data-dir-permissions.js';
 import { PanelError } from '../utils/errors.js';
@@ -11,6 +11,9 @@ import { listZipEntryNames, readZipEntryBuffer } from './zip-service.js';
 
 const ARCHIVE_BYTE_LIMIT = 40 * 1024 * 1024;
 const BINARY_BYTE_LIMIT = 40 * 1024 * 1024;
+
+/** 手动上传压缩包的上限，与下载上限一致。 */
+export const LAN_ARCHIVE_BYTE_LIMIT = ARCHIVE_BYTE_LIMIT;
 
 interface LanAsset {
   archive: string;
@@ -41,6 +44,17 @@ export function resolveLanAsset(platform: NodeJS.Platform, arch: string): LanAss
   const asset = ASSETS[`${platform}:${arch}`];
   if (!asset) throw new PanelError('server.lan.platformUnsupported');
   return asset;
+}
+
+function lanArchiveUrl(asset: LanAsset): string {
+  return `https://github.com/EasyTier/EasyTier/releases/download/v${EASYTIER_VERSION}/${asset.archive}`;
+}
+
+/** 本机平台对应的官方压缩包信息，供连不上 GitHub 时手动下载后上传。 */
+export function lanArchiveInfo(): RuntimeArchiveInfo | null {
+  if (!lanPlatformSupported()) return null;
+  const asset = resolveLanAsset(process.platform, process.arch);
+  return { name: asset.archive, sha256: asset.sha256, url: lanArchiveUrl(asset), maxBytes: ARCHIVE_BYTE_LIMIT };
 }
 
 export function lanRuntimeDir(): string {
@@ -78,14 +92,36 @@ let installing: Promise<void> | null = null;
 export async function ensureLanInstalled(): Promise<void> {
   if (lanInstalled()) return;
   if (!installing) {
-    installing = installLan().finally(() => {
+    installing = installLan(downloadArchive, 'server.lan.checksumMismatch').finally(() => {
       installing = null;
     });
   }
   await installing;
 }
 
-async function installLan(): Promise<void> {
+/**
+ * 用用户上传的压缩包安装。只认钉死的官方摘要，所以文件来自哪个镜像都无所谓；
+ * 调用方负责删除 source。
+ */
+export async function installLanFromArchive(source: string): Promise<void> {
+  if (installing) await installing.catch(() => undefined);
+  if (lanInstalled()) return;
+  installing = installLan(
+    async (_asset, destination) => {
+      fs.copyFileSync(source, destination);
+      forceSecureSensitiveFile(destination);
+    },
+    'server.lan.uploadMismatch',
+  ).finally(() => {
+    installing = null;
+  });
+  await installing;
+}
+
+async function installLan(
+  acquire: (asset: LanAsset, destination: string) => Promise<void>,
+  mismatchKey: 'server.lan.checksumMismatch' | 'server.lan.uploadMismatch',
+): Promise<void> {
   const asset = resolveLanAsset(process.platform, process.arch);
   const dir = lanRuntimeDir();
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -94,9 +130,9 @@ async function installLan(): Promise<void> {
   try {
     // 崩溃可能留下旧文件，而下载不会覆盖已存在的目标。
     fs.rmSync(archivePath, { force: true });
-    await downloadArchive(asset, archivePath);
+    await acquire(asset, archivePath);
     const digest = createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
-    if (digest !== asset.sha256) throw new PanelError('server.lan.checksumMismatch');
+    if (digest !== asset.sha256) throw new PanelError(mismatchKey);
     const wanted = [asset.coreName, asset.cliName, ...asset.extraNames];
     const members = listMembers(archivePath, wanted);
     for (const name of wanted) {

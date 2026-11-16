@@ -8,11 +8,21 @@ import { forceSecureSensitiveFile } from '../utils/data-dir-permissions.js';
 import { PanelError } from '../utils/errors.js';
 import { nowIso } from '../utils/path.js';
 import { getInstanceRow } from './instance-service.js';
-import { type LanIdentity, renderLanToml, type LanRenderInput } from './lan-config.js';
+import {
+  type LanIdentity,
+  normalizeLanPeer,
+  normalizeLanPeers,
+  renderLanToml,
+  resolveLanPeers,
+  type LanRenderInput,
+} from './lan-config.js';
 
 export interface InstanceLanRow extends LanIdentity {
   instance_id: string;
   enabled: number;
+  /** 用户填写的节点（已规范化） */
+  peers: string[];
+  useSharedPeers: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -34,7 +44,15 @@ export function saveInstanceLan(instanceId: string, input: InstanceLanInput): In
     throw new PanelError('server.lan.instanceNotFound', undefined, { statusCode: 404 });
   }
   if (typeof input.enabled !== 'boolean') throw new PanelError('server.lan.invalidParams');
+  if (input.useSharedPeers !== undefined && typeof input.useSharedPeers !== 'boolean') {
+    throw new PanelError('server.lan.invalidParams');
+  }
+  if (input.peers !== undefined && !Array.isArray(input.peers)) throw new PanelError('server.lan.invalidParams');
   const existing = getInstanceLanRow(instanceId);
+  const peers = input.peers !== undefined ? normalizeLanPeers(input.peers) : (existing?.peers ?? []);
+  const useSharedPeers = input.useSharedPeers ?? existing?.useSharedPeers ?? true;
+  // 先确认至少有一个节点，再写库，避免保存出一份永远连不上的设置。
+  resolveLanPeers(peers, useSharedPeers);
   const now = nowIso();
   if (!existing) {
     const row: InstanceLanRow = {
@@ -43,35 +61,46 @@ export function saveInstanceLan(instanceId: string, input: InstanceLanInput): In
       networkName: `mystry-${randomBytes(16).toString('hex')}`,
       networkSecret: randomBytes(32).toString('hex'),
       octet: allocateOctet(instanceId),
+      peers,
+      useSharedPeers,
       created_at: now,
       updated_at: now,
     };
     getDb().prepare(`
       INSERT INTO instance_lans (
-        instance_id, enabled, network_name, network_secret, ipv4_octet, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        instance_id, enabled, network_name, network_secret, ipv4_octet,
+        custom_peers, use_shared_peers, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       row.instance_id,
       row.enabled,
       row.networkName,
       row.networkSecret,
       row.octet,
+      JSON.stringify(row.peers),
+      row.useSharedPeers ? 1 : 0,
       row.created_at,
       row.updated_at,
     );
     return requireLanRow(instanceId);
   }
-  getDb().prepare('UPDATE instance_lans SET enabled = ?, updated_at = ? WHERE instance_id = ?')
-    .run(input.enabled ? 1 : 0, now, instanceId);
+  getDb().prepare(`
+    UPDATE instance_lans
+    SET enabled = ?, custom_peers = ?, use_shared_peers = ?, updated_at = ?
+    WHERE instance_id = ?
+  `).run(input.enabled ? 1 : 0, JSON.stringify(peers), useSharedPeers ? 1 : 0, now, instanceId);
   return requireLanRow(instanceId);
 }
 
-export function lanRenderInput(row: InstanceLanRow, gamePort: number): LanRenderInput {
+/** listenPort 为 null 时得到的是比较用的配置键：监听端口每次启动都会重新分配，不应触发重启。 */
+export function lanRenderInput(row: InstanceLanRow, gamePort: number, listenPort: number | null): LanRenderInput {
   return {
     networkName: row.networkName,
     networkSecret: row.networkSecret,
     octet: row.octet,
     gamePort,
+    peers: resolveLanPeers(row.peers, row.useSharedPeers),
+    listenPort,
   };
 }
 
@@ -108,6 +137,8 @@ function readLanRow(instanceId: string): InstanceLanRow | null {
     network_name: string;
     network_secret: string;
     ipv4_octet: number;
+    custom_peers: string | null;
+    use_shared_peers: number | null;
     created_at: string;
     updated_at: string;
   } | undefined;
@@ -118,9 +149,34 @@ function readLanRow(instanceId: string): InstanceLanRow | null {
     networkName: raw.network_name,
     networkSecret: raw.network_secret,
     octet: raw.ipv4_octet,
+    peers: parseStoredPeers(raw.custom_peers),
+    useSharedPeers: raw.use_shared_peers !== 0,
     created_at: raw.created_at,
     updated_at: raw.updated_at,
   };
+}
+
+/** 库里的节点列表坏掉时只丢弃无法识别的条目，不让整个虚拟局域网读不出来。 */
+function parseStoredPeers(text: string | null): string[] {
+  if (!text) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const peers: string[] = [];
+  for (const item of parsed) {
+    if (typeof item !== 'string') continue;
+    try {
+      const peer = normalizeLanPeer(item);
+      if (!peers.includes(peer)) peers.push(peer);
+    } catch {
+      // 跳过无法识别的条目
+    }
+  }
+  return peers;
 }
 
 function allocateOctet(instanceId: string): number {
