@@ -8,6 +8,10 @@ type InterfaceMap = NodeJS.Dict<os.NetworkInterfaceInfo[]>;
 const OPEN_BINDS = new Set(['', '0.0.0.0', '*', '::', '::0']);
 /** 最多返回的地址数；装了很多虚拟网卡的电脑不会把页面撑满。 */
 const MAX_ADDRESSES = 6;
+/** server-ip 取这些值时，游戏同时接受 IPv6 连接；0.0.0.0 只接受 IPv4。 */
+const DUAL_STACK_BINDS = new Set(['', '*', '::', '::0']);
+/** 最多返回的公网 IPv6 地址数；系统常同时有一个固定地址和几个临时地址。 */
+const MAX_IPV6_ADDRESSES = 3;
 
 /** 家用路由器最常见的网段排前面，方便用户认出该发哪一个。 */
 function addressRank(address: string): number {
@@ -47,7 +51,33 @@ export function listLanAddresses(interfaces: InterfaceMap = os.networkInterfaces
     .slice(0, MAX_ADDRESSES);
 }
 
-/** 只读地给出同一网络直连要用的地址和端口，不改任何配置，也不启动进程。 */
+/** 公网单播地址 2000::/3，去掉 6to4（2002::/16）、Teredo（2001::/32）和文档示例段（2001:db8::/32）。 */
+function isPublicIpv6(address: string): boolean {
+  const groups = address.toLowerCase().split(':');
+  const first = Number.parseInt(groups[0] || '0', 16);
+  if (!Number.isInteger(first) || (first & 0xe000) !== 0x2000) return false;
+  if (first === 0x2002) return false;
+  const second = Number.parseInt(groups[1] || '0', 16);
+  return !(first === 0x2001 && (second === 0 || second === 0xdb8));
+}
+
+/**
+ * 这台电脑的公网 IPv6 地址。虚拟网卡上的不算，也不做「宁可多列」的回退：
+ * 列错了朋友只会白试一次，不如不列。
+ */
+export function listPublicIpv6Addresses(interfaces: InterfaceMap = os.networkInterfaces()): string[] {
+  const found = new Set<string>();
+  for (const [name, entries] of Object.entries(interfaces)) {
+    if (VIRTUAL_INTERFACE_RE.test(name)) continue;
+    for (const entry of entries ?? []) {
+      if (entry.family !== 'IPv6' || entry.internal) continue;
+      if (isPublicIpv6(entry.address)) found.add(entry.address.toLowerCase());
+    }
+  }
+  return [...found].slice(0, MAX_IPV6_ADDRESSES);
+}
+
+/** 只读地给出直连要用的地址和端口，不改任何配置，也不启动进程。 */
 export function describeLocalNetwork(
   instanceId: string,
   interfaces: InterfaceMap = os.networkInterfaces(),
@@ -56,14 +86,17 @@ export function describeLocalNetwork(
   try {
     properties = readServerProperties(instanceId);
   } catch {
-    return { port: null, addresses: [], serverIpBlocked: false };
+    return { port: null, addresses: [], publicIpv6: [], serverIpBlocked: false };
   }
   const parsedPort = Number((properties['server-port'] ?? '25565').trim());
   const port = Number.isInteger(parsedPort) && parsedPort >= 1 && parsedPort <= 65535 ? parsedPort : null;
   const addresses = listLanAddresses(interfaces);
   const serverIp = (properties['server-ip'] ?? '').trim();
-  if (OPEN_BINDS.has(serverIp)) return { port, addresses, serverIpBlocked: false };
+  if (OPEN_BINDS.has(serverIp)) {
+    const publicIpv6 = DUAL_STACK_BINDS.has(serverIp) ? listPublicIpv6Addresses(interfaces) : [];
+    return { port, addresses, publicIpv6, serverIpBlocked: false };
+  }
   // server-ip 写的是本机某个局域网地址时，朋友只能连这一个。
-  if (addresses.includes(serverIp)) return { port, addresses: [serverIp], serverIpBlocked: false };
-  return { port, addresses: [], serverIpBlocked: true };
+  if (addresses.includes(serverIp)) return { port, addresses: [serverIp], publicIpv6: [], serverIpBlocked: false };
+  return { port, addresses: [], publicIpv6: [], serverIpBlocked: true };
 }

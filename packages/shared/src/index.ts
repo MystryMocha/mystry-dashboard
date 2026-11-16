@@ -124,6 +124,8 @@ export interface InstanceLocalNetwork {
   port: number | null;
   /** 这台电脑的局域网 IPv4 地址，不含回环和链路本地地址。 */
   addresses: string[];
+  /** 这台电脑的公网 IPv6 地址，供不在同一网络的朋友直连；没有或 server-ip 不接受 IPv6 时为空。 */
+  publicIpv6: string[];
   /** server-ip 绑定了具体地址时为 true，此时同一网络的朋友可能连不上。 */
   serverIpBlocked: boolean;
 }

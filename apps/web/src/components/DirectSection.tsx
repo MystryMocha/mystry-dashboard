@@ -8,6 +8,7 @@ import { useI18n } from '../i18n';
 
 /**
  * 同一网络直连：朋友和这台电脑连着同一个路由器时，直接用局域网地址加入。
+ * 这台电脑有公网 IPv6 时，另外给出不在身边的朋友可以试的地址。
  * 只读显示地址和端口，不安装任何东西，也不改服务器配置。
  */
 export function DirectSection({
@@ -52,6 +53,27 @@ export function DirectSection({
   const running = instance.status === 'running';
   const port = network?.port ?? null;
   const addresses = port != null && network ? network.addresses.map((address) => `${address}:${port}`) : [];
+  // IPv6 地址带端口时必须用方括号包起来，游戏才认得出端口。
+  const ipv6Addresses = port != null && network ? network.publicIpv6.map((address) => `[${address}]:${port}`) : [];
+
+  const addressList = (items: string[]) => (
+    <ul className="direct-address-list">
+      {items.map((address) => (
+        <li key={address}>
+          <code className="direct-address">{address}</code>
+          <button
+            className="btn btn-sm"
+            type="button"
+            aria-label={t('multiplayer.direct.copyAria', { address })}
+            onClick={() => void copy(address)}
+          >
+            <Copy size={13} aria-hidden="true" />
+            {t('action.copy')}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <section className="form-section">
@@ -71,22 +93,7 @@ export function DirectSection({
             <p className="field-help" role="status">{t('common.loading')}</p>
           ) : addresses.length > 0 ? (
             <>
-              <ul className="direct-address-list">
-                {addresses.map((address) => (
-                  <li key={address}>
-                    <code className="direct-address">{address}</code>
-                    <button
-                      className="btn btn-sm"
-                      type="button"
-                      aria-label={t('multiplayer.direct.copyAria', { address })}
-                      onClick={() => void copy(address)}
-                    >
-                      <Copy size={13} aria-hidden="true" />
-                      {t('action.copy')}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {addressList(addresses)}
               {addresses.length > 1 && <p className="field-help">{t('multiplayer.direct.several')}</p>}
               <p className="field-help">{t('multiplayer.direct.howTo')}</p>
             </>
@@ -101,8 +108,22 @@ export function DirectSection({
           <p>{t('multiplayer.direct.firewall')}</p>
         </div>
       </div>
+      {ipv6Addresses.length > 0 && (
+        <div className="card form-card">
+          <div className="direct-block">
+            <h3 className="direct-title">{t('multiplayer.direct.ipv6.title')}</h3>
+            <p className="field-help">{t('multiplayer.direct.ipv6.intro')}</p>
+            {addressList(ipv6Addresses)}
+            <p className="field-help">{t('multiplayer.direct.ipv6.changes')}</p>
+          </div>
+          <div className="callout callout-warning">
+            <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
+            <p>{t('multiplayer.direct.ipv6.router', { port: String(port) })}</p>
+          </div>
+        </div>
+      )}
       <div className="callout">
-        <p>{t('multiplayer.direct.elsewhere')}</p>
+        <p>{t(ipv6Addresses.length > 0 ? 'multiplayer.direct.ipv6.elsewhere' : 'multiplayer.direct.elsewhere')}</p>
         <button className="btn" type="button" onClick={onChooseVirtualLan}>
           {t('multiplayer.direct.useVirtualLan')}
         </button>
