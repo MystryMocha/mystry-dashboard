@@ -1,2 +1,9 @@
 # 仅保留结构化 Issue 模板；安全问题请勿公开开 Issue，见仓库根目录 SECURITY.md
 blank_issues_enabled: false
+contact_links:
+  - name: Documentation & Troubleshooting / 文档与故障排查
+    url: https://github.com/MystryMocha/mystry-dashboard/blob/main/docs/getting-started.md
+    about: Read the getting-started and troubleshooting guides before opening an issue / 提问前请先查阅快速开始与故障排查文档
+  - name: Security Vulnerability Disclosure / 安全漏洞私下报告
+    url: https://github.com/MystryMocha/mystry-dashboard/blob/main/SECURITY.md
+    about: Do not report security issues in public issues; follow SECURITY.md / 请勿在公开 Issue 披露安全漏洞，按 SECURITY.md 私下报告

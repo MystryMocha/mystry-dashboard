@@ -1,6 +1,6 @@
 # Mystry Dashboard AI 开发规则
 
-Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.3`）是单机一体的 **Minecraft Java 服务端** Web 管理面板：本机多实例启停、控制台、文件、一键部署与导入。**不是**客户端模组，也不依赖 Fabric/Forge 作为面板自身的模组加载器。
+Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.4`）是单机一体的 **Minecraft Java 服务端** Web 管理面板：本机多实例启停、控制台、文件、一键部署与导入。**不是**客户端模组，也不依赖 Fabric/Forge 作为面板自身的模组加载器。
 
 本文件是 Claude Code 的项目级入口。开始任务时读取 @docs/ai/README.md，并按其中的任务路由按需加载详细知识。若规则、知识库与源码冲突，以当前源码和配置为事实，并同步修正文档。
 

@@ -2,12 +2,12 @@
 
 **English** · [简体中文](portable-release.zh-CN.md)
 
-The repository is currently at version `v0.2.0-preview.3`. The release workflow is set up to build two portable targets for it. Each one bundles Node.js 22, production dependencies and the built frontend and backend:
+The repository is currently at version `v0.2.0-preview.4`. The release workflow is set up to build two portable targets for it. Each one bundles Node.js 22, production dependencies and the built frontend and backend:
 
 | System | File |
 |------|------|
-| Windows x64 | `mystry-v0.2.0-preview.3-windows-x64.zip` |
-| Linux x64 | `mystry-v0.2.0-preview.3-linux-x64.tar.gz` |
+| Windows x64 | `mystry-v0.2.0-preview.4-windows-x64.zip` |
+| Linux x64 | `mystry-v0.2.0-preview.4-linux-x64.tar.gz` |
 
 The packaging scripts for Linux ARM64 and macOS (Intel / Apple Silicon) still work locally, but those targets aren't in this preview's public release matrix. They're left for a later version.
 
@@ -44,7 +44,7 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 In Windows PowerShell, calculate the archive hash first, then compare it with the matching line in `SHA256SUMS`:
 
 ```powershell
-Get-FileHash .\mystry-v0.2.0-preview.3-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\mystry-v0.2.0-preview.4-windows-x64.zip -Algorithm SHA256
 ```
 
 You can also run the same `gpg --verify` as on Linux in WSL or Gpg4win.
@@ -72,7 +72,7 @@ You can also run this in a terminal:
 Linux:
 
 ```bash
-tar -xzf mystry-v0.2.0-preview.3-linux-x64.tar.gz
+tar -xzf mystry-v0.2.0-preview.4-linux-x64.tar.gz
 cd mystry-dashboard
 chmod +x mystryctl
 ./mystryctl start
@@ -90,8 +90,10 @@ Commands:
 | `status` | Checks health and the state of the managed process |
 | `logs` | Shows recent logs |
 | `open` | Opens the panel address |
+| `reset-password` | Generates a new random administrator password in an interactive terminal while the panel is running |
+| `menu` | Opens the interactive command menu |
 
-The first start creates `config/panel.env`, generates distinct random secrets, and creates the `admin` account with a random 16-character password. The password is shown once in the window and isn't written to the log files. After signing in, click the key icon at the bottom left to change it. If you forget it, run `.\mystryctl.cmd reset-password` while the panel is running. The config file contains secrets, so don't upload or share it.
+The first start creates `config/panel.env`, generates distinct random secrets, and creates the `admin` account with a random 16-character password. The password is shown once in the window and isn't written to the log files. After signing in, click the key icon at the bottom left to change it. If you forget it, run `.\mystryctl.cmd reset-password` in a terminal window while the panel is running; it refuses when its output is redirected or piped, so the new password never lands in a file. The config file contains secrets, so don't upload or share it.
 
 ## Folders and Data
 
@@ -137,7 +139,7 @@ If `MYSTRY_HOME` is already set in your environment, the Windows `.cmd` and Unix
 - Java 8/17/21/25 isn't bundled or downloaded automatically. You can configure your system `PATH` as the default runtime, or start the panel and scan for and select another installed version.
 - Sign-in still uses a JWT stored locally in the browser. Cookie sessions, CSRF protection, TOTP and a public deployment wizard aren't implemented yet.
 - The panel only listens on `127.0.0.1` by default. Don't expose the panel port directly to the untrusted public internet.
-- The production dependency audit against the official registry on 2026-11-05 found 0 critical, 0 high and 2 moderate advisories. Both moderate advisories are React Router 6 advisories (GHSA-wrjc-x8rr-h8h6 backslash open redirect, GHSA-337j-9hxr-rhxg SSR hydration injection), fixed only in 7.18 and later. The current SPA doesn't use SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs, but these advisories are still recorded as a residual preview risk and must be audited again for every release. This release upgrades `react-router-dom` / `react-router` to 6.30.6, which resolves GHSA-jjmj-jmhj-qwj2, and `@fastify/static` 10.1.10 brings in `glob` 14.0.3 / `minimatch` 11.0.4, which resolves GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249. Earlier high advisories for `fastify`, `fast-jwt`, `@fastify/busboy`, `fast-uri` and `brace-expansion` were resolved by upgrading transitive dependencies (`fastify` 5.12.7, `fast-jwt` 6.3.5, `@fastify/busboy` 3.2.3, `fast-uri` 3.1.9 / 4.2.3, `brace-expansion` 5.0.12). The critical `tinypool` advisory in the `vitest` 3 development dependency doesn't reach the portable package. Upgrading needs a major version jump, so it hasn't been handled yet.
+- The production dependency audit against the official registry on 2026-11-16 found 0 critical, 0 high and 2 moderate advisories. Both moderate advisories are React Router 6 advisories (GHSA-wrjc-x8rr-h8h6 backslash open redirect, GHSA-337j-9hxr-rhxg SSR hydration injection), fixed only in 7.18 and later. The current SPA doesn't use SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs, but these advisories are still recorded as a residual preview risk and must be audited again for every release. Earlier advisories were resolved by upgrading `react-router-dom` / `react-router` to 6.30.6 (GHSA-jjmj-jmhj-qwj2), `@fastify/static` to 10.1.10 with `glob` 14.0.3 / `minimatch` 11.0.4 (GHSA-3g3m-2fjr-6pw4, GHSA-g3hv-75wg-m249), and transitive dependencies (`fastify` 5.12.7, `fast-jwt` 6.3.5, `@fastify/busboy` 3.2.3, `fast-uri` 3.1.9 / 4.2.3, `brace-expansion` 5.0.12). The critical `tinypool` advisory in the `vitest` 3 development dependency doesn't reach the portable package. Upgrading needs a major version jump, so it hasn't been handled yet.
 
 ## Release Maintenance
 

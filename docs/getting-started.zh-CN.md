@@ -58,6 +58,7 @@ chmod +x mystryctl
 .\PanelManager.cmd status
 .\PanelManager.cmd logs
 .\PanelManager.cmd open
+.\PanelManager.cmd reset-password
 .\PanelManager.cmd help
 ```
 
@@ -86,7 +87,7 @@ export MYSTRY_DATA_DIR="${HOME}/mystry-test"
 ./PanelManager.sh start
 ```
 
-首次空用户库会自动生成随机密钥，创建管理员 `admin` 和随机 16 位密码，并只在窗口里显示一次。不要把密码或 `panel.env` 分享到聊天、仓库或截图中。可用命令为 `start`、`foreground`、`stop`、`restart`、`rebuild`、`status`、`logs`、`open`、`reset-password` 和 `help`；其中 `rebuild` 会先安全停止面板，再重新安装依赖、构建并启动，和 Windows 的 `PanelManager.cmd rebuild` 相同。
+首次空用户库会自动生成随机密钥，创建管理员 `admin` 和随机 16 位密码，并只在窗口里显示一次。不要把密码或 `panel.env` 分享到聊天、仓库或截图中。可用命令为 `start`、`foreground`、`stop`、`restart`、`rebuild`、`mirror`、`status`、`logs`、`open`、`reset-password` 和 `help`；其中 `rebuild` 会先安全停止面板，再重新安装依赖、构建并启动，和 Windows 的 `PanelManager.cmd rebuild` 相同。
 
 ## 手动安装与首次配置
 
@@ -151,13 +152,19 @@ npm start
 
 ## 初始化管理员
 
-便携版、源码管理器和手动运行共用同一个初始化页面。
+在浏览器打开面板地址（默认整合面板为 `http://127.0.0.1:3000`，手动开发为 `http://127.0.0.1:5173`）。
 
-1. 打开管理器显示的面板地址；默认整合面板为 `http://127.0.0.1:3000`，手动开发为 `http://127.0.0.1:5173`。
-2. 用 `PanelManager` 或 `mystryctl` 启动时，管理器已创建好管理员：用窗口里显示的用户名和密码登录，再点左下角的钥匙图标修改密码。忘记密码时，在面板运行期间执行 `reset-password` 生成新密码。手动运行时，空用户库会显示「初始化管理员」，在「初始化令牌」中填入自己配置的 `SETUP_TOKEN`。默认配置位置见 [配置说明](configuration.zh-CN.md)，请勿把令牌或配置文件分享出去。
-3. 填写用户名（去除首尾空白后 2–64 个字符）与密码（至少 12 个字符，UTF-8 编码不超过 72 字节），点击「创建并进入」，成功后进入面板。
-4. 已创建管理员时，页面显示「登录面板」，使用该账号登录即可。初始化令牌不能用作登录密码。
-5. 手动配置模式完成后，从实际使用的配置文件移除 `SETUP_TOKEN` 并重启面板；源码管理器和 `mystryctl` 提供自动清理。若自动清理未完成，也可从当前配置文件移除后重启。
+### 使用便携版 `mystryctl` 或源码管理器 `PanelManager`（推荐）
+
+1. 首次启动时，启动器已自动创建管理员 `admin` 和随机 16 位密码（只在启动窗口里显示一次），因此浏览器打开会直接显示 **「登录面板」**。
+2. 使用窗口里显示的 `admin` 和随机密码登录，然后点击左下角钥匙图标将密码修改为自己的密码（至少 12 个字符）。
+3. 忘记密码时，在面板运行期间于终端执行 `reset-password` 命令即可生成新密码。
+
+### 手动运行（`npm start` / `npm run dev:server`）
+
+1. 空用户库时页面显示 **「初始化管理员」**。在「初始化令牌」中填入当前配置文件里的 `SETUP_TOKEN`（默认配置位置见 [配置说明](configuration.zh-CN.md)，请勿外泄令牌或配置文件）。
+2. 填写用户名（去除首尾空白后 2–64 个字符）与密码（至少 12 个字符，UTF-8 编码不超过 72 字节），点击 **「创建并进入」**。
+3. 创建完成后，从实际使用的配置文件移除 `SETUP_TOKEN` 并重启面板（`mystryctl` 和 `PanelManager` 会自动清理）。若管理员已存在，页面会显示「登录面板」，初始化令牌不能用作登录密码。
 
 看到总览后，按 [分步教程：第一次开服](tutorials.zh-CN.md#教程-1第一次开服推荐-paper) 部署实例，再启动 Minecraft 服务端。
 
