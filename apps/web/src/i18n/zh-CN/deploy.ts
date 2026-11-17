@@ -55,5 +55,5 @@ export default {
   'deploy.guide.after.title': '部署完成后',
   'deploy.guide.after.start': '在实例页点「启动」，等控制台出现 <code>Done</code>。',
   'deploy.guide.after.local': '同一台电脑的游戏里添加服务器地址 <code>127.0.0.1</code>。',
-  'deploy.guide.after.friends': '想让朋友加入，打开「联机」页，那里有要发给朋友的地址。',
+  'deploy.guide.after.friends': '想让玩家加入，打开「联机」页，那里有加入地址。',
 } satisfies Record<keyof typeof en, string>;

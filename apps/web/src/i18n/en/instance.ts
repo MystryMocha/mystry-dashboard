@@ -51,8 +51,8 @@ export default {
 
   // 启动成功后的下一步提示（控制台上方）
   'instance.ready.title': 'The server is up. You can join now.',
-  'instance.ready.body': 'Want friends to join? Multiplayer shows the address to send them.',
-  'instance.ready.action': 'Invite Friends',
+  'instance.ready.body': 'Want players to join? Multiplayer shows the join address.',
+  'instance.ready.action': 'Invite Players',
   'instance.ready.dismiss': 'Don\'t Show Again',
 
   // 未保存修改弹窗（设置与参数配置共用）

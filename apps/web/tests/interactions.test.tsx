@@ -126,7 +126,7 @@ test('总览每行给出状态说明和下一步，没有实例时只保留三�
   const user = userEvent.setup();
   const view = mount(<DashboardPage />);
   expect(await screen.findByText('可以进服了')).toBeTruthy();
-  expect(screen.getByRole('link', { name: '邀请朋友' }).getAttribute('href')).toBe('/multiplayer?instance=ready');
+  expect(screen.getByRole('link', { name: '邀请玩家' }).getAttribute('href')).toBe('/multiplayer?instance=ready');
   expect(screen.getByText('这个服务器需要 Java 21')).toBeTruthy();
   expect(screen.getByRole('link', { name: '打开实例设置' }).getAttribute('href')).toBe('/instances/java/settings');
   expect(screen.getByRole('link', { name: '查看并同意' }).getAttribute('href')).toBe('/instances/eula');
@@ -838,7 +838,7 @@ test('服务器完成启动后提示可以进服并指向联机；点「不再�
   ready = true;
   const started = open();
   expect(await screen.findByText('服务器已启动，现在可以进服了。')).toBeTruthy();
-  expect(screen.getByRole('link', { name: '邀请朋友' }).getAttribute('href')).toBe('/multiplayer?instance=test');
+  expect(screen.getByRole('link', { name: '邀请玩家' }).getAttribute('href')).toBe('/multiplayer?instance=test');
   await user.click(screen.getByRole('button', { name: '不再提示' }));
   expect(screen.queryByText('服务器已启动，现在可以进服了。')).toBeNull();
   started.unmount();
@@ -887,19 +887,139 @@ test('联机页默认「直接连接」：列出可复制的地址，并能转�
   expect(await screen.findByRole('button', { name: '直接连接', pressed: true })).toBeTruthy();
   expect(await screen.findByText('192.168.1.23:25565')).toBeTruthy();
   expect(screen.getByText('10.0.0.5:25565')).toBeTruthy();
-  expect(screen.getByText('这台电脑有多个地址，同一网络的朋友可以按顺序试。')).toBeTruthy();
+  expect(screen.getByText('有多个地址时，玩家可以逐个试。')).toBeTruthy();
   // 实例没在运行时先提示启动。
-  expect(screen.getByText('请先启动服务器。服务器运行时朋友才能加入。')).toBeTruthy();
+  expect(screen.getByText('服务器没在运行，启动后玩家才能加入。')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '复制 192.168.1.23:25565' }));
   expect(writeText).toHaveBeenCalledWith('192.168.1.23:25565');
   expect(await screen.findByText('已复制 192.168.1.23:25565。')).toBeTruthy();
   // 有公网 IPv6 时另给一个带方括号的地址，并提醒只放行端口。
-  expect(screen.getByText('给不在身边的朋友：IPv6 地址')).toBeTruthy();
+  expect(screen.getByText('IPv6 加入地址')).toBeTruthy();
   expect(screen.getByText(/只放行这台电脑的 25565 端口/)).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '复制 [2408:8207:ab::10]:25565' }));
   expect(writeText).toHaveBeenCalledWith('[2408:8207:ab::10]:25565');
   await user.click(screen.getByRole('button', { name: '改用虚拟局域网' }));
   expect(await screen.findByRole('button', { name: '虚拟局域网', pressed: true })).toBeTruthy();
+});
+
+test('联机页指引栏可以关闭并记住；客户端未安装时手动安装默认收起', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23'], publicIpv4: [], publicIpv6: [], publicHost: null, serverIpBlocked: false, serverIpIsUnboundPublicHost: false, panelPort: 3000, platform: 'linux' }
+      : url === '/api/lan/runtime' ? { version: '2.6.4', installed: false, platformSupported: true, archive: { name: 'easytier.zip', sha256: 'a'.repeat(64), url: 'https://example.invalid/easytier.zip', maxBytes: 1 } }
+      : url === '/api/instances/test/lan' ? { instanceId: 'test', enabled: false, status: 'disabled', localPort: 25565, virtualIp: null, joinAddress: null, serverIpBlocked: false, runtimeInstalled: false, peers: [], useSharedPeers: true, sharedPeers: [], listenPort: null, detail: null, warning: null }
+      : null;
+    return data ? new Response(JSON.stringify(data)) : baseFetch(url, options);
+  }));
+  mount(<MultiplayerPage />);
+  expect(await screen.findByRole('heading', { name: '指引' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '关闭指引' }));
+  expect(screen.queryByRole('heading', { name: '指引' })).toBeNull();
+  expect(localStorage.getItem('mystry_multiplayer_guide')).toBe('closed');
+  // 被点的按钮消失后，焦点交给接替它的按钮。
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: '显示指引' }));
+  await user.click(screen.getByRole('button', { name: '显示指引' }));
+  expect(screen.getByRole('heading', { name: '指引' })).toBeTruthy();
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: '关闭指引' }));
+  expect(localStorage.getItem('mystry_multiplayer_guide')).toBeNull();
+
+  await user.click(screen.getByRole('button', { name: '虚拟局域网' }));
+  expect(await screen.findByText('未安装 EasyTier 客户端。')).toBeTruthy();
+  // 没装客户端时只留安装提示，开关和中继节点等装好再出现。
+  expect(screen.queryByRole('switch', { name: '对玩家开放这个实例' })).toBeNull();
+  expect(screen.queryByText('中继节点')).toBeNull();
+  expect(screen.queryByText(/SHA-256 一致才会安装/)).toBeNull();
+  await user.click(screen.getByRole('button', { name: '手动安装' }));
+  expect(screen.getByText(/SHA-256 一致才会安装/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: '上传压缩包' })).toBeTruthy();
+});
+
+test('虚拟局域网开关立即保存，只带服务端已保存的中继节点；失败时开关回到原位', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const lanState = { instanceId: 'test', enabled: false, status: 'disabled', localPort: 25565, virtualIp: null as string | null, joinAddress: null as string | null, serverIpBlocked: false, runtimeInstalled: true, peers: ['tcp://relay.example.com:11010'], useSharedPeers: true, sharedPeers: ['tcp://public.example:11010'], listenPort: null, detail: null, warning: null };
+  const bodies: string[] = [];
+  let failNext = true;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/lan' && options?.method === 'PUT') {
+      bodies.push(String(options.body));
+      if (failNext) {
+        failNext = false;
+        return new Response(JSON.stringify({ error: 'Run the panel as administrator.' }), { status: 500 });
+      }
+      Object.assign(lanState, JSON.parse(String(options.body)), { status: 'running', virtualIp: '10.126.3.1', joinAddress: '10.126.3.1:25565' });
+      return new Response(JSON.stringify(lanState));
+    }
+    const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23'], publicIpv4: [], publicIpv6: [], publicHost: null, serverIpBlocked: false, serverIpIsUnboundPublicHost: false, panelPort: 3000, platform: 'linux' }
+      : url === '/api/lan/runtime' ? { version: '2.6.4', installed: true, platformSupported: true, archive: null }
+      : url === '/api/instances/test/lan' ? lanState
+      : null;
+    return data ? new Response(JSON.stringify(data)) : baseFetch(url, options);
+  }));
+  mount(<MultiplayerPage />);
+  await user.click(await screen.findByRole('button', { name: '虚拟局域网' }));
+  const toggle = await screen.findByRole('switch', { name: '对玩家开放这个实例' }) as HTMLInputElement;
+  expect(toggle.checked).toBe(false);
+  // 已经填过自己的中继节点：折叠区默认展开，不藏着已生效的设置。
+  expect((screen.getByText('中继节点').closest('details') as HTMLDetailsElement).open).toBe(true);
+  // 文本框里没保存的改动不会被开关带走。
+  await user.type(screen.getByLabelText('自己的中继节点'), '\ntcp://draft.example.com:11010');
+
+  await user.click(toggle);
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  expect(toggle.checked).toBe(false);
+  expect(screen.queryByRole('heading', { name: '让玩家加入' })).toBeNull();
+
+  await user.click(toggle);
+  expect(await screen.findByRole('heading', { name: '让玩家加入' })).toBeTruthy();
+  expect(toggle.checked).toBe(true);
+  expect(screen.getByText('10.126.3.1:25565')).toBeTruthy();
+  expect(bodies.map((body) => JSON.parse(body))).toEqual([
+    { enabled: true, peers: ['tcp://relay.example.com:11010'], useSharedPeers: true },
+    { enabled: true, peers: ['tcp://relay.example.com:11010'], useSharedPeers: true },
+  ]);
+
+  // 中继节点单独保存，带上服务端当前的开关；开着时提醒重新发加入说明。
+  await user.click(screen.getByRole('button', { name: '保存中继节点' }));
+  expect(await screen.findByText('中继节点已保存。要把新的加入说明重新发给玩家。')).toBeTruthy();
+  expect(JSON.parse(bodies[2])).toEqual({ enabled: true, peers: ['tcp://relay.example.com:11010', 'tcp://draft.example.com:11010'], useSharedPeers: true });
+});
+
+test('frp 第一次保存穿透设置就是「保存并开放」，之后穿透设置收进折叠区', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const tunnelState = { instanceId: 'test', enabled: false, endpointId: null as string | null, mode: 'public', remotePort: null as number | null, visitorBindPort: 25566, localPort: 25565, status: 'disabled', joinAddress: null as string | null, serverIpBlocked: false, runtimeInstalled: true, detail: null };
+  const bodies: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/tunnel' && options?.method === 'PUT') {
+      bodies.push(String(options.body));
+      Object.assign(tunnelState, JSON.parse(String(options.body)), { status: 'running', joinAddress: 'frp.example.com:25565' });
+      return new Response(JSON.stringify(tunnelState));
+    }
+    const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23'], publicIpv4: [], publicIpv6: [], publicHost: null, serverIpBlocked: false, serverIpIsUnboundPublicHost: false, panelPort: 3000, platform: 'linux' }
+      : url === '/api/frp/runtime' ? { version: '0.71.1', installed: true, platformSupported: true, archive: null }
+      : url === '/api/frp/endpoints' ? [{ id: 'e1', name: 'Hong Kong', serverAddr: 'frp.example.com', serverPort: 7000, visitHost: '', transport: 'tcp', tls: true, tokenSet: true }]
+      : url === '/api/instances/test/tunnel' ? tunnelState
+      : null;
+    return data ? new Response(JSON.stringify(data)) : baseFetch(url, options);
+  }));
+  mount(<MultiplayerPage />);
+  await user.click(await screen.findByRole('button', { name: 'frp 穿透' }));
+  // 还没保存过穿透设置：没有开关，按钮直接是「保存并开放」。
+  const saveOpen = await screen.findByRole('button', { name: '保存并开放' });
+  expect(screen.queryByRole('switch', { name: '对玩家开放这个实例' })).toBeNull();
+  await user.click(saveOpen);
+  expect(await screen.findByText('frp.example.com:25565')).toBeTruthy();
+  expect(JSON.parse(bodies[0])).toEqual({ enabled: true, endpointId: 'e1', mode: 'public', remotePort: 25565, visitorBindPort: 25566 });
+  const toggle = screen.getByRole('switch', { name: '对玩家开放这个实例' }) as HTMLInputElement;
+  expect(toggle.checked).toBe(true);
+  expect((screen.getByText('穿透设置').closest('details') as HTMLDetailsElement).open).toBe(false);
+
+  // 之后用开关关掉，带的是服务端已保存的设置。
+  await user.click(toggle);
+  await waitFor(() => expect(bodies).toHaveLength(2));
+  expect(JSON.parse(bodies[1])).toEqual({ enabled: false, endpointId: 'e1', mode: 'public', remotePort: 25565, visitorBindPort: 25566 });
 });
 
 test('修改密码成功后换上新令牌并说明其他设备需重新登录', async () => {
@@ -970,13 +1090,13 @@ test('联机页公网直连：填写公网地址后给出「地址:游戏端口�
   mount(<MultiplayerPage />);
   expect(await screen.findByText('172.16.0.8:25570')).toBeTruthy();
   // 没有公网地址时沿用原标题，也不显示公网卡片；Linux 上不显示 Windows 弹窗提示。
-  expect(screen.getByText('发给朋友的地址')).toBeTruthy();
-  expect(screen.queryByText('发给任何地方的朋友：公网地址')).toBeNull();
-  expect(screen.queryByText(/Windows 可能会弹窗/)).toBeNull();
+  expect(screen.getByText('加入地址')).toBeTruthy();
+  expect(screen.queryByText('公网加入地址')).toBeNull();
+  expect(screen.queryByText(/Windows 可能弹窗/)).toBeNull();
   await user.click(screen.getByRole('button', { name: '这台电脑有公网 IP' }));
   const input = screen.getByLabelText('公网 IP 或域名');
   await user.type(input, '192.168.1.5');
-  expect(screen.getByText('这看起来是内网地址，网络外面的朋友多半连不上。')).toBeTruthy();
+  expect(screen.getByText('这像是内网地址，其他网络的玩家连不上。')).toBeTruthy();
   await user.clear(input);
   await user.type(input, '203.0.113.10:25570');
   await user.click(screen.getByRole('button', { name: '保存' }));
@@ -986,9 +1106,9 @@ test('联机页公网直连：填写公网地址后给出「地址:游戏端口�
   await user.click(screen.getByRole('button', { name: '保存' }));
   expect(await screen.findByText('203.0.113.10:25570')).toBeTruthy();
   expect(saved.at(-1)).toBe('{"host":"203.0.113.10"}');
-  // 有公网地址后，局域网地址改用「同一网络」标题，避免被当成发给朋友的地址。
-  expect(screen.getByText('同一网络里的设备用这个地址')).toBeTruthy();
-  expect(screen.getByText(/放行入方向的 TCP 25570，这是游戏端口。面板端口 3000 是另一回事/)).toBeTruthy();
+  // 有公网地址后，局域网地址改用「同一网络」标题，避免被当成公网加入地址。
+  expect(screen.getByText('同一网络的加入地址')).toBeTruthy();
+  expect(screen.getByText(/放行入方向 TCP 25570（游戏端口）。面板端口 3000 只在/)).toBeTruthy();
   expect(screen.getByText('sudo ufw allow 25570/tcp')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '清除' }));
   await waitFor(() => expect(screen.queryByText('203.0.113.10:25570')).toBeNull());
@@ -1004,7 +1124,7 @@ test('server-ip 填成公网 IP 时给出专门提示', async () => {
     return data ? new Response(JSON.stringify(data)) : baseFetch(url, options);
   }));
   mount(<MultiplayerPage />);
-  expect(await screen.findByText(/server-ip 填成了公网 IP。云服务器的网卡上没有这个地址/)).toBeTruthy();
+  expect(await screen.findByText(/server-ip 填了公网 IP，云服务器网卡上没有这个地址/)).toBeTruthy();
 });
 
 const remoteStatus = (direct: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({

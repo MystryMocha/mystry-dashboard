@@ -2330,9 +2330,60 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .import-mode-switch,
 .multiplayer-mode-switch { align-self: flex-start; }
 
+/* ========== 联机 ==========
+ * 实例选择和方式切换同一行，指引栏可关闭（关闭后主栏占满）。两栏沿用一键部署页的 deploy-layout。 */
+.multiplayer-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
+.multiplayer-instance { flex: 0 1 320px; min-width: 200px; }
+.multiplayer-toolbar .multiplayer-mode-switch { align-self: flex-end; }
+.multiplayer-guide-toggle { margin-inline-start: auto; margin-bottom: 4px; }
+.multiplayer-layout.is-guide-closed { grid-template-columns: minmax(0, 1fr); }
+.multiplayer-guide-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -6px 0 -2px; }
+.multiplayer-guide-head h2 { margin: 0; font-size: var(--text-headline); font-weight: 600; letter-spacing: -0.01em; color: var(--label); }
+.multiplayer-guide p { margin: 0; }
+/* 总开关是这一页的起点：标题放大一档，状态跟在标题后面，开关留在右侧不换行。 */
+.multiplayer-open-row { align-items: center; flex-wrap: nowrap; cursor: pointer; }
+.multiplayer-open-row .list-row-text { flex: 1 1 0; }
+.multiplayer-open-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.multiplayer-open .list-row-title { font-size: var(--text-headline); font-weight: 600; }
+/* 下面紧跟「让玩家加入」的标题线，开关自己的下边线不再重复。 */
+.page .multiplayer-open:not(dialog *) { border-bottom: 0; }
+/* 让玩家加入：编号是真实先后顺序，每步一句话，按钮和地址跟在那一步下面。 */
+.page .multiplayer-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 16px 0 0;
+  border-top: 0.5px solid var(--separator-strong);
+  list-style: none;
+}
+.multiplayer-steps > li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; align-items: start; }
+.multiplayer-step { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding-top: 1px; }
+.multiplayer-step > p { margin: 0; }
+.multiplayer-step > p:not(.field-help) { font-size: var(--text-body); color: var(--label); }
+.page .multiplayer-step-single { padding-top: 16px; border-top: 0.5px solid var(--separator-strong); }
+/* 加入地址是玩家真正要填的东西，比正文大一档；框只包住地址，复制按钮紧跟在后面。 */
+.multiplayer-join-address { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; }
+.multiplayer-join-address .direct-address { flex: 0 1 auto; padding: 8px 14px; font-size: var(--text-headline); font-weight: 600; font-variant-numeric: tabular-nums; }
+.multiplayer-relay > .field,
+.multiplayer-relay > .checkbox-field,
+.multiplayer-relay > .instance-actions,
+.multiplayer-settings > .field,
+.multiplayer-settings > .grid,
+.multiplayer-settings > .instance-actions { margin-top: 14px; }
+.multiplayer-relay > .field-help { margin-top: 6px; }
+.multiplayer-settings > .multiplayer-add { margin-top: 22px; padding-top: 18px; border-top: 0.5px solid var(--separator); }
+.multiplayer-meta { margin-top: 0; }
+.direct-elsewhere { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.direct-elsewhere p { margin: 0; font-size: var(--text-body); color: var(--label-2); }
+/* 客户端未安装：状态和下载按钮一行，下载来源和手动安装入口在下面，同在一个提示条里。 */
+.callout.runtime-install { flex-direction: column; align-items: stretch; gap: 6px; }
+.runtime-install-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.runtime-upload-panel { display: grid; gap: 8px; }
+.remote-host-row select { flex: 1; min-width: 0; }
+
 /* 同一网络直连：地址用等宽字体，一行一个，右侧是复制按钮 */
 .direct-block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.direct-title { margin: 0; font-size: var(--text-body); font-weight: 600; }
 .direct-address-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .direct-address-list li { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .direct-address {
@@ -2346,8 +2397,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   overflow-wrap: anywhere;
   user-select: all;
 }
-.direct-notice { min-height: 1.5em; }
-.direct-subtitle { margin: 6px 0 0; font-size: var(--text-small); font-weight: 600; }
 .direct-checklist { display: flex; flex-direction: column; gap: 8px; margin: 0; padding-left: 20px; font-size: var(--text-small); line-height: 1.55; color: var(--label-2); }
 .direct-command {
   display: block;
@@ -2690,6 +2739,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .hub-tab.active::after { inset-inline: 10px; }
   .import-mode-switch,
   .multiplayer-mode-switch { align-self: stretch; }
+  .multiplayer-instance,
+  .multiplayer-toolbar .multiplayer-mode-switch { flex: 1 1 100%; }
+  .multiplayer-guide-toggle { margin-inline-start: 0; }
 
   .form-card { padding: 18px 16px; }
   .action-bar { border-radius: var(--radius-lg); padding: 10px 10px 10px 16px; }

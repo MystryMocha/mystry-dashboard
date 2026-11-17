@@ -66,7 +66,7 @@ Don't send the password, the config file, or screenshots that contain them to an
 ### 6. Let Friends Join (Same LAN)
 
 1. On the **Properties** page, confirm `online-mode=true` (account verification), or change it to suit your needs.
-2. Open **Multiplayer** in the sidebar and choose this instance. **Direct Connection** shows the address to send your friends (for example `192.168.1.100:25565`). Click **Copy** and send it to them.
+2. Open **Multiplayer** in the sidebar and choose this instance. **Direct Connection** shows the join address (for example `192.168.1.100:25565`). Click **Copy** and send it to them.
 3. Your friends add the server in the game and enter that address.
 
 If your friends aren't on the same Wi-Fi or router, switch to **Virtual LAN** or **frp Tunnel** on the Multiplayer page. See [User Guide: Multiplayer](user-guide.md#multiplayer) for the steps.

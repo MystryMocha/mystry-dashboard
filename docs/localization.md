@@ -56,6 +56,7 @@ The server never writes user-facing text in Chinese or any other locale. It retu
 
 - 寫使用者看得懂的詞，不寫實作用語：說「下載連結」不說「下載票據 / ticket」，說「沒有可用的官方用戶端」不說「釘選 / pinned 版本」，說「名稱裡不能有 / 或 \」不說「路徑分隔符號」。
 - 同一個東西全站一個叫法，提示裡要使用者點的按鈕名稱必須和按鈕上的字一致（例如 Java 的「重新掃描 / Rescan」、舊實例的「完成遷移 / Complete Migration」）。
+- 多人連線相關：進伺服器的人叫「玩家 / players」，不叫「朋友 / friends」（開服的人不一定只跟朋友玩）；固定叫法是「加入位址 / Join address」「加入說明 / Join Instructions」（虛擬區域網路）、「玩家設定 / Player Config」（frp）、「frp 伺服器 / frp Server」、「穿透模式 / Tunnel Mode」（公開連接埠、STCP 中繼、XTCP 打洞）、「讓玩家加入 / Let Players Join」、總開關「對玩家開放這個實例 / Open This Instance to Players」。簡體對應「加入地址」「加入说明」「玩家配置」「frp 服务器」「穿透模式」（公网端口、STCP 中转、XTCP 打洞）「让玩家加入」「对玩家开放这个实例」。
 - 稱呼用「你」，語氣平實，不用驚嘆號和 emoji；標點使用全形，引號用「」。
 - `:root:lang(zh-TW)` 在 `styles.css` 中把繁體字型排在簡體字型之前；新增字型堆疊時保持這個順序。
 
