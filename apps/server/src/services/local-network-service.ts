@@ -1,6 +1,8 @@
 import os from 'node:os';
-import type { InstanceLocalNetwork } from '@mystry/shared';
+import type { InstanceLocalNetwork, NetworkInterfaceKind, PanelNetworkInterface } from '@mystry/shared';
+import { config } from '../config.js';
 import { readServerProperties } from './config-service.js';
+import { getPublicHost } from './public-host.js';
 
 type InterfaceMap = NodeJS.Dict<os.NetworkInterfaceInfo[]>;
 
@@ -51,6 +53,73 @@ export function listLanAddresses(interfaces: InterfaceMap = os.networkInterfaces
     .slice(0, MAX_ADDRESSES);
 }
 
+// ---- 网卡分类：只用于默认值、排序和界面说明，不用来禁止选择 ----
+
+/** 面板为实例联机建的虚拟网卡（lan-config.ts 的 dev_name）。 */
+const INSTANCE_NETWORK_INTERFACE_RE = /^mystry\d+$/i;
+/** 代理软件 TUN 模式的虚拟网卡。 */
+const PROXY_INTERFACE_RE = /Clash|Mihomo/i;
+/** 组网软件的网卡；Linux 上 tailscale0、zt*、wg* 不以 tun / tap 开头，要单独匹配。 */
+const OVERLAY_INTERFACE_RE = /Tailscale|ZeroTier|EasyTier|WireGuard|^zt|^wg\d/i;
+/** 虚拟机、容器和其他隧道网卡。 */
+const VM_INTERFACE_RE = /vEthernet|WSL|Hyper-V|VMware|VirtualBox|vboxnet|docker|^br-|^veth|^virbr|TAP-|^tun|^tap|^utun|Loopback/i;
+
+function ipv4Octets(address: string): number[] {
+  return address.split('.').map(Number);
+}
+
+/** 运营商级 NAT 网段 100.64.0.0/10，组网软件常用。 */
+export function isCgnatAddress(address: string): boolean {
+  const [first, second] = ipv4Octets(address);
+  return first === 100 && second! >= 64 && second! <= 127;
+}
+
+function isPrivateIpv4(address: string): boolean {
+  const [first, second] = ipv4Octets(address);
+  return first === 10 || (first === 172 && second! >= 16 && second! <= 31) || (first === 192 && second === 168);
+}
+
+/**
+ * 先按网卡名、再按地址判断：用公网段地址的组网软件要靠网卡名认出来，不能先被地址判成公网。
+ */
+export function classifyNetworkInterface(name: string, address: string): NetworkInterfaceKind {
+  const [first, second] = ipv4Octets(address);
+  if (INSTANCE_NETWORK_INTERFACE_RE.test(name) || (first === 10 && second === 126)) return 'instanceNetwork';
+  if (PROXY_INTERFACE_RE.test(name) || (first === 198 && (second === 18 || second === 19))) return 'proxy';
+  if (OVERLAY_INTERFACE_RE.test(name) || isCgnatAddress(address)) return 'overlay';
+  if (VM_INTERFACE_RE.test(name)) return 'virtual';
+  return isPrivateIpv4(address) ? 'lan' : 'public';
+}
+
+/** 这台电脑上所有非回环 IPv4 地址及其分类，按系统给出的顺序。 */
+export function listNetworkInterfaces(interfaces: InterfaceMap = os.networkInterfaces()): PanelNetworkInterface[] {
+  const found: PanelNetworkInterface[] = [];
+  const seen = new Set<string>();
+  for (const [name, entries] of Object.entries(interfaces)) {
+    for (const entry of entries ?? []) {
+      if (entry.family !== 'IPv4' || entry.internal) continue;
+      if (entry.address.startsWith('169.254.') || entry.address.startsWith('127.')) continue;
+      if (seen.has(entry.address)) continue;
+      seen.add(entry.address);
+      found.push({ name, address: entry.address, cidr: entry.cidr ?? null, kind: classifyNetworkInterface(name, entry.address) });
+    }
+  }
+  return found;
+}
+
+/** 网址的显示顺序：局域网（192.168 → 10 → 172.16–31）→ 用户填的公网地址 → 网卡上的公网地址 → 组网 → 其余。 */
+export function networkKindRank(kind: NetworkInterfaceKind | 'publicHost', address = ''): number {
+  switch (kind) {
+    case 'lan': return addressRank(address);
+    case 'publicHost': return 4;
+    case 'public': return 5;
+    case 'overlay': return 6;
+    case 'virtual': return 7;
+    case 'proxy': return 8;
+    default: return 9;
+  }
+}
+
 /** 公网单播地址 2000::/3，去掉 6to4（2002::/16）、Teredo（2001::/32）和文档示例段（2001:db8::/32）。 */
 function isPublicIpv6(address: string): boolean {
   const groups = address.toLowerCase().split(':');
@@ -82,21 +151,46 @@ export function describeLocalNetwork(
   instanceId: string,
   interfaces: InterfaceMap = os.networkInterfaces(),
 ): InstanceLocalNetwork {
+  const publicHost = getPublicHost();
+  const base = {
+    publicHost,
+    serverIpIsUnboundPublicHost: false,
+    panelPort: config.port,
+    platform: process.platform,
+  };
   let properties: Record<string, string>;
   try {
     properties = readServerProperties(instanceId);
   } catch {
-    return { port: null, addresses: [], publicIpv6: [], serverIpBlocked: false };
+    return { ...base, port: null, addresses: [], publicIpv4: [], publicIpv6: [], serverIpBlocked: false };
   }
   const parsedPort = Number((properties['server-port'] ?? '25565').trim());
   const port = Number.isInteger(parsedPort) && parsedPort >= 1 && parsedPort <= 65535 ? parsedPort : null;
-  const addresses = listLanAddresses(interfaces);
+  // 按网卡分类拆开：公网地址单独列出，实例自己的联机网卡不算「同一网络」的地址。
+  const kinds = new Map(listNetworkInterfaces(interfaces).map((entry) => [entry.address, entry.kind]));
+  const listed = listLanAddresses(interfaces);
+  const addresses = listed.filter((address) => kinds.get(address) !== 'public' && kinds.get(address) !== 'instanceNetwork');
+  const publicIpv4 = listed.filter((address) => kinds.get(address) === 'public');
   const serverIp = (properties['server-ip'] ?? '').trim();
   if (OPEN_BINDS.has(serverIp)) {
     const publicIpv6 = DUAL_STACK_BINDS.has(serverIp) ? listPublicIpv6Addresses(interfaces) : [];
-    return { port, addresses, publicIpv6, serverIpBlocked: false };
+    return { ...base, port, addresses, publicIpv4, publicIpv6, serverIpBlocked: false };
   }
-  // server-ip 写的是本机某个局域网地址时，朋友只能连这一个。
-  if (addresses.includes(serverIp)) return { port, addresses: [serverIp], publicIpv6: [], serverIpBlocked: false };
-  return { port, addresses: [], publicIpv6: [], serverIpBlocked: true };
+  // server-ip 写的是本机某个地址时，朋友只能连这一个；写的是网卡上的公网地址（VPS）同样算正常。
+  if (addresses.includes(serverIp)) {
+    return { ...base, port, addresses: [serverIp], publicIpv4: [], publicIpv6: [], serverIpBlocked: false };
+  }
+  if (publicIpv4.includes(serverIp)) {
+    return { ...base, port, addresses: [], publicIpv4: [serverIp], publicIpv6: [], serverIpBlocked: false };
+  }
+  return {
+    ...base,
+    port,
+    addresses: [],
+    publicIpv4: [],
+    publicIpv6: [],
+    serverIpBlocked: true,
+    // 云服务器的网卡上没有公网 IP，游戏服务端绑不上这个地址。
+    serverIpIsUnboundPublicHost: publicHost !== null && serverIp.toLowerCase() === publicHost,
+  };
 }

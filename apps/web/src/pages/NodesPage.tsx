@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
-import { Monitor, ShieldCheck } from 'lucide-react';
+import { lazy, Suspense, useCallback, useRef, useState } from 'react';
+import { ChevronRight, Monitor, MonitorSmartphone, ShieldCheck } from 'lucide-react';
 import type { NodeInfo } from '@mystry/shared';
 import { api } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -9,6 +9,11 @@ import { StatusPill } from '../components/StatusPill';
 import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n, type MessageKey } from '../i18n';
+
+// 弹窗连同二维码库只在点开时加载。
+const RemoteAccessDialog = lazy(() =>
+  import('../components/RemoteAccessDialog').then(({ RemoteAccessDialog }) => ({ default: RemoteAccessDialog })),
+);
 
 /** 服务端 db.ts 写入的内置本机节点默认名称。 */
 const DEFAULT_LOCAL_NODE_NAME = '本机节点';
@@ -35,6 +40,7 @@ export function NodesPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<NodeInfo | null>(null);
   const [deleteError, setDeleteError] = useState('');
+  const [remoteAccessOpen, setRemoteAccessOpen] = useState(false);
   const latestLoadRequestRef = useRef(0);
 
   const load = useCallback(async () => {
@@ -163,6 +169,26 @@ export function NodesPage() {
             </div>
           </dl>
         </section>
+      )}
+
+      {localNode && (
+        <section className="form-section">
+          <div className="list-group">
+            <button type="button" className="list-row remote-entry-row" onClick={() => setRemoteAccessOpen(true)}>
+              <MonitorSmartphone size={18} aria-hidden="true" className="remote-entry-icon" />
+              <span className="list-row-text">
+                <span className="list-row-title">{t('remoteAccess.entry')}</span>
+                <span className="list-row-desc">{t('remoteAccess.entry.desc')}</span>
+              </span>
+              <ChevronRight size={16} aria-hidden="true" className="remote-entry-chevron" />
+            </button>
+          </div>
+        </section>
+      )}
+      {remoteAccessOpen && (
+        <Suspense fallback={null}>
+          <RemoteAccessDialog onClose={() => setRemoteAccessOpen(false)} />
+        </Suspense>
       )}
 
       <DownloadSourceSection />

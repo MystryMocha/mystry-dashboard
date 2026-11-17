@@ -1,14 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check } from 'lucide-react';
-import type { TaskInfo } from '@mystry/shared';
+import { recommendedJavaMajor, type TaskInfo } from '@mystry/shared';
 import { api, pollTask } from '../api';
 import { CoreIcon } from '../components/CoreIcon';
 import { DownloadSourceHint } from '../components/DownloadSourceSection';
 import { EulaCheckbox } from '../components/EulaCheckbox';
 import { ErrorSummary } from '../components/ErrorSummary';
 import { LazyScrollSelect } from '../components/LazyScrollSelect';
-import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
+import { JavaRuntimeSelect, type JavaMatchStatus } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
 import { PageHeader } from '../components/PageHeader';
 import { TaskProgress } from '../components/TaskProgress';
@@ -50,6 +50,10 @@ export function DeployPage() {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<TaskInfo | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Java 一键安装进行中：装完会自动选中新 Java，之前不允许开始部署。 */
+  const [javaInstalling, setJavaInstalling] = useState(false);
+  /** 实际要用的 Java 不是推荐版本时不能开始部署：新手用错 Java 时服务器起不来，又看不懂报错。 */
+  const [javaStatus, setJavaStatus] = useState<JavaMatchStatus>('loading');
   /** 组件卸载时中止进行中的任务轮询，避免登出/离开页面后仍持续请求或跳转。 */
   const pollAbortRef = useRef<AbortController | null>(null);
   const coreOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -305,6 +309,9 @@ export function DeployPage() {
                 mcVersion={selectedMcVersion || null}
                 disabled={busy}
                 onResolvedMajorChange={setJavaMajor}
+                autoSelect
+                onInstallingChange={setJavaInstalling}
+                onMatchStatusChange={setJavaStatus}
               />
               <JvmSettingsEditor
                 value={jvmArgs}
@@ -328,6 +335,11 @@ export function DeployPage() {
               {!acceptEula && (
                 <p className="field-help">
                   {t('deploy.confirm.eulaHelp')}
+                </p>
+              )}
+              {javaStatus === 'mismatch' && !busy && (
+                <p className="field-warn" role="status">
+                  {t('deploy.confirm.javaRequired', { java: recommendedJavaMajor(selectedMcVersion) ?? '' })}
                 </p>
               )}
               {progress && <TaskProgress task={progress} label={t('deploy.progress.label')} />}
@@ -355,7 +367,7 @@ export function DeployPage() {
             <button
               className="btn btn-primary"
               type="button"
-              disabled={busy || !canDeploy || !jvmValid}
+              disabled={busy || javaInstalling || javaStatus !== 'match' || !canDeploy || !jvmValid}
               onClick={() => void deploy()}
             >
               {busy ? t('deploy.action.running') : t('deploy.action.start')}

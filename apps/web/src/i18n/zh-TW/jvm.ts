@@ -53,6 +53,11 @@ export default {
   'java.error.load': '無法讀取本機的 Java 清單：{error}',
   'java.download.version': '下載 Java {java}',
   'java.download.any': '下載 Java',
+  'java.install.hint': '這台電腦還沒安裝 Java {java}。面板可以從 Eclipse Temurin 下載（約 40–60 MB）並幫你裝好。',
+  'java.install.button': '安裝 Java {java}',
+  'java.install.running': '正在安裝 Java {java}…',
+  'java.install.manual': '自行下載安裝',
+  'java.install.progress': 'Java {java} 安裝進度',
 
   // EULA 勾选
   'eula.agree': '我已閱讀並同意 <link>Minecraft EULA</link>（面板會據此寫入 eula.txt）',

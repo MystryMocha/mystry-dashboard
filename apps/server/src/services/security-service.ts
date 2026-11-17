@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { panelErrorBody } from '../utils/errors.js';
+import { clientKey } from '../utils/request-origin.js';
 
 type RateLimitOptions = {
   max: number;
@@ -29,7 +30,8 @@ export function tokenMatches(value: string | string[] | undefined, expected: str
 
 /**
  * 轻量内存限流器。面板是单进程服务，使用 Fastify hook 可以避免引入与 Fastify 版本耦合的插件。
- * 未启用 proxy trust，因此这里使用 Fastify 已验证的 request.ip，不采信任意 X-Forwarded-For。
+ * 未启用 proxy trust，因此这里使用 Fastify 已验证的 request.ip，不采信任意 X-Forwarded-For；
+ * 经面板自带网络进来的请求统一算一个来源，不和本机共用额度（clientKey）。
  */
 export function createRateLimitHook(options: RateLimitOptions) {
   const buckets = new Map<string, Bucket>();
@@ -48,7 +50,7 @@ export function createRateLimitHook(options: RateLimitOptions) {
     }
 
     const route = request.routeOptions.url || request.url.split('?')[0];
-    const key = `${options.name}:${request.ip}:${route}`;
+    const key = `${options.name}:${clientKey(request)}:${route}`;
     const current = buckets.get(key);
     const bucket = current && current.resetAt > now
       ? current
@@ -84,7 +86,7 @@ export function createLoginFailureLimiter(options: RateLimitOptions): LoginFailu
 
   function getKey(request: FastifyRequest, username: string): string {
     // 用户名大小写不能成为绕过失败计数的手段；实际认证仍沿用原有大小写语义。
-    return [options.name, request.ip, username.trim().toLowerCase()].join(':');
+    return [options.name, clientKey(request), username.trim().toLowerCase()].join(':');
   }
 
   function getActiveBucket(key: string, now: number): Bucket | undefined {

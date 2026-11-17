@@ -22,6 +22,19 @@ export const DEPLOYABLE_CORE_TYPE_ENUM = [
   'neoforge',
 ] as const;
 
+/** 面板能自动安装的 Java 主版本（Eclipse Temurin JRE，具体版本和 SHA-256 钉死在服务端）。 */
+export const JAVA_INSTALL_MAJORS = [8, 17, 21, 25] as const;
+
+/** POST /api/system/java-runtimes/install：只接受面板钉死了安装包的主版本。 */
+export const installJavaBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['major'],
+  properties: {
+    major: { type: 'integer', enum: [...JAVA_INSTALL_MAJORS] },
+  },
+} as const;
+
 export const createInstanceBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -275,5 +288,48 @@ export const updateInstanceLanBodySchema = {
       items: { type: 'string', minLength: 1, maxLength: 255 },
     },
     useSharedPeers: { type: 'boolean' },
+  },
+} as const;
+
+/** 网卡名只限长度，不限字符：中文 Windows 的网卡叫「以太网」「本地连接* 1」。是否存在由服务端按枚举结果判断。 */
+const interfaceNameSchema = { type: ['string', 'null'], minLength: 1, maxLength: 255 } as const;
+
+/** PUT /api/system/remote-access/direct、PUT /api/system/remote-access/overlay 与启动器同名接口 */
+export const updateAccessModeBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['enabled', 'interfaceName', 'restrictToSubnet', 'https'],
+  properties: {
+    enabled: { type: 'boolean' },
+    interfaceName: interfaceNameSchema,
+    restrictToSubnet: { type: 'boolean' },
+    https: { type: 'boolean' },
+  },
+} as const;
+
+/** PUT /api/system/remote-access/panel-network */
+export const updatePanelNetworkBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['enabled'],
+  properties: {
+    enabled: { type: 'boolean' },
+    useSharedPeers: { type: 'boolean' },
+    // 与 LAN_CUSTOM_PEER_LIMIT 一致；具体格式由服务端逐条校验。
+    customPeers: {
+      type: 'array',
+      maxItems: 8,
+      items: { type: 'string', minLength: 1, maxLength: 255 },
+    },
+  },
+} as const;
+
+/** PUT /api/system/public-host；具体格式由服务端校验，这里只挡超长输入。 */
+export const updatePublicHostBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['host'],
+  properties: {
+    host: { type: ['string', 'null'], maxLength: 300 },
   },
 } as const;

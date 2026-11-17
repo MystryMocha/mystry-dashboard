@@ -54,6 +54,7 @@
   --material-flat: rgba(250, 250, 252, 0.96);
   --menu-bg: rgba(248, 248, 250, 0.86);
   --sheet-bg: rgba(255, 255, 255, 0.94);
+  --sheet-bg-solid: rgb(255, 255, 255);
   --glass-edge: inset 0 0 0 0.5px rgba(255, 255, 255, 0.7), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
 
   --label: #1d1d1f;
@@ -109,6 +110,7 @@
   --material-flat: rgba(38, 38, 41, 0.96);
   --menu-bg: rgba(44, 44, 47, 0.86);
   --sheet-bg: rgba(36, 36, 38, 0.95);
+  --sheet-bg-solid: rgb(36, 36, 38);
   --glass-edge: inset 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.6);
 
   --label: #f5f5f7;
@@ -253,6 +255,10 @@ h1[tabindex="-1"]:focus { outline: none; }
 .mono { font-family: var(--mono); font-size: 0.92em; }
 .error { margin: 0; color: var(--danger); font-size: 13px; line-height: 1.5; }
 .field-warn { margin: 0; color: var(--warn); font-size: 12.5px; line-height: 1.5; }
+
+/* Java 选择器里的一键安装：说明、按钮和手动下载链接，进度条在下方 */
+.java-install { display: grid; gap: 8px; }
+.java-install-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 
 .link { color: var(--accent-text); font-weight: 500; }
 .link:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -2106,6 +2112,73 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   user-select: all;
 }
 .direct-notice { min-height: 1.5em; }
+.direct-subtitle { margin: 6px 0 0; font-size: 13.5px; font-weight: 600; }
+.direct-checklist { display: flex; flex-direction: column; gap: 8px; margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.55; color: var(--label-2); }
+.direct-command {
+  display: block;
+  margin-top: 6px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--fill-2);
+  color: var(--label);
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* 在其他设备上打开：弹窗内容较多，比确认弹窗宽一些；二维码固定黑码白底，不跟随主题 */
+.remote-dialog { width: min(560px, calc(100vw - 32px)); }
+.remote-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-shrink: 0; padding-right: 18px; }
+.remote-dialog-header .btn { margin-top: 18px; }
+.remote-dialog-body { gap: 14px; }
+/* 正文是可滚动的纵向弹性容器：内容超出时子项不能被压扁，否则分段控件会被裁掉 */
+.remote-dialog-body > *,
+.remote-section > * { flex-shrink: 0; }
+.remote-tabs { align-self: flex-start; }
+.remote-section { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.remote-section .section-lead { margin: 0; color: var(--label); }
+.remote-step { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.remote-subtitle { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--label-2); }
+.remote-step > .remote-subtitle { margin-bottom: 0; }
+.remote-notice { min-height: 1.5em; }
+.remote-notice:empty { display: none; }
+.remote-qr { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.remote-qr .qr-code { flex-shrink: 0; border-radius: var(--radius-sm); box-shadow: 0 0 0 0.5px var(--separator); }
+.remote-qr-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.remote-qr-url,
+.remote-join-value,
+.remote-fingerprint,
+.remote-command {
+  color: var(--label);
+  font-family: var(--mono);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.remote-qr-url { font-size: 15px; font-weight: 600; }
+.remote-fingerprint,
+.remote-command { display: block; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--fill-2); font-size: 12px; }
+.remote-url-list { background: var(--fill-2); box-shadow: none; }
+.remote-url-row { align-items: center; }
+.remote-url-row.is-muted .remote-url { color: var(--label-2); }
+.remote-url { justify-content: flex-start; font-family: var(--mono); font-size: 13.5px; text-align: left; overflow-wrap: anywhere; }
+.remote-url[aria-pressed='true'] { font-weight: 600; }
+.remote-security .list-group { background: var(--fill-2); box-shadow: none; }
+.remote-switch-row { align-items: center; flex-wrap: nowrap; cursor: pointer; }
+/* 窄屏下开关留在右侧，不换到说明文字下面 */
+.remote-switch-row .list-row-text { flex: 1 1 0; }
+.remote-host-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.remote-host-row .input { flex: 1; min-width: 0; }
+.remote-cert,
+.remote-advanced { display: flex; flex-direction: column; gap: 8px; }
+.remote-cert[open] > *:not(summary),
+.remote-advanced[open] > *:not(summary) { margin-top: 8px; }
+.remote-entry-row { width: 100%; align-items: center; gap: 12px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.remote-entry-row:hover { background: var(--fill-2); }
+.remote-entry-icon { flex-shrink: 0; color: var(--accent-text); }
+.remote-entry-chevron { flex-shrink: 0; color: var(--label-2); }
+.is-spinning { animation: spin 0.9s linear infinite; }
 
 /* 启动失败原因提示：标题、说明和操作按钮上下排列 */
 .start-issue { margin-bottom: 12px; }
@@ -2286,6 +2359,11 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 @media (max-width: 768px) {
   :root { --toolbar-height: 56px; --tab-bar-space: calc(72px + env(safe-area-inset-bottom)); }
 
+  /* 窄屏顶栏不放「在其他设备上打开」，入口在「本机」页 */
+  .toolbar-remote-access { display: none; }
+  .remote-qr { flex-direction: column; align-items: flex-start; }
+  .remote-host-row { flex-wrap: wrap; }
+  .remote-host-row .input { flex-basis: 100%; }
   .content-container { padding: calc(var(--toolbar-height) + 4px) 16px var(--tab-bar-space); }
   .content-inner { padding-bottom: 24px; }
   .page { gap: 20px; }
@@ -2345,6 +2423,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .sidebar,
   .action-bar { background: var(--material-flat); }
   .task-drawer { background: var(--sheet-bg); }
+  /* 对话框变成底部面板后没有模糊，半透明底会透出后面的文字，改用实色。 */
+  .confirm-dialog,
+  .file-edit-dialog,
+  .error-dialog { background: var(--sheet-bg-solid); }
 
   .widget-grid { gap: 12px; }
   .widget { padding: 14px; gap: 10px; }

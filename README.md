@@ -63,8 +63,8 @@ Most server panels are either heavyweight data-center suites (requiring Linux, D
 | **Quick Deploy** | Deploy **Paper**, **Fabric**, **Forge**, **NeoForge** or **Vanilla** (including Minecraft 26.x and legacy versions). Paper and the latest stable release are preselected. |
 | **Import Server** | Two-stage ZIP preview & import (inspects `user_jvm_args.txt` before queuing) or safe copy-in from `DATA_DIR/imports` without modifying your original folder. |
 | **Backups** | One-click backup of a whole server folder (even while running), download, upload, delete, and atomic staged restore with automatic `pre-restore` backup. |
-| **Multiplayer** | Switch between **Same Network** (LAN IPv4 & public IPv6 detection), **Virtual LAN** (EasyTier, no public IP needed), and **frp Tunnel**. Only the game port is shared. |
-| **Java & JVM** | Scan `JAVA_HOME` and common install paths for verified Java runtimes, warn on Minecraft/Java version mismatches, and configure JVM memory & presets. |
+| **Multiplayer** | Switch between **Direct Connection** (LAN IPv4, public IPv6 and public server addresses), **Virtual LAN** (EasyTier, no public IP needed), and **frp Tunnel**. Only the game port is shared. |
+| **Java & JVM** | Scan `JAVA_HOME` and common install paths for verified Java runtimes, pick the right Java for new servers automatically, install a checksum-pinned Eclipse Temurin JRE in one click when it's missing, and configure JVM memory & presets. |
 | **Download sources** | Switch between `Official` (default) and `Mainland China Mirror` (BMCLAPI & GitHub mirrors with automatic fallback) in **This Machine**. Vanilla manifests always come from Mojang; mirrored files are used only when their checksum can be verified; frp and EasyTier are checked against pinned SHA-256 values. |
 | **Tasks & monitoring** | Global Task Center tracks deploys, imports and backups. **Instances** shows host CPU, memory, free disk space, and per-instance CPU & resident memory. |
 | **Appearance & i18n** | Auto / Light / Dark appearance × 5 accent colors; English (default), Simplified Chinese and Traditional Chinese across UI, server errors and task progress. |
@@ -108,7 +108,9 @@ chmod +x PanelManager.sh
 2. **Sign in**: Open `http://127.0.0.1:3000` in your browser and sign in with the credentials shown in the launcher window (you can change the password anytime from the key icon in the bottom-left corner, or reset it locally with `reset-password`).
 3. **Deploy & Play**: Open **Quick Deploy**, pick a core and version, check the EULA box, and click **Start Deploy**.
 
-Source launcher commands (`PanelManager.cmd` / `PanelManager.sh`): `start`, `foreground`, `stop`, `restart`, `rebuild`, `status`, `logs`, `open`, `reset-password`, `mirror` and `help`. Double-clicking `PanelManager.cmd` without a command opens a menu; `./PanelManager.sh` without a command runs `start`. The portable `mystryctl` has the same commands except `rebuild` and `mirror`, plus two portable-only ones: `watch` (what double-clicking `mystryctl.cmd` does) and `menu`. The source launchers reject `watch` and `menu` as unknown commands.
+To open the panel on a phone or another computer, click **Other Devices** in the top bar. On a server you reach over SSH, run `./PanelManager.sh remote on`. See [Open the Panel on Another Device](docs/user-guide.md#open-the-panel-on-another-device).
+
+Source launcher commands (`PanelManager.cmd` / `PanelManager.sh`): `start`, `foreground`, `stop`, `restart`, `rebuild`, `status`, `logs`, `open`, `reset-password`, `remote`, `mirror` and `help`. Double-clicking `PanelManager.cmd` without a command opens a menu; `./PanelManager.sh` without a command runs `start`. The portable `mystryctl` has the same commands except `rebuild` and `mirror`, plus two portable-only ones: `watch` (what double-clicking `mystryctl.cmd` does) and `menu`. The source launchers reject `watch` and `menu` as unknown commands.
 
 ### Java Requirements for Minecraft
 
@@ -176,7 +178,7 @@ Upload sizes, timeouts, concurrency and console limits are all configurable. See
 
 ## Security
 
-The panel listens on `127.0.0.1` by default. Because it manages server files and spawns Java processes, read the [security policy](SECURITY.md) and the [configuration guide](docs/configuration.md) before exposing it to a network. Never commit `.env`, `config/panel.env`, secrets or the `data/` folder. Please report security vulnerabilities privately via [SECURITY.md](SECURITY.md).
+The panel listens on `127.0.0.1` by default, and access from other devices is something you turn on in the panel. Because it manages server files and spawns Java processes, read the [security policy](SECURITY.md) and the [configuration guide](docs/configuration.md) before exposing it to a network. Never commit `.env`, `config/panel.env`, secrets or the `data/` folder. Please report security vulnerabilities privately via [SECURITY.md](SECURITY.md).
 
 ## Project Structure
 
