@@ -96,7 +96,7 @@ npm run build -w @mystry/shared
 
 ## 本地验证清单
 
-提交前运行 `npm.cmd run verify`。完整门禁不包含生产依赖审计；依赖变更与发布需另跑 `npm.cmd run audit:production`。下面的人工项目按改动范围选择，使用独立测试数据；数据库演练仅使用副本。自动检查通过不能替代真实交互验证。
+提交前运行和改动相关的检查；推送前运行 `npm.cmd run ci:local`，它在干净检出上跑完整 `npm run verify`。完整门禁不包含生产依赖审计；依赖变更与发布需另跑 `npm.cmd run audit:production`。下面的人工项目按改动范围选择，使用独立测试数据；数据库演练仅使用副本。自动检查通过不能替代真实交互验证。
 
 - [ ] `npm run knowledge:check` 与 `npm run knowledge:test` 无错误
 - [ ] `npm run build -w @mystry/shared` 后 `npm run test:smoke`（已包含在 `verify` 中；不启动 Minecraft，不使用仓库 `data/`）
