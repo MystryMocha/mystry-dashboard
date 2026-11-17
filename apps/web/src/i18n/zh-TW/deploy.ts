@@ -5,7 +5,7 @@ export default {
   'deploy.page.subtitle': '從官方來源下載伺服器核心，自動完成安裝與啟動設定。',
 
   'deploy.core.title': '選擇伺服器核心',
-  'deploy.core.paper.desc': '外掛伺服器 · 新手推薦',
+  'deploy.core.paper.desc': '外掛伺服器，新手推薦',
   'deploy.core.fabric.desc': '輕量的現代模組',
   'deploy.core.forge.desc': '經典的大型模組',
   'deploy.core.neoforge.desc': '新一代模組伺服器',

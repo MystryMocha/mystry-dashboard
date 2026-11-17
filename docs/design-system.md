@@ -37,7 +37,7 @@ The most important rule of the system:
 - **Semantic color comes in two sets.** `c-green`, `c-blue`, `c-purple`, `c-orange`, `c-red`, `c-gray` are tones for fills and icons only (components set them as `--tone` and mix them into the background at 11–16%). Text uses `ok`, `warn` and `danger`, tuned so they stay at 4.5:1 or above on their own 11–16% tint over `bg` (the worst case for status pills, tinted buttons and callouts): deeper than the system colors in light, and in dark `danger` is one step lighter than `c-red`. A solid destructive button is `danger-fill` with white text; in dark it is one step deeper than `c-red`, so it is no longer the same value as `danger`.
 - Status mapping: Running → green; Starting, Stopping, Needs Migration → orange; Crashed and Failed → red; Stopped → gray. A status always carries its word, never color alone.
 - **The console is always dark** in both appearances: `#161618` window, `#1f1f22` bars, `#e5e5ea` text, `#aeaeb2` muted, `#30d158` prompt. Its input and tool focus rings use `console-focus`, never a fixed blue.
-- Brand color appears only on the brand mark: a 145° gradient `#ff73b0` → `#c64fd6` (52%) → `#7a4df0`. The accent takes the hue of the gradient's violet end but is its own deeper token, so the gradient itself still appears nowhere else. Each server core has its own gradient pair (`.core-paper`, `.core-fabric`, … set `--core-a` / `--core-b`), used only on core icons.
+- Brand color appears only on the brand mark: a 145° gradient `#ff73b0` → `#c64fd6` (52%) → `#7a4df0`. The accent takes the hue of the gradient's violet end but is its own deeper token, so the gradient itself still appears nowhere else: it is the only gradient in the interface. Each server core has one solid color (`.core-paper`, `.core-fabric`, … set `--core`), used only on core icons, with no gradient or colored shadow; the white glyph stays at 3:1 or above on it. The user avatar and the This Machine icon are solid gray.
 
 ### Type
 
@@ -79,8 +79,8 @@ The most important rule of the system:
 - Hover lays `hover-overlay` over the background; press lays `active-overlay` and scales to 0.97. Disabled is 0.42 opacity with a not-allowed cursor.
 - Focus: `:focus-visible` draws a 3px `focus-ring` outline offset by 2px; inputs use the glow instead.
 - `--ease` for most transitions, `--ease-spring` for dialogs, drawers and switch knobs; hover 0.15s, entrances 0.16–0.38s.
-- Looping animations touch only `transform` and `opacity`: the running status dot breathes with a `::after` that scales up and fades out, never an animated `box-shadow`.
-- `prefers-reduced-motion` turns off entrances and the status-dot breathing; loading spinners stay.
+- Only states that are still changing loop: the Starting and Stopping status dots and the connecting console dot blink (opacity only). Running is a steady state and its dot stays still, so a list with several running servers does not flicker. Loading spinners rotate.
+- `prefers-reduced-motion` turns off entrances and the blinking status dots; loading spinners stay.
 
 ### Responsive
 
@@ -158,7 +158,7 @@ A choice is "templated" when you would have made it the same way for any other p
 
 - **Structure:** content chopped into identical cards; one radius and one grey shadow on everything; numbered markers (01 / 02 / 03) on things that are not steps; a big number with a small label where one sentence would do (the overview says "3 instances, 1 running, 1 needs attention" instead of stat tiles); gradient washes as decoration.
 - **Type:** one word in a heading set apart in italic, bold or color; ALL-CAPS or widely tracked labels; a small label above a heading that repeats it; many sizes close to each other instead of a few clear steps; a monospace face for small data labels (monospace is for logs, commands and paths).
-- **Chrome:** meta joined with middle dots (`A · B · C`); labels built as `WORD — fragment`; a `→` after button or link text (an arrow that shows a click path, as in "Advanced → Proceed", is information and stays).
+- **Chrome:** middle dots (`A · B`) between things of different kinds, such as a label and its state ("Live log connected", not "Live log · Connected") or a figure and a remark (write two sentences). Dots stay only between metadata of the same kind: size, time, count, version and path, as in a file row or a backup row; labels built as `WORD — fragment`; a `→` after button or link text (an arrow that shows a click path, as in "Advanced → Proceed", is information and stays).
 - **Color:** the accent used as decoration rather than for what you can act on and what is selected; new hues or tints that are not tokens.
 - **Motion:** entrances on every section or hover transitions on every row. Motion answers an action (open, expand, confirm) and respects reduced motion.
 - **Copy:** selling instead of describing; filler sentences; an error that apologizes or does not say how to fix it; one action called by two names in the same flow.

@@ -11,7 +11,7 @@ export default {
   'console.system.disconnected': 'Console connection lost',
 
   // 连接状态
-  'console.status.connected': 'Live log · Connected',
+  'console.status.connected': 'Live log connected',
   'console.status.connecting': 'Connecting to console…',
   'console.status.offline': 'Instance not running',
 
