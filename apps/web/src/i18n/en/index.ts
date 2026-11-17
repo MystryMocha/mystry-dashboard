@@ -14,6 +14,7 @@ import filesMessages from './files';
 import backupsMessages from './backups';
 import tasksMessages from './tasks';
 import multiplayerMessages from './multiplayer';
+import remoteAccessMessages from './remoteAccess';
 import serverMessages from './server';
 
 export default {
@@ -32,5 +33,6 @@ export default {
   ...backupsMessages,
   ...tasksMessages,
   ...multiplayerMessages,
+  ...remoteAccessMessages,
   ...serverMessages,
 };

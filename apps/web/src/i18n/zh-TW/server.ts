@@ -11,6 +11,7 @@ import jvmMessages from './server/jvm';
 import backupsMessages from './server/backups';
 import frpMessages from './server/frp';
 import lanMessages from './server/lan';
+import remoteAccessMessages from './server/remote-access';
 import type en from '../en/server';
 
 export default {
@@ -26,4 +27,5 @@ export default {
   ...backupsMessages,
   ...frpMessages,
   ...lanMessages,
+  ...remoteAccessMessages,
 } satisfies Record<keyof typeof en, string>;

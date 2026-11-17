@@ -62,7 +62,7 @@
 | **文件与参数配置** | 浏览目录、上传、一次性票据流式下载、在线文本编辑、同目录重命名，通过引导式表单编辑 `server.properties` 与确认 EULA |
 | **备份与还原** | 一键备份整个实例目录（运行中也可备份），下载、上传、删除备份；停服后经暂存区校验还原，默认先自动备份当前文件 |
 | **一键部署与导入** | 一键部署 **Paper / Fabric / Forge / NeoForge / Vanilla**（含 26.x 年份版本号与 1.7.10 等旧版本）；ZIP 二阶段预检后导入，或从 `data/imports` 复制导入本机已有服务端 |
-| **联机** | 在「同一网络」（自动列出局域网 IPv4 与公网 IPv6）、「虚拟局域网」（EasyTier，免公网 IP 和账号）与「frp 穿透」间切换；只开放游戏端口，不暴露面板 |
+| **联机** | 在「直接连接」（自动列出局域网 IPv4 与公网 IPv6，也可填公网服务器地址）、「虚拟局域网」（EasyTier，免公网 IP 和账号）与「frp 穿透」间切换；只开放游戏端口，不暴露面板 |
 | **Java 与 JVM** | 自动扫描 `JAVA_HOME` 与常见目录中的 Java 运行时，按 MC 版本提示 Java 版本匹配度，统一配置内存、预设与高级参数 |
 | **下载来源** | 在「本机环境」切换官方来源（默认）或国内镜像（BMCLAPI / GitHub 镜像，自动回退）；Vanilla 清单走 Mojang 官方，镜像文件只在能核对校验值时使用，联机工具支持离线上传压缩包按 SHA-256 安装 |
 | **任务与监测** | 顶栏任务中心跟踪部署、导入与备份进度；「实例总览」每 5 秒刷新主机 CPU、内存、数据盘可用空间及各实例进程的 CPU 与驻留内存 |
@@ -117,7 +117,9 @@ chmod +x PanelManager.sh
 2. **登录面板**：浏览器打开 `http://127.0.0.1:3000`（手动开发为 `http://127.0.0.1:5173`），用窗口显示的账号密码登录。登录后可点击左下角钥匙图标修改密码；忘记密码时执行 `reset-password` 命令即可在本机重置。
 3. **部署开服**：进入左侧「一键部署」，选择服务端核心与版本，勾选同意 EULA，点击「开始部署」。
 
-源码管理器（`PanelManager.cmd` / `PanelManager.sh`）的命令：`start`、`foreground`、`stop`、`restart`、`rebuild`、`status`、`logs`、`open`、`reset-password`、`mirror` 和 `help`。不带命令双击 `PanelManager.cmd` 会打开菜单；不带命令运行 `./PanelManager.sh` 等同于 `start`。便携版 `mystryctl` 的命令相同但没有 `rebuild` 和 `mirror`，另有两个便携版专用命令：`watch`（双击 `mystryctl.cmd` 时的默认操作）和 `menu`。源码管理器会把 `watch` 和 `menu` 当作未知命令拒绝。
+想用手机或另一台电脑打开面板，点顶栏的「其他设备」；面板在经 SSH 登录的服务器上时运行 `./PanelManager.sh remote on`。详见 [在其他设备上打开面板](docs/user-guide.zh-CN.md#在其他设备上打开面板)。
+
+源码管理器（`PanelManager.cmd` / `PanelManager.sh`）的命令：`start`、`foreground`、`stop`、`restart`、`rebuild`、`status`、`logs`、`open`、`reset-password`、`remote`、`mirror` 和 `help`。不带命令双击 `PanelManager.cmd` 会打开菜单；不带命令运行 `./PanelManager.sh` 等同于 `start`。便携版 `mystryctl` 的命令相同但没有 `rebuild` 和 `mirror`，另有两个便携版专用命令：`watch`（双击 `mystryctl.cmd` 时的默认操作）和 `menu`。源码管理器会把 `watch` 和 `menu` 当作未知命令拒绝。
 
 ### Minecraft 所需的 Java 版本
 
@@ -153,7 +155,7 @@ Linux/macOS 将 `npm.cmd` 换成 `npm`。后端直接托管预压缩（`.br` / `
 
 最终数据根优先使用 `MYSTRY_DATA_DIR`，其次 `DATA_DIR`，默认是仓库或便携包下的 `data/`。文档中的 `DATA_DIR/...` 均表示最终解析后的数据根，目录结构见 [配置说明](docs/configuration.zh-CN.md#数据目录)。
 
-默认仅监听本机回环地址 `127.0.0.1:3000`。面板具有实例文件读写与进程执行权限，对外访问前请阅读 [安全政策](SECURITY.md) 与 [配置说明](docs/configuration.zh-CN.md)。密钥及运行数据不得提交到仓库。
+默认仅监听本机回环地址 `127.0.0.1:3000`，从其他设备访问需要在面板里主动开启。面板具有实例文件读写与进程执行权限，对外访问前请阅读 [安全政策](SECURITY.md) 与 [配置说明](docs/configuration.zh-CN.md)。密钥及运行数据不得提交到仓库。
 
 旧版外部目录的迁移步骤见 [旧版外部实例接管](docs/user-guide.zh-CN.md#旧版外部实例接管)；备份或迁移前请先安全停止实例和面板。
 

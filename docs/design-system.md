@@ -23,7 +23,7 @@ How the Mystry Dashboard web UI looks, reads and is put together. Use it when yo
 The most important rule of the system:
 
 - **Navigation layer** — sidebar, toolbar button groups, pop-up menus, popovers, the floating action bar, the narrow-screen tab bar — is glass: `material`, `material-thick` or `menu-bg`, plus `backdrop-filter: blur(24–40px) saturate(180%)` and the `glass-edge` hairline.
-- **Below 768px only the tab bar keeps the blur.** The scrolled toolbar, its button groups, the sidebar drawer and the floating action bar drop `backdrop-filter` and use the near-opaque `material-flat`; the task drawer and dialogs keep `sheet-bg` without blur. Stacked blur layers on the same part of the screen are too costly for phone GPUs. Transient menus and popovers keep their blur.
+- **Below 768px only the tab bar keeps the blur.** The scrolled toolbar, its button groups, the sidebar drawer and the floating action bar drop `backdrop-filter` and use the near-opaque `material-flat`; the task drawer keeps `sheet-bg` without blur, and dialogs switch to the opaque `sheet-bg-solid` (translucent without blur lets text behind show through). Stacked blur layers on the same part of the screen are too costly for phone GPUs. Transient menus and popovers keep their blur.
 - **Content layer** — cards, instance cards, widgets, grouped lists — is solid `surface` with `card-shadow`. Never put glass on a content card, and never make the navigation layer solid.
 - The page background is `bg` under two faint radial gradients, `wallpaper-1` (mixed from the accent) at the top left and `wallpaper-2` at the bottom right.
 
@@ -105,6 +105,8 @@ The class names to reach for. Each one is a plain CSS class in `styles.css`; the
 | Card and sections | `card`, `form-card`, `page-section`, `section-header`, `section-title`, `count-badge`, `form-section-title`, `step-badge` | No glass, no colored side stripes |
 | Grouped list | `list-group`, `list-row`, `list-row-text`, `list-row-title`, `list-row-desc`, `list-row-control`, `list-row-value` | iOS Settings style |
 | Disclosure | `details.disclosure` | Advanced options only |
+| QR code | `qr-code` inside `remote-qr` | Always black on white with a quiet zone, in both appearances, so it scans; drawn as inline SVG by `QrCode.tsx` |
+| Copyable value | `direct-address`, `direct-command`, `remote-url`, `remote-join-value` | Monospace, `user-select: all`; copy with `copyText()` from `clipboard.ts`, which also works outside a secure context |
 | Action bar | `action-bar`, `action-bar-status` | One per page, sticky at the bottom |
 | Callout | `callout` + `callout-info` / `callout-success` / `callout-warning` / `callout-danger`, `callout-icon` | Body stays `label`; only `<strong>` turns `danger` |
 | Status pill | `status-pill` + `running` / `stopped` / `starting` / `stopping` / `crashed` / `warning`, `status-dot` | [`StatusPill`, `InstanceStatusPill`] |

@@ -20,6 +20,28 @@ export type {
   LanStatus,
 } from './lan.js';
 export { EASYTIER_VERSION, LAN_CUSTOM_PEER_LIMIT, LAN_STATUSES } from './lan.js';
+export type {
+  AccessModeStatus,
+  DirectAccessStatus,
+  NetworkInterfaceKind,
+  OverlayAccessStatus,
+  PanelCertificateInfo,
+  PanelNetworkDevice,
+  PanelNetworkInterface,
+  PanelNetworkJoinInfo,
+  PanelNetworkState,
+  PanelNetworkStatus,
+  PublicHostSetting,
+  RemoteAccessFirewall,
+  RemoteAccessProblem,
+  RemoteAccessStatus,
+  RemoteAccessUrl,
+  UpdateDirectAccessRequest,
+  UpdateOverlayAccessRequest,
+  UpdatePanelNetworkRequest,
+  UpdatePublicHostRequest,
+} from './remote-access.js';
+export { PANEL_NETWORK_STATES, PANEL_NETWORK_VIRTUAL_IP } from './remote-access.js';
 export { FRP_CLIENT_VERSION, FRP_TRANSPORTS, TUNNEL_MODES, TUNNEL_STATUSES } from './frp.js';
 
 /** 本机资源快照；空值表示尚无有效采样，不等同于零占用。 */
@@ -123,12 +145,25 @@ export interface InstanceStartIssue {
 export interface InstanceLocalNetwork {
   /** server.properties 的游戏端口；无法读取或不是有效端口时为 null。 */
   port: number | null;
-  /** 这台电脑的局域网 IPv4 地址，不含回环和链路本地地址。 */
+  /** 这台电脑的局域网 IPv4 地址，不含回环、链路本地地址和网卡上的公网地址。 */
   addresses: string[];
+  /** 网卡上直接有的公网 IPv4 地址（部分云服务器、机房）。 */
+  publicIpv4: string[];
   /** 这台电脑的公网 IPv6 地址，供不在同一网络的朋友直连；没有或 server-ip 不接受 IPv6 时为空。 */
   publicIpv6: string[];
+  /** 用户填写的公网 IP 或域名；没填为 null。 */
+  publicHost: string | null;
   /** server-ip 绑定了具体地址时为 true，此时同一网络的朋友可能连不上。 */
   serverIpBlocked: boolean;
+  /** server-ip 填的正好是 publicHost，但网卡上没有这个地址（云服务器上的常见错误）。 */
+  serverIpIsUnboundPublicHost: boolean;
+  /**
+   * 面板实际监听的端口，用来在说明里区分游戏端口和面板端口。
+   * 不能从浏览器地址栏取：经 SSH 端口转发打开时，本地端口可能和面板端口不同。
+   */
+  panelPort: number;
+  /** 面板所在系统（process.platform），用来显示对应的防火墙放行写法。 */
+  platform: string;
 }
 
 export interface InstanceInfo {
@@ -468,6 +503,9 @@ export {
   updateFrpEndpointBodySchema,
   updateInstanceTunnelBodySchema,
   updateInstanceLanBodySchema,
+  updateAccessModeBodySchema,
+  updatePanelNetworkBodySchema,
+  updatePublicHostBodySchema,
 } from './schemas.js';
 
 export type {

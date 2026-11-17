@@ -37,7 +37,7 @@ fail() {
   exit 1
 }
 
-commands_hint="$(text '可用命令：start、foreground、stop、restart、rebuild、status、logs、open、reset-password、mirror、help。' 'Available commands: start, foreground, stop, restart, rebuild, status, logs, open, reset-password, mirror, help.')"
+commands_hint="$(text '可用命令：start、foreground、stop、restart、rebuild、status、logs、open、reset-password、remote、mirror、help。' 'Available commands: start, foreground, stop, restart, rebuild, status, logs, open, reset-password, remote, mirror, help.')"
 
 if [ "$(uname -s)" != 'Linux' ]; then
   fail "$(text 'PanelManager.sh 仅支持 Linux / WSL；Windows 请使用 PanelManager.cmd。' 'PanelManager.sh supports Linux / WSL only. On Windows, use PanelManager.cmd.')"
@@ -66,8 +66,10 @@ if [ ! -f "$CONTROLLER" ]; then
   fail "$(text '找不到生命周期控制器：' 'Lifecycle controller not found: ')$CONTROLLER"
 fi
 
-# 只有 mirror 带参数：mirror <名称或编号>。
-if [ "$#" -gt 1 ] && { [ "$#" -gt 2 ] || [ "$1" != mirror ]; }; then
+# 只有两个命令带参数：mirror <名称或编号>，remote <子命令> [参数]（如 remote on、remote https off）。
+if [ "$#" -gt 1 ] && [ "$1" = remote ]; then
+  [ "$#" -le 3 ] || fail "$(text 'remote 最多带两个参数。' 'remote takes at most two arguments.')"
+elif [ "$#" -gt 1 ] && { [ "$#" -gt 2 ] || [ "$1" != mirror ]; }; then
   fail "$(text '每次只能指定一个命令；' 'Specify one command at a time. ')$commands_hint"
 fi
 
@@ -135,6 +137,10 @@ case "$command" in
     ;;
   stop|restart|status|logs|open|reset-password|help|-h|--help)
     run_controller "$command"
+    ;;
+  remote)
+    # 开关「从其他设备访问」：子命令和参数原样交给控制器。
+    run_controller "$@"
     ;;
   mirror)
     if [ "$#" -eq 2 ]; then

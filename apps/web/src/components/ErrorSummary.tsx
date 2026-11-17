@@ -1,4 +1,5 @@
 import { useEffect, useId, useState } from 'react';
+import { copyText } from '../clipboard';
 import { useDialogOpen } from '../hooks/useDialogOpen';
 import { useI18n } from '../i18n';
 import '../deploy-error.css';
@@ -40,12 +41,7 @@ export function ErrorSummary({
   }, [copyStatus]);
 
   async function copyError(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(error);
-      setCopyStatus('copied');
-    } catch {
-      setCopyStatus('failed');
-    }
+    setCopyStatus(await copyText(error) ? 'copied' : 'failed');
   }
 
   return (

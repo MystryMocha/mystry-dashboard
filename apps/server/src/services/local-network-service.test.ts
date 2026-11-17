@@ -106,6 +106,7 @@ test('server-ip 决定是否给出公网 IPv6：留空给出，0.0.0.0 或具体
   const { initDb, closeDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
   const { writeServerProperties } = await import('./config-service.js');
+  const { config } = await import('../config.js');
   initDb();
   t.after(() => closeDb());
   const instanceId = createInstance({ name: 'Alpha', acceptEula: true }).id;
@@ -113,10 +114,19 @@ test('server-ip 决定是否给出公网 IPv6：留空给出，0.0.0.0 或具体
   const write = (serverIp: string) =>
     writeServerProperties(instanceId, { 'server-port': '25570', 'server-ip': serverIp });
 
+  // 所有响应都带的字段：没填公网地址，面板端口和系统类型。
+  const common = {
+    publicHost: null,
+    serverIpIsUnboundPublicHost: false,
+    panelPort: config.port,
+    platform: process.platform,
+  };
   write('');
   assert.deepEqual(describeLocalNetwork(instanceId, interfaces), {
+    ...common,
     port: 25570,
     addresses: ['192.168.1.23'],
+    publicIpv4: [],
     publicIpv6: ['2408:8207:ab::10'],
     serverIpBlocked: false,
   });
@@ -127,8 +137,10 @@ test('server-ip 决定是否给出公网 IPv6：留空给出，0.0.0.0 或具体
   assert.deepEqual(describeLocalNetwork(instanceId, interfaces).publicIpv6, []);
   write('203.0.113.9');
   assert.deepEqual(describeLocalNetwork(instanceId, interfaces), {
+    ...common,
     port: 25570,
     addresses: [],
+    publicIpv4: [],
     publicIpv6: [],
     serverIpBlocked: true,
   });

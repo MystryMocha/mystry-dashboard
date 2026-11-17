@@ -68,6 +68,21 @@ On the first run with the launcher, the administrator `admin` is created automat
 - To change your password, click the key icon at the bottom left, then enter your current password and a new one (at least 12 characters).
 - After you change the password, every other browser and device signed in to the panel is signed out right away and has to sign in with the new password. The page where you changed it stays signed in, and an open console reconnects by itself.
 
+### Open the Panel on Another Device
+
+By default the panel only accepts this computer. To open it on a phone or another computer, click **Other Devices** in the top bar (at phone width, use **Open on Another Device** on the **This Machine** page).
+
+- **Direct Access**: for a phone on the same Wi-Fi as this computer, or when this computer has a public IP. Click **Turn On**, then scan the QR code in the dialog with your phone, or type one of the listed addresses into a browser.
+  - HTTPS is used by default with a certificate the panel issues itself, so a browser warns that the site is not secure the first time. Choose Advanced, then continue to the site (on iPhone, Show Details, then visit this website). To skip the warning, turn off **Use HTTPS**; the connection is then not encrypted.
+  - **Network Adapter** defaults to All Adapters. You can also pick one; the note under each adapter says what it is good for.
+  - With **Only Allow Devices on the Same Network** on, only devices on the same network as this computer can open the panel.
+  - The first time, Windows may ask whether Node.js can use the network. Choose Allow. If the panel is on a cloud server, also allow the panel port (3000 by default) in the provider's security group. Enter a **Public IP or Domain** and the dialog shows an address that works from outside.
+- **Virtual Network**: for a phone on mobile data or another network, when you'd rather not open a port.
+  - **Built-in**: click **Turn On** and the panel runs EasyTier (it downloads it the first time). Install the same EasyTier version on an Android phone, click **Show Join Details**, enter the network name, secret and nodes in the app and turn on DHCP. Once it has joined, scan the QR code under **Open the Panel**. The phone shows up under **Joined Devices**. There is no official EasyTier app for iPhone, so use the next option there.
+  - **Installed Software**: once this computer and your phone both run the same networking software, such as Tailscale, signed in to the same account, pick its adapter here and click **Turn On**.
+
+When you're done, click **Turn Off** and the panel goes back to accepting only this computer. On a server you manage over SSH, the launcher has the same controls: `remote on`, `remote off`, `remote status`, `remote https off`.
+
 ### Security Tips
 
 - Use a strong password. The panel can read and write instance files and start processes, so treat it as a high-privilege tool.
@@ -271,9 +286,9 @@ Deleting a file or folder always uses a confirmation dialog. Deleting a folder a
 
 ### Multiplayer
 
-To let friends join this server, open **Multiplayer** under **Deploy & Maintain** in the sidebar, then choose the instance. Once the server has finished loading the world, a notice above the instance console also says "The server is up. You can join now." Click **Invite Friends** to go straight to this page. If you don't want to see the notice again, click **Don't Show Again**. The segmented control on the page switches between **Same Network**, **Virtual LAN** and **frp Tunnel**, and shows one at a time. Switching doesn't turn off the settings you've already saved under the other methods. The panel only forwards this instance's game port. It doesn't expose the admin pages, and you never have to enter a program path.
+To let friends join this server, open **Multiplayer** under **Deploy & Maintain** in the sidebar, then choose the instance. Once the server has finished loading the world, a notice above the instance console also says "The server is up. You can join now." Click **Invite Friends** to go straight to this page. If you don't want to see the notice again, click **Don't Show Again**. The segmented control on the page switches between **Direct Connection**, **Virtual LAN** and **frp Tunnel**, and shows one at a time. Switching doesn't turn off the settings you've already saved under the other methods. The panel only forwards this instance's game port. It doesn't expose the admin pages, and you never have to enter a program path.
 
-- **Same Network**: for when friends are connected to the same Wi-Fi or router as this computer. The page shows the address to send to your friends. Click **Copy** and send it. There's nothing to install or set up. If this computer has a public IPv6 address, an **IPv6 Address for Friends Elsewhere** also appears below. Friends who aren't nearby can join with it directly if they have IPv6 too. If they can't connect, allow only the game port in your router and don't turn off the router's IPv6 firewall entirely, or use Virtual LAN instead.
+- **Direct Connection**: friends connect straight to this computer's address. Use it when friends are on the same Wi-Fi or router as this computer, or when this computer has a public address. The page shows the address to send to your friends. Click **Copy** and send it. There's nothing to install or set up. If this computer has a public IPv6 address, an **IPv6 Address for Friends Elsewhere** also appears below. Friends who aren't nearby can join with it directly if they have IPv6 too. If they can't connect, allow only the game port in your router and don't turn off the router's IPv6 firewall entirely, or use Virtual LAN instead. If this computer has a public IP, such as a cloud server or a machine in a data center, click **This Computer Has a Public IP** at the bottom of the page and enter the public IP or domain. The page then shows the public address with the game port for friends to join directly, plus a checklist. The most common cause of trouble is a cloud security group that doesn't allow the game port. The game port and the panel port are different things: friends only need the game port.
   - The first time the server starts, Windows may ask whether to allow Java to access the network. Choose "Allow".
   - If the computer has several addresses, try the one that starts with `192.168` first.
 
@@ -367,7 +382,7 @@ If there's no notice:
 
 - Is the server **Running**, and has `Done` appeared in the console?
 - Does **server-port** in `server.properties` match the port entered in the game?
-- For a test on this computer, use `127.0.0.1`. On a LAN, use the host's LAN IP.
+- For a test on this computer, use `127.0.0.1`. On a LAN, use the host's LAN IP. On a cloud server, use the public IP and allow the game port in the security group.
 - Does the firewall allow Java or that port?
 
 ### You See "Your session has expired"

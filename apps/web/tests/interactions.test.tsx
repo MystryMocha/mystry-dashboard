@@ -14,6 +14,9 @@ import { ConsolePanel } from '../src/components/ConsolePanel';
 import { BackupsTab } from '../src/components/BackupsTab';
 import { ConfigTab } from '../src/components/ConfigTab';
 import { ChangePasswordDialog } from '../src/components/ChangePasswordDialog';
+import { RemoteAccessDialog } from '../src/components/RemoteAccessDialog';
+import { qrMatrix } from '../src/components/QrCode';
+import { copyText } from '../src/clipboard';
 import { api, getToken } from '../src/api';
 import { App } from '../src/App';
 import { AuthProvider } from '../src/auth';
@@ -817,11 +820,11 @@ test('从本机文件夹导入时带出识别到的核心类型和 Minecraft 版
   expect(screen.getByRole('button', { name: '复制并导入' })).toBeTruthy();
 });
 
-test('联机页默认「同一网络」：列出可复制的地址，并能转到虚拟局域网', async () => {
+test('联机页默认「直接连接」：列出可复制的地址，并能转到虚拟局域网', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
-    const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23', '10.0.0.5'], publicIpv6: ['2408:8207:ab::10'], serverIpBlocked: false }
+    const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23', '10.0.0.5'], publicIpv4: [], publicIpv6: ['2408:8207:ab::10'], publicHost: null, serverIpBlocked: false, serverIpIsUnboundPublicHost: false, panelPort: 3000, platform: 'win32' }
       : url === '/api/lan/runtime' ? { version: '0.0.0', installed: true, platformSupported: true }
       : url === '/api/instances/test/lan' ? { instanceId: 'test', enabled: false, status: 'disabled', localPort: 25565, virtualIp: null, joinAddress: null, serverIpBlocked: false, runtimeInstalled: true, peers: [], useSharedPeers: true, sharedPeers: ['tcp://public.easytier.example:11010'], listenPort: null, detail: null, warning: null }
       : null;
@@ -830,10 +833,10 @@ test('联机页默认「同一网络」：列出可复制的地址，并能转�
   const writeText = vi.fn(async () => {});
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
   mount(<MultiplayerPage />);
-  expect(await screen.findByRole('button', { name: '同一网络', pressed: true })).toBeTruthy();
+  expect(await screen.findByRole('button', { name: '直接连接', pressed: true })).toBeTruthy();
   expect(await screen.findByText('192.168.1.23:25565')).toBeTruthy();
   expect(screen.getByText('10.0.0.5:25565')).toBeTruthy();
-  expect(screen.getByText('这台电脑有多个地址，先试 192.168 开头的那个。')).toBeTruthy();
+  expect(screen.getByText('这台电脑有多个地址，同一网络的朋友可以按顺序试。')).toBeTruthy();
   // 实例没在运行时先提示启动。
   expect(screen.getByText('请先启动服务器。服务器运行时朋友才能加入。')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '复制 192.168.1.23:25565' }));
@@ -893,4 +896,273 @@ test('令牌已换发时，旧令牌请求返回的 401 不会清掉新令牌', 
   } finally {
     window.removeEventListener('mystry:unauthorized', onUnauthorized);
   }
+});
+
+test('联机页公网直连：填写公网地址后给出「地址:游戏端口」和检查清单', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  let publicHost: string | null = null;
+  const saved: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/public-host' && options?.method === 'PUT') {
+      saved.push(String(options.body));
+      const host = (JSON.parse(String(options.body)) as { host: string | null }).host;
+      if (host?.includes(':')) return new Response(JSON.stringify({ error: 'port', code: 'server.publicHost.hasPort' }), { status: 400 });
+      publicHost = host;
+      return new Response(JSON.stringify({ publicHost }));
+    }
+    const data = url === '/api/instances/test/local-network'
+      ? { port: 25570, addresses: ['172.16.0.8'], publicIpv4: [], publicIpv6: [], publicHost, serverIpBlocked: false, serverIpIsUnboundPublicHost: false, panelPort: 3000, platform: 'linux' }
+      : null;
+    return data ? new Response(JSON.stringify(data)) : baseFetch(url, options);
+  }));
+  mount(<MultiplayerPage />);
+  expect(await screen.findByText('172.16.0.8:25570')).toBeTruthy();
+  // 没有公网地址时沿用原标题，也不显示公网卡片；Linux 上不显示 Windows 弹窗提示。
+  expect(screen.getByText('发给朋友的地址')).toBeTruthy();
+  expect(screen.queryByText('发给任何地方的朋友：公网地址')).toBeNull();
+  expect(screen.queryByText(/Windows 可能会弹窗/)).toBeNull();
+  await user.click(screen.getByRole('button', { name: '这台电脑有公网 IP' }));
+  const input = screen.getByLabelText('公网 IP 或域名');
+  await user.type(input, '192.168.1.5');
+  expect(screen.getByText('这看起来是内网地址，网络外面的朋友多半连不上。')).toBeTruthy();
+  await user.clear(input);
+  await user.type(input, '203.0.113.10:25570');
+  await user.click(screen.getByRole('button', { name: '保存' }));
+  expect(await screen.findByText('端口不用填，会自动用服务器的游戏端口')).toBeTruthy();
+  await user.clear(input);
+  await user.type(input, '203.0.113.10');
+  await user.click(screen.getByRole('button', { name: '保存' }));
+  expect(await screen.findByText('203.0.113.10:25570')).toBeTruthy();
+  expect(saved.at(-1)).toBe('{"host":"203.0.113.10"}');
+  // 有公网地址后，局域网地址改用「同一网络」标题，避免被当成发给朋友的地址。
+  expect(screen.getByText('同一网络里的设备用这个地址')).toBeTruthy();
+  expect(screen.getByText(/放行入方向的 TCP 25570，这是游戏端口。面板端口 3000 是另一回事/)).toBeTruthy();
+  expect(screen.getByText('sudo ufw allow 25570/tcp')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '清除' }));
+  await waitFor(() => expect(screen.queryByText('203.0.113.10:25570')).toBeNull());
+  expect(saved.at(-1)).toBe('{"host":null}');
+});
+
+test('server-ip 填成公网 IP 时给出专门提示', async () => {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const data = url === '/api/instances/test/local-network'
+      ? { port: 25565, addresses: [], publicIpv4: [], publicIpv6: [], publicHost: '203.0.113.10', serverIpBlocked: true, serverIpIsUnboundPublicHost: true, panelPort: 3000, platform: 'linux' }
+      : null;
+    return data ? new Response(JSON.stringify(data)) : baseFetch(url, options);
+  }));
+  mount(<MultiplayerPage />);
+  expect(await screen.findByText(/server-ip 填成了公网 IP。云服务器的网卡上没有这个地址/)).toBeTruthy();
+});
+
+const remoteStatus = (direct: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
+  managedByConfig: false,
+  configuredHost: null,
+  port: 3000,
+  frontendServed: true,
+  platform: 'win32',
+  interfaces: [
+    { name: 'WLAN', address: '192.168.2.163', cidr: '192.168.2.163/24', kind: 'lan' },
+    { name: 'Meta', address: '198.18.0.1', cidr: '198.18.0.1/30', kind: 'proxy' },
+  ],
+  publicHost: null,
+  certificate: null,
+  direct: { enabled: false, interfaceName: null, restrictToSubnet: false, https: true, urls: [], problem: null, firewall: null, ...direct },
+  overlay: { enabled: false, interfaceName: null, restrictToSubnet: false, https: false, urls: [], problem: null, firewall: null },
+  panelNetwork: { enabled: false, platformSupported: true, installed: false, state: 'stopped', detail: null, virtualIp: null, url: null, devices: [], useSharedPeers: true, customPeers: [], sharedPeers: ['tcp://shared.example:11010'], firewall: null },
+  ...extra,
+});
+
+test('在其他设备上打开：默认 HTTPS 开启直接访问，显示二维码、网址和防火墙结果，可关闭', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  let current = remoteStatus();
+  const bodies: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/remote-access/direct' && options?.method === 'PUT') {
+      bodies.push(String(options.body));
+      const body = JSON.parse(String(options.body)) as { enabled: boolean; https: boolean; interfaceName: string | null; restrictToSubnet: boolean };
+      current = remoteStatus(body.enabled ? {
+        ...body,
+        firewall: 'failed',
+        urls: [
+          { url: `${body.https ? 'https' : 'http'}://192.168.2.163:3000/`, interfaceName: 'WLAN', kind: 'lan', listening: true, problem: null },
+          { url: `${body.https ? 'https' : 'http'}://198.18.0.1:3000/`, interfaceName: 'Meta', kind: 'proxy', listening: false, problem: 'listenFailed' },
+        ],
+      } : body, body.enabled && body.https ? { certificate: { fingerprint256: 'AB:CD', notAfter: '2029-01-25T08:00:00.000Z', addresses: ['192.168.2.163'] } } : {});
+      return new Response(JSON.stringify(current));
+    }
+    if (url === '/api/system/remote-access') return new Response(JSON.stringify(current));
+    return baseFetch(url, options);
+  }));
+  const writeText = vi.fn(async () => {});
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  const onClose = vi.fn();
+  render(<RemoteAccessDialog onClose={onClose} />);
+  expect(await screen.findByText('面板现在只允许这台电脑访问，其他设备打不开。')).toBeTruthy();
+  // 默认值：所有网卡、HTTPS 开、不限来源。
+  expect((screen.getByLabelText('网卡') as HTMLSelectElement).value).toBe('');
+  expect((screen.getByRole('switch', { name: '使用 HTTPS' }) as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByRole('switch', { name: '只允许同一网段的设备' }) as HTMLInputElement).checked).toBe(false);
+  expect(screen.getByRole('option', { name: 'Meta（198.18.0.1）' })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '开启' }));
+  expect(bodies).toEqual(['{"enabled":true,"interfaceName":null,"restrictToSubnet":false,"https":true}']);
+  // 开启后：二维码、网址说明、没挂上的地址和原因、证书指纹、防火墙失败提示。
+  expect(await screen.findByRole('img', { name: 'https://192.168.2.163:3000/ 的二维码' })).toBeTruthy();
+  expect(screen.getByText('同一个 Wi-Fi 或路由器下的设备用这个。')).toBeTruthy();
+  expect(screen.getByText('面板没能在这个地址上监听，3000 端口可能被别的程序占用。')).toBeTruthy();
+  expect(screen.getByText(/第一次打开会提示不安全/)).toBeTruthy();
+  expect(screen.getByText('AB:CD')).toBeTruthy();
+  expect(screen.getByText(/Windows 防火墙规则没加上/)).toBeTruthy();
+  expect(screen.getByText(/安全组放行入方向 TCP 3000/)).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '复制 https://192.168.2.163:3000/' }));
+  expect(writeText).toHaveBeenCalledWith('https://192.168.2.163:3000/');
+  expect(await screen.findByText('已复制 https://192.168.2.163:3000/。')).toBeTruthy();
+  // 开启后改开关立即生效。
+  await user.click(screen.getByRole('switch', { name: '使用 HTTPS' }));
+  expect(bodies.at(-1)).toBe('{"enabled":true,"interfaceName":null,"restrictToSubnet":false,"https":false}');
+  expect(await screen.findByRole('img', { name: 'http://192.168.2.163:3000/ 的二维码' })).toBeTruthy();
+  expect(screen.queryByText('AB:CD')).toBeNull();
+  // 弹窗底部的「关闭」只关弹窗；停用访问方式的按钮另有名字。
+  await user.click(screen.getByRole('button', { name: '关闭此方式' }));
+  await waitFor(() => expect(JSON.parse(bodies.at(-1)!).enabled).toBe(false));
+  expect(await screen.findByText('面板现在只允许这台电脑访问，其他设备打不开。')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '关闭' }));
+  expect(onClose).toHaveBeenCalled();
+});
+
+test('在其他设备上打开：HOST 由配置文件决定时只显示网址；证书失败时可不加密开启', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  let managed = true;
+  const bodies: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/remote-access/direct' && options?.method === 'PUT') {
+      bodies.push(String(options.body));
+      const body = JSON.parse(String(options.body)) as { https: boolean };
+      if (body.https) return new Response(JSON.stringify({ error: 'cert', code: 'server.remoteAccess.certificateFailed' }), { status: 500 });
+      return new Response(JSON.stringify(remoteStatus({ enabled: true, https: false, firewall: 'skipped', urls: [{ url: 'http://192.168.2.163:3000/', interfaceName: 'WLAN', kind: 'lan', listening: true, problem: null }] }, { platform: 'linux' })));
+    }
+    if (url === '/api/system/remote-access') {
+      return new Response(JSON.stringify(managed
+        ? remoteStatus({ enabled: true, https: false, urls: [{ url: 'http://192.168.2.163:3000/', interfaceName: 'WLAN', kind: 'lan', listening: true, problem: null }] }, { managedByConfig: true, configuredHost: '0.0.0.0' })
+        : remoteStatus()));
+    }
+    return baseFetch(url, options);
+  }));
+  const view = render(<RemoteAccessDialog onClose={() => {}} />);
+  expect(await screen.findByText('访问方式由配置文件决定（HOST=0.0.0.0），这里不用再开启。')).toBeTruthy();
+  expect(screen.getByRole('img', { name: 'http://192.168.2.163:3000/ 的二维码' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: '开启' })).toBeNull();
+  expect(screen.queryByRole('switch', { name: '使用 HTTPS' })).toBeNull();
+  view.unmount();
+
+  managed = false;
+  render(<RemoteAccessDialog onClose={() => {}} />);
+  await user.click(await screen.findByRole('button', { name: '开启' }));
+  expect(await screen.findByText('HTTPS 证书生成或读取失败')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '不加密开启' }));
+  expect(bodies.at(-1)).toBe('{"enabled":true,"interfaceName":null,"restrictToSubnet":false,"https":false}');
+  expect(await screen.findByText(/sudo ufw allow 3000\/tcp/)).toBeTruthy();
+});
+
+test('在其他设备上打开：面板自带网络开启后给出加入信息，密钥只在点开时请求', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  let network = remoteStatus().panelNetwork as Record<string, unknown>;
+  let joinRequests = 0;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/remote-access/panel-network' && options?.method === 'PUT') {
+      const body = JSON.parse(String(options.body)) as { enabled: boolean };
+      network = body.enabled
+        ? { ...network, enabled: true, installed: true, state: 'running', virtualIp: '10.127.0.1', url: 'http://10.127.0.1:3000/', devices: [{ hostname: 'Pixel-8', virtualIp: '10.127.0.2', connection: 'direct' }] }
+        : { ...network, enabled: false, state: 'stopped', url: null, devices: [] };
+      return new Response(JSON.stringify(network));
+    }
+    if (url === '/api/system/remote-access/panel-network/join') {
+      joinRequests += 1;
+      return new Response(JSON.stringify({ networkName: 'mystry-panel-abc', networkSecret: 'abcdefghijklmnopqrstuvwxyz', peers: ['tcp://shared.example:11010'], easytierVersion: '2.6.4', androidDownloadUrl: 'https://github.com/EasyTier/EasyTier/releases/tag/v2.6.4' }));
+    }
+    if (url === '/api/system/remote-access') return new Response(JSON.stringify({ ...remoteStatus(), panelNetwork: network }));
+    return baseFetch(url, options);
+  }));
+  const writeText = vi.fn(async () => {});
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  render(<RemoteAccessDialog onClose={() => {}} />);
+  await user.click(await screen.findByRole('button', { name: '虚拟组网' }));
+  // 没检测到组网网卡时默认「面板自带」。
+  expect(screen.getByRole('button', { name: '面板自带', pressed: true })).toBeTruthy();
+  expect(screen.getByText('未开启')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '开启' }));
+  expect(await screen.findByRole('img', { name: 'http://10.127.0.1:3000/ 的二维码' })).toBeTruthy();
+  expect(screen.getByText('Pixel-8')).toBeTruthy();
+  expect(screen.getByText('直连')).toBeTruthy();
+  expect(joinRequests).toBe(0);
+  await user.click(screen.getByRole('button', { name: '显示加入信息' }));
+  expect(await screen.findByText('mystry-panel-abc')).toBeTruthy();
+  // 密钥每 4 个一组显示，复制的是不带空格的原文，提示里不回显完整密钥以外的内容。
+  expect(screen.getByText('abcd efgh ijkl mnop qrst uvwx yz')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '复制 网络密钥' }));
+  expect(writeText).toHaveBeenCalledWith('abcdefghijklmnopqrstuvwxyz');
+  expect(screen.getByRole('img', { name: '加入信息的二维码' })).toBeTruthy();
+  expect(joinRequests).toBe(1);
+  await user.click(screen.getByRole('button', { name: 'iPhone' }));
+  expect(screen.getByText(/官方下载页没有 iPhone 客户端/)).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '电脑' }));
+  expect(screen.getByText(/easytier-core --dhcp --network-name "mystry-panel-abc"/)).toBeTruthy();
+});
+
+test('二维码矩阵尺寸、三个定位角和结果稳定；中文内容不被截断', () => {
+  const matrix = qrMatrix('https://192.168.2.163:3000/')!;
+  // 27 个字节、纠错等级 M：版本 2 只放得下 26 个字节，所以是版本 3，29×29。
+  expect(matrix.length).toBe(29);
+  expect(matrix.every((row) => row.length === 29)).toBe(true);
+  const finder = (top: number, left: number) => {
+    for (let y = 0; y < 7; y += 1) {
+      for (let x = 0; x < 7; x += 1) {
+        const ring = y === 0 || y === 6 || x === 0 || x === 6;
+        const core = y >= 2 && y <= 4 && x >= 2 && x <= 4;
+        if (matrix[top + y]![left + x] !== (ring || core)) return false;
+      }
+    }
+    return true;
+  };
+  expect(finder(0, 0)).toBe(true);
+  expect(finder(0, 22)).toBe(true);
+  expect(finder(22, 0)).toBe(true);
+  expect(qrMatrix('https://192.168.2.163:3000/')).toEqual(matrix);
+  expect(qrMatrix('https://192.168.2.164:3000/')).not.toEqual(matrix);
+  // 中文按 UTF-8 编码：字节数比字符数多，矩阵比同样字符数的 ASCII 大。
+  expect(qrMatrix('网络密钥'.repeat(8))!.length).toBeGreaterThan(qrMatrix('abcd'.repeat(8))!.length);
+  expect(qrMatrix('x'.repeat(5000))).toBeNull();
+});
+
+test('复制：没有 navigator.clipboard（非安全上下文）时退回 execCommand，都不行时返回 false', async () => {
+  const writeText = vi.fn(async () => {});
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  expect(await copyText('a')).toBe(true);
+  expect(writeText).toHaveBeenCalledWith('a');
+
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+  const copied: string[] = [];
+  document.execCommand = vi.fn((command: string) => {
+    copied.push(`${command}:${(document.activeElement as HTMLTextAreaElement).value}`);
+    return true;
+  });
+  const button = document.createElement('button');
+  document.body.appendChild(button);
+  button.focus();
+  expect(await copyText('http://192.168.2.163:3000/')).toBe(true);
+  expect(copied).toEqual(['copy:http://192.168.2.163:3000/']);
+  // 临时文本框用完即删，焦点回到原来的按钮。
+  expect(document.querySelector('textarea')).toBeNull();
+  expect(document.activeElement).toBe(button);
+
+  // 标准接口被拒绝时同样退回。
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } });
+  expect(await copyText('b')).toBe(true);
+  document.execCommand = vi.fn(() => false);
+  expect(await copyText('c')).toBe(false);
+  button.remove();
 });
