@@ -92,6 +92,7 @@ npm run build -w @mystry/shared
 - 快速检查：`npm run knowledge:check`；检查器负向测试：`npm run knowledge:test`。
 - 锁文件只记录官方地址。本机 npm 配了镜像时，装完新依赖运行 `npm run lockfile:fix`。
 - 完整门禁：`npm run verify`。Windows PowerShell 从终端直接执行时使用 `npm.cmd run verify`。
+- 本机 CI：`npm run ci:local`，对当前提交做干净安装并跑 `verify`；只在 Windows 上运行，依次跑 Windows 与 WSL Linux，Node 固定为便携包内置版本。远程 Quality Gate 已不随推送和 PR 自动运行，推送前用它代替（见 [验证矩阵](ai/verification.md#本机-ci)）。
 
 ## 本地验证清单
 
