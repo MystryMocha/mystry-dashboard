@@ -24,7 +24,7 @@ npm.cmd run build
 npm.cmd run audit:production
 ```
 
-完整门禁：
+完整门禁（推送前由 `ci:local` 在干净检出上运行；提交前不必每次单独跑，只跑和改动相关的检查）：
 
 ```powershell
 npm.cmd run verify
@@ -72,18 +72,34 @@ npm.cmd run test:smoke
 
 | 变更 | 最低自动验证 | 额外人工验证 |
 |---|---|---|
-| 纯知识库或文档 | `knowledge:check`、`knowledge:test`；提交前 `verify` | 标题锚点、阅读路径和事实源可读 |
+| 纯知识库或文档 | `knowledge:check`、`knowledge:test`；推送前 `ci:local` | 标题锚点、阅读路径和事实源可读 |
 | npm 下载源或锁文件 | `lockfile:check`、`mirror:test`、`windows:test`、`linux:test` | 用小包实测所选下载源能完成 `npm ci` |
 | shared 类型/schema | shared build、typecheck、build | 请求与响应兼容 |
 | 服务端路由/认证 | typecheck、安全自检、`test:smoke`、build | health、setup/login、授权失败 |
 | 文件/路径/ZIP | 安全自检、build | 列表、读写、上传、下载及逃逸拒绝 |
 | 进程/任务/控制台 | typecheck、安全自检、build | 启停、命令、WS 重连、排队到终态 |
-| UI/样式 | typecheck、build | 桌面/窄屏、加载/错误态、键盘焦点 |
+| UI/样式 | typecheck、build | 按下方「界面截图」三档看改动页、加载/错误态、键盘焦点 |
 | 数据库 schema | typecheck、安全自检、build | 旧数据库副本升级和失败恢复 |
 | Java 运行时扫描/绑定 | shared build、typecheck、安全自检、build | 合法/非法候选、未知或失效 ID、`null` 回退、启动前复验、Forge/NeoForge Installer |
 | PanelManager | typecheck、安全自检、build | start/status/stop/restart/logs |
 | 便携控制器/打包 | portable:test、build、audit:production、目标平台 package + smoke | 最终压缩包解压、首启、setup、stop、升级数据复用 |
 | 依赖升级 | verify、当前 `npm audit --omit=dev` | 登录、部署、控制台和文件回归 |
+
+## 界面截图
+
+用常见分辨率，不要随手挑宽度。默认三档，按视口大小截首屏：
+
+| 档位 | 视口 | 代表 |
+|---|---|---|
+| 桌面 | 1920×1080 | 最常见的显示器 |
+| 笔记本 | 1366×768 | 低分屏笔记本，桌面布局里主栏最窄、首屏最矮 |
+| 手机 | 390×844 | 常见手机竖屏 |
+
+- 改动碰到 768–1180px 之间的断点（如两栏变一栏）时，再加平板 1024×768。
+- 每个改动页面默认只截三档各一张；加载、错误、空状态、深色、其他语言等额外状态只截一档，挑最可能出问题的那档。
+- 只有要看页面底部时才滚动截图，不截整页长图逐张检查。
+- 一次启动浏览器、登录一次，连续截完所有档位，不要每张图都重启浏览器；等页面数据加载完即可，不要固定长时间等待。
+- 截图只证明布局，交互（展开、关闭、焦点）仍按上表在浏览器里点一遍或由 `test:interaction` 覆盖。
 
 ## 关键人工流程
 
