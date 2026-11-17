@@ -8,11 +8,11 @@ export default {
   'instance.path.managed': '<panel data directory>/instances/{id}',
 
   // 迁移到托管目录
-  'instance.migration.title': 'Adopt Managed Directory',
+  'instance.migration.title': 'Migrate Instance Files',
   'instance.migration.instructions': 'Use your system file manager to copy the old instance files into the instance folder under the panel data directory:',
-  'instance.migration.note': 'The panel doesn\'t read or delete the old directory. After copying, click "Adopt Managed Directory". Instance actions resume once it succeeds.',
+  'instance.migration.note': 'The panel doesn\'t read or delete the old directory. After copying, select "Complete Migration" to use the instance again.',
   'instance.migration.checking': 'Checking…',
-  'instance.migration.adopt': 'Adopt Managed Directory',
+  'instance.migration.adopt': 'Complete Migration',
 
   // 重启 / 强制停止确认
   'instance.restart.title': 'Restart instance "{name}"?',

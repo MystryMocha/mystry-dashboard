@@ -13,8 +13,8 @@ export default {
   'server.tasks.timeout': '任务执行超时',
   'server.tasks.aborted': '任务已取消',
   'server.tasks.notFound': '任务不存在',
-  'server.tasks.restartLost': '面板重启，内存任务无法恢复，请重新提交',
-  'server.tasks.restartLostKeptInstance': '面板重启，内存任务无法恢复；已保留实例目录，请重新提交或手动检查任务状态',
+  'server.tasks.restartLost': '面板重启过，未完成的任务无法继续，请重新操作',
+  'server.tasks.restartLostKeptInstance': '面板重启过，未完成的任务无法继续。实例文件夹已保留，请重新操作或自行检查实例',
   'server.tasks.restartCleanupFailed': '面板重启，未完成的任务无法恢复；临时目录清理失败：{reason}',
   'server.tasks.stagingMarkerMismatch': '临时目录中的任务标记与任务记录不匹配，已跳过自动清理',
 } satisfies Record<keyof typeof TASKS_MESSAGES, string>;

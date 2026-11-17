@@ -9,7 +9,7 @@ export default {
   'server.instance.commandInvalid': '命令过长、为空或包含不支持的字段',
 
   // 创建、注册、删除与接管
-  'server.instance.javaRuntimeInvalid': '所选 Java 运行时不存在或不可用，请重新探测后再选择',
+  'server.instance.javaRuntimeInvalid': '所选 Java 运行时不存在或不可用，请重新扫描后再选择',
   'server.instance.selectedNodeNotFound': '所选节点不存在',
   'server.instance.remoteNodeUnsupported': '当前版本不支持在远程节点上创建实例',
   'server.instance.createDbFailed': '创建实例失败：数据库未写入实例记录',
@@ -19,12 +19,12 @@ export default {
   'server.instance.registerDirEmpty': '实例目录为空，无法注册实例',
   'server.instance.deleteRunning': '请先停止实例再删除',
   'server.instance.deleteDbFailed': '删除实例失败：数据库记录未删除',
-  'server.instance.adoptRunning': '请先停止实例再接管目录',
-  'server.instance.adoptAlreadyManaged': '实例已经是面板托管目录，无需接管',
+  'server.instance.adoptRunning': '请先停止实例再完成迁移',
+  'server.instance.adoptAlreadyManaged': '实例已经在面板数据目录里，不需要迁移',
   'server.instance.adoptDirEmpty': '默认实例目录不能为空',
-  'server.instance.adoptDirFailed': '无法接管面板托管目录：{reason}',
-  'server.instance.adoptMarkerInvalid': '无法接管实例目录：目录中的面板标记文件无效或属于其他实例',
-  'server.instance.adoptStateChanged': '接管失败：实例状态已变化，请重试',
+  'server.instance.adoptDirFailed': '无法完成迁移：{reason}',
+  'server.instance.adoptMarkerInvalid': '无法完成迁移：实例文件夹里的面板标记文件无效，或属于另一个实例',
+  'server.instance.adoptStateChanged': '迁移失败：实例状态已变化，请重试',
   'server.instance.propertiesNotRegularFile': 'server.properties 不是普通文件',
 
   // 进程启停
@@ -53,7 +53,7 @@ export default {
   'server.instance.commandWriteFailed': '命令写入失败，实例输入流不可用',
 
   // 控制台连接
-  'server.instance.consoleTicketLimit': '控制台票据数量已达上限，请稍后重试',
+  'server.instance.consoleTicketLimit': '控制台连接请求太多，请稍后重试',
   'server.instance.consoleTicketMissing': '缺少控制台连接凭证，请刷新页面后重试',
   'server.instance.consoleTicketInvalid': '控制台连接凭证无效或已过期，请刷新页面后重试',
   'server.instance.consoleMessageTooLarge': '控制台消息超过大小限制（{limit} 字节）',
@@ -65,9 +65,9 @@ export default {
   'server.instance.consoleNone': '无',
 
   // Java 运行时
-  'server.instance.javaRuntimeUnavailable': '所选 Java 运行时不可用，请重新探测后再选择',
-  'server.instance.javaRuntimeFileMissing': 'Java 运行时文件不存在：{path}，请重新探测后再选择',
-  'server.instance.javaRuntimePathUnresolved': '无法解析 Java 运行时路径：{path}，请重新探测后再选择',
-  'server.instance.javaRuntimePathChanged': 'Java 运行时路径已变化，请重新探测后再选择',
-  'server.instance.javaRuntimeVerifyFailed': '所选 Java 运行时无法通过验证，请重新探测后再选择',
+  'server.instance.javaRuntimeUnavailable': '所选 Java 运行时不可用，请重新扫描后再选择',
+  'server.instance.javaRuntimeFileMissing': 'Java 运行时文件不存在：{path}，请重新扫描后再选择',
+  'server.instance.javaRuntimePathUnresolved': '无法解析 Java 运行时路径：{path}，请重新扫描后再选择',
+  'server.instance.javaRuntimePathChanged': 'Java 运行时路径已变化，请重新扫描后再选择',
+  'server.instance.javaRuntimeVerifyFailed': '所选 Java 运行时无法通过验证，请重新扫描后再选择',
 } satisfies Record<keyof typeof INSTANCE_MESSAGES, string>;

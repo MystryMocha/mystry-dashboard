@@ -36,7 +36,6 @@ export default {
   'import.zip.file.label': '服务端压缩包（.zip）',
   'import.zip.drop.title': '选择或拖拽 ZIP 压缩包至此处',
   'import.zip.drop.size': '文件大小：{size} MiB',
-  'import.zip.drop.hint': '上传大小与解压限制由面板配置决定',
   'import.zip.choose': '选择 ZIP',
   'import.zip.replaceHelp': '选择新文件并提交后，面板会先检查新文件，通过后才替换当前 ZIP。',
 

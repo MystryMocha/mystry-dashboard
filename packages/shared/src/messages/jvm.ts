@@ -25,7 +25,7 @@ export const JVM_MESSAGES = {
   'server.jvm.javaInstall.unsupportedMajor': "The panel can't install Java {major} automatically.",
   'server.jvm.javaInstall.platformUnsupported': "The panel can't install Java automatically on this system. Download and install Java yourself, then select Rescan.",
   'server.jvm.javaInstall.downloadFailed': "Java {major} couldn't be downloaded. If GitHub is slow or blocked here, switch the download source to the China mirror and try again, or download and install Java yourself.",
-  'server.jvm.javaInstall.checksumMismatch': "The downloaded Java {major} didn't match the pinned checksum and was discarded.",
+  'server.jvm.javaInstall.checksumMismatch': 'The downloaded Java {major} failed the checksum check and was discarded.',
   'server.jvm.javaInstall.extractFailed': "The Java {major} archive couldn't be extracted.",
   'server.jvm.javaInstall.verifyFailed': "The installed Java {major} didn't run correctly, so it wasn't added.",
 

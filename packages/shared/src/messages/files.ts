@@ -55,11 +55,11 @@ export const FILES_MESSAGES = {
   'server.files.download.readFailed': "Couldn't read the file.",
   'server.files.download.openFailed': "Couldn't open the file.",
   'server.files.download.linkExpired': 'The download link is invalid or has expired. Download the file again.',
-  'server.files.download.ticketExpired': 'The download ticket has expired.',
+  'server.files.download.ticketExpired': 'The download link has expired.',
   'server.files.download.cancelled': 'The download was cancelled.',
-  'server.files.download.ticketStreaming': "The download has already started, so the ticket can't be cancelled.",
-  'server.files.download.ticketNotFoundCancel': "The download ticket doesn't exist, or you don't have permission to cancel it.",
-  'server.files.download.ticketNotFoundView': "The download ticket doesn't exist, or you don't have permission to view it.",
+  'server.files.download.ticketStreaming': 'The download has already started and can\'t be cancelled.',
+  'server.files.download.ticketNotFoundCancel': 'This download doesn\'t exist, or you don\'t have permission to cancel it.',
+  'server.files.download.ticketNotFoundView': 'This download doesn\'t exist, or you don\'t have permission to view it.',
 
   // ZIP 解析与解压
   'server.files.zip.corrupted': 'The ZIP file is corrupted.',

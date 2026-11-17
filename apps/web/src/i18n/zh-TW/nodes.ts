@@ -7,7 +7,7 @@ export default {
   'nodes.status.stale': '狀態可能已過期',
 
   'nodes.subtitle': '執行面板與 Minecraft 伺服器的這台電腦的基本資訊。',
-  'nodes.load.staleNotice': '目前資料可能已過期，正在顯示上次成功載入的節點資料。',
+  'nodes.load.staleNotice': '顯示的是上次載入的資料，可能已過期。',
   'nodes.load.retry': '重試載入',
   'nodes.load.loading': '正在載入節點資訊…',
   'nodes.empty.body': '尚無節點。',

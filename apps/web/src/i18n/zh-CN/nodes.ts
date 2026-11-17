@@ -7,7 +7,7 @@ export default {
   'nodes.status.stale': '状态可能已过期',
 
   'nodes.subtitle': '运行面板和 Minecraft 服务器的这台电脑的基本信息。',
-  'nodes.load.staleNotice': '当前数据可能已过期，正在显示上次成功加载的节点数据。',
+  'nodes.load.staleNotice': '显示的是上次加载到的数据，可能已过期。',
   'nodes.load.retry': '重试加载',
   'nodes.load.loading': '正在加载节点信息…',
   'nodes.empty.body': '暂无节点。',

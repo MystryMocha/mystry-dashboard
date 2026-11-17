@@ -117,7 +117,7 @@ export default {
   'remoteAccess.net.join.secret': '网络密钥',
   'remoteAccess.net.join.peers': '节点',
   'remoteAccess.net.join.qrLabel': '加入信息的二维码',
-  'remoteAccess.net.join.qrHelp': '用手机相机或扫码工具扫一下，就能拿到这几项的文字，直接复制，不用手输。',
+  'remoteAccess.net.join.qrHelp': '用手机相机扫码，可以拿到这几项的文字直接复制。',
   'remoteAccess.net.join.copyCommand': '复制命令',
   'remoteAccess.net.open.wait': '设备加入后，在它上面打开这个网址。',
   'remoteAccess.net.devices.empty': '还没有设备加入。',

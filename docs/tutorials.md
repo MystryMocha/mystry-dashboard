@@ -198,7 +198,7 @@ If `panel.db-wal` or `panel.db-shm` still exist after stopping, keep them togeth
 
 1. Stop the panel process.
 2. Restore `panel.db` and `DATA_DIR/instances/<id>/`, keeping the same `DATA_DIR` and instance IDs.
-3. Start the panel and check the instance list. If needed, run **Adopt Managed Directory** on the instance page.
+3. Start the panel and check the instance list. If needed, run **Complete Migration** on the instance page.
 
 ### Take Over an Existing Server Outside the Panel
 
@@ -206,7 +206,7 @@ First run `stop` in the original server's console. Then follow [Import from a Lo
 
 ### Migrate from a Legacy External Directory
 
-Follow [Adopting a Legacy External Instance](user-guide.md#adopting-a-legacy-external-instance): stop the instance and the panel, copy the old directory completely, then click **Adopt Managed Directory**.
+Follow [Adopting a Legacy External Instance](user-guide.md#adopting-a-legacy-external-instance): stop the instance and the panel, copy the old directory completely, then click **Complete Migration**.
 
 ### Migrate Only the World
 

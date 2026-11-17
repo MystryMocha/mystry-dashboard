@@ -9,7 +9,7 @@ export default {
   'server.instance.commandInvalid': '指令過長、為空或包含不支援的欄位',
 
   // 创建、注册、删除与接管
-  'server.instance.javaRuntimeInvalid': '所選 Java 執行環境不存在或無法使用，請重新偵測後再選擇',
+  'server.instance.javaRuntimeInvalid': '所選 Java 執行環境不存在或無法使用，請重新掃描後再選擇',
   'server.instance.selectedNodeNotFound': '所選節點不存在',
   'server.instance.remoteNodeUnsupported': '目前版本不支援在遠端節點上建立實例',
   'server.instance.createDbFailed': '建立實例失敗：資料庫未寫入實例記錄',
@@ -19,12 +19,12 @@ export default {
   'server.instance.registerDirEmpty': '實例資料夾為空，無法註冊實例',
   'server.instance.deleteRunning': '請先停止實例再刪除',
   'server.instance.deleteDbFailed': '刪除實例失敗：資料庫記錄未刪除',
-  'server.instance.adoptRunning': '請先停止實例再接管資料夾',
-  'server.instance.adoptAlreadyManaged': '實例已經使用面板託管資料夾，無需接管',
+  'server.instance.adoptRunning': '請先停止實例再完成遷移',
+  'server.instance.adoptAlreadyManaged': '實例已經在面板資料目錄裡，不需要遷移',
   'server.instance.adoptDirEmpty': '預設實例資料夾不能為空',
-  'server.instance.adoptDirFailed': '無法接管面板託管資料夾：{reason}',
-  'server.instance.adoptMarkerInvalid': '無法接管實例資料夾：資料夾中的面板標記檔案無效或屬於其他實例',
-  'server.instance.adoptStateChanged': '接管失敗：實例狀態已變更，請重試',
+  'server.instance.adoptDirFailed': '無法完成遷移：{reason}',
+  'server.instance.adoptMarkerInvalid': '無法完成遷移：實例資料夾裡的面板標記檔案無效，或屬於其他實例',
+  'server.instance.adoptStateChanged': '遷移失敗：實例狀態已變更，請重試',
   'server.instance.propertiesNotRegularFile': 'server.properties 不是一般檔案',
 
   // 进程启停
@@ -53,7 +53,7 @@ export default {
   'server.instance.commandWriteFailed': '指令寫入失敗，實例輸入串流無法使用',
 
   // 控制台连接
-  'server.instance.consoleTicketLimit': '主控台票證數量已達上限，請稍後重試',
+  'server.instance.consoleTicketLimit': '主控台連線要求太多，請稍後再試',
   'server.instance.consoleTicketMissing': '缺少主控台連線憑證，請重新整理頁面後重試',
   'server.instance.consoleTicketInvalid': '主控台連線憑證無效或已過期，請重新整理頁面後重試',
   'server.instance.consoleMessageTooLarge': '主控台訊息超過大小限制（{limit} 位元組）',
@@ -65,9 +65,9 @@ export default {
   'server.instance.consoleNone': '無',
 
   // Java 运行时
-  'server.instance.javaRuntimeUnavailable': '所選 Java 執行環境無法使用，請重新偵測後再選擇',
-  'server.instance.javaRuntimeFileMissing': 'Java 執行環境檔案不存在：{path}，請重新偵測後再選擇',
-  'server.instance.javaRuntimePathUnresolved': '無法解析 Java 執行環境路徑：{path}，請重新偵測後再選擇',
-  'server.instance.javaRuntimePathChanged': 'Java 執行環境路徑已變更，請重新偵測後再選擇',
-  'server.instance.javaRuntimeVerifyFailed': '所選 Java 執行環境無法通過驗證，請重新偵測後再選擇',
+  'server.instance.javaRuntimeUnavailable': '所選 Java 執行環境無法使用，請重新掃描後再選擇',
+  'server.instance.javaRuntimeFileMissing': 'Java 執行環境檔案不存在：{path}，請重新掃描後再選擇',
+  'server.instance.javaRuntimePathUnresolved': '無法解析 Java 執行環境路徑：{path}，請重新掃描後再選擇',
+  'server.instance.javaRuntimePathChanged': 'Java 執行環境路徑已變更，請重新掃描後再選擇',
+  'server.instance.javaRuntimeVerifyFailed': '所選 Java 執行環境無法通過驗證，請重新掃描後再選擇',
 } satisfies Record<keyof typeof INSTANCE_MESSAGES, string>;

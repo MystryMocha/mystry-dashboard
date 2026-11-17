@@ -3,9 +3,9 @@ import type en from '../en/files';
 /** 文件管理文案（简体中文）。 */
 export default {
   'files.validation.nameEmpty': '名称不能为空',
-  'files.validation.nameSeparator': '名称不能包含路径分隔符',
+  'files.validation.nameSeparator': '名称里不能有 / 或 \\',
   'files.validation.folderNameEmpty': '文件夹名称不能为空',
-  'files.validation.folderNameSeparator': '文件夹名称不能包含路径分隔符',
+  'files.validation.folderNameSeparator': '文件夹名称里不能有 / 或 \\',
   'files.rename.sameName': '新名称与旧名称相同',
   'files.download.busy': '下载繁忙，请稍后重试',
 
@@ -36,7 +36,7 @@ export default {
   'files.edit.closeLabel': '关闭编辑',
   'files.edit.contentLabel': '文件内容：{path}',
 
-  'files.rename.hint': '仅同目录改名，不可包含路径分隔符。',
+  'files.rename.hint': '只能在当前文件夹里改名，名称里不能有 / 或 \\。',
   'files.rename.newName': '新名称',
   'files.rename.renaming': '重命名中…',
 
@@ -48,8 +48,8 @@ export default {
 
   'files.delete.folderTitle': '删除文件夹「{name}」？',
   'files.delete.fileTitle': '删除文件「{name}」？',
-  'files.delete.folderBody': '将递归删除目录「/{path}」及其中所有文件，且无法恢复。',
-  'files.delete.fileBody': '将删除文件「/{path}」，且无法恢复。',
+  'files.delete.folderBody': '将删除文件夹「/{path}」和里面的所有文件，无法恢复。',
+  'files.delete.fileBody': '将删除文件「/{path}」，无法恢复。',
   'files.delete.deletingFolder': '正在删除文件夹…',
   'files.delete.deletingFile': '正在删除文件…',
   'files.delete.confirm': '确认删除',

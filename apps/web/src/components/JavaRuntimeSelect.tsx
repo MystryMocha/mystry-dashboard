@@ -55,7 +55,7 @@ export function JavaRuntimeSelect({
   const installAbortRef = useRef<AbortController | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  /** 加载代次：挂载加载与「重新探测」并发时，丢弃先发起但后到达的旧响应。 */
+  /** 加载代次：挂载加载与「重新扫描」并发时，丢弃先发起但后到达的旧响应。 */
   const loadGenerationRef = useRef(0);
 
   const load = useCallback(async (refresh: boolean) => {
