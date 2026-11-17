@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { FolderDown, Globe, KeyRound, LayoutGrid, LogOut, Menu, Rocket, Server, Terminal, X } from 'lucide-react';
+import { FolderDown, Globe, KeyRound, LayoutGrid, LogOut, Menu, MonitorSmartphone, Rocket, Server, Terminal, X } from 'lucide-react';
 import { useAuth } from './auth';
 import { useI18n, type MessageKey } from './i18n';
 import { ChangePasswordDialog } from './components/ChangePasswordDialog';
@@ -12,6 +12,10 @@ import { useDocumentTitle } from './hooks/useDocumentTitle';
 import { useRouteFocus } from './hooks/useRouteFocus';
 import { LoginPage } from './pages/LoginPage';
 
+// 弹窗连同二维码库只在点开时加载，不进首屏包。
+const RemoteAccessDialog = lazy(() =>
+  import('./components/RemoteAccessDialog').then(({ RemoteAccessDialog }) => ({ default: RemoteAccessDialog })),
+);
 const DashboardPage = lazy(() =>
   import('./pages/DashboardPage').then(({ DashboardPage }) => ({ default: DashboardPage })),
 );
@@ -115,6 +119,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [remoteAccessOpen, setRemoteAccessOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -253,6 +258,11 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       {passwordDialogOpen && <ChangePasswordDialog onClose={() => setPasswordDialogOpen(false)} />}
+      {remoteAccessOpen && (
+        <Suspense fallback={null}>
+          <RemoteAccessDialog onClose={() => setRemoteAccessOpen(false)} />
+        </Suspense>
+      )}
 
       <div className="viewport">
         <header className={`topbar${scrolled ? ' is-scrolled' : ''}`}>
@@ -275,6 +285,17 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="topbar-right" ref={topbarToolsRef}>
             <div className="toolbar-group">
+              {/* 768px 以下顶栏不放这个按钮（标题会被挤掉），入口改在「本机」页。 */}
+              <button
+                type="button"
+                className="toolbar-button toolbar-button-labeled toolbar-remote-access"
+                aria-label={t('remoteAccess.entry')}
+                title={t('remoteAccess.entry')}
+                onClick={() => setRemoteAccessOpen(true)}
+              >
+                <MonitorSmartphone size={16} aria-hidden="true" />
+                <span className="toolbar-label">{t('remoteAccess.entry.short')}</span>
+              </button>
               <TaskCenter />
               <LanguageToggle placement="topbar" />
               <ThemeToggle placement="topbar" />

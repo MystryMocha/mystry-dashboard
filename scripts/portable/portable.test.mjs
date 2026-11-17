@@ -211,12 +211,14 @@ test('菜单命令出错时也先显示错误并等待回车', async (t) => {
 });
 
 /** 异步运行控制器：测试进程里的伪造面板要在它运行期间响应请求，不能用 spawnSync。 */
-function runController(command, env, nodeArgs = []) {
+function runController(command, env, nodeArgs = [], { input } = {}) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [...nodeArgs, path.join(scriptDir, 'mystryctl.mjs'), command], {
+    // command 可以是数组：remote 带子命令和参数。input 不为空时接到标准输入，用来回答提问。
+    const child = spawn(process.execPath, [...nodeArgs, path.join(scriptDir, 'mystryctl.mjs'), ...[command].flat()], {
       env,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     });
+    if (input !== undefined) child.stdin.end(input);
     let output = '';
     child.stdout.on('data', (chunk) => { output += chunk; });
     child.stderr.on('data', (chunk) => { output += chunk; });
@@ -550,6 +552,223 @@ test('SBOM 只包含生产依赖并使用 CycloneDX 1.6', async () => {
   }
 });
 
+/**
+ * 测试进程里的伪造面板：实现启动器的「从其他设备访问」接口，记录收到的请求。
+ * state.json 指向测试进程自身的 PID，控制器就把它当作自己启动的面板。
+ */
+async function startFakeRemotePanel(t, { publicUrl = false, failWith = null } = {}) {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-remote-'));
+  const fingerprint = 'remote-fingerprint';
+  const launcherToken = 'd'.repeat(64);
+  const requests = [];
+  let direct = { enabled: false, interfaceName: null, restrictToSubnet: false, https: true };
+  let certificate = null;
+  let renewals = 0;
+  const describe = (port) => ({
+    managedByConfig: false,
+    configuredHost: null,
+    port,
+    frontendServed: true,
+    platform: 'linux',
+    interfaces: [{ name: 'eth0', address: '172.16.0.8', cidr: '172.16.0.8/24', kind: 'lan' }],
+    publicHost: publicUrl ? '203.0.113.10' : null,
+    certificate,
+    direct: {
+      ...direct,
+      urls: direct.enabled ? [
+        { url: `${direct.https ? 'https' : 'http'}://172.16.0.8:${port}/`, interfaceName: 'eth0', kind: 'lan', listening: true, problem: null },
+        ...(publicUrl ? [{ url: `${direct.https ? 'https' : 'http'}://203.0.113.10:${port}/`, interfaceName: null, kind: 'publicHost', listening: true, problem: null }] : []),
+      ] : [],
+      problem: null,
+      firewall: direct.enabled ? 'skipped' : null,
+    },
+    overlay: { enabled: false, interfaceName: null, restrictToSubnet: false, https: false, urls: [], problem: null, firewall: null },
+    panelNetwork: { enabled: false },
+  });
+  const server = http.createServer((request, response) => {
+    response.setHeader('Content-Type', 'application/json');
+    const port = server.address().port;
+    if (!request.url.startsWith('/api/launcher/remote-access')) {
+      response.end(JSON.stringify({ ok: true, service: 'mystry-dashboard', processFingerprint: fingerprint }));
+      return;
+    }
+    let body = '';
+    request.on('data', (chunk) => { body += chunk; });
+    request.on('end', () => {
+      requests.push({ method: request.method, url: request.url, token: request.headers['x-launcher-token'], body: body ? JSON.parse(body) : null });
+      if (request.method === 'PUT' && failWith) {
+        response.statusCode = 409;
+        response.end(JSON.stringify({ error: 'English text from the server', code: failWith }));
+        return;
+      }
+      if (request.method === 'PUT') {
+        direct = JSON.parse(body);
+        if (direct.enabled && direct.https && !certificate) certificate = { fingerprint256: 'AA:BB:CC', notAfter: '2029-01-25T08:00:00.000Z', addresses: [] };
+      }
+      if (request.method === 'POST') {
+        renewals += 1;
+        certificate = { fingerprint256: `NEW:${renewals}`, notAfter: '2029-02-01T08:00:00.000Z', addresses: [] };
+      }
+      response.end(JSON.stringify(describe(port)));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    await fsp.rm(home, { recursive: true, force: true });
+  });
+  const configPath = path.join(home, 'config', 'panel.env');
+  await fsp.mkdir(path.dirname(configPath), { recursive: true });
+  await fsp.writeFile(configPath, `PORT=${server.address().port}\nLAUNCHER_TOKEN=${launcherToken}\n`, 'utf8');
+  const launcherDir = path.join(home, 'data', 'launcher');
+  await fsp.mkdir(launcherDir, { recursive: true });
+  await fsp.writeFile(path.join(launcherDir, 'state.json'), JSON.stringify({ version: 1, pid: process.pid, fingerprint }), 'utf8');
+  const preload = path.join(home, 'force-tty.mjs');
+  await fsp.writeFile(preload, [
+    "Object.defineProperty(process.stdout, 'isTTY', { value: true });",
+    "Object.defineProperty(process.stdin, 'isTTY', { value: true });",
+    '',
+  ].join('\n'), 'utf8');
+  const env = {
+    ...process.env,
+    MYSTRY_HOME: home,
+    MYSTRY_CONFIG_PATH: configPath,
+    MYSTRY_DATA_DIR: path.join(home, 'data'),
+    MYSTRY_LANG: 'zh-CN',
+  };
+  // 不让测试所在环境的 SSH 变量、端口等影响结果。
+  for (const name of ['DATA_DIR', 'PORT', 'HOST', 'SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY']) delete env[name];
+  return {
+    env,
+    port: server.address().port,
+    launcherToken,
+    requests,
+    terminalArgs: ['--import', pathToFileURL(preload).href],
+    stop: () => fsp.rm(path.join(launcherDir, 'state.json')),
+  };
+}
+
+test('remote 命令：开启、查看、切换 HTTPS、换证书和关闭都经启动器接口，令牌不进输出', async (t) => {
+  const panel = await startFakeRemotePanel(t);
+  const run = (args, env = panel.env) => runController(['remote', ...args], env);
+
+  const before = await run(['status']);
+  assert.equal(before.code, 0, before.output);
+  assert.match(before.output, /从其他设备访问：未开启/);
+  assert.match(before.output, /网卡：所有网卡 {2}HTTPS：开 {2}只允许同一网段：关/);
+  assert.match(before.output, /eth0 {2}172\.16\.0\.8 {2}\(lan\)/);
+
+  // 开启：和界面的默认值一样，所有网卡、HTTPS、不限来源。
+  const on = await run(['on']);
+  assert.equal(on.code, 0, on.output);
+  assert.deepEqual(panel.requests.at(-1).body, { enabled: true, interfaceName: null, restrictToSubnet: false, https: true });
+  assert.equal(panel.requests.at(-1).method, 'PUT');
+  assert.equal(panel.requests.at(-1).url, '/api/launcher/remote-access/direct');
+  assert.match(on.output, new RegExp(`https://172\\.16\\.0\\.8:${panel.port}/`));
+  assert.match(on.output, /证书指纹（SHA-256）：AA:BB:CC/);
+  assert.match(on.output, new RegExp(`安全组放行 TCP ${panel.port}`));
+  assert.match(on.output, /remote https off（连接不再加密）/);
+  // 不是 SSH 登录时不打印占位网址。
+  assert.doesNotMatch(on.output, /<服务器地址>/);
+
+  // 经 SSH 登录、网卡上没有公网地址：打印占位网址和说明。
+  const ssh = await run(['on'], { ...panel.env, SSH_CONNECTION: '198.51.100.5 50000 172.16.0.8 22' });
+  assert.match(ssh.output, new RegExp(`https://<服务器地址>:${panel.port}/`));
+  assert.match(ssh.output, /<服务器地址> 是你 SSH 登录这台服务器时用的 IP 或域名/);
+
+  // 指定网卡名。
+  await run(['on', 'eth0']);
+  assert.equal(panel.requests.at(-1).body.interfaceName, 'eth0');
+
+  // 关掉 HTTPS：网址改为 http，不带指纹，提示怎么再打开。
+  const plain = await run(['https', 'off']);
+  assert.equal(plain.code, 0, plain.output);
+  assert.equal(panel.requests.at(-1).body.https, false);
+  assert.equal(panel.requests.at(-1).body.enabled, true);
+  assert.match(plain.output, new RegExp(`http://172\\.16\\.0\\.8:${panel.port}/`));
+  assert.doesNotMatch(plain.output, /证书指纹/);
+  assert.match(plain.output, /想加密连接：运行 .* remote https on/);
+  await run(['https', 'on']);
+  assert.equal(panel.requests.at(-1).body.https, true);
+
+  const renewed = await run(['renew-cert']);
+  assert.equal(renewed.code, 0, renewed.output);
+  assert.equal(panel.requests.at(-1).method, 'POST');
+  assert.equal(panel.requests.at(-1).url, '/api/launcher/remote-access/certificate');
+  assert.match(renewed.output, /新指纹（SHA-256）：NEW:1/);
+
+  const status = await run(['status']);
+  assert.match(status.output, /从其他设备访问：已开启/);
+  assert.match(status.output, /证书指纹（SHA-256）：NEW:1/);
+  assert.match(status.output, /证书有效期至：2029-02-01/);
+
+  const off = await run(['off']);
+  assert.equal(off.code, 0, off.output);
+  assert.equal(panel.requests.at(-1).body.enabled, false);
+  assert.match(off.output, /已关闭从其他设备访问/);
+
+  const usage = await run(['bogus']);
+  assert.equal(usage.code, 1);
+  assert.match(usage.output, /用法：.* remote \[status \| on/);
+
+  // 每个请求都带启动器令牌，令牌不出现在任何输出里。
+  assert.ok(panel.requests.every((request) => request.token === panel.launcherToken));
+  for (const result of [before, on, ssh, plain, renewed, status, off, usage]) {
+    assert.equal(result.output.includes(panel.launcherToken), false);
+  }
+
+  // 英文界面。
+  const english = await run(['status'], { ...panel.env, MYSTRY_LANG: 'en-US' });
+  assert.match(english.output, /Access from other devices: off/);
+});
+
+test('remote 命令：填过公网地址时直接打印公网网址；失败时说明原因', async (t) => {
+  const panel = await startFakeRemotePanel(t, { publicUrl: true });
+  const on = await runController(['remote', 'on'], { ...panel.env, SSH_TTY: '/dev/pts/0' });
+  assert.equal(on.code, 0, on.output);
+  assert.match(on.output, new RegExp(`https://203\\.0\\.113\\.10:${panel.port}/`));
+  assert.doesNotMatch(on.output, /<服务器地址>/);
+  // 公网网址排在局域网网址前面。
+  assert.ok(on.output.indexOf('203.0.113.10') < on.output.indexOf('172.16.0.8'));
+
+  const failing = await startFakeRemotePanel(t, { failWith: 'server.remoteAccess.listenFailed' });
+  const failed = await runController(['remote', 'on'], failing.env);
+  assert.equal(failed.code, 1, failed.output);
+  assert.match(failed.output, /面板没能在任何地址上监听/);
+  assert.doesNotMatch(failed.output, /English text from the server/);
+  const unknown = await startFakeRemotePanel(t, { failWith: 'server.other.unknown' });
+  assert.match((await runController(['remote', 'on'], unknown.env)).output, /English text from the server/);
+});
+
+test('remote 命令：面板未运行时除 status 外都提示先启动；无子命令在终端里可直接开关', async (t) => {
+  const panel = await startFakeRemotePanel(t);
+  // 无子命令、输出不是终端：只显示状态，不提问也不改设置。
+  const piped = await runController(['remote'], panel.env);
+  assert.equal(piped.code, 0, piped.output);
+  assert.match(piped.output, /从其他设备访问：未开启/);
+  assert.equal(panel.requests.some((request) => request.method === 'PUT'), false);
+  // 终端里回答 y：开启。直接回车等于否。
+  const declined = await runController(['remote'], panel.env, panel.terminalArgs, { input: '\n' });
+  assert.match(declined.output, /现在开启吗？\[y\/N\]/);
+  assert.equal(panel.requests.some((request) => request.method === 'PUT'), false);
+  const accepted = await runController(['remote'], panel.env, panel.terminalArgs, { input: 'y\n' });
+  assert.equal(accepted.code, 0, accepted.output);
+  assert.deepEqual(panel.requests.at(-1).body, { enabled: true, interfaceName: null, restrictToSubnet: false, https: true });
+  assert.match(accepted.output, /可以在你自己的电脑或手机上打开面板/);
+
+  await panel.stop();
+  const count = panel.requests.length;
+  const status = await runController(['remote', 'status'], panel.env);
+  assert.equal(status.code, 0, status.output);
+  assert.match(status.output, /状态：未运行/);
+  for (const args of [['on'], ['off'], ['https', 'off'], ['renew-cert'], []]) {
+    const result = await runController(['remote', ...args], panel.env);
+    assert.equal(result.code, 1, `${args.join(' ')}\n${result.output}`);
+    assert.match(result.output, /面板未运行。请先启动面板。/);
+  }
+  assert.equal(panel.requests.length, count, '面板不受管时不应请求启动器接口');
+});
+
 // 伪造面板：响应健康检查；收到 SIGINT 后记录下来，稍等片刻（模拟安全关闭）再正常退出。
 const FAKE_PANEL_SOURCE = `
 import fs from 'node:fs';
@@ -571,6 +790,28 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       fs.writeFileSync(process.env.FAKE_PANEL_SETUP_LOG, JSON.stringify({ token: req.headers['x-setup-token'], body: JSON.parse(body) }));
       res.end('{}');
+    });
+  } else if (req.url.startsWith('/api/launcher/remote-access') && process.env.FAKE_PANEL_REMOTE_LOG) {
+    // 启动器的「从其他设备访问」接口：记录请求；PUT 之后状态变为已开启。
+    let body = '';
+    req.on('data', (chunk) => { body += chunk; });
+    req.on('end', () => {
+      fs.appendFileSync(process.env.FAKE_PANEL_REMOTE_LOG, JSON.stringify({ method: req.method, body: body ? JSON.parse(body) : null }) + '\\n');
+      if (req.method === 'PUT' && process.env.FAKE_PANEL_REMOTE_FAIL) {
+        res.statusCode = 409;
+        res.end(JSON.stringify({ error: 'failed', code: 'server.remoteAccess.listenFailed' }));
+        return;
+      }
+      const enabled = req.method === 'PUT';
+      const port = Number(process.env.PORT);
+      res.end(JSON.stringify({
+        managedByConfig: false, configuredHost: null, port, interfaces: [],
+        certificate: enabled ? { fingerprint256: 'FA:KE', notAfter: '2029-01-25T08:00:00.000Z', addresses: [] } : null,
+        direct: {
+          enabled, interfaceName: null, restrictToSubnet: false, https: true, problem: null, firewall: null,
+          urls: enabled ? [{ url: 'https://172.16.0.8:' + port + '/', interfaceName: 'eth0', kind: 'lan', listening: true, problem: null }] : [],
+        },
+      }));
     });
   } else if (req.url === '/api/health') {
     res.end(JSON.stringify({ ok: true, service: 'mystry-dashboard', processFingerprint: fingerprint }));
@@ -726,6 +967,101 @@ for (const [name, terminal] of [['终端里显示账号和密码', true], ['输�
     assert.equal(fs.readdirSync(path.join(home, 'logs')).some((name) => (
       fs.readFileSync(path.join(home, 'logs', name), 'utf8').includes(body.password)
     )), false, '密码不应进日志文件');
+  });
+}
+
+// 首次启动时的「从其他设备访问」：只在经 SSH 登录、管理员已建好、输入输出都是终端时提问。
+for (const scenario of [
+  { name: 'SSH 登录且在终端里：提问，直接回车即开启并打印网址', ssh: true, terminal: true, input: '\n', expectPut: true },
+  { name: 'SSH 登录且在终端里：回答 n 不开启，只打印提示行', ssh: true, terminal: true, input: 'n\n', expectPut: false },
+  { name: 'SSH 登录但输出不是终端：不提问，只打印提示行', ssh: true, terminal: false, expectPut: false },
+  { name: '不是 SSH 登录：不提问也不读状态', ssh: false, terminal: true, input: '\n', expectPut: false },
+  { name: '创建管理员失败：不提问、不开启', ssh: true, terminal: true, input: '\n', setupFails: true, expectPut: false },
+  { name: '开启失败：打印原因和重试命令', ssh: true, terminal: true, input: '\n', remoteFails: true, expectPut: true },
+]) {
+  test(`首次启动询问是否允许其他设备访问：${scenario.name}`, { timeout: 60_000 }, async (t) => {
+    const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-first-remote-'));
+    t.after(() => fsp.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
+    const fakeBin = path.join(home, 'bin');
+    const remoteLog = path.join(home, 'remote.jsonl');
+    const preload = path.join(home, 'force-tty.mjs');
+    await fsp.mkdir(path.join(home, 'apps', 'server', 'dist'), { recursive: true });
+    await fsp.writeFile(path.join(home, 'apps', 'server', 'dist', 'index.js'), FAKE_PANEL_SOURCE, 'utf8');
+    await fsp.mkdir(fakeBin);
+    await fsp.writeFile(path.join(fakeBin, 'java'), '#!/bin/sh\necho \'openjdk version "21"\' >&2\n', { mode: 0o755 });
+    await fsp.writeFile(preload, [
+      "Object.defineProperty(process.stdout, 'isTTY', { value: true });",
+      "Object.defineProperty(process.stdin, 'isTTY', { value: true });",
+      '',
+    ].join('\n'), 'utf8');
+    const port = await reservePort();
+    const env = {
+      ...(process.platform === 'win32' ? process.env : { PATH: fakeBin }),
+      MYSTRY_HOME: home,
+      MYSTRY_CONFIG_PATH: path.join(home, 'config', 'panel.env'),
+      MYSTRY_DATA_DIR: path.join(home, 'data'),
+      MYSTRY_LANG: 'zh-CN',
+      PORT: String(port),
+      FAKE_PANEL_MARKER: path.join(home, 'panel-signals.log'),
+      FAKE_PANEL_REMOTE_LOG: remoteLog,
+      ...(scenario.setupFails ? {} : { FAKE_PANEL_SETUP_LOG: path.join(home, 'setup.json') }),
+      ...(scenario.remoteFails ? { FAKE_PANEL_REMOTE_FAIL: '1' } : {}),
+    };
+    for (const name of ['SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY', 'HOST', 'DATA_DIR']) delete env[name];
+    // 不是 SSH 登录时控制器会尝试打开浏览器，测试里关掉；SSH 登录时本来就不打开，不设这个变量也不应打开。
+    if (scenario.ssh) env.SSH_CONNECTION = '198.51.100.5 50000 172.16.0.8 22';
+    else env.MYSTRY_NO_BROWSER = '1';
+    const child = spawn(process.execPath, [
+      ...(scenario.terminal ? ['--import', pathToFileURL(preload).href] : []),
+      path.join(scriptDir, 'mystryctl.mjs'),
+      'foreground',
+    ], { env, stdio: [scenario.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
+    if (scenario.input !== undefined) child.stdin.write(scenario.input);
+    let output = '';
+    child.stdout.on('data', (chunk) => { output += chunk; });
+    child.stderr.on('data', (chunk) => { output += chunk; });
+    const exited = new Promise((resolve) => child.on('close', resolve));
+    t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
+    const deadline = Date.now() + 20_000;
+    while (!output.includes('按 Ctrl+C 停止面板')) {
+      if (Date.now() > deadline || child.exitCode !== null) assert.fail(`前台启动未完成：\n${output}`);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    await fetch(`http://127.0.0.1:${port}/__exit`);
+    assert.equal(await exited, 0, output);
+
+    const requests = fs.existsSync(remoteLog)
+      ? fs.readFileSync(remoteLog, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
+      : [];
+    const puts = requests.filter((request) => request.method === 'PUT');
+    assert.equal(puts.length, scenario.expectPut ? 1 : 0, output);
+    const asked = output.includes('要让你自己的电脑或手机直接打开面板吗？[Y/n]');
+    const hint = /要从其他电脑或手机打开面板，运行：.* remote on/.test(output);
+    if (!scenario.ssh) {
+      assert.equal(requests.length, 0, '不是 SSH 登录时不应请求启动器接口');
+      assert.equal(asked || hint, false, output);
+      return;
+    }
+    if (scenario.setupFails) {
+      assert.equal(asked, false, output);
+      assert.match(output, /创建好管理员之后，运行 .* remote on/);
+      return;
+    }
+    assert.equal(asked, scenario.terminal, output);
+    if (scenario.remoteFails) {
+      assert.match(output, /开启失败：面板没能在任何地址上监听.*运行 .* remote on 重试/);
+      return;
+    }
+    if (scenario.expectPut) {
+      // 和界面的默认值一样：所有网卡、HTTPS、不限来源。
+      assert.deepEqual(puts[0].body, { enabled: true, interfaceName: null, restrictToSubnet: false, https: true });
+      assert.match(output, new RegExp(`https://172\\.16\\.0\\.8:${port}/`));
+      assert.match(output, new RegExp(`https://<服务器地址>:${port}/`));
+      assert.match(output, /证书指纹（SHA-256）：FA:KE/);
+      assert.equal(hint, false, output);
+    } else {
+      assert.equal(hint, true, output);
+    }
   });
 }
 

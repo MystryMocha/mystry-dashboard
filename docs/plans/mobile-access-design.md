@@ -1,6 +1,6 @@
 # 在其他设备上打开面板，与公网服务器联机：详细设计（草案）
 
-> 状态：草案，未实现，未提交。日期 2026-11-17。
+> 状态：已按本文实现（D-033），尚未做第 9 节的人工验证。日期 2026-11-17。实现与本文不同或没做的地方：WireGuard 入口没做；监听器只按「每个地址一个」实现，没有试 `0.0.0.0` 通配；自带网络的防火墙规则除程序路径外还限定了监听端口；6.3 说只改 `mystryctl.mjs`，实际还要让 `PanelManager.sh` 和 `panel-manager.ps1` 放行 `remote` 及其参数；`remote` 不带子命令时显示状态并可在终端里开关。现行事实以 [当前状态](../ai/current-state.md) 和源码为准。
 > 依据：当前 `main`（`0.2.0-preview.4`）源码、在临时目录跑过的原型（HTTP 转交、同端口 HTTPS 加明文跳转、EasyTier 2.6.4 无 TUN）、本机网卡实测、竞品和 EasyTier 的公开文档。若与实现时的源码冲突，以源码为准并修正本文。
 
 ## 0. 原则：打开就能用，安全是可选项
@@ -136,7 +136,7 @@ const extra = net.createServer({ allowHalfOpen: true, noDelay: true }, (socket) 
 ### 2.6 防火墙
 
 - **Windows**：开启时尝试加放行规则，沿用 `lan-firewall.ts` 的写法和 `applied | failed | skipped` 三态。
-  - 规则名：`MystryDashboard-Panel-Direct`、`MystryDashboard-Panel-Overlay`、`MystryDashboard-PanelNet`（面板自带 EasyTier；原型证实它会在 `0.0.0.0` 上开 NAT 检测和打洞端口，Windows 会因此弹窗，规则按 `easytier-core.exe` 的程序路径放行，同实例联机）。
+  - 规则名（已改为后面带面板端口，如 `MystryDashboard-Panel-Direct-3000`，见 D-033）：`MystryDashboard-Panel-Direct`、`MystryDashboard-Panel-Overlay`、`MystryDashboard-PanelNet`（面板自带 EasyTier；原型证实它会在 `0.0.0.0` 上开 NAT 检测和打洞端口，Windows 会因此弹窗，规则按 `easytier-core.exe` 的程序路径放行，同实例联机）。
   - 参数：`dir=in action=allow protocol=TCP localport=<config.port> profile=any`；选了单块网卡时加 `localip`；开了「只允许同一网段」时加 `remoteip`；可先试加 `program=<process.execPath>`，加不上再去掉（同 `lan-firewall.ts` 的 fallback）。
   - 先删同名旧规则再添加；关闭时删除；面板启动时清扫残留，关闭面板时也删除。
   - `netsh` 添加规则要管理员权限，面板通常不是以管理员身份运行，所以 **`failed` 是常见情况**。这时界面说明：Windows 第一次可能弹窗询问是否允许 Node.js 访问网络，请选「允许」；没弹窗又连不上，就按给出的步骤手动放行。
@@ -415,6 +415,8 @@ EasyTier 文档说无 TUN 模式（`--no-tun`）不需要 root：别的节点可
 - **STUN 关不干净**：`stun_servers = []` 只关掉了 UDP STUN；TCP 的 NAT 检测仍会连公网 STUN 服务器的 3478 端口，开着代理软件 TUN 模式时会经过代理。正式运行本来就要连社区节点、要打洞，这条只说明「完全不联网」做不到。
 - **本机节点互连要关 `bind_device`**：EasyTier 默认把发出的连接绑到物理网卡地址，再连 `127.0.0.1` 时 Windows 报 10049。正式运行连的是外部节点，不受影响；只有测试，或用户把自定义节点填成本机地址时才会遇到。
 
+**补充实测**（2026-11-17，同样条件，B 用 `port-forward`）：面板另开组网专用端口 N、白名单只放 N 时，连「虚拟地址:N」落到 `127.0.0.1:N`（`localPort` 为 N，来源 `127.0.0.1`），连「虚拟地址:面板端口」超时；对照组把面板端口也放进白名单后两个都能连上。所以按本机端口能分出组网来的连接，实现见 D-033。B 用 `socks5` 时连不通，原因没查，正式运行不涉及。
+
 **第 2 点是硬条件**：以后升级 EasyTier 版本时，白名单在无 TUN 模式下一旦不生效，就不能再用无 TUN 模式，否则这台电脑上只监听本机的程序都会暴露给组网，属于第 0 节说的「面板自己多出漏洞」。升级时要重跑这个原型。
 
 本期按无 TUN 做。只有以后第 2、3 点不再成立，或者换到其他平台时不成立，才退回 TUN 模式：
@@ -442,7 +444,7 @@ EasyTier 文档说无 TUN 模式（`--no-tun`）不需要 root：别的节点可
   - 面板启动时，设置为开启就自动启动；面板关闭时停止；
   - 进程退出时，状态改为 `error` 并显示原因，原因用现有 `lanFailureDetail` 解析，同样脱敏密钥；
   - 平台不在 `lanPlatformSupported()` 里时，这个选项不可用，说明原因。
-- **面板怎么收到连接**：原型证实连接落到 `127.0.0.1:<面板端口>`，来源也是 `127.0.0.1`，所以不用另挂监听器，主监听器直接收到。
+- **面板怎么收到连接**（已改：现在另开组网专用端口，白名单只放它，经它进来的连接不算本机，下面两条后果不再成立，见 D-033 和 5.3 的补充实测）：原型证实连接落到 `127.0.0.1:<面板端口>`，来源也是 `127.0.0.1`，所以不用另挂监听器，主监听器直接收到。
   - 这样 `req.ip` 是 `127.0.0.1`：日志里看不出是哪台手机，登录限流把整个组网算成一个来源。可以接受。
   - 服务端按回环地址放行的只有 `routes/launcher.ts` 的 `isLoopbackAddress`（已搜索源码核对），加上本设计 3.5 的「进程指纹只给回环请求」。组网里的设备会通过这两处判断：
     - 启动器接口仍要 `LAUNCHER_TOKEN`，挡得住；

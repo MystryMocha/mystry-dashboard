@@ -43,6 +43,11 @@ import {
 } from './services/import-preview-service.js';
 import { attachFrpLifecycle, shutdownFrp } from './services/frp-manager.js';
 import { attachLanLifecycle, shutdownLan } from './services/lan-manager.js';
+import { isLocalRequest } from './utils/request-origin.js';
+import {
+  initRemoteAccess,
+  shutdownRemoteAccess,
+} from './services/remote-access-service.js';
 
 export type BuildAppOptions = LauncherRouteOptions & {
   isShuttingDown?: () => boolean;
@@ -202,10 +207,11 @@ export async function buildApp(options: BuildAppOptions = {}) {
     startShutdown: options.startShutdown,
   });
 
-  app.get('/api/health', async () => ({
+  // 进程指纹只用来让本机启动器认出自己启动的面板，其他设备访问时不返回。
+  app.get('/api/health', async (req) => ({
     ok: true,
     service: 'mystry-dashboard',
-    ...(config.processFingerprint
+    ...(config.processFingerprint && isLocalRequest(req)
       ? { processFingerprint: config.processFingerprint }
       : {}),
   }));
@@ -285,6 +291,8 @@ async function main() {
       }
       await shutdownFrp();
       await shutdownLan();
+      // 先停掉额外监听器并断开其他设备的连接，再等主监听器上的连接断开。
+      await shutdownRemoteAccess();
       if (app) await closeAppWithGrace(app);
       releasePanelDataLock();
       getDb().close();
@@ -331,6 +339,10 @@ async function main() {
   try {
     await app.listen({ host: config.host, port: config.port });
     app.log.info(`面板已启动 http://${config.host}:${config.port}`);
+    // 按设置恢复「从其他设备访问」；失败只记录原因，面板照常只监听本机。
+    await initRemoteAccess({ httpServer: app.server, log: app.log }).catch((error: unknown) => {
+      app?.log.warn({ err: error }, '恢复从其他设备访问的设置失败');
+    });
   } catch (error) {
     await app.close();
     releasePanelDataLock();

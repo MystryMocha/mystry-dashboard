@@ -14,10 +14,17 @@ import type {
   InstanceLanInput,
   InstanceLocalNetwork,
   LanRuntimeInfo,
+  InstallJavaRequest,
   JavaRuntimeListResult,
   JavaDetectResult,
   DownloadSource,
   DownloadSourceSetting,
+  PanelNetworkJoinInfo,
+  PanelNetworkStatus,
+  PublicHostSetting,
+  RemoteAccessStatus,
+  UpdateDirectAccessRequest,
+  UpdatePanelNetworkRequest,
   ImportPreviewInfo,
   InstanceInfo,
   InstanceStopPendingResult,
@@ -324,12 +331,17 @@ export async function listTasks() {
   return res.tasks;
 }
 
-/** Java 运行时清单；refresh=true 强制重新扫描本机安装目录。 */
-export async function listJavaRuntimes(refresh = false) {
+/** Java 运行时清单和面板能自动安装的主版本；refresh=true 强制重新扫描本机安装目录。 */
+export async function listJavaRuntimes(refresh = false): Promise<JavaRuntimeListResult> {
   const res = await api<JavaRuntimeListResult>(
     `/api/system/java-runtimes${refresh ? '?refresh=1' : ''}`,
   );
-  return res.runtimes;
+  return { runtimes: res.runtimes, installable: res.installable ?? [] };
+}
+
+/** 让面板下载并安装指定主版本的 Java（后台任务，完成后 result.javaRuntimeId 是新运行时）。 */
+export async function installJavaRuntime(major: number) {
+  return api<TaskInfo>('/api/system/java-runtimes/install', { method: 'POST', json: { major } satisfies InstallJavaRequest });
 }
 
 /** PATH 中默认 Java 的探测结果。 */
@@ -345,6 +357,39 @@ export async function getDownloadSource() {
 /** 保存下载来源；之后发起的下载立即使用新来源。 */
 export async function saveDownloadSource(source: DownloadSource) {
   return api<DownloadSourceSetting>('/api/system/download-source', { method: 'PUT', json: { source } });
+}
+
+/** 从其他设备访问面板的状态：网卡、网址、安全选项和面板自带网络。每次读取都会重新枚举网卡。 */
+export async function getRemoteAccess() {
+  return api<RemoteAccessStatus>('/api/system/remote-access');
+}
+
+/** 开启、关闭或修改「直接访问」或「已装的组网软件」。 */
+export async function saveAccessMode(mode: 'direct' | 'overlay', input: UpdateDirectAccessRequest) {
+  return api<RemoteAccessStatus>(`/api/system/remote-access/${mode}`, { method: 'PUT', json: input });
+}
+
+/** 重新生成面板的 HTTPS 证书；指纹会变，浏览器要再确认一次。 */
+export async function renewPanelCertificate() {
+  return api<RemoteAccessStatus>('/api/system/remote-access/certificate', { method: 'POST' });
+}
+
+export async function savePanelNetwork(input: UpdatePanelNetworkRequest) {
+  return api<PanelNetworkStatus>('/api/system/remote-access/panel-network', { method: 'PUT', json: input });
+}
+
+/** 手机加入面板自带网络要填的内容，含密钥；只在用户要看时请求。 */
+export async function getPanelNetworkJoinInfo() {
+  return api<PanelNetworkJoinInfo>('/api/system/remote-access/panel-network/join');
+}
+
+export async function resetPanelNetworkSecret() {
+  return api<PanelNetworkStatus>('/api/system/remote-access/panel-network/reset-secret', { method: 'POST' });
+}
+
+/** 保存这台电脑的公网 IP 或域名；传 null 清除。 */
+export async function savePublicHost(host: string | null) {
+  return api<PublicHostSetting>('/api/system/public-host', { method: 'PUT', json: { host } });
 }
 
 /** 当前节点清单；第一阶段只使用内置本机节点的主机内存。 */

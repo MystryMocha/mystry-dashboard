@@ -43,7 +43,7 @@ export type JavaRuntimeRow = {
   path: string;
   version: string | null;
   major_version: number | null;
-  source: 'env' | 'scan';
+  source: 'env' | 'scan' | 'panel';
   verified_at: string;
   /** 最近一次完整扫描是否仍发现并验证此运行时 */
   available: number;

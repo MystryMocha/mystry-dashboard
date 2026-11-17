@@ -43,10 +43,11 @@ Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.4`）是
 - 同机已有服务端只能通过 `DATA_DIR/imports` 下的单层目录 ID 交接复制；该目录是只读复制源，不是实例工作目录。不得浏览整机、不得绑定外部绝对安装路径。
 - 部署/导入先写入 `DATA_DIR/.mystry-staging/<taskId>/<instanceId>`，成功后再原子移动到 `instances/<id>`。崩溃恢复只清理 marker 匹配的 staging，不得删除已注册实例或最终目录。
 - 同一 `DATA_DIR` 只允许一个面板进程在 `initDb` / 任务恢复前取得 `.mystry-panel-lock/`。
-- Minecraft 实例默认通过面板进程 `PATH` 中的 `java` 启动，也可按 `javaRuntimeId` 使用面板扫描、注册并在执行前复验的运行时；请求不得提交可执行路径。子进程环境必须走 `getMinecraftChildEnv()` 脱敏，不得把面板密钥或 `DATA_DIR` 传给 Java。
+- Minecraft 实例默认通过面板进程 `PATH` 中的 `java` 启动，也可按 `javaRuntimeId` 使用面板扫描、注册并在执行前复验的运行时；请求不得提交可执行路径。面板一键安装的 Java（D-034）只能是 `java-install-service.ts` 里钉死 tag 和 SHA-256 的 Temurin JRE，装在 `DATA_DIR/runtimes/java/`，扫描必须始终包含这个目录。子进程环境必须走 `getMinecraftChildEnv()` 脱敏，不得把面板密钥或 `DATA_DIR` 传给 Java。
 - 四个实例入口（部署、ZIP 导入、已有服务端导入、实例设置）共用结构化 JVM 配置器；数据库只保存规范化 `jvmArgs` 字符串。旧实例非法文本保持原样，但修正前不能保存或启动。
 - ZIP 导入只有二阶段预览：`/api/import/previews` 预检后再入队。旧的一阶段 `POST /api/import` 已删除。
 - 远程节点创建当前关闭（`REMOTE_NODE_CREATION_ENABLED = false`），不得宣称远程 Agent 已可用。当前只有内置本机节点 `local`。
+- 从其他设备访问面板（D-033）不改 `HOST`：`remote-access-service.ts` 在所选网卡地址上另挂监听器并转交给同一个 HTTP 服务。`routes/launcher.ts` 的接口不需要登录，必须同时校验回环来源和 `LAUNCHER_TOKEN`；新增不需要登录的接口前，先考虑它会被其他设备访问到。面板自带 EasyTier 的 `tcp_whitelist` 只能有组网专用端口（不是面板端口），经它进来的连接来源虽是 `127.0.0.1` 也不算本机，判断本机一律用 `utils/request-origin.ts` 的 `isLocalRequest`，不要直接比 `req.ip`；私钥、网络密钥和令牌不进日志和状态接口。测试不得真跑 `netsh` 或 EasyTier，也不得在真实网卡上监听。
 - 数据库没有通用迁移框架。任何 schema 变更必须同时设计现有 `panel.db` 的兼容或一次性迁移。
 - 任务元数据在 SQLite，队列和 worker 在内存。进程重启不会续跑，而是把遗留 `pending` / `running` 标为失败。部署/导入任务可能排队并保持 `pending`；前端必须持续显示到 `completed` 或 `failed`。
 - 下载必须流式传输；浏览器端不得用 `res.blob()` 整体缓存大文件。

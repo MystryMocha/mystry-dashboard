@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import type { JavaRuntimeInfo } from '@mystry/shared';
+import { config } from '../config.js';
 import { getDb, type JavaRuntimeRow } from '../db.js';
 import { nowIso } from '../utils/path.js';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
@@ -11,7 +12,7 @@ import { PanelError } from '../utils/errors.js';
 
 /**
  * Java 运行时注册表：
- * - 候选路径只来自面板自身扫描（JAVA_HOME、常见安装目录），绝不接受请求提交的路径。
+ * - 候选路径只来自面板自身扫描（JAVA_HOME、常见安装目录、面板自己装 Java 的数据目录），绝不接受请求提交的路径。
  * - 每个候选必须文件名是 java/java.exe，且执行 -version 输出能解析出版本号，
  *   两关都通过才写入注册表——确保“确定是 java”。
  * - 实例只能按 ID 引用注册表中的运行时；NULL 表示使用 PATH 中的 java。
@@ -41,6 +42,22 @@ const runJavaVersion: JavaVersionRunner = async (javaPath, args, options) => {
   return { stdout: String(result.stdout), stderr: String(result.stderr) };
 };
 
+let versionRunner: JavaVersionRunner = runJavaVersion;
+
+/** 测试用：替换 java -version 的执行（扫描、登记、启动前复验都走它）；传 null 恢复真实执行并清空扫描缓存。 */
+export function setJavaVersionRunnerForTests(runner: JavaVersionRunner | null): void {
+  versionRunner = runner ?? runJavaVersion;
+  lastScanAt = 0;
+  lastForcedScanAt = 0;
+}
+
+type RuntimeSource = JavaRuntimeRow['source'];
+
+/** 面板自动安装的 Java 都放在这里（java-install-service.ts），每个版本一个子目录。 */
+export function panelJavaRoot(): string {
+  return path.join(config.dataDir, 'runtimes', 'java');
+}
+
 function runtimeId(javaPath: string): string {
   const normalized = process.platform === 'win32' ? javaPath.toLowerCase() : javaPath;
   return createHash('sha256').update(normalized).digest('hex').slice(0, 16);
@@ -49,7 +66,7 @@ function runtimeId(javaPath: string): string {
 /** 验证候选确实是 Java：文件名必须是 java/java.exe，且 -version 输出可解析出版本号。 */
 export async function verifyJavaExecutable(
   javaPath: string,
-  run: JavaVersionRunner = runJavaVersion,
+  run: JavaVersionRunner = versionRunner,
 ): Promise<{ version: string; majorVersion: number } | null> {
   const base = path.basename(javaPath).toLowerCase();
   if (base !== 'java' && base !== 'java.exe') return null;
@@ -76,9 +93,20 @@ export async function verifyJavaExecutable(
 }
 
 /** 收集候选路径（不去重、不验证，验证在 scan 中统一做）。 */
-function collectCandidates(): Array<{ path: string; source: 'env' | 'scan' }> {
+function collectCandidates(): Array<{ path: string; source: RuntimeSource }> {
   const exe = process.platform === 'win32' ? 'java.exe' : 'java';
-  const candidates: Array<{ path: string; source: 'env' | 'scan' }> = [];
+  const candidates: Array<{ path: string; source: RuntimeSource }> = [];
+
+  // 面板装的 Java 必须每次都扫到，否则下次扫描会把它标成不可用。
+  try {
+    for (const entry of fs.readdirSync(panelJavaRoot(), { withFileTypes: true })) {
+      // 只认面板自己建的版本目录；.staging-* 是安装中的临时目录。
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      candidates.push({ path: path.join(panelJavaRoot(), entry.name, 'bin', exe), source: 'panel' });
+    }
+  } catch {
+    // 还没装过任何 Java：目录不存在。
+  }
 
   const javaHome = process.env.JAVA_HOME;
   if (javaHome) {
@@ -191,13 +219,27 @@ export async function resolveJavaRuntimeCommand(javaRuntimeId: string | null | u
   return realPath;
 }
 
+function runtimeUpsert() {
+  return getDb().prepare(
+    `INSERT INTO java_runtimes (id, path, version, major_version, source, verified_at, available)
+     VALUES (?, ?, ?, ?, ?, ?, 1)
+     ON CONFLICT(id) DO UPDATE SET
+       path = excluded.path,
+       version = excluded.version,
+       major_version = excluded.major_version,
+       source = excluded.source,
+       verified_at = excluded.verified_at,
+       available = 1`,
+  );
+}
+
 async function performScan(): Promise<JavaRuntimeInfo[]> {
   const verifiedRuntimes: Array<{
     id: string;
     path: string;
     version: string;
     majorVersion: number;
-    source: 'env' | 'scan';
+    source: RuntimeSource;
   }> = [];
   const seen = new Set<string>();
   for (const candidate of collectCandidates()) {
@@ -225,21 +267,10 @@ async function performScan(): Promise<JavaRuntimeInfo[]> {
 
   const db = getDb();
   const markAllUnavailable = db.prepare('UPDATE java_runtimes SET available = 0');
-  const upsert = db.prepare(
-    `INSERT INTO java_runtimes (id, path, version, major_version, source, verified_at, available)
-     VALUES (?, ?, ?, ?, ?, ?, 1)
-     ON CONFLICT(id) DO UPDATE SET
-       path = excluded.path,
-       version = excluded.version,
-       major_version = excluded.major_version,
-       source = excluded.source,
-       verified_at = excluded.verified_at,
-       available = 1`,
-  );
   markAllUnavailable.run();
   const verifiedAt = nowIso();
   for (const runtime of verifiedRuntimes) {
-    upsert.run(
+    runtimeUpsert().run(
       runtime.id,
       runtime.path,
       runtime.version,
@@ -250,6 +281,28 @@ async function performScan(): Promise<JavaRuntimeInfo[]> {
   }
   lastScanAt = Date.now();
   return listJavaRuntimes();
+}
+
+/**
+ * 登记面板刚装好的 Java：路径必须在面板安装目录里，且 -version 能通过验证。
+ * 返回登记的条目；验证不过返回 null。
+ */
+export async function registerPanelJavaRuntime(javaPath: string): Promise<JavaRuntimeInfo | null> {
+  let realPath: string;
+  let realRoot: string;
+  try {
+    realPath = fs.realpathSync(javaPath);
+    realRoot = fs.realpathSync(panelJavaRoot());
+  } catch {
+    return null;
+  }
+  const relative = path.relative(realRoot, realPath);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null;
+  const verified = await verifyJavaExecutable(realPath);
+  if (!verified) return null;
+  const id = runtimeId(realPath);
+  runtimeUpsert().run(id, realPath, verified.version, verified.majorVersion, 'panel', nowIso());
+  return listJavaRuntimes().find((runtime) => runtime.id === id) ?? null;
 }
 
 /**

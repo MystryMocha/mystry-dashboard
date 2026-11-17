@@ -59,6 +59,33 @@ test('Linux 启动器的 reset-password 在输出不是终端时拒绝并返回�
   assert.doesNotMatch(result.stdout + result.stderr, /^[ \t]*密码：/m);
 });
 
+test('Linux 启动器把 remote 的子命令和参数交给控制器', { skip: process.platform !== 'linux' }, async (t) => {
+  // 用隔离的配置和数据目录：面板没在运行，控制器不会请求任何接口。
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-remote-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const run = (...args) => spawnSync('bash', [launcherPath, ...args], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      MYSTRY_LANG: 'zh-CN',
+      MYSTRY_CONFIG_PATH: path.join(root, 'panel.env'),
+      MYSTRY_DATA_DIR: path.join(root, 'data'),
+    },
+  });
+  const status = run('remote', 'status');
+  assert.equal(status.status, 0, `${status.stdout}\n${status.stderr}`);
+  assert.match(status.stdout, /状态：未运行/);
+  for (const args of [['remote', 'on'], ['remote', 'https', 'off'], ['remote', 'renew-cert']]) {
+    const result = run(...args);
+    assert.equal(result.status, 1, `${args.join(' ')}\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /面板未运行。请先启动面板。/);
+  }
+  // 参数太多时由启动器自己拒绝；其他命令仍然不能带参数。
+  assert.equal(run('remote', 'https', 'off', 'extra').status, 1);
+  assert.equal(run('status', 'extra').status, 1);
+});
+
 test('Linux 启动器按所选下载源安装依赖', { skip: process.platform !== 'linux' }, async (t) => {
   // 在临时目录放一份启动器，npm 和控制器都用替身，只看实际传给 npm 的参数。
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-mirror-'));

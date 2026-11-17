@@ -150,7 +150,7 @@ test('PanelManager 按所选下载源安装依赖，默认不指定 registry', {
   assert.match(invalid.stderr, /未知的 npm 下载源/);
 });
 
-test('mirror 是唯一可以带参数的命令，无效名称不写入选择', { skip: process.platform !== 'win32' }, () => {
+test('只有 mirror 和 remote 可以带参数，无效的下载源名称不写入选择', { skip: process.platform !== 'win32' }, () => {
   const run = (...args) => spawnSync(
     'powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, ...args],
@@ -167,4 +167,34 @@ test('mirror 是唯一可以带参数的命令，无效名称不写入选择', {
 
   assert.equal(run('mirror', 'npmmirror', 'extra').status, 2);
   assert.equal(run('status', 'extra').status, 2);
+  assert.equal(run('remote', 'https', 'off', 'extra').status, 2);
+});
+
+test('PanelManager 把 remote 的子命令和参数交给控制器', { skip: process.platform !== 'win32' }, () => {
+  // 用隔离的配置和数据目录：面板没在运行，控制器不会请求任何接口。
+  const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-remote-'));
+  try {
+    const run = (...args) => spawnSync(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, ...args],
+      {
+        env: {
+          ...cleanEnvironment(),
+          MYSTRY_CONFIG_PATH: path.join(testRoot, '.env'),
+          MYSTRY_DATA_DIR: path.join(testRoot, 'data'),
+        },
+        encoding: 'utf8',
+      },
+    );
+    const status = run('remote', 'status');
+    assert.equal(status.status, 0, `${status.stdout}\n${status.stderr}`);
+    assert.match(status.stdout, /状态：未运行/);
+    for (const args of [['remote', 'on'], ['remote', 'https', 'off'], ['remote', 'renew-cert']]) {
+      const result = run(...args);
+      assert.equal(result.status, 1, `${args.join(' ')}\n${result.stdout}\n${result.stderr}`);
+      assert.match(result.stdout + result.stderr, /面板未运行。请先启动面板。/);
+    }
+  } finally {
+    fs.rmSync(testRoot, { recursive: true, force: true });
+  }
 });

@@ -20,6 +20,28 @@ export type {
   LanStatus,
 } from './lan.js';
 export { EASYTIER_VERSION, LAN_CUSTOM_PEER_LIMIT, LAN_STATUSES } from './lan.js';
+export type {
+  AccessModeStatus,
+  DirectAccessStatus,
+  NetworkInterfaceKind,
+  OverlayAccessStatus,
+  PanelCertificateInfo,
+  PanelNetworkDevice,
+  PanelNetworkInterface,
+  PanelNetworkJoinInfo,
+  PanelNetworkState,
+  PanelNetworkStatus,
+  PublicHostSetting,
+  RemoteAccessFirewall,
+  RemoteAccessProblem,
+  RemoteAccessStatus,
+  RemoteAccessUrl,
+  UpdateDirectAccessRequest,
+  UpdateOverlayAccessRequest,
+  UpdatePanelNetworkRequest,
+  UpdatePublicHostRequest,
+} from './remote-access.js';
+export { PANEL_NETWORK_STATES, PANEL_NETWORK_VIRTUAL_IP } from './remote-access.js';
 export { FRP_CLIENT_VERSION, FRP_TRANSPORTS, TUNNEL_MODES, TUNNEL_STATUSES } from './frp.js';
 
 /** 本机资源快照；空值表示尚无有效采样，不等同于零占用。 */
@@ -123,12 +145,25 @@ export interface InstanceStartIssue {
 export interface InstanceLocalNetwork {
   /** server.properties 的游戏端口；无法读取或不是有效端口时为 null。 */
   port: number | null;
-  /** 这台电脑的局域网 IPv4 地址，不含回环和链路本地地址。 */
+  /** 这台电脑的局域网 IPv4 地址，不含回环、链路本地地址和网卡上的公网地址。 */
   addresses: string[];
+  /** 网卡上直接有的公网 IPv4 地址（部分云服务器、机房）。 */
+  publicIpv4: string[];
   /** 这台电脑的公网 IPv6 地址，供不在同一网络的朋友直连；没有或 server-ip 不接受 IPv6 时为空。 */
   publicIpv6: string[];
+  /** 用户填写的公网 IP 或域名；没填为 null。 */
+  publicHost: string | null;
   /** server-ip 绑定了具体地址时为 true，此时同一网络的朋友可能连不上。 */
   serverIpBlocked: boolean;
+  /** server-ip 填的正好是 publicHost，但网卡上没有这个地址（云服务器上的常见错误）。 */
+  serverIpIsUnboundPublicHost: boolean;
+  /**
+   * 面板实际监听的端口，用来在说明里区分游戏端口和面板端口。
+   * 不能从浏览器地址栏取：经 SSH 端口转发打开时，本地端口可能和面板端口不同。
+   */
+  panelPort: number;
+  /** 面板所在系统（process.platform），用来显示对应的防火墙放行写法。 */
+  platform: string;
 }
 
 export interface InstanceInfo {
@@ -302,8 +337,8 @@ export interface JavaRuntimeInfo {
   version: string | null;
   /** 主版本号，如 8 / 17 / 21 */
   majorVersion: number | null;
-  /** 探测来源：JAVA_HOME 环境变量或常见安装目录扫描 */
-  source: 'env' | 'scan';
+  /** 探测来源：JAVA_HOME 环境变量、常见安装目录扫描，或面板自己安装到数据目录的 Java */
+  source: 'env' | 'scan' | 'panel';
   verifiedAt: string;
   /** 最近一次完整扫描是否仍发现并验证此运行时 */
   available: boolean;
@@ -312,6 +347,13 @@ export interface JavaRuntimeInfo {
 /** GET /api/system/java-runtimes 响应 */
 export interface JavaRuntimeListResult {
   runtimes: JavaRuntimeInfo[];
+  /** 面板能在这台电脑上自动安装的 Java 主版本；系统或架构不支持时为空数组 */
+  installable: number[];
+}
+
+/** POST /api/system/java-runtimes/install 请求：安装哪个主版本。响应为后台任务。 */
+export interface InstallJavaRequest {
+  major: number;
 }
 
 /**
@@ -385,7 +427,14 @@ export interface TaskInfo {
    * backupId：备份任务生成的备份，或还原任务使用的备份。
    * instanceRecordUpdated：还原后面板记录的启动文件、核心类型或版本已按备份更新。
    */
-  result?: { instanceId?: string; stagingToken?: string; backupId?: string; instanceRecordUpdated?: boolean };
+  result?: {
+    instanceId?: string;
+    stagingToken?: string;
+    backupId?: string;
+    instanceRecordUpdated?: boolean;
+    /** 安装 Java 任务：装好并登记的运行时 ID */
+    javaRuntimeId?: string;
+  };
   /** 英文失败原因；旧版本写入的任务可能是中文。 */
   error?: string;
   /** 失败原因的消息键与参数；旧任务或无法归类的原始错误没有此字段。 */
@@ -449,6 +498,8 @@ export {
   DEPLOYABLE_CORE_TYPE_ENUM,
   DOWNLOAD_SOURCE_ENUM,
   updateDownloadSourceBodySchema,
+  JAVA_INSTALL_MAJORS,
+  installJavaBodySchema,
   createInstanceBodySchema,
   updateInstanceBodySchema,
   deployCoreBodySchema,
@@ -468,6 +519,9 @@ export {
   updateFrpEndpointBodySchema,
   updateInstanceTunnelBodySchema,
   updateInstanceLanBodySchema,
+  updateAccessModeBodySchema,
+  updatePanelNetworkBodySchema,
+  updatePublicHostBodySchema,
 } from './schemas.js';
 
 export type {
