@@ -23,7 +23,8 @@ How the Mystry Dashboard web UI looks, reads and is put together. Use it when yo
 The most important rule of the system:
 
 - **Navigation layer** — sidebar, toolbar button groups, pop-up menus, popovers, the floating action bar, the narrow-screen tab bar — is glass: `material`, `material-thick` or `menu-bg`, plus `backdrop-filter: blur(24–40px) saturate(180%)` and the `glass-edge` hairline.
-- **Below 768px only the tab bar keeps the blur.** The scrolled toolbar, its button groups, the sidebar drawer and the floating action bar drop `backdrop-filter` and use the near-opaque `material-flat`; the task drawer keeps `sheet-bg` without blur, and dialogs switch to the opaque `sheet-bg-solid` (translucent without blur lets text behind show through). Stacked blur layers on the same part of the screen are too costly for phone GPUs. Transient menus and popovers keep their blur.
+- **The toolbar has no bar of its own.** Its page title (shown once the content scrolls) and its button group are separate floating glass capsules, like the sidebar and the action bar. When content scrolls under them, `.topbar::before` adds a scroll edge: a light blur masked to fade out downward, never a full-width band with a hard bottom line.
+- **Below 768px only the tab bar keeps the blur.** The toolbar title capsule, its button groups, the sidebar drawer and the floating action bar drop `backdrop-filter` and use the near-opaque `material-flat`; the toolbar scroll edge drops its blur and fades from `bg` at 94%; the task drawer keeps `sheet-bg` without blur, and dialogs switch to the opaque `sheet-bg-solid` (translucent without blur lets text behind show through). Stacked blur layers on the same part of the screen are too costly for phone GPUs. Transient menus and popovers keep their blur.
 - **Content layer** — cards, instance cards, widgets, grouped lists — is solid `surface` with `card-shadow`. Never put glass on a content card, and never make the navigation layer solid.
 - The page background is `bg` under two faint radial gradients, `wallpaper-1` (mixed from the accent) at the top left and `wallpaper-2` at the bottom right.
 
@@ -98,6 +99,7 @@ The class names to reach for. Each one is a plain CSS class in `styles.css`; the
 | Chip | `chip`, `chip-mono`, `chip-desc` in `quick-cmd-bar` | Quick picks such as console commands |
 | Segmented control | `segmented`, `segmented-item` (`active`) | Sibling views; `hub-tabs` for the instance workspace |
 | Toolbar group | `toolbar-group`, `toolbar-button`, `toolbar-badge` | Glass; labels hide below 1024px |
+| Toolbar title | `toolbar-title` | Glass capsule, 42px tall like the button group; fades in once the content scrolls |
 | Sidebar | `sidebar`, `sidebar-brand`, `nav-section`, `nav-header`, `nav-item` (`active`), `sidebar-footer` | Drawer below 1024px |
 | Breadcrumbs | `breadcrumbs`, `breadcrumb-item`, `breadcrumb`, `breadcrumb-sep` | Current level has `aria-current="page"` |
 | Field | `field`, `field-help`, `field-warn`, `error`, `input`, `input-row`, `grid grid-2` | Borderless filled controls |

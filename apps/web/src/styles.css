@@ -416,7 +416,10 @@ h1[tabindex="-1"]:focus { outline: none; }
   overflow: hidden;
 }
 
-/* 工具栏叠在滚动内容上方：内容滚入后出现毛玻璃底与页面标题（滚动边缘效果）。 */
+/*
+ * 工具栏叠在滚动内容上方，本身不画底色：标题和按钮各是一枚悬浮的玻璃胶囊，与侧栏、底部操作栏一致。
+ * 内容滚入后在胶囊后面出现向下渐隐的模糊边缘（滚动边缘效果），不再用整条直角横条切开页面。
+ */
 .topbar {
   position: absolute;
   top: 0;
@@ -429,23 +432,41 @@ h1[tabindex="-1"]:focus { outline: none; }
   justify-content: space-between;
   gap: 12px;
   padding: 0 20px 0 28px;
-  border-bottom: 0.5px solid transparent;
-  transition: background-color 0.25s var(--ease), border-color 0.25s var(--ease);
 }
-.topbar.is-scrolled {
-  background: var(--material-thick);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  backdrop-filter: blur(24px) saturate(180%);
-  border-bottom-color: var(--separator);
+/* 滚动边缘：模糊层只叠一层很淡的底色并用遮罩向下渐隐，不会盖住带强调色的背景渐变。遮罩只放在伪元素上，弹出菜单不会被裁掉。 */
+.topbar::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 -18px;
+  z-index: -1;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--bg) 35%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 55%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.25s var(--ease);
 }
+.topbar.is-scrolled::before { opacity: 1; }
 
 .topbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .topbar-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
+/* 页面标题胶囊：高度与右侧按钮组相同（36px 按钮 + 上下 3px 内边距）。 */
 .toolbar-title {
   margin: 0;
+  min-width: 0;
+  height: 42px;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  background: var(--material);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: var(--glass-edge), 0 4px 16px rgba(0, 0, 0, 0.06);
   font-size: 15px;
   font-weight: 600;
+  line-height: 42px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2407,7 +2428,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
    * 窄屏只让底部标签栏保留背景模糊：工具栏、工具栏按钮组、侧栏抽屉、悬浮操作栏、任务抽屉和对话框
    * 会与标签栏叠在同一块屏幕上，逐层模糊在手机 GPU 上开销很大，改用近实色或已有的半透明底。
    */
-  .topbar.is-scrolled,
+  .topbar::before,
+  .toolbar-title,
   .toolbar-group,
   .topbar .sidebar-toggle,
   .sidebar,
@@ -2419,9 +2441,13 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
-  .topbar.is-scrolled,
+  .toolbar-title,
+  .toolbar-group,
+  .topbar .sidebar-toggle,
   .sidebar,
   .action-bar { background: var(--material-flat); }
+  /* 没有模糊时滚动边缘改用接近页面底色的渐隐，内容文字不会从胶囊之间和胶囊下沿透出来，也不会多出一条灰带。 */
+  .topbar::before { background: color-mix(in srgb, var(--bg) 94%, transparent); }
   .task-drawer { background: var(--sheet-bg); }
   /* 对话框变成底部面板后没有模糊，半透明底会透出后面的文字，改用实色。 */
   .confirm-dialog,
