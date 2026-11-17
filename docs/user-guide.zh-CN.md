@@ -234,7 +234,11 @@ Mystry Dashboard 运行在你**本机**上：用网页管理多个 Minecraft **�
 
 ## Java 运行时
 
-面板不自动安装 Java，也不接受手填 Java 路径。各游戏版本需要的 Java 见 [分步教程：装好 Java](tutorials.zh-CN.md#1-装好-java)。
+面板不接受手填 Java 路径。各游戏版本需要的 Java 见 [分步教程：装好 Java](tutorials.zh-CN.md#1-装好-java)。
+
+「一键部署」和导入页会按游戏版本自动选 Java：系统默认 Java 合适就用它，否则选已装的推荐版本。你亲手改选后就不再自动改。「一键部署」里，实际要用的 Java 不是推荐版本时不能点「开始部署」，页面会说明需要哪个版本。已有实例的「实例设置」不会自动改动已保存的 Java。
+
+推荐版本没装时，选择器下方会出现 **「安装 Java N」**（Windows 和 Linux x64 上支持 Java 8、17、21、25）。面板从 GitHub 下载 Eclipse Temurin JRE（下载来源设为国内镜像时经 GitHub 镜像下载）；每个版本钉死在固定的发行版，用前按 SHA-256 校验。装到数据目录的 `runtimes/java`，加入 Java 列表并选中。下载以任务运行，可在「任务中心」查看进度；失败时可以换下载来源，或用「自己下载安装」链接。
 
 默认使用运行面板的环境里 PATH 中的 `java`，界面显示为「系统默认 Java」；可以在同一环境中执行 `java -version` 检查它的版本。
 

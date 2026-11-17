@@ -22,6 +22,19 @@ export const DEPLOYABLE_CORE_TYPE_ENUM = [
   'neoforge',
 ] as const;
 
+/** 面板能自动安装的 Java 主版本（Eclipse Temurin JRE，具体版本和 SHA-256 钉死在服务端）。 */
+export const JAVA_INSTALL_MAJORS = [8, 17, 21, 25] as const;
+
+/** POST /api/system/java-runtimes/install：只接受面板钉死了安装包的主版本。 */
+export const installJavaBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['major'],
+  properties: {
+    major: { type: 'integer', enum: [...JAVA_INSTALL_MAJORS] },
+  },
+} as const;
+
 export const createInstanceBodySchema = {
   type: 'object',
   additionalProperties: false,

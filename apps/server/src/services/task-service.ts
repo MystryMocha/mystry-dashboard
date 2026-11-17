@@ -44,7 +44,7 @@ type TaskWorker = (
   taskId: string,
   signal: AbortSignal,
   report: (progress: number, msg: PanelMessage) => void,
-) => Promise<{ instanceId?: string } | void>;
+) => Promise<TaskInfo['result'] | void>;
 
 type QueuedTask = {
   task: TaskInfo;
@@ -317,7 +317,7 @@ function drainTaskQueue(): void {
 async function executeTask(item: QueuedTask, controller: AbortController): Promise<void> {
   let timedOut = false;
   let ended = false;
-  let result: { instanceId?: string } | void = undefined;
+  let result: TaskInfo['result'] | void = undefined;
   let failure: unknown;
   let failed = false;
 

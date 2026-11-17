@@ -256,6 +256,10 @@ h1[tabindex="-1"]:focus { outline: none; }
 .error { margin: 0; color: var(--danger); font-size: 13px; line-height: 1.5; }
 .field-warn { margin: 0; color: var(--warn); font-size: 12.5px; line-height: 1.5; }
 
+/* Java 选择器里的一键安装：说明、按钮和手动下载链接，进度条在下方 */
+.java-install { display: grid; gap: 8px; }
+.java-install-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+
 .link { color: var(--accent-text); font-weight: 500; }
 .link:hover { text-decoration: underline; text-underline-offset: 3px; }
 

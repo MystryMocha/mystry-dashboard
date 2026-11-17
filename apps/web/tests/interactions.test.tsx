@@ -3,7 +3,9 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, MemoryRouter, RouterProvider, useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import { DashboardPage } from '../src/pages/DashboardPage';
+import { JavaRuntimeSelect } from '../src/components/JavaRuntimeSelect';
 import { DeployPage } from '../src/pages/DeployPage';
 import { ImportPage } from '../src/pages/ImportPage';
 import { NodesPage } from '../src/pages/NodesPage';
@@ -237,7 +239,10 @@ test('任务抽屉关闭时不可访问，按钮、Escape 和遮罩关闭均恢�
 test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build 留空交给服务端取最新', async () => {
   const baseFetch = globalThis.fetch;
   const deployBodies: Array<Record<string, unknown>> = [];
+  const java25 = { id: 'rt25', path: 'C:/Java/jdk-25/bin/java.exe', version: '25.0.1', majorVersion: 25, source: 'scan', verifiedAt: '', available: true };
+  let javaRuntimes: unknown[] = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (String(url).startsWith('/api/system/java-runtimes')) return new Response(JSON.stringify({ runtimes: javaRuntimes, installable: [] }));
     if (url === '/api/cores/paper/versions') {
       requests.push(url);
       return new Response(JSON.stringify({ versions: ['26.3', '26.2', '1.21.11'] }));
@@ -262,10 +267,17 @@ test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build �
   expect(screen.getByText(/勾选后才能开始部署/)).toBeTruthy();
 
   await user.click(eula);
+  // 26.3 需要 Java 25，这台电脑没有：不能开始部署，并说明原因。
+  expect(await screen.findByText('这个版本需要 Java 25。在上面的「Java 运行时」里安装或选择 Java 25 后才能开始部署。')).toBeTruthy();
+  expect(submit.disabled).toBe(true);
+  // 装好 Java 25 后重新探测：自动选中，按钮可用。
+  javaRuntimes = [java25];
+  await user.click(screen.getByRole('button', { name: '重新探测' }));
   await waitFor(() => expect(submit.disabled).toBe(false));
+  expect(screen.queryByText(/这个版本需要 Java 25/)).toBeNull();
   await user.click(submit);
   await waitFor(() => expect(deployBodies).toHaveLength(1));
-  expect(deployBodies[0]).toMatchObject({ coreType: 'paper', mcVersion: '26.3', acceptEula: true });
+  expect(deployBodies[0]).toMatchObject({ coreType: 'paper', mcVersion: '26.3', acceptEula: true, javaRuntimeId: 'rt25' });
   expect(deployBodies[0]?.build).toBeUndefined();
   expect(deployBodies[0]?.loaderVersion).toBeUndefined();
 });
@@ -1165,4 +1177,118 @@ test('复制：没有 navigator.clipboard（非安全上下文）时退回 execC
   document.execCommand = vi.fn(() => false);
   expect(await copyText('c')).toBe(false);
   button.remove();
+});
+
+// ---- Java 选择器：新建实例自动选推荐版本，没有时一键安装（D-034） ----
+
+const java21 = { id: 'rt21', path: 'C:/Java/jdk-21/bin/java.exe', version: '21.0.5', majorVersion: 21, source: 'scan', verifiedAt: '2026-11-01T00:00:00Z', available: true };
+const java8 = { id: 'rt8', path: 'C:/Java/jre8/bin/java.exe', version: '1.8.0_492', majorVersion: 8, source: 'scan', verifiedAt: '2026-11-01T00:00:00Z', available: true };
+
+let installingStates: boolean[] = [];
+function recordInstalling(installing: boolean) { installingStates.push(installing); }
+function JavaSelectHarness({ autoSelect, initial = null, onValue }: { autoSelect?: boolean; initial?: string | null; onValue: (value: string | null) => void }) {
+  const [value, setValue] = useState<string | null>(initial);
+  const [mcVersion, setMcVersion] = useState('1.21.1');
+  return (
+    <>
+      <JavaRuntimeSelect value={value} onChange={(next) => { onValue(next); setValue(next); }} mcVersion={mcVersion} autoSelect={autoSelect} onInstallingChange={recordInstalling} />
+      <button type="button" onClick={() => setMcVersion('1.16.5')}>切到 1.16.5</button>
+    </>
+  );
+}
+
+function stubJava(state: { runtimes: unknown[]; installable: number[] }, extra?: (url: string, options?: RequestInit) => Response | null) {
+  installingStates = [];
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const custom = extra?.(String(url), options);
+    if (custom) return custom;
+    if (String(url).startsWith('/api/system/java-runtimes')) return new Response(JSON.stringify(state));
+    if (url === '/api/system/java') return new Response(JSON.stringify({ available: true, version: '1.8.0_492', majorVersion: 8 }));
+    return baseFetch(url, options);
+  }));
+}
+
+test('Java 选择器：新建实例自动选推荐版本，手动改过后不再自动改', async () => {
+  stubJava({ runtimes: [java21, java8], installable: [8, 17, 21, 25] });
+  const values: Array<string | null> = [];
+  const user = userEvent.setup();
+  render(<JavaSelectHarness autoSelect onValue={(value) => values.push(value)} />);
+  const select = await screen.findByLabelText('Java 运行时') as HTMLSelectElement;
+  // 默认 Java 是 8，Minecraft 1.21.1 推荐 21：自动选已装的 Java 21，不出现安装按钮。
+  await waitFor(() => expect(select.value).toBe('rt21'));
+  expect(screen.queryByRole('button', { name: /安装 Java/ })).toBeNull();
+  // 换成 1.16.5：默认 Java 8 正好合适，回到默认。
+  await user.click(screen.getByRole('button', { name: '切到 1.16.5' }));
+  await waitFor(() => expect(select.value).toBe(''));
+  // 用户亲手选了 21 之后，不再被自动改回。
+  await user.selectOptions(select, 'rt21');
+  expect(select.value).toBe('rt21');
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
+  expect(select.value).toBe('rt21');
+  expect(values.at(-1)).toBe('rt21');
+  // 推荐的 Java 8 已经装了：不符提示只让改选，不再给下载链接。
+  expect(await screen.findByText(/所选 Java 是 Java 21，推荐使用 Java 8/)).toBeTruthy();
+  expect(screen.queryByRole('link', { name: /下载 Java/ })).toBeNull();
+});
+
+test('Java 选择器：实例设置页不自动改已保存的选择', async () => {
+  stubJava({ runtimes: [java21, java8], installable: [21] });
+  const values: Array<string | null> = [];
+  render(<JavaSelectHarness onValue={(value) => values.push(value)} />);
+  const select = await screen.findByLabelText('Java 运行时') as HTMLSelectElement;
+  await screen.findByText(/系统默认 Java 是 Java 8/);
+  expect(select.value).toBe('');
+  expect(values).toEqual([]);
+});
+
+test('Java 选择器：推荐版本没装时一键安装，装好后自动选中', async () => {
+  const state = { runtimes: [java8] as unknown[], installable: [8, 17, 21, 25] };
+  const installed = { ...java21, id: 'panel21', path: 'D:/data/runtimes/java/temurin-jdk-21.0.13_9/bin/java.exe', version: '21.0.13', source: 'panel' };
+  const posted: unknown[] = [];
+  stubJava(state, (url, options) => {
+    if (url === '/api/system/java-runtimes/install' && options?.method === 'POST') {
+      posted.push(JSON.parse(String(options.body)));
+      return new Response(JSON.stringify({ id: 'install21', type: 'download', status: 'running', progress: 40, message: '', createdAt: '', updatedAt: '' }));
+    }
+    if (url === '/api/tasks/install21') {
+      state.runtimes = [installed, java8];
+      return new Response(JSON.stringify({ id: 'install21', type: 'download', status: 'completed', progress: 100, message: '', result: { javaRuntimeId: 'panel21' }, createdAt: '', updatedAt: '' }));
+    }
+    return null;
+  });
+  const values: Array<string | null> = [];
+  const user = userEvent.setup();
+  render(<JavaSelectHarness autoSelect onValue={(value) => values.push(value)} />);
+  const button = await screen.findByRole('button', { name: '安装 Java 21' });
+  expect(installingStates).toEqual([false]);
+  expect(screen.getByText(/这台电脑还没装 Java 21/)).toBeTruthy();
+  // 手动下载链接留作后备。
+  expect(screen.getByRole('link', { name: '自己下载安装' }).getAttribute('href')).toBe('https://adoptium.net/temurin/releases/?version=21');
+  await user.click(button);
+  const select = screen.getByLabelText('Java 运行时') as HTMLSelectElement;
+  await waitFor(() => expect(select.value).toBe('panel21'));
+  expect(posted).toEqual([{ major: 21 }]);
+  expect(values.at(-1)).toBe('panel21');
+  // 安装期间通知页面暂停提交，结束后恢复。
+  await waitFor(() => expect(installingStates).toEqual([false, true, false]));
+  expect(screen.queryByRole('button', { name: /安装 Java/ })).toBeNull();
+});
+
+test('Java 选择器：安装失败显示原因，保留手动下载入口', async () => {
+  stubJava({ runtimes: [java8], installable: [21] }, (url, options) => {
+    if (url === '/api/system/java-runtimes/install' && options?.method === 'POST') {
+      return new Response(JSON.stringify({ id: 'install21', type: 'download', status: 'pending', progress: 0, message: '', createdAt: '', updatedAt: '' }));
+    }
+    if (url === '/api/tasks/install21') {
+      return new Response(JSON.stringify({ id: 'install21', type: 'download', status: 'failed', progress: 10, message: '', error: 'x', errorI18n: { key: 'server.jvm.javaInstall.downloadFailed', params: { major: 21 } }, createdAt: '', updatedAt: '' }));
+    }
+    return null;
+  });
+  const user = userEvent.setup();
+  render(<JavaSelectHarness autoSelect onValue={() => {}} />);
+  await user.click(await screen.findByRole('button', { name: '安装 Java 21' }));
+  expect(await screen.findByText(/Java 21 没能下载下来.*国内镜像/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: '安装 Java 21' })).toBeTruthy();
+  expect(screen.getByRole('link', { name: '自己下载安装' })).toBeTruthy();
 });

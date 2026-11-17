@@ -36,6 +36,7 @@ export default {
 
   'deploy.confirm.title': '確認並部署',
   'deploy.confirm.eulaHelp': 'Minecraft 伺服器必須同意 EULA 才能執行，勾選後才能開始部署。',
+  'deploy.confirm.javaRequired': '這個版本需要 Java {java}。在上面的「Java 執行環境」中安裝或選擇 Java {java} 後才能開始部署。',
   'deploy.progress.label': '部署進度',
   'deploy.progress.submitted': '部署任務已送出，你可以離開此頁，進度會在右上角的「任務中心」持續更新。',
   'deploy.error.title': '部署失敗',

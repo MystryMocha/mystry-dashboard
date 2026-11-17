@@ -14,6 +14,7 @@ import type {
   InstanceLanInput,
   InstanceLocalNetwork,
   LanRuntimeInfo,
+  InstallJavaRequest,
   JavaRuntimeListResult,
   JavaDetectResult,
   DownloadSource,
@@ -330,12 +331,17 @@ export async function listTasks() {
   return res.tasks;
 }
 
-/** Java 运行时清单；refresh=true 强制重新扫描本机安装目录。 */
-export async function listJavaRuntimes(refresh = false) {
+/** Java 运行时清单和面板能自动安装的主版本；refresh=true 强制重新扫描本机安装目录。 */
+export async function listJavaRuntimes(refresh = false): Promise<JavaRuntimeListResult> {
   const res = await api<JavaRuntimeListResult>(
     `/api/system/java-runtimes${refresh ? '?refresh=1' : ''}`,
   );
-  return res.runtimes;
+  return { runtimes: res.runtimes, installable: res.installable ?? [] };
+}
+
+/** 让面板下载并安装指定主版本的 Java（后台任务，完成后 result.javaRuntimeId 是新运行时）。 */
+export async function installJavaRuntime(major: number) {
+  return api<TaskInfo>('/api/system/java-runtimes/install', { method: 'POST', json: { major } satisfies InstallJavaRequest });
 }
 
 /** PATH 中默认 Java 的探测结果。 */

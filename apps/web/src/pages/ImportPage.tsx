@@ -63,6 +63,8 @@ export function ImportPage() {
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<TaskInfo | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Java 一键安装进行中：装完会自动选中新 Java，之前不允许导入。 */
+  const [javaInstalling, setJavaInstalling] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   /** 组件卸载时中止进行中的请求和任务轮询，避免离开页面后继续更新状态。 */
   const pollAbortRef = useRef<AbortController | null>(null);
@@ -132,6 +134,7 @@ export function ImportPage() {
   const configurationVisible = mode === 'directory' || preview !== null;
   const canSubmit = !busy
     && !restoringPreview
+    && !javaInstalling
     && (mode === 'directory'
       ? Boolean(selectedSource?.ready && jvmValid)
       : file !== null || Boolean(preview && jvmValid));
@@ -491,6 +494,8 @@ export function ImportPage() {
                   onResolvedMajorChange={setJavaMajor}
                   mcVersion={mcVersion}
                   disabled={busy}
+                  autoSelect
+                  onInstallingChange={setJavaInstalling}
                 />
                 <JvmSettingsEditor
                   value={jvmArgs}
