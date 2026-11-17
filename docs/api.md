@@ -438,9 +438,9 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 | DELETE | `/api/frp/endpoints/:id` | 删除。仍有实例启用着使用它的联机时 **409**；已关闭的隧道设置会随端点一起清除 |
 | GET | `/api/instances/:id/tunnel` | 该实例的联机状态 `InstanceTunnel` |
 | PUT | `/api/instances/:id/tunnel` | 保存并按当前实例状态启动或停止 `frpc` |
-| GET | `/api/instances/:id/tunnel/friend-config` | 内网模式的朋友配置 `friend-frpc.toml`。文件含令牌，只应交给要一起玩的人 |
+| GET | `/api/instances/:id/tunnel/friend-config` | 内网模式的玩家配置 `friend-frpc.toml`。文件含令牌，只应交给要加入的玩家 |
 
-`mode` 为 `public` 时朋友直接连接公网端口，必须提供 `remotePort`。`stcp` 经穿透服务器中转，`xtcp` 在双方客户端之间打洞；这两种模式由朋友在自己的电脑上运行官方 `frpc` 和下载的配置，再连接本机 `127.0.0.1`。`server-ip` 若指向某一块网卡，隧道不会启动。实例停止、崩溃或面板关闭时，对应的 `frpc` 会退出。面板重启后不会恢复已经消失的游戏进程，需要重新启动实例。
+`mode` 为 `public` 时玩家直接连接公网端口，必须提供 `remotePort`。`stcp` 经 frp 服务器中转，`xtcp` 在双方客户端之间打洞；这两种模式由玩家在自己的电脑上运行官方 `frpc` 和下载的配置，再连接本机 `127.0.0.1`。`server-ip` 若指向某一块网卡，隧道不会启动。实例停止、崩溃或面板关闭时，对应的 `frpc` 会退出。面板重启后不会恢复已经消失的游戏进程，需要重新启动实例。
 
 ## 虚拟局域网 `/api/lan`
 

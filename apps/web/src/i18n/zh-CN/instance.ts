@@ -53,8 +53,8 @@ export default {
 
   // 启动成功后的下一步提示（控制台上方）
   'instance.ready.title': '服务器已启动，现在可以进服了。',
-  'instance.ready.body': '想让朋友加入？「联机」页会给出要发给他们的地址。',
-  'instance.ready.action': '邀请朋友',
+  'instance.ready.body': '想让玩家加入？「联机」页会给出加入地址。',
+  'instance.ready.action': '邀请玩家',
   'instance.ready.dismiss': '不再提示',
 
   // 未保存修改弹窗（设置与参数配置共用）

@@ -53,8 +53,8 @@ export default {
 
   // 启动成功后的下一步提示（控制台上方）
   'instance.ready.title': '伺服器已啟動，現在可以進入伺服器了。',
-  'instance.ready.body': '想讓朋友加入？「多人連線」頁會列出要傳給他們的位址。',
-  'instance.ready.action': '邀請朋友',
+  'instance.ready.body': '想讓玩家加入？「多人連線」頁會列出加入位址。',
+  'instance.ready.action': '邀請玩家',
   'instance.ready.dismiss': '不再提示',
 
   // 未保存修改弹窗（设置与参数配置共用）

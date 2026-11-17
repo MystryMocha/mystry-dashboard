@@ -88,7 +88,7 @@ export default {
   'remoteAccess.publicHost.cleared': '公用位址已清除。',
 
   'remoteAccess.net.lead': '手機用行動網路或在別的網路時用這個。面板執行 EasyTier，把這台電腦和你的裝置連進同一個加密的私有網路。不用註冊帳號，也不需要公用 IP。',
-  'remoteAccess.net.separate': '這個網路只用來開啟面板，和每個實例的虛擬區域網路是分開的：進伺服器的朋友打不開面板。',
+  'remoteAccess.net.separate': '這個網路只用來開啟面板，和每個實例的虛擬區域網路是分開的：進伺服器的玩家打不開面板。',
   'remoteAccess.net.unsupported': '這個系統上不能使用面板內建的網路，請改用「已安裝的組網軟體」。',
   'remoteAccess.net.firstTime': '第一次開啟時，面板會先下載官方 EasyTier 用戶端。',
   'remoteAccess.net.state.stopped': '未開啟',

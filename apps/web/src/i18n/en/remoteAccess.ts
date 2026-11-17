@@ -86,7 +86,7 @@ export default {
   'remoteAccess.publicHost.cleared': 'Public address cleared.',
 
   'remoteAccess.net.lead': 'Use this when your phone is on mobile data or another network. The panel runs EasyTier to put this computer and your devices on one private, encrypted network. There is no account to register and no public IP needed.',
-  'remoteAccess.net.separate': 'This network is only for opening the panel. It is separate from each instance\'s virtual LAN, so friends who join a game can\'t open the panel.',
+  'remoteAccess.net.separate': 'This network is only for opening the panel. It is separate from each instance\'s virtual LAN, so players who join a game can\'t open the panel.',
   'remoteAccess.net.unsupported': 'The built-in network isn\'t available on this system. Use Installed Software instead.',
   'remoteAccess.net.firstTime': 'The first time, the panel downloads the official EasyTier client.',
   'remoteAccess.net.state.stopped': 'Off',
