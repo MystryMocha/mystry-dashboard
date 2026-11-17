@@ -289,237 +289,244 @@ export function ImportPage() {
       </div>
 
       <form className="form-stack import-form" onSubmit={(e) => void onSubmit(e)}>
-        {mode === 'directory' ? (
-          <section className="form-section">
-            <h2 className="form-section-title">{t('import.directory.title')}</h2>
-            <div className="card form-card">
-              <div className="callout callout-info import-handoff-note">
-                <Info size={18} aria-hidden="true" className="callout-icon" />
-                <div>
-                  <strong>{t('import.directory.steps.title')}</strong>
-                  <ol>
-                    <li>{t('import.directory.steps.stop')}</li>
-                    <li>
-                      {rich('import.directory.steps.copy', { code: (chunk) => <code>{chunk}</code> })}
-                    </li>
-                    <li>{t('import.directory.steps.select')}</li>
-                  </ol>
-                  <p>{t('import.directory.steps.note')}</p>
-                </div>
-              </div>
-              <div className="field">
-                <label htmlFor="existing-server-source">{t('import.directory.source.label')}</label>
-                <div className="input-row import-source-row">
-                  <select
-                    id="existing-server-source"
-                    value={sourceId}
-                    disabled={busy || sourcesLoading}
-                    onChange={(e) => setSourceId(e.target.value)}
-                  >
-                    <option value="">
-                      {sourcesLoading ? t('import.directory.source.loading') : t('import.directory.source.placeholder')}
-                    </option>
-                    {sources.map((source) => (
-                      <option key={source.id} value={source.id} disabled={!source.ready}>
-                        {source.ready
-                          ? t('import.directory.source.ready', {
-                            id: source.id,
-                            target: source.launchTarget ?? t('import.directory.source.pendingCheck'),
-                          })
-                          : t('import.directory.source.unavailable', { id: source.id, error: tm(source.errorI18n, source.error ?? '') })}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    className="btn"
-                    type="button"
-                    disabled={busy || sourcesLoading}
-                    onClick={() => void loadSources()}
-                  >
-                    <RefreshCw size={14} aria-hidden="true" className={sourcesLoading ? 'spin' : undefined} />
-                    {sourcesLoading ? t('import.directory.refreshing') : t('import.directory.refresh')}
-                  </button>
-                </div>
-                {!sourcesLoading && sources.length === 0 ? (
-                  <p className="field-help">{t('import.directory.empty')}</p>
-                ) : null}
-                {selectedSource?.ready && selectedSource.launchTarget ? (
-                  <p className="field-help">
-                    {rich(
-                      'import.directory.launchTarget',
-                      { code: (chunk) => <code>{chunk}</code> },
-                      { target: selectedSource.launchTarget },
-                    )}
-                  </p>
-                ) : null}
-                {selectedSource?.ready && selectedSource.error ? (
-                  <p className="field-help">{tm(selectedSource.errorI18n, selectedSource.error)}</p>
-                ) : null}
-                {sourcesError ? <p className="error">{t('import.directory.loadError', { error: sourcesError })}</p> : null}
-              </div>
-            </div>
-          </section>
-        ) : (
-          <section className="form-section">
-            <h2 className="form-section-title">{t('import.zip.title')}</h2>
-            <div className="card form-card">
-              <p className="field-help import-zip-lead">
-                {t('import.zip.lead')}
-              </p>
-              {restoringPreview ? (
-                <p className="field-help" role="status">
-                  <span className="spinner spinner-sm" aria-hidden="true" /> {t('import.zip.restoring')}
-                </p>
-              ) : null}
-              {preview ? (
-                <div className="callout callout-success import-preview-card" aria-live="polite">
-                  <FileArchive size={18} aria-hidden="true" className="callout-icon" />
-                  <div>
-                    <strong>{t('import.zip.preview.title')}</strong>
-                    <p>
-                      {t('import.zip.preview.fileInfo', {
-                        name: preview.fileName,
-                        size: fmt.fixed(preview.sizeBytes / 1024 / 1024, 1),
-                      })}
-                    </p>
-                    <p>{t('import.zip.preview.expires', { time: fmt.dateTime(preview.expiresAt) })}</p>
+        {/* 宽屏时分左右两栏：左栏来源与实例信息，右栏运行环境与许可协议；窄屏按原顺序上下排列。 */}
+        <div className="form-columns">
+          <div className="form-column">
+            {mode === 'directory' ? (
+              <section className="form-section">
+                <h2 className="form-section-title">{t('import.directory.title')}</h2>
+                <div className="card form-card">
+                  <div className="callout callout-info import-handoff-note">
+                    <Info size={18} aria-hidden="true" className="callout-icon" />
+                    <div>
+                      <strong>{t('import.directory.steps.title')}</strong>
+                      <ol>
+                        <li>{t('import.directory.steps.stop')}</li>
+                        <li>
+                          {rich('import.directory.steps.copy', { code: (chunk) => <code>{chunk}</code> })}
+                        </li>
+                        <li>{t('import.directory.steps.select')}</li>
+                      </ol>
+                      <p>{t('import.directory.steps.note')}</p>
+                    </div>
                   </div>
-                  <button className="btn btn-sm" type="button" disabled={busy} onClick={() => void cancelPreview()}>
-                    {t('import.zip.preview.cancel')}
-                  </button>
-                </div>
-              ) : null}
-
-              <div className="field">
-                <label htmlFor="existing-server-zip">{t('import.zip.file.label')}</label>
-                <div
-                  className={`drop-zone${isDragging ? ' is-dragging' : ''}${file ? ' has-file' : ''}${busy || restoringPreview ? ' is-disabled' : ''}`}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    if (!busy && !restoringPreview) setIsDragging(true);
-                  }}
-                  onDragLeave={() => setIsDragging(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setIsDragging(false);
-                    if (busy || restoringPreview) return;
-                    const dropped = e.dataTransfer.files?.[0];
-                    selectZip(dropped ?? null);
-                  }}
-                >
-                  <span className="drop-zone-icon" aria-hidden="true"><FolderUp size={28} /></span>
-                  <div className="drop-zone-title">
-                    {file ? file.name : t('import.zip.drop.title')}
-                  </div>
-                  <span className="drop-zone-hint">
-                    {file
-                      ? t('import.zip.drop.size', { size: fmt.fixed(file.size / 1024 / 1024, 1) })
-                      : t('import.zip.drop.hint')}
-                  </span>
-                  <button className="btn" type="button" disabled={busy || restoringPreview}
-                    onClick={() => document.getElementById('existing-server-zip')?.click()}>
-                    {t('import.zip.choose')}
-                  </button>
-                </div>
-                <input
-                  key={preview?.id ?? 'new-preview'}
-                  id="existing-server-zip"
-                  type="file"
-                  accept=".zip,application/zip"
-                  disabled={busy || restoringPreview}
-                  hidden
-                  onChange={(e) => { selectZip(e.target.files?.[0] ?? null); e.target.value = ''; }}
-                />
-                {preview ? (
-                  <p className="field-help">{t('import.zip.replaceHelp')}</p>
-                ) : null}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {configurationVisible ? (
-          <>
-            <section className="form-section">
-              <h2 className="form-section-title">{t('import.instance.title')}</h2>
-              <div className="card form-card">
-                <div className="field">
-                  <label htmlFor="import-instance-name">{t('import.form.name.label')}</label>
-                  <input
-                    id="import-instance-name"
-                    value={name}
-                    disabled={busy}
-                    maxLength={128}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="grid grid-2 import-meta-grid">
                   <div className="field">
-                    <label htmlFor="import-core-type">{t('import.form.coreType.label')}</label>
-                    <select
-                      id="import-core-type"
-                      value={coreType}
-                      disabled={busy}
-                      onChange={(e) => setCoreType(e.target.value as CoreType)}
-                    >
-                      {coreTypeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.labelKey ? t(option.labelKey) : option.label}
+                    <label htmlFor="existing-server-source">{t('import.directory.source.label')}</label>
+                    <div className="input-row import-source-row">
+                      <select
+                        id="existing-server-source"
+                        value={sourceId}
+                        disabled={busy || sourcesLoading}
+                        onChange={(e) => setSourceId(e.target.value)}
+                      >
+                        <option value="">
+                          {sourcesLoading ? t('import.directory.source.loading') : t('import.directory.source.placeholder')}
                         </option>
-                      ))}
-                    </select>
+                        {sources.map((source) => (
+                          <option key={source.id} value={source.id} disabled={!source.ready}>
+                            {source.ready
+                              ? t('import.directory.source.ready', {
+                                id: source.id,
+                                target: source.launchTarget ?? t('import.directory.source.pendingCheck'),
+                              })
+                              : t('import.directory.source.unavailable', { id: source.id, error: tm(source.errorI18n, source.error ?? '') })}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="btn"
+                        type="button"
+                        disabled={busy || sourcesLoading}
+                        onClick={() => void loadSources()}
+                      >
+                        <RefreshCw size={14} aria-hidden="true" className={sourcesLoading ? 'spin' : undefined} />
+                        {sourcesLoading ? t('import.directory.refreshing') : t('import.directory.refresh')}
+                      </button>
+                    </div>
+                    {!sourcesLoading && sources.length === 0 ? (
+                      <p className="field-help">{t('import.directory.empty')}</p>
+                    ) : null}
+                    {selectedSource?.ready && selectedSource.launchTarget ? (
+                      <p className="field-help">
+                        {rich(
+                          'import.directory.launchTarget',
+                          { code: (chunk) => <code>{chunk}</code> },
+                          { target: selectedSource.launchTarget },
+                        )}
+                      </p>
+                    ) : null}
+                    {selectedSource?.ready && selectedSource.error ? (
+                      <p className="field-help">{tm(selectedSource.errorI18n, selectedSource.error)}</p>
+                    ) : null}
+                    {sourcesError ? <p className="error">{t('import.directory.loadError', { error: sourcesError })}</p> : null}
                   </div>
+                </div>
+              </section>
+            ) : (
+              <section className="form-section">
+                <h2 className="form-section-title">{t('import.zip.title')}</h2>
+                <div className="card form-card">
+                  <p className="field-help import-zip-lead">
+                    {t('import.zip.lead')}
+                  </p>
+                  {restoringPreview ? (
+                    <p className="field-help" role="status">
+                      <span className="spinner spinner-sm" aria-hidden="true" /> {t('import.zip.restoring')}
+                    </p>
+                  ) : null}
+                  {preview ? (
+                    <div className="callout callout-success import-preview-card" aria-live="polite">
+                      <FileArchive size={18} aria-hidden="true" className="callout-icon" />
+                      <div>
+                        <strong>{t('import.zip.preview.title')}</strong>
+                        <p>
+                          {t('import.zip.preview.fileInfo', {
+                            name: preview.fileName,
+                            size: fmt.fixed(preview.sizeBytes / 1024 / 1024, 1),
+                          })}
+                        </p>
+                        <p>{t('import.zip.preview.expires', { time: fmt.dateTime(preview.expiresAt) })}</p>
+                      </div>
+                      <button className="btn btn-sm" type="button" disabled={busy} onClick={() => void cancelPreview()}>
+                        {t('import.zip.preview.cancel')}
+                      </button>
+                    </div>
+                  ) : null}
+
                   <div className="field">
-                    <label htmlFor="import-mc-version">{t('import.form.mcVersion.label')}</label>
+                    <label htmlFor="existing-server-zip">{t('import.zip.file.label')}</label>
+                    <div
+                      className={`drop-zone${isDragging ? ' is-dragging' : ''}${file ? ' has-file' : ''}${busy || restoringPreview ? ' is-disabled' : ''}`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (!busy && !restoringPreview) setIsDragging(true);
+                      }}
+                      onDragLeave={() => setIsDragging(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDragging(false);
+                        if (busy || restoringPreview) return;
+                        const dropped = e.dataTransfer.files?.[0];
+                        selectZip(dropped ?? null);
+                      }}
+                    >
+                      <span className="drop-zone-icon" aria-hidden="true"><FolderUp size={28} /></span>
+                      <div className="drop-zone-title">
+                        {file ? file.name : t('import.zip.drop.title')}
+                      </div>
+                      <span className="drop-zone-hint">
+                        {file
+                          ? t('import.zip.drop.size', { size: fmt.fixed(file.size / 1024 / 1024, 1) })
+                          : t('import.zip.drop.hint')}
+                      </span>
+                      <button className="btn" type="button" disabled={busy || restoringPreview}
+                        onClick={() => document.getElementById('existing-server-zip')?.click()}>
+                        {t('import.zip.choose')}
+                      </button>
+                    </div>
                     <input
-                      id="import-mc-version"
-                      value={mcVersion}
+                      key={preview?.id ?? 'new-preview'}
+                      id="existing-server-zip"
+                      type="file"
+                      accept=".zip,application/zip"
+                      disabled={busy || restoringPreview}
+                      hidden
+                      onChange={(e) => { selectZip(e.target.files?.[0] ?? null); e.target.value = ''; }}
+                    />
+                    {preview ? (
+                      <p className="field-help">{t('import.zip.replaceHelp')}</p>
+                    ) : null}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {configurationVisible ? (
+              <section className="form-section">
+                <h2 className="form-section-title">{t('import.instance.title')}</h2>
+                <div className="card form-card">
+                  <div className="field">
+                    <label htmlFor="import-instance-name">{t('import.form.name.label')}</label>
+                    <input
+                      id="import-instance-name"
+                      value={name}
                       disabled={busy}
-                      maxLength={64}
-                      placeholder={t('import.form.mcVersion.placeholder')}
-                      onChange={(e) => setMcVersion(e.target.value)}
+                      maxLength={128}
+                      onChange={(e) => setName(e.target.value)}
+                      required
                     />
                   </div>
+                  <div className="grid grid-2 import-meta-grid">
+                    <div className="field">
+                      <label htmlFor="import-core-type">{t('import.form.coreType.label')}</label>
+                      <select
+                        id="import-core-type"
+                        value={coreType}
+                        disabled={busy}
+                        onChange={(e) => setCoreType(e.target.value as CoreType)}
+                      >
+                        {coreTypeOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.labelKey ? t(option.labelKey) : option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="import-mc-version">{t('import.form.mcVersion.label')}</label>
+                      <input
+                        id="import-mc-version"
+                        value={mcVersion}
+                        disabled={busy}
+                        maxLength={64}
+                        placeholder={t('import.form.mcVersion.placeholder')}
+                        onChange={(e) => setMcVersion(e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            ) : null}
+          </div>
 
-            <section className="form-section">
-              <h2 className="form-section-title">{t('import.runtime.title')}</h2>
-              <div className="card form-card">
-                <JavaRuntimeSelect
-                  value={javaRuntimeId}
-                  onChange={setJavaRuntimeId}
-                  onResolvedMajorChange={setJavaMajor}
-                  mcVersion={mcVersion}
-                  disabled={busy}
-                  autoSelect
-                  onInstallingChange={setJavaInstalling}
-                />
-                <JvmSettingsEditor
-                  value={jvmArgs}
-                  onChange={setJvmArgs}
-                  coreType={coreType}
-                  javaMajor={javaMajor}
-                  disabled={busy}
-                  useRecommendedDefault
-                  detectedJvmConfig={detectedJvmConfig}
-                  detectedChoice={detectedChoice}
-                  onDetectedChoiceChange={setDetectedChoice}
-                  onValidityChange={setJvmValid}
-                />
-              </div>
-            </section>
+          {configurationVisible ? (
+            <div className="form-column">
+              <section className="form-section">
+                <h2 className="form-section-title">{t('import.runtime.title')}</h2>
+                <div className="card form-card">
+                  <JavaRuntimeSelect
+                    value={javaRuntimeId}
+                    onChange={setJavaRuntimeId}
+                    onResolvedMajorChange={setJavaMajor}
+                    mcVersion={mcVersion}
+                    disabled={busy}
+                    autoSelect
+                    onInstallingChange={setJavaInstalling}
+                  />
+                  <JvmSettingsEditor
+                    value={jvmArgs}
+                    onChange={setJvmArgs}
+                    coreType={coreType}
+                    javaMajor={javaMajor}
+                    disabled={busy}
+                    useRecommendedDefault
+                    detectedJvmConfig={detectedJvmConfig}
+                    detectedChoice={detectedChoice}
+                    onDetectedChoiceChange={setDetectedChoice}
+                    onValidityChange={setJvmValid}
+                  />
+                </div>
+              </section>
 
-            <section className="form-section">
-              <h2 className="form-section-title">{t('import.eula.title')}</h2>
-              <div className="card form-card">
-                <EulaCheckbox checked={acceptEula} disabled={busy} onChange={setAcceptEula} />
-              </div>
-            </section>
-          </>
-        ) : null}
+              <section className="form-section">
+                <h2 className="form-section-title">{t('import.eula.title')}</h2>
+                <div className="card form-card">
+                  <EulaCheckbox checked={acceptEula} disabled={busy} onChange={setAcceptEula} />
+                </div>
+              </section>
+            </div>
+          ) : null}
+        </div>
 
         {error ? <p className="callout callout-danger" role="alert">{error}</p> : null}
         {progress ? <div className="card form-card"><TaskProgress task={progress} label={t('import.progress.label')} /></div> : null}

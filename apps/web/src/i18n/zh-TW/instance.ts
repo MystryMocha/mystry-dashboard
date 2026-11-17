@@ -4,7 +4,6 @@ import type en from '../en/instance';
 export default {
   // 工作台头部与标签页
   'instance.header.backTitle': '返回總覽',
-  'instance.header.version': '版本 {version}',
   'instance.tabs.label': '實例功能',
 
   // 面板托管的实例目录（用于迁移提示与设置页的安装路径占位）

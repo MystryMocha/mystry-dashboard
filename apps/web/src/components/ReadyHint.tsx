@@ -15,7 +15,7 @@ function readDismissed(): boolean {
 }
 
 /**
- * 服务端完成启动后显示在控制台上方：告诉用户可以进服了，并指向「联机」。
+ * 服务端完成启动后显示在控制台上方的一行：告诉用户可以进服了，并指向「联机」。
  * 点过「不再提示」后在这个浏览器里不再出现。
  */
 export function ReadyHint({ instanceId }: { instanceId: string }) {
@@ -32,23 +32,26 @@ export function ReadyHint({ instanceId }: { instanceId: string }) {
     }
   }
 
+  // 一行提示条而不是大块提示框：控制台才是这一页的主体，提示只占它上方一行，窄屏时自动折行。
   return (
-    <div className="callout callout-success start-issue" role="status">
-      <CircleCheck size={18} aria-hidden="true" className="callout-icon" />
-      <div>
-        <p><strong>{t('instance.ready.title')}</strong></p>
-        <p>{t('instance.ready.body')}</p>
-        <div className="start-issue-actions">
-          <Link className="btn btn-primary" to={`/multiplayer?instance=${encodeURIComponent(instanceId)}`}>
-            <Users size={14} aria-hidden="true" />
-            {t('instance.ready.action')}
-          </Link>
-          <button className="btn" type="button" onClick={dismiss}>
-            <X size={14} aria-hidden="true" />
-            {t('instance.ready.dismiss')}
-          </button>
-        </div>
-      </div>
+    <div className="ready-strip" role="status">
+      <CircleCheck size={16} aria-hidden="true" className="ready-strip-icon" />
+      <p className="ready-strip-text">
+        <strong>{t('instance.ready.title')}</strong> {t('instance.ready.body')}
+      </p>
+      <Link className="btn btn-sm btn-tinted" to={`/multiplayer?instance=${encodeURIComponent(instanceId)}`}>
+        <Users size={14} aria-hidden="true" />
+        {t('instance.ready.action')}
+      </Link>
+      <button
+        className="btn btn-sm btn-icon btn-plain"
+        type="button"
+        aria-label={t('instance.ready.dismiss')}
+        title={t('instance.ready.dismiss')}
+        onClick={dismiss}
+      >
+        <X size={14} aria-hidden="true" />
+      </button>
     </div>
   );
 }

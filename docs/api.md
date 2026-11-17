@@ -400,6 +400,8 @@ Authorization: Bearer <token>
 { "type": "command", "data": "say hello" }
 ```
 
+命令写入实例 stdin 成功后，服务端把 `> 命令` 作为一行追加到该实例的控制台缓冲并作为 `output` 帧推送（上一块输出没换行时先补换行），因此所有连接和之后的 `history` 帧都能看到已发出的命令。`POST /api/instances/:id/command` 和备份时面板自动发送的 `save-off` / `save-all flush` / `save-on` 同样回显。
+
 ## PanelManager 本机接口
 
 `POST /api/launcher/shutdown` 只供仓库根目录的 PanelManager 调用，不使用登录 JWT。请求必须来自回环地址并携带：

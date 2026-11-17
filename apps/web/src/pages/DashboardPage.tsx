@@ -1,30 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Activity,
   ChevronRight,
   FolderDown,
-  Layers,
+  PackageOpen,
   Play,
   Plus,
   Power,
   RefreshCw,
   RotateCcw,
+  Settings,
+  SquareTerminal,
   Trash2,
+  TriangleAlert,
+  Users,
   Zap,
+  type LucideIcon,
 } from 'lucide-react';
-import type { InstanceInfo } from '@mystry/shared';
+import type { DashboardMetrics, InstanceInfo } from '@mystry/shared';
 import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
 import {
-  HostMetricCards,
-  MetricWidget,
+  HostMeters,
+  Meter,
   metricWarningTexts,
   processMetric,
   useDashboardMetrics,
 } from '../components/DashboardMetrics';
 import { ActionMenu } from '../components/ActionMenu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { CoreIcon } from '../components/CoreIcon';
+import { CoreIcon, coreDisplayName } from '../components/CoreIcon';
 import { EulaCheckbox } from '../components/EulaCheckbox';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
@@ -33,7 +37,7 @@ import { InstanceStatusPill } from '../components/StatusPill';
 import { errorMessage } from '../errors';
 import { useInstanceAction } from '../hooks/useInstanceAction';
 import { usePolling } from '../hooks/usePolling';
-import { useI18n } from '../i18n';
+import { useI18n, type I18n, type MessageKey } from '../i18n';
 import {
   canStartInstance,
   canStopInstance,
@@ -42,11 +46,260 @@ import {
 } from '../instance-status';
 
 type LoadState = 'loading' | 'loaded' | 'error';
+type ListFilter = 'all' | 'running' | 'issues';
 
-/** 未设置 -Xmx 时返回 null，由调用方显示「默认」。 */
-function extractXmx(jvmArgs: string): string | null {
-  const match = jvmArgs.match(/-Xmx(\w+)/i);
-  return match ? match[1].toUpperCase() : null;
+const XMX_UNITS: Record<string, number> = { '': 1, K: 1024, M: 1024 ** 2, G: 1024 ** 3, T: 1024 ** 4 };
+
+/** 解析 -Xmx 为字节数；未设置或格式不认识时返回 null，由调用方显示「默认」。 */
+function parseXmxBytes(jvmArgs: string): number | null {
+  const match = jvmArgs.match(/-Xmx(\d+(?:\.\d+)?)([kmgt]?)\b/i);
+  if (!match) return null;
+  const bytes = Number(match[1]) * XMX_UNITS[match[2].toUpperCase()];
+  return Number.isFinite(bytes) && bytes > 0 ? bytes : null;
+}
+
+function formatGib(bytes: number, fmt: I18n['fmt']): string {
+  const gib = bytes / 1024 ** 3;
+  // 整数 GiB（常见的 2G、4G）不带小数，其余保留一位。
+  return `${fmt.gib(bytes, Number.isInteger(gib) ? 0 : 1)} GiB`;
+}
+
+/** 需要用户处理的实例：已崩溃、待迁移，或上次启动因可识别原因失败。 */
+function hasIssue(inst: InstanceInfo): boolean {
+  return inst.requiresMigration || inst.status === 'crashed' || (canStartInstance(inst.status) && !!inst.startIssue);
+}
+
+type RowState = {
+  sentence: string | null;
+  tone: 'ok' | 'warn' | 'danger' | null;
+  fix: { to: string; label: string; icon: LucideIcon } | null;
+};
+
+/** 状态后面那句话，以及这一行最该做的那一步。 */
+function rowState(inst: InstanceInfo, t: I18n['t']): RowState {
+  const page = `/instances/${inst.id}`;
+  if (inst.requiresMigration) {
+    return {
+      sentence: t('dashboard.row.migration'),
+      tone: 'warn',
+      fix: { to: page, label: t('dashboard.row.action.migrate'), icon: PackageOpen },
+    };
+  }
+  const issue = canStartInstance(inst.status) ? inst.startIssue ?? null : null;
+  if (issue?.kind === 'eula') {
+    return {
+      sentence: t('dashboard.row.eula'),
+      tone: 'warn',
+      fix: { to: page, label: t('dashboard.row.action.reviewEula'), icon: TriangleAlert },
+    };
+  }
+  if (issue) {
+    return {
+      sentence: issue.requiredJava != null
+        ? t('instance.startIssue.java.title', { java: issue.requiredJava })
+        : t('instance.startIssue.java.titleUnknown'),
+      tone: 'warn',
+      fix: { to: `${page}/settings`, label: t('instance.startIssue.java.openSettings'), icon: Settings },
+    };
+  }
+  switch (inst.status) {
+    case 'crashed':
+      return {
+        sentence: t('dashboard.row.crashed'),
+        tone: 'danger',
+        fix: { to: page, label: t('dashboard.row.action.console'), icon: SquareTerminal },
+      };
+    case 'starting':
+      return { sentence: t('dashboard.row.loading'), tone: null, fix: null };
+    case 'running':
+      return inst.ready
+        ? {
+          sentence: t('dashboard.row.ready'),
+          tone: 'ok',
+          fix: { to: `/multiplayer?instance=${encodeURIComponent(inst.id)}`, label: t('instance.ready.action'), icon: Users },
+        }
+        : { sentence: t('dashboard.row.loading'), tone: null, fix: null };
+    case 'stopping':
+      return { sentence: t('dashboard.row.stopping'), tone: null, fix: null };
+    default:
+      return { sentence: null, tone: null, fix: null };
+  }
+}
+
+function ServerRow({
+  inst,
+  metrics,
+  metricsError,
+  busy,
+  onAction,
+  onRestart,
+  onForceStop,
+  onDelete,
+}: {
+  inst: InstanceInfo;
+  metrics: DashboardMetrics | null;
+  metricsError: string;
+  busy: boolean;
+  onAction: (action: InstanceAction) => void;
+  onRestart: () => void;
+  onForceStop: () => void;
+  onDelete: () => void;
+}) {
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
+  const state = rowState(inst, t);
+  const live = isProcessAlive(inst.status);
+  const xmxBytes = parseXmxBytes(inst.jvmArgs);
+  const memoryBytes = metrics?.instances[inst.id]?.memoryBytes ?? null;
+  const coreName = coreDisplayName(inst.coreType, t);
+  const Fix = state.fix?.icon;
+
+  return (
+    <li className="server-row">
+      <CoreIcon coreType={inst.coreType} />
+      <div className="server-id">
+        {/* 名称链接的点击区域用伪元素铺满整行（按钮除外），行尾箭头提示这一行能打开实例。 */}
+        <Link to={`/instances/${inst.id}`} className="server-name" title={inst.name}>
+          {inst.name}
+        </Link>
+        <span className="server-core">
+          {coreName}
+          {inst.mcVersion ? ` ${inst.mcVersion}` : ''}
+        </span>
+      </div>
+
+      <div className="server-state">
+        <div className="server-status-line">
+          <InstanceStatusPill instance={inst} />
+          {state.sentence && (
+            <span className={`server-sentence${state.tone ? ` is-${state.tone}` : ''}`}>{state.sentence}</span>
+          )}
+        </div>
+        {live ? (
+          <dl className="server-figures">
+            <div className="server-figure">
+              <dt title={t('dashboard.row.cpu.hint')}>{t('dashboard.row.cpu')}</dt>
+              <dd>{processMetric(inst, metrics, metricsError, 'cpu', i18n)}</dd>
+            </div>
+            <div className="server-figure server-figure-memory">
+              <dt title={t('dashboard.row.memory.hint')}>{t('dashboard.row.memory')}</dt>
+              <dd>
+                <span>{processMetric(inst, metrics, metricsError, 'memory', i18n)}</span>
+                {xmxBytes != null && (
+                  <span className="server-cap">{t('dashboard.row.memoryCap', { max: formatGib(xmxBytes, fmt) })}</span>
+                )}
+              </dd>
+              {xmxBytes != null && (
+                <Meter ratio={memoryBytes != null ? (memoryBytes / xmxBytes) * 100 : null} tone="accent" />
+              )}
+            </div>
+          </dl>
+        ) : !inst.requiresMigration ? (
+          <dl className="server-figures">
+            <div className="server-figure">
+              <dt>{t('dashboard.row.maxMemory')}</dt>
+              <dd>{xmxBytes != null ? formatGib(xmxBytes, fmt) : t('common.default')}</dd>
+            </div>
+            <div className="server-figure">
+              <dt>{t('dashboard.row.java')}</dt>
+              <dd>{inst.javaRuntimeId ? t('dashboard.row.java.dedicated') : t('dashboard.row.java.system')}</dd>
+            </div>
+          </dl>
+        ) : null}
+      </div>
+
+      <div className="server-actions">
+        {state.fix && Fix && (
+          <Link to={state.fix.to} className="btn btn-tinted">
+            <Fix size={14} aria-hidden="true" />
+            {state.fix.label}
+          </Link>
+        )}
+        {!inst.requiresMigration && canStartInstance(inst.status) && (
+          <button className="btn btn-ok" type="button" disabled={busy} onClick={() => onAction('start')}>
+            <Play size={14} aria-hidden="true" />
+            {t('action.start')}
+          </button>
+        )}
+        {!inst.requiresMigration && canStopInstance(inst.status) && (
+          <button className="btn btn-danger" type="button" disabled={busy} onClick={() => onAction('stop')}>
+            <Power size={14} aria-hidden="true" />
+            {t('action.stop')}
+          </button>
+        )}
+        <ActionMenu
+          items={[
+            {
+              key: 'restart',
+              label: t('dashboard.row.menu.restart'),
+              icon: <RotateCcw size={14} />,
+              disabled: busy || inst.requiresMigration || isLifecycleBusy(inst.status),
+              onSelect: onRestart,
+            },
+            {
+              key: 'force-stop',
+              label: t('action.forceStop'),
+              icon: <Power size={14} />,
+              disabled: busy || inst.requiresMigration || !isProcessAlive(inst.status),
+              onSelect: onForceStop,
+            },
+            {
+              key: 'delete',
+              label: t('dashboard.row.menu.delete'),
+              icon: <Trash2 size={14} />,
+              danger: true,
+              disabled: busy || (!inst.requiresMigration && isProcessAlive(inst.status)),
+              title: !inst.requiresMigration && isProcessAlive(inst.status) ? t('dashboard.row.menu.deleteRunning') : undefined,
+              onSelect: onDelete,
+            },
+          ]}
+        />
+        <ChevronRight size={18} aria-hidden="true" className="server-chevron" />
+      </div>
+    </li>
+  );
+}
+
+/** 还没有实例时：三种添加方式各一行，说明各自适合什么情况。 */
+function StartPaths({ onCreateEmpty }: { onCreateEmpty: () => void }) {
+  const { t } = useI18n();
+  const paths: Array<{ key: string; icon: LucideIcon; title: MessageKey; desc: MessageKey; to?: string }> = [
+    { key: 'deploy', icon: Plus, title: 'nav.deploy', desc: 'dashboard.empty.deploy.desc', to: '/deploy' },
+    { key: 'import', icon: FolderDown, title: 'nav.import', desc: 'dashboard.empty.import.desc', to: '/import' },
+    { key: 'empty', icon: Zap, title: 'dashboard.action.createEmpty', desc: 'dashboard.empty.createEmpty.desc' },
+  ];
+  return (
+    <div className="start-paths card">
+      <div className="start-paths-head">
+        <h3>{t('empty.instances.title')}</h3>
+        <p>{t('dashboard.empty.lead')}</p>
+      </div>
+      <ul className="start-path-list">
+        {paths.map((path) => {
+          const Icon = path.icon;
+          const body = (
+            <>
+              <span className="start-path-icon" aria-hidden="true"><Icon size={18} /></span>
+              <span className="start-path-text">
+                <span className="start-path-title">{t(path.title)}</span>
+                <span className="start-path-desc">{t(path.desc)}</span>
+              </span>
+              <ChevronRight size={16} aria-hidden="true" className="start-path-chevron" />
+            </>
+          );
+          return (
+            <li key={path.key}>
+              {path.to ? (
+                <Link to={path.to} className="start-path">{body}</Link>
+              ) : (
+                <button type="button" className="start-path" onClick={onCreateEmpty}>{body}</button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 export function DashboardPage() {
@@ -54,7 +307,7 @@ export function DashboardPage() {
   const { t, tp, fmt } = i18n;
   const navigate = useNavigate();
   const { metrics, error: metricsError, busy: metricsBusy, refresh: refreshMetrics } = useDashboardMetrics();
-  const [abnormalOnly, setAbnormalOnly] = useState(false);
+  const [filter, setFilter] = useState<ListFilter>('all');
   const [instances, setInstances] = useState<InstanceInfo[]>([]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [loadError, setLoadError] = useState('');
@@ -152,11 +405,15 @@ export function DashboardPage() {
   }
 
   const runningCount = instances.filter((i) => i.status === 'running').length;
-  const stoppedCount = instances.filter((i) => i.status === 'stopped').length;
-  const abnormalCount = instances.filter((i) => i.status === 'crashed' || i.requiresMigration).length;
-  const runningRatio = instances.length > 0 ? (runningCount / instances.length) * 100 : 0;
+  const issueCount = instances.filter(hasIssue).length;
   const loaded = loadState === 'loaded';
-  const visibleInstances = instances.filter((inst) => !abnormalOnly || inst.status === 'crashed' || inst.requiresMigration);
+  const visibleInstances = instances.filter((inst) =>
+    filter === 'all' || (filter === 'running' ? inst.status === 'running' : hasIssue(inst)));
+  const filters: Array<{ key: ListFilter; label: string; count: number }> = [
+    { key: 'all', label: t('dashboard.filter.all'), count: instances.length },
+    { key: 'running', label: t('instance.status.running'), count: runningCount },
+    { key: 'issues', label: t('dashboard.filter.issues'), count: issueCount },
+  ];
 
   useEffect(() => {
     if (metricsError) setMetricsRecoveredAt(null);
@@ -179,18 +436,24 @@ export function DashboardPage() {
       metricsRecoveredAt ? t('dashboard.metrics.updatedAt', { time: fmt.time(metricsRecoveredAt) }) : '',
       metricsWarningText,
     ].filter(Boolean).join(' · ');
-  const abnormalLabel = loaded ? abnormalCount : '—';
 
   return (
-    <div className="page">
+    <div className="page overview-page">
       <PageHeader
         title={t('nav.overview')}
+        // 有实例时说明行就是当前状态：大字写几台在运行，有需要处理的再接一句红字，代替单独的统计卡。
         subtitle={
-          loaded
-            ? tp('dashboard.subtitle.summary', instances.length, { running: runningCount })
-            : t('dashboard.subtitle.default')
+          loaded && instances.length > 0 ? (
+            <span className="overview-status">
+              {tp('dashboard.subtitle.summary', instances.length, { running: runningCount })}
+              {issueCount > 0 && (
+                <span className="overview-status-issues">{tp('dashboard.subtitle.issues', issueCount)}</span>
+              )}
+            </span>
+          ) : t('dashboard.subtitle.default')
         }
-        actions={
+        // 还没有实例时，列表区的三种添加方式就是入口，顶部不再重复一套按钮；加载中也先不画，避免空面板上按钮闪一下又消失。
+        actions={loadState === 'loading' || (loaded && instances.length === 0) ? undefined : (
           <>
             <Link to="/deploy" className="btn btn-primary">
               <Plus size={16} aria-hidden="true" />
@@ -200,57 +463,38 @@ export function DashboardPage() {
               <FolderDown size={16} aria-hidden="true" />
               {t('nav.import')}
             </Link>
-            <button type="button" className="btn" onClick={() => setEmptyOpen(true)}>
-              <Zap size={16} aria-hidden="true" />
+            <button type="button" className="btn btn-plain" onClick={() => setEmptyOpen(true)}>
               {t('dashboard.action.createEmpty')}
             </button>
           </>
-        }
+        )}
       />
 
-      <section className="widget-grid" aria-label={t('dashboard.widgets.label')}>
-        <MetricWidget
-          label={t('dashboard.widget.instances.label')}
-          icon={Activity}
-          tone="green"
-          value={loaded ? `${runningCount} / ${instances.length}` : '—'}
-          unit={t('instance.status.running')}
-          ratio={runningRatio}
-          detail={
-            <>
-              {t('dashboard.widget.instances.stopped', { count: loaded ? stoppedCount : '—' })} ·{' '}
-              <button
-                type="button"
-                className={`link-button${abnormalCount > 0 ? ' is-danger' : ''}`}
-                aria-pressed={abnormalOnly}
-                onClick={() => setAbnormalOnly((value) => !value)}
-              >
-                {abnormalOnly
-                  ? t('dashboard.widget.instances.abnormalShowAll', { count: abnormalLabel })
-                  : t('dashboard.widget.instances.abnormal', { count: abnormalLabel })}
-              </button>
-            </>
-          }
-        />
-        <HostMetricCards metrics={metrics} error={metricsError} />
+      <section className="host-strip" aria-labelledby="host-strip-title">
+        <h2 className="host-strip-title" id="host-strip-title">{t('dashboard.host.title')}</h2>
+        <HostMeters metrics={metrics} error={metricsError} />
+        <div className={`metrics-status${metricsError ? ' is-error' : ''}`}>
+          <span>{metricsStatusText}</span>
+          <span className="visually-hidden" role="status">{metricsAnnouncement}</span>
+          <button type="button" className="link-button" disabled={metricsBusy} onClick={() => void refreshMetrics(true)}>
+            <RefreshCw size={12} aria-hidden="true" className={metricsBusy ? 'spin' : undefined} />
+            {metricsBusy
+              ? t('dashboard.metrics.refreshing')
+              : metricsError
+                ? t('dashboard.metrics.retry')
+                : t('action.refresh')}
+          </button>
+        </div>
+        {/* 告警单独占一行：塞进右侧状态列会把三条占用条挤到截断。 */}
+        {metricsWarningText && (
+          <p className="host-strip-warning">
+            <TriangleAlert size={14} aria-hidden="true" />
+            {metricsWarningText}
+          </p>
+        )}
       </section>
-      <div className={`metrics-status${metricsError ? ' is-error' : ''}`}>
-        <span>
-          {metricsStatusText}
-          {metricsWarningText ? ` · ${metricsWarningText}` : ''}
-        </span>
-        <span className="visually-hidden" role="status">{metricsAnnouncement}</span>
-        <button type="button" className="link-button" disabled={metricsBusy} onClick={() => void refreshMetrics(true)}>
-          <RefreshCw size={12} aria-hidden="true" className={metricsBusy ? 'spin' : undefined} />
-          {metricsBusy
-            ? t('dashboard.metrics.refreshing')
-            : metricsError
-              ? t('dashboard.metrics.retry')
-              : t('action.refresh')}
-        </button>
-      </div>
 
-      {actionError && <p className="callout callout-danger" role="alert">{actionError}</p>}
+      {actionError &&<p className="callout callout-danger" role="alert">{actionError}</p>}
       {loadError && (
         <p className="callout callout-danger" role="alert">
           {loadError}
@@ -258,13 +502,27 @@ export function DashboardPage() {
         </p>
       )}
 
-      <section className="page-section" aria-labelledby="instance-list-title">
+      <section className="page-section server-section" aria-labelledby="instance-list-title">
         <div className="section-header">
-          <h2 className="section-title" id="instance-list-title">
-            {t('dashboard.list.title')}
-            <span className="count-badge">{instances.length}</span>
-          </h2>
-          {abnormalOnly && <span className="section-note">{t('dashboard.list.abnormalOnly')}</span>}
+          <h2 className="section-title" id="instance-list-title">{t('dashboard.list.title')}</h2>
+          {loaded && instances.length > 0 && (
+            <div className="segmented server-filter" role="group" aria-label={t('dashboard.filter.label')}>
+              {filters.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`segmented-item${filter === item.key ? ' active' : ''}`}
+                  aria-pressed={filter === item.key}
+                  onClick={() => setFilter(item.key)}
+                >
+                  {item.label}{' '}
+                  <span className={`segmented-count${item.key === 'issues' && item.count > 0 ? ' is-danger' : ''}`}>
+                    {item.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {loadState === 'loading' ? (
@@ -280,127 +538,30 @@ export function DashboardPage() {
             </button>
           </div>
         ) : instances.length === 0 ? (
-          <div className="empty-state card">
-            <span className="empty-icon" aria-hidden="true"><Layers size={30} /></span>
-            <h3>{t('empty.instances.title')}</h3>
-            <p>{t('empty.instances.body')}</p>
-            <div className="empty-actions">
-              <Link to="/deploy" className="btn btn-primary">
-                <Plus size={16} aria-hidden="true" />
-                {t('dashboard.empty.deployFirst')}
-              </Link>
-              <Link to="/import" className="btn">
-                <FolderDown size={16} aria-hidden="true" />
-                {t('dashboard.empty.importExisting')}
-              </Link>
-            </div>
-          </div>
+          <StartPaths onCreateEmpty={() => setEmptyOpen(true)} />
+        ) : visibleInstances.length === 0 ? (
+          <p className="server-list-empty">
+            {filter === 'running' ? t('dashboard.list.noRunning') : t('dashboard.list.noIssues')}
+          </p>
         ) : (
-          <div className="instance-grid">
-            {abnormalOnly && abnormalCount === 0 && <p className="muted">{t('dashboard.list.noAbnormal')}</p>}
+          <ul className="server-list">
             {visibleInstances.map((inst) => (
-              <article key={inst.id} className={`instance-card status-${inst.requiresMigration ? 'warning' : inst.status}`}>
-                <div className="inst-card-top">
-                  <CoreIcon coreType={inst.coreType} />
-                  <div className="inst-name-group">
-                    <Link to={`/instances/${inst.id}`} className="inst-name" title={inst.name}>
-                      {inst.name}
-                    </Link>
-                    <div className="inst-core-badge">
-                      {inst.coreType.toUpperCase()} {inst.mcVersion ? `· ${inst.mcVersion}` : ''}
-                    </div>
-                  </div>
-                  <InstanceStatusPill instance={inst} />
-                </div>
-
-                <dl className="inst-stats">
-                  <div className="inst-stat">
-                    <dt title={t('dashboard.card.processCpu.hint')}>{t('dashboard.card.processCpu')}</dt>
-                    <dd>{processMetric(inst, metrics, metricsError, 'cpu', i18n)}</dd>
-                  </div>
-                  <div className="inst-stat">
-                    <dt title={t('dashboard.card.processMemory.hint')}>{t('dashboard.card.processMemory')}</dt>
-                    <dd>{processMetric(inst, metrics, metricsError, 'memory', i18n)}</dd>
-                  </div>
-                  <div className="inst-stat">
-                    <dt>{t('dashboard.card.maxMemory')}</dt>
-                    <dd>{extractXmx(inst.jvmArgs) ?? t('common.default')}</dd>
-                  </div>
-                  <div className="inst-stat">
-                    <dt>{t('dashboard.card.javaRuntime')}</dt>
-                    <dd>
-                      {inst.javaRuntimeId
-                        ? t('dashboard.card.javaRuntime.dedicated')
-                        : t('dashboard.card.javaRuntime.system')}
-                    </dd>
-                  </div>
-                </dl>
-
-                <div className="inst-card-actions">
-                  {canStartInstance(inst.status) && (
-                    <button
-                      className="btn btn-ok"
-                      type="button"
-                      disabled={busyId === inst.id || inst.requiresMigration}
-                      onClick={() => void act(inst.id, 'start')}
-                    >
-                      <Play size={14} aria-hidden="true" />
-                      {t('action.start')}
-                    </button>
-                  )}
-                  {canStopInstance(inst.status) && (
-                    <button
-                      className="btn btn-danger"
-                      type="button"
-                      disabled={busyId === inst.id || inst.requiresMigration}
-                      onClick={() => void act(inst.id, 'stop')}
-                    >
-                      <Power size={14} aria-hidden="true" />
-                      {t('action.stop')}
-                    </button>
-                  )}
-                  <Link to={`/instances/${inst.id}`} className="btn btn-tinted inst-manage">
-                    {t('dashboard.card.manage')}
-                    <ChevronRight size={15} aria-hidden="true" />
-                  </Link>
-
-                  <ActionMenu
-                    items={[
-                      {
-                        key: 'restart',
-                        label: t('dashboard.card.menu.restart'),
-                        icon: <RotateCcw size={14} />,
-                        disabled: busyId === inst.id || inst.requiresMigration || isLifecycleBusy(inst.status),
-                        onSelect: () => setRestartTarget(inst),
-                      },
-                      {
-                        key: 'force-stop',
-                        label: t('action.forceStop'),
-                        icon: <Power size={14} />,
-                        disabled: busyId === inst.id || inst.requiresMigration || !isProcessAlive(inst.status),
-                        onSelect: () => setForceStopTarget(inst),
-                      },
-                      {
-                        key: 'delete',
-                        label: t('dashboard.card.menu.delete'),
-                        icon: <Trash2 size={14} />,
-                        danger: true,
-                        disabled: busyId === inst.id || (!inst.requiresMigration && isProcessAlive(inst.status)),
-                        title:
-                          !inst.requiresMigration && isProcessAlive(inst.status)
-                            ? t('dashboard.card.menu.deleteRunning')
-                            : undefined,
-                        onSelect: () => {
-                          setDeleteBackups(true);
-                          setDeleteTarget(inst);
-                        },
-                      },
-                    ]}
-                  />
-                </div>
-              </article>
+              <ServerRow
+                key={inst.id}
+                inst={inst}
+                metrics={metrics}
+                metricsError={metricsError}
+                busy={busyId === inst.id}
+                onAction={(action) => void act(inst.id, action)}
+                onRestart={() => setRestartTarget(inst)}
+                onForceStop={() => setForceStopTarget(inst)}
+                onDelete={() => {
+                  setDeleteBackups(true);
+                  setDeleteTarget(inst);
+                }}
+              />
             ))}
-          </div>
+          </ul>
         )}
       </section>
 
