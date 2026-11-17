@@ -19,7 +19,7 @@ export default {
   'import.directory.source.placeholder': '請選擇資料夾',
   'import.directory.source.pendingCheck': '匯入時再檢查',
   'import.directory.source.ready': '{id} · {target}',
-  'import.directory.source.unavailable': '{id} · 無法使用：{error}',
+  'import.directory.source.unavailable': '{id}（無法使用：{error}）',
   'import.directory.refresh': '重新整理資料夾',
   'import.directory.refreshing': '讀取中…',
   'import.directory.empty': 'imports 資料夾中還沒有伺服器，複製完成後點「重新整理資料夾」。',

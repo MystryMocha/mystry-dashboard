@@ -19,7 +19,7 @@ export default {
   'import.directory.source.placeholder': '请选择文件夹',
   'import.directory.source.pendingCheck': '导入时再检查',
   'import.directory.source.ready': '{id} · {target}',
-  'import.directory.source.unavailable': '{id} · 不可用：{error}',
+  'import.directory.source.unavailable': '{id}（不可用：{error}）',
   'import.directory.refresh': '刷新目录',
   'import.directory.refreshing': '读取中…',
   'import.directory.empty': 'imports 文件夹里还没有服务端，复制完成后点「刷新目录」。',

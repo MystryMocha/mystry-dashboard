@@ -3,7 +3,7 @@ export default {
   'deploy.page.subtitle': 'Download a server core from the official source. Installation and launch settings are configured for you.',
 
   'deploy.core.title': 'Choose a Server Core',
-  'deploy.core.paper.desc': 'Plugins · Best for beginners',
+  'deploy.core.paper.desc': 'Plugins, best for beginners',
   'deploy.core.fabric.desc': 'Lightweight, modern mods',
   'deploy.core.forge.desc': 'Classic, heavyweight mods',
   'deploy.core.neoforge.desc': 'Next-generation mod server',

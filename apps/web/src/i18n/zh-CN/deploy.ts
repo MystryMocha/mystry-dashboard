@@ -5,7 +5,7 @@ export default {
   'deploy.page.subtitle': '从官方源下载服务端核心，自动完成安装与启动配置。',
 
   'deploy.core.title': '选择服务端核心',
-  'deploy.core.paper.desc': '插件服 · 新手推荐',
+  'deploy.core.paper.desc': '插件服，新手推荐',
   'deploy.core.fabric.desc': '轻量现代化模组',
   'deploy.core.forge.desc': '经典重型模组',
   'deploy.core.neoforge.desc': '新一代模组端',

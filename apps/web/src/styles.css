@@ -390,7 +390,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(145deg, #aeb4be, #6e7480);
+  background: #6e7480;
   color: #ffffff;
   font-size: var(--text-small);
   font-weight: 600;
@@ -1070,21 +1070,10 @@ input[type='radio'] {
   background: currentColor;
 }
 
-/* 运行中呼吸光圈：伪元素只做缩放和淡出，交给合成层，不在每帧重绘阴影。7px 圆点放大到约 17px，与原 5px 光圈一致。 */
-@keyframes pulse-ring {
-  0% { transform: scale(1); opacity: 0.55; }
-  70%, 100% { transform: scale(2.4); opacity: 0; }
-}
-.status-pill.running .status-dot::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--c-green);
-  opacity: 0;
-  pointer-events: none;
-  animation: pulse-ring 2.2s var(--ease) infinite;
-}
+/*
+ * 只有过渡中的状态（启动中、停止中）闪烁，提示「还在变」；运行中是稳定状态、不需要处理，圆点保持静止，
+ * 同时开着几台服务器时列表也不会一直闪。
+ */
 .status-pill.starting .status-dot,
 .status-pill.stopping .status-dot { animation: blink 1.2s var(--ease) infinite; }
 @keyframes blink { 50% { opacity: 0.3; } }
@@ -1487,26 +1476,25 @@ input[type='radio'] {
 .start-path-desc { font-size: var(--text-small); line-height: 1.45; color: var(--label-2); }
 .start-path-chevron { flex-shrink: 0; color: var(--label-3); }
 
+/* 核心图标是纯色块，不用渐变和彩色投影；每种核心一个颜色，白色图形对底色至少 3:1。 */
 .core-icon {
-  --core-a: #bf5af2;
-  --core-b: #5e5ce6;
+  --core: #6a5ae6;
   display: grid;
   place-items: center;
   flex-shrink: 0;
   width: 42px;
   height: 42px;
   border-radius: 11px;
-  background: linear-gradient(145deg, var(--core-a), var(--core-b));
+  background: var(--core);
   color: #ffffff;
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.28), 0 3px 8px color-mix(in srgb, var(--core-b) 30%, transparent);
 }
 .core-icon-lg { width: 60px; height: 60px; border-radius: 16px; }
-.core-paper { --core-a: #64d2ff; --core-b: #007aff; }
-.core-fabric { --core-a: #f3cf9b; --core-b: #c08447; }
-.core-forge { --core-a: #9a9aa0; --core-b: #3a3a3c; }
-.core-neoforge { --core-a: #ffb340; --core-b: #f2600c; }
-.core-vanilla { --core-a: #86e05c; --core-b: #2f9e44; }
-.core-custom { --core-a: #d38cf4; --core-b: #6a5ae6; }
+.core-paper { --core: #007aff; }
+.core-fabric { --core: #a8722f; }
+.core-forge { --core: #636366; }
+.core-neoforge { --core: #e8590c; }
+.core-vanilla { --core: #2f9e44; }
+.core-custom { --core: #6a5ae6; }
 
 /* ========== 实例工作台 ========== */
 .instance-page { gap: 20px; }
@@ -2495,9 +2483,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   width: 76px;
   height: 76px;
   border-radius: 20px;
-  background: linear-gradient(145deg, #a1a1a6, #48484a);
+  background: #636366;
   color: #ffffff;
-  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.3), 0 8px 20px rgba(0, 0, 0, 0.16);
 }
 .about-title { min-width: 0; }
 .about-title h2 { margin: 0 0 8px; font-size: var(--text-title); font-weight: 700; overflow-wrap: anywhere; }
@@ -2839,7 +2826,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .sidebar-backdrop,
   dialog::backdrop,
   .status-pill .status-dot,
-  .status-pill .status-dot::after,
   .console-status .status-dot { animation: none !important; }
   .sidebar,
   .switch,

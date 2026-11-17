@@ -17,7 +17,7 @@ export default {
   'import.directory.source.placeholder': 'Choose a folder',
   'import.directory.source.pendingCheck': 'Checked on import',
   'import.directory.source.ready': '{id} · {target}',
-  'import.directory.source.unavailable': '{id} · Unavailable: {error}',
+  'import.directory.source.unavailable': '{id} (Unavailable: {error})',
   'import.directory.refresh': 'Refresh Folders',
   'import.directory.refreshing': 'Reading…',
   'import.directory.empty': 'There are no servers in the imports folder yet. After copying one in, click "Refresh Folders".',
