@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows 上安装 EasyTier 时一起装上 `Packet.dll`。`easytier-core.exe` 一启动就要加载它，之前只装了 core、cli 和 `wintun.dll`，没装 Npcap 的电脑上虚拟局域网会因找不到 DLL（`0xC0000135`）起不来。已经装过的会显示为尚未安装，在「联机」页的虚拟局域网里重新安装（下载或上传官方压缩包）一次即可。
+
 ## [0.2.0-preview.4] - 2026-11-16
 
 ### Added

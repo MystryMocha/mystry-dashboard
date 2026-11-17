@@ -724,3 +724,23 @@ test('EasyTier 压缩包用面板自带的 ZIP 解析列出并读出条目，超
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Windows 版 EasyTier 一起装上启动必需的 Packet.dll', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-lan-asset-'));
+  // 单独运行这条测试时配置还没加载，这里补齐；整组运行时模块已缓存，不受影响。
+  process.env.MYSTRY_DATA_DIR ??= dir;
+  process.env.JWT_SECRET ??= 'a'.repeat(64);
+  process.env.SETUP_TOKEN ??= 'b'.repeat(64);
+  process.env.LAUNCHER_TOKEN ??= 'c'.repeat(64);
+  try {
+    const { resolveLanAsset } = await import('./lan-runtime.js');
+    const windows = resolveLanAsset('win32', 'x64');
+    // 2.6.4 的 easytier-core.exe 静态导入 Packet.dll，缺了连 --version 都以 0xC0000135 退出（2026-11-17 在 Windows 11 上实测）。
+    // 安装和 lanInstalled() 都按 extraNames 走，少了它旧安装也不会被当成完整。
+    assert.ok(windows.extraNames.includes('Packet.dll'));
+    assert.ok(windows.extraNames.includes('wintun.dll'));
+    assert.deepEqual(resolveLanAsset('linux', 'x64').extraNames, []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

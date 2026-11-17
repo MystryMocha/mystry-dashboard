@@ -94,3 +94,10 @@
 - 原因：入口判断用 `path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)`。Node 加载入口前会解析符号链接和 junction，`argv[1]` 保留原写法，安装或仓库路径含链接时两边不等。
 - 当前处理：服务端用 `utils/real-path.ts` 的 `isMainModule()`，仓库脚本用 `scripts/is-main-module.mjs`，两边都先解析真实路径（D-030）。
 - 预防：新增可直接运行的脚本时复用这两个函数，不要手写比较。测试时 Claude 终端面板关标签会结束整棵进程树，不能用它验证“关窗不影响后台面板”。
+
+## KF-016 测试用空文件冒充外部程序，没发现它根本起不来
+
+- 现象：Windows 上打开虚拟局域网，`easytier-core.exe` 以 `0xC0000135`（找不到 DLL）退出，没有任何输出；单元测试全部通过。
+- 原因：EasyTier 2.6.4 的 `easytier-core.exe` 静态导入同一压缩包里的 `Packet.dll`，安装只解压了 core、cli 和 `wintun.dll`。测试里的安装目录用空文件伪造，`lanInstalled()` 只查文件在不在，从没真的启动过它。
+- 当前处理：`lan-runtime.ts` 的 Windows `extraNames` 加上 `Packet.dll`，测试锁住这一项。
+- 预防：升级 EasyTier、frpc 等外部程序的版本，或改它们的安装文件列表时，在每个支持的平台上真的装一次，并运行一次 `--version`。不要只看测试通过。
