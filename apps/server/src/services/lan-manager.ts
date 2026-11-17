@@ -549,7 +549,7 @@ function readBind(instanceId: string): { port: number; serverIpBlocked: boolean;
  * 不在 0.0.0.0 上监听，避免 Windows 为面板自己的 node.exe 弹出防火墙提示。
  * 漏掉的冲突由 EasyTier 启动失败时的输出识别（listenPortUnavailable）。
  */
-async function allocateListenPort(exclude: readonly number[]): Promise<number> {
+export async function allocateListenPort(exclude: readonly number[]): Promise<number> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const port = await allocateLoopbackPort();
     if (exclude.includes(port)) continue;
@@ -575,7 +575,7 @@ function udpPortFree(port: number): Promise<boolean> {
   });
 }
 
-function allocateLoopbackPort(): Promise<number> {
+export function allocateLoopbackPort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
     server.once('error', reject);

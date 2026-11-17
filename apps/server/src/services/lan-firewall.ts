@@ -123,8 +123,8 @@ function assertPort(port: number): void {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('invalid port');
 }
 
-/** 用系统目录里的 netsh，不经 PATH 查找。 */
-function runNetsh(args: readonly string[]): Promise<number> {
+/** 用系统目录里的 netsh，不经 PATH 查找。面板端口的规则（panel-firewall.ts）也用它。 */
+export function runNetsh(args: readonly string[]): Promise<number> {
   const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? 'C:\\Windows';
   const netsh = path.join(systemRoot, 'System32', 'netsh.exe');
   return new Promise((resolve) => {

@@ -12,6 +12,7 @@ import {
   uploadLanRuntime,
 } from '../api';
 import { DownloadSourceHint } from './DownloadSourceSection';
+import { copyText } from '../clipboard';
 import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n, type MessageKey } from '../i18n';
@@ -132,7 +133,7 @@ export function LanSection({ instanceId }: { instanceId: string }) {
   async function copyFriend() {
     setBusy(true);
     try {
-      await navigator.clipboard.writeText(await friendText());
+      if (!await copyText(await friendText())) throw new Error(t('multiplayer.copyFailed'));
       setNotice(t('multiplayer.lan.copied'));
       setError('');
     } catch (err) {

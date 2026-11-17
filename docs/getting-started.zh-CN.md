@@ -189,6 +189,8 @@ npm start
 | 4 | 等控制台出现 `Done` | 实例 →「控制台」 |
 | 5 | 游戏添加服务器 `127.0.0.1` | Minecraft 客户端 |
 
+想在手机或另一台电脑上打开面板，点顶栏的 **其他设备**，步骤见 [在其他设备上打开面板](user-guide.zh-CN.md#在其他设备上打开面板)。面板装在经 SSH 登录的服务器上时，首次启动会问一句是否允许你自己的电脑或手机打开面板；之后也可以随时运行 `./PanelManager.sh remote on`（便携版为 `./mystryctl remote on`），再在云平台的安全组里放行面板端口。
+
 详细步骤见 [分步教程](tutorials.zh-CN.md) 与 [使用指南](user-guide.zh-CN.md)。
 
 ## 首次使用检查清单

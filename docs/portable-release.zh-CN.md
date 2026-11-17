@@ -91,6 +91,7 @@ chmod +x mystryctl
 | `logs` | 显示最近日志 |
 | `open` | 打开面板地址 |
 | `reset-password` | 面板运行期间在交互终端中重置并显示新的随机管理员密码 |
+| `remote` | 面板运行期间开关「从其他设备访问」：`remote on`、`remote off`、`remote status`、`remote https off`、`remote renew-cert` |
 | `menu` | 打开交互式命令菜单 |
 
 首次启动会创建 `config/panel.env`，生成彼此不同的随机密钥，并创建管理员 `admin` 和随机 16 位密码。密码只在窗口里显示一次，不写入日志文件；登录后点左下角的钥匙图标修改。忘记密码时，在面板运行期间于终端窗口里执行 `.\mystryctl.cmd reset-password` 生成新密码；输出被重定向或通过管道传出时命令会拒绝执行，新密码不会写进文件。配置文件包含密钥，不要上传或分享。

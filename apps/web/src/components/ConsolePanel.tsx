@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 import { Accessibility, Copy, Eraser, Send } from 'lucide-react';
 import { isServerMessageKey, type ConsoleMessage, type PanelMessageParam } from '@mystry/shared';
 import { createConsoleTicket } from '../api';
+import { copyText } from '../clipboard';
 import { errorMessage, isAbortError } from '../errors';
 import {
   colorizeConsoleLine,
@@ -357,9 +358,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
       const text = term?.getSelection() ?? '';
       term?.clearSelection();
       if (text.trim()) {
-        if (!navigator.clipboard?.writeText) throw new Error('剪贴板不可用');
-        await navigator.clipboard.writeText(text);
-        message = t('console.copy.done');
+        message = await copyText(text) ? t('console.copy.done') : t('console.copy.failed');
       }
     } catch {
       message = t('console.copy.failed');

@@ -189,6 +189,8 @@ Once you see the **Instances** page, follow [Step-by-Step Tutorials: Your First 
 | 4 | Wait for `Done` to appear in the console | Instance → **Console** |
 | 5 | Add the server `127.0.0.1` in the game | Minecraft client |
 
+To open the panel on a phone or another computer, click **Other Devices** in the top bar. See [Open the Panel on Another Device](user-guide.md#open-the-panel-on-another-device). When the panel is installed on a server you reach over SSH, the first run asks once whether your own computer or phone may open the panel. You can also run `./PanelManager.sh remote on` (`./mystryctl remote on` in the portable build) at any time, then allow the panel port in your cloud provider's security group.
+
 For detailed steps, see [Step-by-Step Tutorials](tutorials.md) and the [User Guide](user-guide.md).
 
 ## First-Time Checklist

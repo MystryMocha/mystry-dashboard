@@ -193,12 +193,15 @@ Switching the registry doesn't change what gets installed: `package-lock.json` r
 
 ## Security Recommendations
 
-1. **Don't** expose the panel directly to the public internet. By default it binds only to the loopback address.
-2. If you need remote access, use a reverse proxy (Nginx / Caddy) with HTTPS, and restrict access by IP or VPN.
-3. `JWT_SECRET` and `SETUP_TOKEN` must use different random values. Remove `SETUP_TOKEN` after setup succeeds.
-4. Use a strong administrator password of at least 12 characters. The panel can read and write instance files and run processes.
-5. Instances use the `java` on PATH by default. On the Quick Deploy page or in the instance's Settings, you can also bind a runtime ID that the panel has scanned and verified. Scanning runs `-version` on each candidate, so `JAVA_HOME` and the common install directories must be controlled by a trusted local administrator. Requests can't submit a Java path.
-6. Paper download requests carry a compliant User-Agent. Follow the terms of use of each core's distributor.
+1. By default the panel binds only to the loopback address, so other devices can't open it. To use it from a phone or another computer, click **Other Devices** in the panel (or run the launcher's `remote on`). You don't change `HOST` and you don't restart. See [Open the Panel on Another Device](user-guide.md#open-the-panel-on-another-device).
+2. Once it's on, any device that can reach this computer can open the sign-in page. The sign-in is the protection, so use a strong password. Two security options are yours to choose:
+   - **Use HTTPS** (on by default): the connection is encrypted. The panel issues its own certificate, so a browser warns that it is not secure the first time. Choose Advanced, then continue to the site. To be sure you reached the right panel, compare the certificate fingerprint shown in the dialog. With it off there is no warning, but anyone who can capture traffic on the same network or the internet can read your password.
+   - **Only Allow Devices on the Same Network** (off by default): only devices on the same network as this computer can open the panel. If the panel runs on a cloud server, turning it on locks out your own computer too.
+3. If you'd rather not open a port, use **Virtual Network** in the same dialog, or SSH port forwarding (`ssh -L 3000:127.0.0.1:3000 user@server`, then open `http://127.0.0.1:3000` on your own computer). You can also run your own reverse proxy (Nginx / Caddy). When the proxy and the panel are on the same machine, the panel sees every request as coming from `127.0.0.1`, so the sign-in failure limit counts everyone as one source.
+4. `JWT_SECRET` and `SETUP_TOKEN` must use different random values. Remove `SETUP_TOKEN` after setup succeeds.
+5. Use a strong administrator password of at least 12 characters. The panel can read and write instance files and run processes.
+6. Instances use the `java` on PATH by default. On the Quick Deploy page or in the instance's Settings, you can also bind a runtime ID that the panel has scanned and verified. Scanning runs `-version` on each candidate, so `JAVA_HOME` and the common install directories must be controlled by a trusted local administrator. Requests can't submit a Java path.
+7. Paper download requests carry a compliant User-Agent. Follow the terms of use of each core's distributor.
 
 ## Frontend Dev Proxy
 

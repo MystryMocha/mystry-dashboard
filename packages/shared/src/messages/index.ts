@@ -15,6 +15,7 @@ import { SYSTEM_MESSAGES } from './system.js';
 import { TASKS_MESSAGES } from './tasks.js';
 import { FRP_MESSAGES } from './frp.js';
 import { LAN_MESSAGES } from './lan.js';
+import { REMOTE_ACCESS_MESSAGES } from './remote-access.js';
 
 export {
   AUTH_MESSAGES,
@@ -29,6 +30,7 @@ export {
   TASKS_MESSAGES,
   FRP_MESSAGES,
   LAN_MESSAGES,
+  REMOTE_ACCESS_MESSAGES,
 };
 
 export const SERVER_MESSAGES = {
@@ -44,6 +46,7 @@ export const SERVER_MESSAGES = {
   ...BACKUPS_MESSAGES,
   ...FRP_MESSAGES,
   ...LAN_MESSAGES,
+  ...REMOTE_ACCESS_MESSAGES,
 } as const;
 
 export type ServerMessageKey = keyof typeof SERVER_MESSAGES;

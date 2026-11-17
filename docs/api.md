@@ -37,7 +37,7 @@ CPU 按整机逻辑核总容量归一至 0–100%；进程内存是驻留内存�
 |------|------|------|------|
 | GET | `/api/health` | 否 | `{ ok: true, service: "mystry-dashboard", processFingerprint?: string }` |
 
-`processFingerprint` 仅在便携控制器启动服务时出现。它用于让 `mystryctl` 将状态文件、PID 与实际监听服务对应起来，不是认证密钥，也不能替代 `X-Launcher-Token`。
+`processFingerprint` 仅在便携控制器启动服务时出现，并且只对来自回环地址的请求返回：开启「从其他设备访问」后，其他设备的健康检查拿不到它。它用于让 `mystryctl` 将状态文件、PID 与实际监听服务对应起来，不是认证密钥，也不能替代 `X-Launcher-Token`。面板自带网络（见下）进来的连接落在回环地址上，因此看得到它。
 
 ## 认证 `/api/auth`
 
@@ -84,8 +84,30 @@ X-Setup-Token: <SETUP_TOKEN>
 | GET | `/api/system/java-runtimes` | 是 | `{ runtimes: JavaRuntimeInfo[] }` |
 | GET | `/api/system/download-source` | 是 | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | 是 | 请求体 `{ source }`，返回保存后的值；其他取值返回 400 |
+| GET | `/api/system/remote-access` | 是 | `RemoteAccessStatus`；每次读取都重新枚举网卡 |
+| PUT | `/api/system/remote-access/direct` | 是 | 请求体 `UpdateDirectAccessRequest`，返回 `RemoteAccessStatus` |
+| PUT | `/api/system/remote-access/overlay` | 是 | 请求体 `UpdateOverlayAccessRequest`（开启时 `interfaceName` 必填），返回 `RemoteAccessStatus` |
+| POST | `/api/system/remote-access/certificate` | 是 | 重新生成面板的自签名证书，返回 `RemoteAccessStatus` |
+| PUT | `/api/system/remote-access/panel-network` | 是 | 请求体 `UpdatePanelNetworkRequest`，返回 `PanelNetworkStatus` |
+| GET | `/api/system/remote-access/panel-network/join` | 是 | `PanelNetworkJoinInfo`，含网络密钥，`Cache-Control: no-store` |
+| POST | `/api/system/remote-access/panel-network/reset-secret` | 是 | 重置网络名和密钥，返回 `PanelNetworkStatus` |
+| GET | `/api/system/public-host` | 是 | `{ publicHost: string \| null }` |
+| PUT | `/api/system/public-host` | 是 | 请求体 `{ host: string \| null }`（`null` 清除），返回 `{ publicHost }` |
 
 下载来源默认 `official`，保存在 `panel.db`，保存后新发起的下载立即使用，不需要重启。各类文件实际走哪里见[架构说明](architecture.md#下载来源)。
+
+### 从其他设备访问面板
+
+面板的主监听器不变（`HOST:PORT`，默认 `127.0.0.1:3000`）。开启访问时，服务端在要开放的每个 IPv4 地址上另起监听器（同一端口），把连接交给同一个 HTTP 服务；设置保存在 `panel.db` 的 `panel_settings` 表，保存后立即生效，不用重启。任何已登录的请求都可以开关，不限本机。见 。
+
+- **`direct`（直接访问）**：`interfaceName` 为 `null` 表示所有网卡（不含实例的联机网络），也可以指定一块网卡的名字。`https` 默认 `true`：监听器按第一个字节分流，TLS 握手交给面板，明文请求只回 `308` 跳到同主机的 `https://`，不发 HSTS。`restrictToSubnet` 默认 `false`：开启后每个监听器只接受自己网卡网段的来源（`100.64.0.0/10` 的组网网卡放行整个网段；其他 `/32` 网卡算不出网段，不监听并标 `subnetUnknown`）。
+- **`overlay`（已装的组网软件）**：只在选定的那块网卡上监听，`https` 默认 `false`。直接访问的「所有网卡」会让出这块网卡的地址。
+- **证书**：ECDSA P-256 自签名证书，保存在 `<数据根>/tls/panel.key`、`panel.crt`，有效期 800 天，SAN 为生成时的网卡地址和公网地址。已有证书一直复用，只有文件缺失或损坏、30 天内过期或用户要求时才重新生成。状态里的 `certificate` 只有指纹、到期时间和 SAN，不含私钥。
+- **状态**：`RemoteAccessStatus` 含 `managedByConfig`（`HOST` 已是非回环地址时为 `true`，此时两个 PUT 返回 409 `server.remoteAccess.managedByConfig`）、`port`、`frontendServed`、`platform`、`interfaces`（每块网卡的名字、地址、`cidr` 和分类 `kind`）、`publicHost`、`certificate`、`direct`、`overlay`、`panelNetwork`。`direct` / `overlay` 的 `urls` 列出所有候选网址及是否在监听，单个地址没挂上时带 `problem`（`listenFailed` / `subnetUnknown`）；整体问题在 `problem`（另有 `interfaceGone`、`noAddress`、`certificateFailed`）；`firewall` 为 Windows 防火墙规则的结果 `applied` / `failed` / `skipped`。
+- **防火墙**：Windows 上规则名带面板端口，`MystryDashboard-Panel-Direct-<端口>`、`MystryDashboard-Panel-Overlay-<端口>`、`MystryDashboard-PanelNet-<端口>`，同一台电脑上的两个面板不会互删；只删本进程加过的规则。
+- **失败**：选的网卡不存在返回 409 `server.remoteAccess.interfaceGone`；证书生成或读取失败返回 500 `server.remoteAccess.certificateFailed`；一个地址都没挂上返回 409 `server.remoteAccess.listenFailed` 或 `server.remoteAccess.noAddress`，设置恢复为操作前的值。
+- **面板自带网络（`panel-network`）**：面板运行钉死版本的官方 EasyTier（无 TUN 模式），节点固定为 `10.127.0.1`。面板另在 `127.0.0.1` 上开一个组网专用端口，`tcp_whitelist` 只有它（不含面板端口），`url` 也用它；端口首次从面板端口 + 1 往上找（不用系统的动态端口段），存进设置、每次启动沿用，被别的程序占用时才换并写日志。经这个端口进来的请求按组网设备处理：启动器接口返回 403、`/api/health` 不带进程指纹，限流和登录失败计数把整个组网算一个来源，不和本机共用。`PanelNetworkStatus` 含 `enabled`、`platformSupported`、`installed`、`state`（`stopped` / `installing` / `starting` / `running` / `error`）、`detail`、`virtualIp`、`url`、`devices`、节点设置和 `firewall`，不含网络名和密钥；它们只在 `join` 接口里返回。开启后安装和启动在后台进行，界面按 `state` 轮询。
+- **公网地址（`public-host`）**：用户填写的公网 IP 或域名，联机页和面板网址共用。服务端去掉首尾空白、`http(s)://` 和末尾的 `/`；带端口返回 400 `server.publicHost.hasPort`，其他不合法的写法返回 400 `server.publicHost.invalid`；私网地址不拒绝。面板不解析域名，也不探测公网 IP。
 
 Java 状态响应准确结构为：
 
@@ -126,13 +148,15 @@ Java 状态响应准确结构为：
 | POST | `/api/instances/:id/stop` | 停止；`?force=1` 强杀。普通停止超时仍在停止中时返回 **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
 | POST | `/api/instances/:id/restart` | 重启 |
 | POST | `/api/instances/:id/command` | Body：`{ command: string }`，发送控制台命令 |
-| GET | `/api/instances/:id/local-network` | 同一网络直连用的地址 `InstanceLocalNetwork`：`{ port, addresses, publicIpv6, serverIpBlocked }`。只读，不开端口也不改配置 |
+| GET | `/api/instances/:id/local-network` | 直连用的地址 `InstanceLocalNetwork`：`{ port, addresses, publicIpv4, publicIpv6, publicHost, serverIpBlocked, serverIpIsUnboundPublicHost, panelPort, platform }`。只读，不开端口也不改配置 |
 
 `InstanceInfo.startIssue` 在最近一次启动没成功且原因可识别时给出 `{ kind, requiredJava }`，否则为 `null`：`kind` 为 `eula`（尚未同意 Minecraft EULA）、`java-too-new` 或 `java-too-old`（所用 Java 过新或过旧，`requiredJava` 是需要的主版本，无法判断时为 `null`）。它由面板从该次进程的控制台输出里按固定句式识别，只存在内存里；再次启动、删除实例或面板重启后清空。服务端打印过 `Done (` 之后的退出不归因于 Java 版本。进程自己以退出码 0 结束（未同意 EULA、游戏内执行 `stop`）时状态为 `stopped`，非 0 才是 `crashed`。
 
 `InstanceInfo.ready` 表示本次运行服务端已打印过完成启动的 `Done (` 行、玩家可以进服；状态为 `running` 但世界还在加载时为 `false`，正在停止或没在运行时也为 `false`。它同样只存在内存里。
 
 `local-network` 的 `addresses` 是这台电脑的局域网 IPv4 地址（不含回环、`169.254.*` 和能认出的虚拟网卡，如 WSL、虚拟机、组网或代理软件的网卡；全是虚拟网卡时照常列出。最多 6 个，`192.168.*` 排在前面），`port` 取自 `server.properties` 的 `server-port`，无效时为 `null`。`server-ip` 留空或为 `0.0.0.0` 时返回全部地址；等于其中一个地址时只返回它；其余情况 `serverIpBlocked` 为 `true` 且 `addresses` 为空。`publicIpv6` 是实体网卡上的公网 IPv6 地址（`2000::/3`，不含 6to4、Teredo 和文档示例段，最多 3 个），只在 `server-ip` 留空、为 `*` 或 `::` 时给出，`0.0.0.0` 或具体地址时为空；面板不区分固定地址和系统的临时地址，也不检测路由器是否放行。
+
+`addresses` 不含网卡上的公网地址和实例自己的联机网卡地址；网卡上直接有的公网 IPv4 单独放在 `publicIpv4`。`publicHost` 是用户在 `PUT /api/system/public-host` 填写的公网 IP 或域名，没填为 `null`。`server-ip` 等于 `addresses` 或 `publicIpv4` 里的某个地址时只返回这一个，`serverIpBlocked` 为 `false`；`server-ip` 等于 `publicHost` 但网卡上没有这个地址时（云服务器上的常见错误），`serverIpBlocked` 和 `serverIpIsUnboundPublicHost` 都为 `true`。`panelPort` 是面板端口，`platform` 是面板所在系统（`process.platform`），界面用它们区分游戏端口和面板端口、显示对应系统的防火墙写法。
 
 实例目录固定为最终数据根目录的 `instances/<id>`。最终数据根优先取 `MYSTRY_DATA_DIR`，否则取 `DATA_DIR`；创建、部署、导入和启动都不会接受另一个实例目录，`jarFile` 也只能表示实例根目录内的相对文件。
 
@@ -373,7 +397,7 @@ Authorization: Bearer <token>
 { "type": "command", "data": "say hello" }
 ```
 
-## PanelManager 本机关闭
+## PanelManager 本机接口
 
 `POST /api/launcher/shutdown` 只供仓库根目录的 PanelManager 调用，不使用登录 JWT。请求必须来自回环地址并携带：
 
@@ -382,6 +406,17 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 ```
 
 有效请求返回 **202**，响应包含 `accepted`、运行实例数、运行/排队任务数和是否已经处于关闭过程。令牌无效返回 401，非本机来源返回 403，当前启动方式未提供安全关闭回调时返回 503。该接口使用独立限流，并在响应发送完成后开始停止任务、Minecraft 实例、HTTP 服务和数据库。
+
+同一条件（回环来源加 `X-Launcher-Token`）下还有：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/launcher/reset-password` | 请求体 `{ password }`，重置管理员密码 |
+| GET | `/api/launcher/remote-access` | 返回 `RemoteAccessStatus` |
+| PUT | `/api/launcher/remote-access/direct` | 请求体 `UpdateDirectAccessRequest`，开关直接访问 |
+| POST | `/api/launcher/remote-access/certificate` | 重新生成证书 |
+
+这些接口供 `mystryctl` 的 `reset-password` 和 `remote` 命令使用。从额外监听器（其他设备）进来的请求，来源地址不是回环，一律返回 403；面板自带网络进来的连接落在回环地址上，靠 `X-Launcher-Token` 挡住。
 
 ## 联机穿透 `/api/frp`
 

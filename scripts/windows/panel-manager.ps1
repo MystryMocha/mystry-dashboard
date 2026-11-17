@@ -221,10 +221,14 @@ function Prepare-Project {
 }
 
 function Invoke-Controller {
-  param([Parameter(Mandatory = $true)][string]$Command)
+  param(
+    [Parameter(Mandatory = $true)][string]$Command,
+    # 只有 remote 带子命令和参数，原样交给控制器。
+    [string[]]$Extra = @()
+  )
   $env:MYSTRY_HOME = $script:ProjectRoot
   $env:MYSTRY_CONFIG_PATH = $script:EnvPath
-  & node.exe --no-warnings --experimental-sqlite $script:Controller $Command
+  & node.exe --no-warnings --experimental-sqlite $script:Controller $Command @Extra
   $script:ControllerExitCode = $LASTEXITCODE
 }
 
@@ -279,7 +283,8 @@ function Select-NpmMirror {
 function Invoke-Command {
   param(
     [Parameter(Mandatory = $true)][string]$Command,
-    [string]$Argument
+    [string]$Argument,
+    [string[]]$Extra = @()
   )
   switch ($Command) {
     { $_ -in @('start', 'foreground', 'restart') } {
@@ -295,6 +300,10 @@ function Invoke-Command {
     { $_ -in @('stop', 'status', 'logs', 'open', 'reset-password') } {
       Invoke-Controller $Command
     }
+    'remote' {
+      # 开关「从其他设备访问」：子命令和参数原样交给控制器。
+      Invoke-Controller 'remote' $Extra
+    }
     'mirror' {
       if ($Argument) {
         Invoke-NpmMirror -Arguments @('set', $Argument)
@@ -306,7 +315,7 @@ function Invoke-Command {
       Invoke-Controller 'help'
     }
     default {
-      throw (T "未知命令：$Command。可用命令：start、foreground、stop、restart、rebuild、status、logs、open、reset-password、mirror、help。" "Unknown command: $Command. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, reset-password, mirror, help.")
+      throw (T "未知命令：$Command。可用命令：start、foreground、stop、restart、rebuild、status、logs、open、reset-password、remote、mirror、help。" "Unknown command: $Command. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, reset-password, remote, mirror, help.")
     }
   }
 }
@@ -358,10 +367,14 @@ if ($env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY -eq '1') {
 }
 
 $command = if ($args.Count -ge 1) { ([string]$args[0]).ToLowerInvariant() } else { '' }
-# 只有 mirror 带参数：mirror <名称或编号>。
+# 只有两个命令带参数：mirror <名称或编号>，remote <子命令> [参数]（如 remote on、remote https off）。
 $commandArgument = if ($args.Count -eq 2 -and $command -eq 'mirror') { [string]$args[1] } else { '' }
-if ($args.Count -gt 1 -and -not $commandArgument) {
-  Write-Host (T '每次只能指定一个命令；可用命令：start、foreground、stop、restart、rebuild、status、logs、open、reset-password、mirror、help。' 'Specify one command at a time. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, reset-password, mirror, help.') -ForegroundColor Red
+$commandExtra = @()
+if ($command -eq 'remote' -and $args.Count -ge 2 -and $args.Count -le 3) {
+  $commandExtra = @($args[1..($args.Count - 1)] | ForEach-Object { [string]$_ })
+}
+if ($args.Count -gt 1 -and -not $commandArgument -and $commandExtra.Count -eq 0) {
+  Write-Host (T '每次只能指定一个命令；可用命令：start、foreground、stop、restart、rebuild、status、logs、open、reset-password、remote、mirror、help。' 'Specify one command at a time. Available commands: start, foreground, stop, restart, rebuild, status, logs, open, reset-password, remote, mirror, help.') -ForegroundColor Red
   exit 2
 }
 if ($command -eq '__tail') {
@@ -372,7 +385,7 @@ if ($command -eq '__tail') {
 try {
   Assert-Node
   if ($command) {
-    Invoke-Command $command $commandArgument
+    Invoke-Command $command $commandArgument $commandExtra
     exit $script:ControllerExitCode
   }
   # 无参数通常是双击启动：执行完菜单命令（含出错）后先停住，让结果和令牌提示留在屏幕上。
