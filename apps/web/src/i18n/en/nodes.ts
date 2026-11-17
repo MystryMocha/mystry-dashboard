@@ -32,6 +32,7 @@ export default {
   'nodes.downloadSource.saved': 'Saved. New downloads use this source.',
   'nodes.downloadSource.hint': 'Download source: {source}.',
   'nodes.downloadSource.hint.change': 'Change',
+  'nodes.downloadSource.hint.done': 'Done',
 
   'nodes.remote.title': 'Other Nodes',
   'nodes.remote.desc_one': 'Remote node · {count} instance · Last heartbeat {lastSeen}',

@@ -34,6 +34,7 @@ export default {
   'nodes.downloadSource.saved': '已保存，之后的下载使用这个来源。',
   'nodes.downloadSource.hint': '下载来源：{source}。',
   'nodes.downloadSource.hint.change': '更改',
+  'nodes.downloadSource.hint.done': '完成',
 
   'nodes.remote.title': '其他节点列表',
   'nodes.remote.desc_one': '远程节点 · {count} 个实例 · 最近心跳 {lastSeen}',
