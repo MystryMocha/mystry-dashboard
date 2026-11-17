@@ -1,12 +1,10 @@
 # 第三方 Actions 固定 SHA：见 .github/actions-pins.md（审查日期 2026-08-07）
 name: Quality Gate
 
+# 质量门禁改在本机运行：npm run ci:local（Windows 用 npm.cmd run ci:local），见 docs/ai/decisions.md D-032。
+# 这里不再随推送和 PR 自动触发，只保留手动运行。
 on:
-  push:
-    branches:
-      - main
-      - dev
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read

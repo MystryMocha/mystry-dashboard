@@ -93,9 +93,10 @@ npm.cmd run test:regression -w @mystry/server
 npm.cmd run test:smoke
 npm.cmd run knowledge:check
 npm.cmd run verify
+npm.cmd run ci:local
 ```
 
-Linux/macOS 与 CI 使用相同脚本名，入口为 `npm run ...`。源码整合启动可用 `PanelManager.cmd` / `./PanelManager.sh`。
+Linux/macOS 使用相同脚本名，入口为 `npm run ...`。远程 CI 已关闭自动触发（D-032），`ci:local` 对当前提交做干净安装并跑 `verify`，只在 Windows 上运行，依次跑 Windows 与 WSL Linux，Node 固定为便携包内置版本（22.x），推送前运行。源码整合启动可用 `PanelManager.cmd` / `./PanelManager.sh`。
 
 ## 验证与交付
 

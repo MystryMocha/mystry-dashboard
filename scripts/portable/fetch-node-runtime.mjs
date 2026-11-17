@@ -79,6 +79,48 @@ function assertEmptyOutput(outputDir) {
   if (entries.length > 0) throw new Error(`运行时输出目录不是空目录：${outputDir}`);
 }
 
+/** 便携包内置的 Node 版本，本机 CI 也用它，保证测的就是用户实际运行的版本。 */
+export const nodeRuntimeVersion = runtimeConfig.nodeVersion;
+
+function resolveTarget(version, platform, arch) {
+  const targetPlatform = normalizePlatform(platform);
+  const targetArch = arch === 'amd64' ? 'x64' : arch;
+  return { targetPlatform, targetArch, archiveName: archiveFor(version, targetPlatform, targetArch) };
+}
+
+/**
+ * 从 nodejs.org 下载官方压缩包到 directory（须为空目录），并按同版本的 SHASUMS256.txt 校验。
+ * 便携包组装和本机 CI 共用这一份下载与校验逻辑。
+ */
+export async function downloadVerifiedNodeArchive({
+  version = runtimeConfig.nodeVersion,
+  platform = process.platform,
+  arch = process.arch,
+  directory,
+}) {
+  if (!directory) throw new Error('必须指定 Node 压缩包下载目录');
+  const { targetPlatform, targetArch, archiveName } = resolveTarget(version, platform, arch);
+  const baseUrl = `https://nodejs.org/dist/v${version}`;
+  const archivePath = path.join(directory, archiveName);
+  const checksumsPath = path.join(directory, 'SHASUMS256.txt');
+  await Promise.all([
+    download(`${baseUrl}/${archiveName}`, archivePath),
+    download(`${baseUrl}/SHASUMS256.txt`, checksumsPath),
+  ]);
+
+  const checksums = await fsp.readFile(checksumsPath, 'utf8');
+  const checksumLine = checksums
+    .split(/\r?\n/)
+    .find((line) => line.trim().endsWith(`  ${archiveName}`));
+  if (!checksumLine) throw new Error(`SHASUMS256.txt 中找不到 ${archiveName}`);
+  const expected = checksumLine.trim().split(/\s+/)[0].toLowerCase();
+  const actual = await sha256(archivePath);
+  if (actual !== expected) {
+    throw new Error(`Node 运行时 SHA-256 不匹配：expected=${expected} actual=${actual}`);
+  }
+  return { version, platform: targetPlatform, arch: targetArch, archiveName, archivePath, sha256: actual };
+}
+
 export async function fetchNodeRuntime({
   version = runtimeConfig.nodeVersion,
   platform = process.platform,
@@ -86,33 +128,20 @@ export async function fetchNodeRuntime({
   outputDir,
 }) {
   if (!outputDir) throw new Error('必须指定 Node 运行时输出目录');
-  const targetPlatform = normalizePlatform(platform);
-  const targetArch = arch === 'amd64' ? 'x64' : arch;
-  const archiveName = archiveFor(version, targetPlatform, targetArch);
-  const baseUrl = `https://nodejs.org/dist/v${version}`;
+  // 先校验目标平台，不支持时不创建输出目录
+  const { targetPlatform, targetArch, archiveName } = resolveTarget(version, platform, arch);
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-node-runtime-'));
-  const archivePath = path.join(tempRoot, archiveName);
-  const checksumsPath = path.join(tempRoot, 'SHASUMS256.txt');
   const extractDir = path.join(tempRoot, 'extract');
 
   try {
     assertEmptyOutput(outputDir);
     await fsp.mkdir(outputDir, { recursive: true });
-    await Promise.all([
-      download(`${baseUrl}/${archiveName}`, archivePath),
-      download(`${baseUrl}/SHASUMS256.txt`, checksumsPath),
-    ]);
-
-    const checksums = await fsp.readFile(checksumsPath, 'utf8');
-    const checksumLine = checksums
-      .split(/\r?\n/)
-      .find((line) => line.trim().endsWith(`  ${archiveName}`));
-    if (!checksumLine) throw new Error(`SHASUMS256.txt 中找不到 ${archiveName}`);
-    const expected = checksumLine.trim().split(/\s+/)[0].toLowerCase();
-    const actual = await sha256(archivePath);
-    if (actual !== expected) {
-      throw new Error(`Node 运行时 SHA-256 不匹配：expected=${expected} actual=${actual}`);
-    }
+    const { archivePath, sha256: actual } = await downloadVerifiedNodeArchive({
+      version,
+      platform: targetPlatform,
+      arch: targetArch,
+      directory: tempRoot,
+    });
 
     await fsp.mkdir(extractDir);
     const extracted = spawnSync('tar', ['-xf', archivePath, '-C', extractDir], {
