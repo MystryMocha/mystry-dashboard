@@ -12,7 +12,11 @@ const ANSI = {
   error: '\x1b[91m', // 亮红
   debug: '\x1b[96m', // 亮青
   fatal: '\x1b[95m', // 亮品红
+  command: '\x1b[1;97m', // 粗体亮白：面板回显的已发送命令
 } as const;
+
+/** 服务端 process-manager 回显已发送命令的写法：「> 命令」。 */
+const COMMAND_ECHO_PREFIX = '> ';
 
 const HAS_ANSI = /\x1b\[/;
 
@@ -77,6 +81,7 @@ export function colorizeConsoleLine(line: string): string {
   // 面板自身提示
   if (ERROR_PREFIXES.some((prefix) => line.startsWith(prefix))) return `${ANSI.error}${line}${RESET}`;
   if (PANEL_PREFIXES.some((prefix) => line.startsWith(prefix))) return `${ANSI.debug}${line}${RESET}`;
+  if (line.startsWith(COMMAND_ECHO_PREFIX)) return `${ANSI.command}${line}${RESET}`;
 
   const match = LEVEL_RE.exec(line);
   if (!match?.[1]) return line;

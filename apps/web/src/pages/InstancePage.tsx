@@ -18,7 +18,7 @@ import { BackupsTab } from '../components/BackupsTab';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ConfigTab } from '../components/ConfigTab';
 import { ConsolePanel } from '../components/ConsolePanel';
-import { CoreIcon } from '../components/CoreIcon';
+import { CoreIcon, coreDisplayName } from '../components/CoreIcon';
 import { EulaCheckbox } from '../components/EulaCheckbox';
 import { FilesTab } from '../components/FilesTab';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
@@ -157,85 +157,91 @@ function SettingsTab({
 
   return (
     <div className="form-stack settings-workspace">
-      <section className="form-section">
-        <h3 className="form-section-title">{t('instance.settings.section.basic')}</h3>
-        <div className="card form-card">
-          <div className="field">
-            <label htmlFor="instance-settings-name">{t('instance.settings.name.label')}</label>
-            <input
-              id="instance-settings-name"
-              value={name}
-              disabled={saving}
-              onChange={(e) => {
-                setName(e.target.value);
-                setSaved(false);
-              }}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="instance-settings-jar-file">{t('instance.settings.jarFile.label')}</label>
-            <input
-              id="instance-settings-jar-file"
-              value={jarFile}
-              disabled={saving}
-              onChange={(e) => {
-                setJarFile(e.target.value);
-                setSaved(false);
-              }}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="instance-settings-install-path">{t('instance.settings.installPath.label')}</label>
-            <input
-              id="instance-settings-install-path"
-              value={instance.installPath ?? t('instance.path.managed', { id: instance.id })}
-              readOnly
-            />
-            <p className="field-help">{t('instance.settings.installPath.help')}</p>
-          </div>
-        </div>
-      </section>
+      {/* 宽屏时左栏基本信息与许可协议，右栏运行环境；窄屏按原顺序上下排列。 */}
+      <div className="form-columns">
+        <div className="form-column">
+          <section className="form-section">
+            <h3 className="form-section-title">{t('instance.settings.section.basic')}</h3>
+            <div className="card form-card">
+              <div className="field">
+                <label htmlFor="instance-settings-name">{t('instance.settings.name.label')}</label>
+                <input
+                  id="instance-settings-name"
+                  value={name}
+                  disabled={saving}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setSaved(false);
+                  }}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="instance-settings-jar-file">{t('instance.settings.jarFile.label')}</label>
+                <input
+                  id="instance-settings-jar-file"
+                  value={jarFile}
+                  disabled={saving}
+                  onChange={(e) => {
+                    setJarFile(e.target.value);
+                    setSaved(false);
+                  }}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="instance-settings-install-path">{t('instance.settings.installPath.label')}</label>
+                <input
+                  id="instance-settings-install-path"
+                  value={instance.installPath ?? t('instance.path.managed', { id: instance.id })}
+                  readOnly
+                />
+                <p className="field-help">{t('instance.settings.installPath.help')}</p>
+              </div>
+            </div>
+          </section>
 
-      <section className="form-section">
-        <h3 className="form-section-title">{t('instance.settings.section.runtime')}</h3>
-        <div className="card form-card">
-          <JavaRuntimeSelect
-            value={javaRuntimeId}
-            onChange={(nextRuntimeId) => {
-              setJavaRuntimeId(nextRuntimeId);
-              setSaved(false);
-            }}
-            mcVersion={instance.mcVersion}
-            disabled={saving}
-            onResolvedMajorChange={setJavaMajor}
-          />
-          <JvmSettingsEditor
-            value={jvmArgs}
-            onChange={(next) => {
-              setJvmArgs(next);
-              setSaved(false);
-            }}
-            coreType={instance.coreType}
-            javaMajor={javaMajor}
-            disabled={saving}
-            onValidityChange={setJvmValid}
-          />
+          <section className="form-section">
+            <h3 className="form-section-title">{t('instance.settings.section.eula')}</h3>
+            <div className="card form-card">
+              <EulaCheckbox
+                checked={acceptEula}
+                disabled={saving}
+                onChange={(checked) => {
+                  setAcceptEula(checked);
+                  setSaved(false);
+                }}
+              />
+            </div>
+          </section>
         </div>
-      </section>
-
-      <section className="form-section">
-        <h3 className="form-section-title">{t('instance.settings.section.eula')}</h3>
-        <div className="card form-card">
-          <EulaCheckbox
-            checked={acceptEula}
-            disabled={saving}
-            onChange={(checked) => {
-              setAcceptEula(checked);
-              setSaved(false);
-            }}
-          />
+        <div className="form-column">
+          <section className="form-section">
+            <h3 className="form-section-title">{t('instance.settings.section.runtime')}</h3>
+            <div className="card form-card">
+              <JavaRuntimeSelect
+                value={javaRuntimeId}
+                onChange={(nextRuntimeId) => {
+                  setJavaRuntimeId(nextRuntimeId);
+                  setSaved(false);
+                }}
+                mcVersion={instance.mcVersion}
+                disabled={saving}
+                onResolvedMajorChange={setJavaMajor}
+              />
+              <JvmSettingsEditor
+                value={jvmArgs}
+                onChange={(next) => {
+                  setJvmArgs(next);
+                  setSaved(false);
+                }}
+                coreType={instance.coreType}
+                javaMajor={javaMajor}
+                disabled={saving}
+                onValidityChange={setJvmValid}
+              />
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
 
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
 
@@ -270,7 +276,7 @@ const TAB_TITLE_KEYS = new Map<string, MessageKey>([
   ['settings', 'instance.tab.settings'],
 ]);
 
-const hubTabClass = ({ isActive }: { isActive: boolean }) => `segmented-item${isActive ? ' active' : ''}`;
+const hubTabClass = ({ isActive }: { isActive: boolean }) => `hub-tab${isActive ? ' active' : ''}`;
 
 export function InstancePage() {
   const { t } = useI18n();
@@ -350,9 +356,10 @@ export function InstancePage() {
             <h1 className="large-title instance-name">{instance.name}</h1>
             <div className="instance-meta">
               <InstanceStatusPill instance={instance} />
+              {/* 与总览列表同一写法：核心名加游戏版本，自定义 jar 显示「自定义 Jar」。 */}
               <span>
-                {instance.coreType.toUpperCase()}
-                {instance.mcVersion ? ` · ${t('instance.header.version', { version: instance.mcVersion })}` : ''}
+                {coreDisplayName(instance.coreType, t)}
+                {instance.mcVersion ? ` ${instance.mcVersion}` : ''}
               </span>
             </div>
           </div>
@@ -403,8 +410,9 @@ export function InstancePage() {
 
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
 
+      {/* 实例的几个页面用下划线文字标签，不用胶囊分段：分段控件留给「同一份内容换个视图」的场合。 */}
       {!instance.requiresMigration && (
-        <nav className="segmented hub-tabs" aria-label={t('instance.tabs.label')}>
+        <nav className="hub-tabs" aria-label={t('instance.tabs.label')}>
           <NavLink to={`/instances/${id}`} end className={hubTabClass}>
             <Terminal size={15} aria-hidden="true" />
             <span>{t('instance.tab.console')}</span>

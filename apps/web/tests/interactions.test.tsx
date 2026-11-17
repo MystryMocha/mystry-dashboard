@@ -103,11 +103,50 @@ test('总览监测保留过期数据，重试恢复，异常筛选可清除', as
   fail = false;
   await user.click(screen.getByRole('button', { name: '重试监测' }));
   await waitFor(() => expect(screen.queryByText(/数据可能过期/)).toBeNull());
-  await user.click(screen.getByRole('button', { name: '异常 0' }));
+  const issues = screen.getByRole('button', { name: '异常 0' });
+  await user.click(issues);
+  expect(issues.getAttribute('aria-pressed')).toBe('true');
   expect(screen.getByText('暂无异常实例。')).toBeTruthy();
   expect(screen.queryByRole('link', { name: instance.name })).toBeNull();
-  await user.click(screen.getByRole('button', { name: /显示全部/ }));
+  await user.click(screen.getByRole('button', { name: '全部 1' }));
   expect(screen.getByRole('link', { name: instance.name })).toBeTruthy();
+});
+
+test('总览每行给出状态说明和下一步，没有实例时只保留三种添加方式', async () => {
+  const baseFetch = globalThis.fetch;
+  let list: unknown[] = [
+    { ...instance, id: 'ready', name: '生存服', status: 'running', ready: true },
+    { ...instance, id: 'java', name: '模组服', status: 'crashed', startIssue: { kind: 'java-too-old', requiredJava: 21 } },
+    { ...instance, id: 'eula', name: '新服', status: 'stopped', startIssue: { kind: 'eula', requiredJava: null } },
+  ];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances' && !options?.method) return new Response(JSON.stringify(list));
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  const view = mount(<DashboardPage />);
+  expect(await screen.findByText('可以进服了')).toBeTruthy();
+  expect(screen.getByRole('link', { name: '邀请朋友' }).getAttribute('href')).toBe('/multiplayer?instance=ready');
+  expect(screen.getByText('这个服务器需要 Java 21')).toBeTruthy();
+  expect(screen.getByRole('link', { name: '打开实例设置' }).getAttribute('href')).toBe('/instances/java/settings');
+  expect(screen.getByRole('link', { name: '查看并同意' }).getAttribute('href')).toBe('/instances/eula');
+  // 未同意 EULA 而停下的实例也算异常。
+  await user.click(screen.getByRole('button', { name: '异常 2' }));
+  expect(screen.queryByRole('link', { name: '生存服' })).toBeNull();
+  expect(screen.getByRole('link', { name: '新服' })).toBeTruthy();
+  view.unmount();
+
+  list = [];
+  mount(<DashboardPage />);
+  expect(await screen.findByText('选一种方式添加第一个服务器。')).toBeTruthy();
+  expect(screen.queryByRole('group', { name: '筛选实例' })).toBeNull();
+  const paths = within(document.querySelector('.start-path-list') as HTMLElement);
+  expect(paths.getByRole('link', { name: /一键部署/ }).getAttribute('href')).toBe('/deploy');
+  expect(paths.getByRole('link', { name: /导入服务端/ }).getAttribute('href')).toBe('/import');
+  // 顶部不再重复一套创建按钮。
+  expect(screen.getAllByRole('link', { name: /一键部署/ })).toHaveLength(1);
+  await user.click(paths.getByRole('button', { name: /创建空实例/ }));
+  expect(screen.getByRole('dialog', { name: '创建空实例' })).toBeTruthy();
 });
 
 test('监测在隐藏页暂停，回到前台刷新，卸载后停止请求', async () => {

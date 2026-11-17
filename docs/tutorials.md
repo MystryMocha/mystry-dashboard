@@ -39,7 +39,7 @@ Don't send the password, the config file, or screenshots that contain them to an
 
 ### 3. Deploy Paper with Quick Deploy
 
-1. Click **Quick Deploy** on the left (or **Quick Deploy** at the top right of the Instances page).
+1. Click **Quick Deploy** on the left (or **Quick Deploy** in the middle of the Instances page while you have no instances yet).
 2. The page already has **Paper** selected (recommended for beginners, supports plugins) along with the latest release game version. Usually you only need:
    - **Instance Name**: for example `My Survival Server`.
    - **Game Version**: if you and your friends want a different version, pick it in the dropdown. The game client version must match it.

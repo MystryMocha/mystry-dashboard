@@ -29,16 +29,10 @@ export default {
   'shell.error.reload': '重新整理頁面',
 
   'appearance.title': '外觀',
-  'appearance.accent': '強調色',
   'appearance.auto': '自動',
   'appearance.light': '淺色',
   'appearance.dark': '深色',
-  'appearance.button': '外觀設定，目前為{appearance}外觀，{accent}強調色',
-  'accent.blue': '藍色',
-  'accent.purple': '紫色',
-  'accent.pink': 'Mystry 粉',
-  'accent.green': '綠色',
-  'accent.graphite': '石墨',
+  'appearance.button': '外觀設定，目前為{appearance}外觀',
 
   'language.title': '語言',
   'language.auto': '自動',

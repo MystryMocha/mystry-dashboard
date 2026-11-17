@@ -38,7 +38,7 @@ Most server panels are either heavyweight data-center suites (requiring Linux, D
 - **Automatic Crash Diagnosis & Guided Setup** — Detects common startup failures from the log (unaccepted EULA with a one-click **Accept and Start** button, or Java version mismatches with direct Temurin download links). Includes a structured JVM configurator with G1GC and Paper Aikar presets, plus a grouped `server.properties` form editor that preserves comments and formatting.
 - **Live World Backups & Verified Restore** — Create streaming `tar.gz` backups with per-file SHA-256 manifests while a server is running (`save-off` → `save-all flush` → `save-on`). Restores verify every file in a staging folder first and take a `pre-restore` backup by default.
 - **Mirror Fallback & Checksum Verification** — Switch between `Official` and `Mainland China Mirror` in **This Machine**. Vanilla version manifests always come from Mojang; mirrored files are used only when their checksum can be verified, and mismatched files are discarded. Multiplayer tools (frp and EasyTier) are checked against pinned SHA-256 hashes and can also be installed from an uploaded archive when GitHub is unreachable.
-- **Clean UI & Three Languages** — Built with translucent navigation chrome and solid content cards, supporting `auto` / `light` / `dark` appearances, five accent colors (`blue`, `purple`, `pink`, `green`, `graphite`), phone/tablet bottom navigation, and a screen-reader console mode. Loads no external web fonts and is localized in **English**, **Simplified Chinese**, and **Traditional Chinese**.
+- **Clean UI & Three Languages** — Built with translucent navigation chrome and card-free content separated by rules and type, supporting `auto` / `light` / `dark` appearances with a fixed ink-purple accent, phone/tablet bottom navigation, and a screen-reader console mode. Loads no external web fonts and is localized in **English**, **Simplified Chinese**, and **Traditional Chinese**.
 
 ### How It Compares
 
@@ -67,7 +67,7 @@ Most server panels are either heavyweight data-center suites (requiring Linux, D
 | **Java & JVM** | Scan `JAVA_HOME` and common install paths for verified Java runtimes, pick the right Java for new servers automatically, install a checksum-pinned Eclipse Temurin JRE in one click when it's missing, and configure JVM memory & presets. |
 | **Download sources** | Switch between `Official` (default) and `Mainland China Mirror` (BMCLAPI & GitHub mirrors with automatic fallback) in **This Machine**. Vanilla manifests always come from Mojang; mirrored files are used only when their checksum can be verified; frp and EasyTier are checked against pinned SHA-256 values. |
 | **Tasks & monitoring** | Global Task Center tracks deploys, imports and backups. **Instances** shows host CPU, memory, free disk space, and per-instance CPU & resident memory. |
-| **Appearance & i18n** | Auto / Light / Dark appearance × 5 accent colors; English (default), Simplified Chinese and Traditional Chinese across UI, server errors and task progress. |
+| **Appearance & i18n** | Auto / Light / Dark appearance with a fixed ink-purple accent; English (default), Simplified Chinese and Traditional Chinese across UI, server errors and task progress. |
 
 ### Supported Games
 

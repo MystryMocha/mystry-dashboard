@@ -2,7 +2,6 @@
 export default {
   // 工作台头部与标签页
   'instance.header.backTitle': 'Back to Instances',
-  'instance.header.version': 'Version {version}',
   'instance.tabs.label': 'Instance Sections',
 
   // 面板托管的实例目录（用于迁移提示与设置页的安装路径占位）

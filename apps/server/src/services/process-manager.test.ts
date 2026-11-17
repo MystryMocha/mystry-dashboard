@@ -379,6 +379,44 @@ test('关闭后拒绝新的 start', async (t) => {
   assert.equal(manager.getRunningCount(), 0);
 });
 
+test('发出的命令写进 stdin，并以「> 命令」回显到控制台历史', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const info = createInstance({ name: 'command-echo' });
+  fs.writeFileSync(path.join(defaultInstanceDir(info.id), 'server.jar'), 'stub-jar');
+  const children: ChildProcessWithoutNullStreams[] = [];
+  const manager = new ProcessManager(
+    () => {
+      const child = fakeChild();
+      children.push(child);
+      return child;
+    },
+    async () => 'java',
+  );
+  const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+  await manager.start(getInstanceRow(info.id)! as InstanceRow);
+  const written: string[] = [];
+  children[0].stdin.on('data', (chunk: Buffer) => written.push(chunk.toString('utf8')));
+  children[0].stdout.emit('data', Buffer.from('[13:23:09] [Server thread/INFO]: Done (4.512s)! For help, type "help"\n'));
+  await flush();
+
+  manager.sendCommand(info.id, 'list');
+  // 上一块输出停在半行时，回显另起一行。
+  children[0].stdout.emit('data', Buffer.from('> '));
+  await flush();
+  manager.sendCommand(info.id, 'save-all');
+  await flush();
+
+  assert.deepEqual(written, ['list\n', 'save-all\n']);
+  assert.match(manager.getHistory(info.id), /help"\n> list\n> \n> save-all\n$/);
+});
+
 test('打印过完成启动的标志行后标记为可以进服；停止或退出后清除', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
