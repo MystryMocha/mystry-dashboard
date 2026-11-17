@@ -4,7 +4,7 @@ How the Mystry Dashboard web UI looks, reads and is put together. Use it when yo
 
 - **Source of truth:** [`apps/web/src/styles.css`](../apps/web/src/styles.css) (tokens and every component class) and [`apps/web/src/i18n/`](../apps/web/src/i18n/) (copy). If this page and the code disagree, the code wins — fix this page in the same change.
 - **Visual reference:** a browsable copy with live component previews in both themes lives in the [Mystry Dashboard Design System artifact](https://claude.ai/artifact/L1qMsnhfkv7rZ68ifVdke6) (private; ask the owner for access). It is a snapshot synced from `styles.css` at `edfb414` and does not update on its own.
-- Token names below are CSS custom properties in `styles.css`: `accent` means `var(--accent)`. Values written in px are literals in the source, not variables.
+- Token names below are CSS custom properties in `styles.css`: `accent` means `var(--accent)`. Font sizes are `--text-*` tokens; other values written in px are literals in the source, not variables.
 
 ## Content
 
@@ -26,7 +26,7 @@ The most important rule of the system:
 - **The toolbar has no bar of its own.** Its page title (shown once the content scrolls) and its button group are separate floating glass capsules, like the sidebar and the action bar. When content scrolls under them, `.topbar::before` adds a scroll edge: a light blur masked to fade out downward, never a full-width band with a hard bottom line.
 - **Below 768px only the tab bar keeps the blur.** The toolbar title capsule, its button groups, the sidebar drawer and the floating action bar drop `backdrop-filter` and use the near-opaque `material-flat`; the toolbar scroll edge drops its blur and fades from `bg` at 94%; the task drawer keeps `sheet-bg` without blur, and dialogs switch to the opaque `sheet-bg-solid` (translucent without blur lets text behind show through). Stacked blur layers on the same part of the screen are too costly for phone GPUs. Transient menus and popovers keep their blur.
 - **Content layer** — page content sits directly on the page background, not on cards. Form sections are a title, a `separator-strong` rule and the fields; grouped lists, the server list and empty states sit between two `separator-strong` rules with `separator` hairlines between rows; the deploy guide is set off by a vertical rule. Type, spacing and rules carry the hierarchy instead of stacked cards. The selector `.page :is(.form-card, .list-group):not(dialog *)` and its siblings in `styles.css` do this, so the same classes inside a native `<dialog>` keep their solid `surface`. Solid `surface` with `card-shadow` remains for things that are picked or float: the deploy core tiles, the login card, the migration panel, dialogs and the task drawer. Never put glass on content, and never make the navigation layer solid.
-- The page background is `bg` under two faint radial gradients, `wallpaper-1` (mixed from the accent) at the top left and `wallpaper-2` at the bottom right.
+- The page background is flat `bg`, with no gradient wash behind it.
 
 ### Color
 
@@ -43,7 +43,20 @@ The most important rule of the system:
 
 - System font stack in `--font`, no web fonts, so first paint never waits on a font service. `:root:lang(zh-TW)` puts the Traditional Chinese fonts first. Monospace is `--mono`.
 - Body is 15px / 1.47 with -0.005em tracking; titles tighten to -0.015 to -0.026em.
-- Hierarchy: `.large-title` 32px (one per page; 28px below 768px) → overview status sentence (`.overview-status`, 22px medium, in place of the subtitle) → `.section-title` 20px → instance name 16px semibold → form step and toolbar titles 15px semibold → body 15px → field labels 13px semibold → help and metadata 12.5px.
+- **Font sizes come only from the scale in `:root`**, chosen by role; never write a px font size or a half-pixel step in a component:
+
+  | Token | Size | Used for |
+  |---|---|---|
+  | `text-large` | 30px | The one large title per page, the instance name, the login title |
+  | `text-title` | 22px | Section titles, the overview status sentence, the task drawer title; the instance name below 768px |
+  | `text-headline` | 17px | Dialog and empty-state titles, server names, `.btn-lg` |
+  | `text-input` | 16px | Text inputs on touch screens and the login fields (see below); not a style step |
+  | `text-body` | 15px | Body, buttons, nav items, menu items, list titles, inputs, instance tabs |
+  | `text-small` | 13px | Field labels (semibold), help and descriptions, status pills, chips, `.btn-sm`, metadata; instance tabs below 480px |
+  | `text-footnote` | 12px | Code, paths, timestamps, fine print, count badges |
+  | `text-micro` | 11px | Tab bar labels and toolbar badges only |
+
+  Sizes that sit next to each other differ by weight or color as well as size (a field label is 13px semibold `label-2`, its help 13px regular `label-2` after it).
 - Numbers use `font-variant-numeric: tabular-nums` (metrics, badges, file sizes, progress). Overview meter values stay on one line and clip with an ellipsis instead of wrapping.
 - On touch screens (`pointer: coarse`) and below 768px every text input, select and textarea is at least 16px, so iOS does not zoom the page on focus.
 - JVM arguments, paths, commands and file contents use `--mono` at 13px / 1.55.
@@ -59,7 +72,7 @@ The most important rule of the system:
 
 ### Shadows
 
-- The remaining cards (core tiles, login, migration panel) use `card-shadow`; on hover `card-shadow-hover` and a 2px lift. Floating elements use `float-shadow`; dialogs and the task drawer use `sheet-shadow`. In dark, cards keep only a faint outline.
+- The remaining cards (core tiles, login, migration panel) use `card-shadow`. Core tiles do not lift or deepen their shadow on hover; they take the same `hover-overlay` as buttons. Floating elements use `float-shadow`; dialogs and the task drawer use `sheet-shadow`. In dark, cards keep only a faint outline.
 
 ### Interaction and motion
 
@@ -67,7 +80,7 @@ The most important rule of the system:
 - Focus: `:focus-visible` draws a 3px `focus-ring` outline offset by 2px; inputs use the glow instead.
 - `--ease` for most transitions, `--ease-spring` for dialogs, drawers and switch knobs; hover 0.15s, entrances 0.16–0.38s.
 - Looping animations touch only `transform` and `opacity`: the running status dot breathes with a `::after` that scales up and fades out, never an animated `box-shadow`.
-- `prefers-reduced-motion` turns off entrances, lifts and the status-dot breathing; loading spinners stay.
+- `prefers-reduced-motion` turns off entrances and the status-dot breathing; loading spinners stay.
 
 ### Responsive
 
@@ -137,3 +150,17 @@ The class names to reach for. Each one is a plain CSS class in `styles.css`; the
 1. Page skeleton: `.page` holds a `.page-header` (via `PageHeader`: `.large-title`, `.page-subtitle`, actions on the right) followed by `.page-section` blocks. Form pages put the main action in an `.action-bar`.
 2. Reuse the classes above before adding new ones; new values that repeat belong in the `:root` blocks of `styles.css`, with a dark-appearance value when they are colors.
 3. Write copy into the locale tables, then check the page in light and dark, every shipped language and at 375px, as [UI 与交互](ai/change-playbooks.md#ui-与交互) requires.
+4. Run the template check below on the screenshots, not only on the code.
+
+## Template check
+
+A choice is "templated" when you would have made it the same way for any other product. Before you ship a page, look for these and keep one only when you can say what it tells the user:
+
+- **Structure:** content chopped into identical cards; one radius and one grey shadow on everything; numbered markers (01 / 02 / 03) on things that are not steps; a big number with a small label where one sentence would do (the overview says "3 instances, 1 running, 1 needs attention" instead of stat tiles); gradient washes as decoration.
+- **Type:** one word in a heading set apart in italic, bold or color; ALL-CAPS or widely tracked labels; a small label above a heading that repeats it; many sizes close to each other instead of a few clear steps; a monospace face for small data labels (monospace is for logs, commands and paths).
+- **Chrome:** meta joined with middle dots (`A · B · C`); labels built as `WORD — fragment`; a `→` after button or link text (an arrow that shows a click path, as in "Advanced → Proceed", is information and stays).
+- **Color:** the accent used as decoration rather than for what you can act on and what is selected; new hues or tints that are not tokens.
+- **Motion:** entrances on every section or hover transitions on every row. Motion answers an action (open, expand, confirm) and respects reduced motion.
+- **Copy:** selling instead of describing; filler sentences; an error that apologizes or does not say how to fix it; one action called by two names in the same flow.
+
+Spend boldness in one place per page, keep the rest quiet, and remove one thing before you finish.

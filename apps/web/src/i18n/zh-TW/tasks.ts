@@ -22,7 +22,7 @@ export default {
   'tasks.center.empty.body': '開始部署或匯入後，進度會顯示在這裡。',
   'tasks.card.runningProgress': '{percent} 進行中',
   'tasks.card.progressLabel': '{type}進度',
-  'tasks.card.viewInstance': '檢視實例 →',
+  'tasks.card.viewInstance': '檢視實例',
 
   'menu.more': '更多操作',
 
