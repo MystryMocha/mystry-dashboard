@@ -34,6 +34,7 @@ export default {
   'nodes.downloadSource.saved': '已儲存，之後的下載使用這個來源。',
   'nodes.downloadSource.hint': '下載來源：{source}。',
   'nodes.downloadSource.hint.change': '變更',
+  'nodes.downloadSource.hint.done': '完成',
 
   'nodes.remote.title': '其他節點清單',
   'nodes.remote.desc_one': '遠端節點 · {count} 個實例 · 最近心跳 {lastSeen}',
