@@ -29,7 +29,9 @@ const ASSETS: Record<string, LanAsset> = {
     sha256: '27af91e270e554709b048bd32327fefd2dfce5062ae1e8701af7550c6f525f84',
     coreName: 'easytier-core.exe',
     cliName: 'easytier-cli.exe',
-    extraNames: ['wintun.dll'],
+    // easytier-core.exe 静态导入 Packet.dll，缺了连 --version 都会以 0xC0000135（找不到 DLL）退出；
+    // wintun.dll 只在建虚拟网卡时按需加载。两个都在同一个官方压缩包里。
+    extraNames: ['wintun.dll', 'Packet.dll'],
   },
   'linux:x64': {
     archive: 'easytier-linux-x86_64-v2.6.4.zip',
@@ -88,7 +90,7 @@ export function lanInstalled(): boolean {
 
 let installing: Promise<void> | null = null;
 
-/** 下载钉死版本的官方 EasyTier（来源见下载来源设置），校验压缩包摘要后只抽出核心、命令行和 Windows 虚拟网卡驱动。 */
+/** 下载钉死版本的官方 EasyTier（来源见下载来源设置），校验压缩包摘要后只抽出核心、命令行和 Windows 上运行必需的 DLL。 */
 export async function ensureLanInstalled(): Promise<void> {
   if (lanInstalled()) return;
   if (!installing) {
