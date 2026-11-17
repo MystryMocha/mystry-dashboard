@@ -10,11 +10,11 @@ export default {
   'instance.path.managed': '面板資料目錄/instances/{id}',
 
   // 迁移到托管目录
-  'instance.migration.title': '接管託管目錄',
+  'instance.migration.title': '遷移實例檔案',
   'instance.migration.instructions': '請使用系統的檔案總管，將舊實例的檔案複製到面板資料目錄下的實例資料夾：',
-  'instance.migration.note': '面板不會讀取或刪除舊目錄。複製完成後按一下「接管託管目錄」，成功後即可恢復實例操作。',
+  'instance.migration.note': '面板不會讀取或刪除舊目錄。複製完成後按「完成遷移」，之後即可正常操作實例。',
   'instance.migration.checking': '檢查中…',
-  'instance.migration.adopt': '接管託管目錄',
+  'instance.migration.adopt': '完成遷移',
 
   // 重启 / 强制停止确认
   'instance.restart.title': '要重新啟動實例「{name}」嗎？',
@@ -46,18 +46,18 @@ export default {
   'instance.startIssue.eula.action': '同意並啟動',
   'instance.startIssue.java.title': '這個伺服器需要 Java {java}',
   'instance.startIssue.java.titleUnknown': '這個伺服器需要換一個 Java 版本',
-  'instance.startIssue.javaTooNew.body': '啟動時使用的 Java 版本太新，伺服器剛啟動就結束了。請安裝 Java {java}，然後開啟「實例設定」，點「重新偵測」，選擇 Java {java}，儲存後再啟動。',
-  'instance.startIssue.javaTooOld.body': '啟動時使用的 Java 版本太舊，伺服器剛啟動就結束了。請安裝 Java {java}，然後開啟「實例設定」，點「重新偵測」，選擇 Java {java}，儲存後再啟動。',
-  'instance.startIssue.java.bodyUnknown': '啟動時使用的 Java 版本和這個伺服器不相符，伺服器剛啟動就結束了。請查看伺服器端或整合包要求的 Java 版本並安裝，然後開啟「實例設定」，點「重新偵測」，選擇它，儲存後再啟動。',
+  'instance.startIssue.javaTooNew.body': '啟動時使用的 Java 版本太新，伺服器剛啟動就結束了。請安裝 Java {java}，然後開啟「實例設定」，點「重新掃描」，選擇 Java {java}，儲存後再啟動。',
+  'instance.startIssue.javaTooOld.body': '啟動時使用的 Java 版本太舊，伺服器剛啟動就結束了。請安裝 Java {java}，然後開啟「實例設定」，點「重新掃描」，選擇 Java {java}，儲存後再啟動。',
+  'instance.startIssue.java.bodyUnknown': '啟動時使用的 Java 版本和這個伺服器不相符，伺服器剛啟動就結束了。請查看伺服器端或整合包要求的 Java 版本並安裝，然後開啟「實例設定」，點「重新掃描」，選擇它，儲存後再啟動。',
   'instance.startIssue.java.openSettings': '開啟實例設定',
 
   // 启动成功后的下一步提示（控制台上方）
   'instance.ready.title': '伺服器已啟動，現在可以進入伺服器了。',
-  'instance.ready.body': '想讓朋友加入？「聯機」頁會列出要傳給他們的位址。',
+  'instance.ready.body': '想讓朋友加入？「多人連線」頁會列出要傳給他們的位址。',
   'instance.ready.action': '邀請朋友',
   'instance.ready.dismiss': '不再提示',
 
   // 未保存修改弹窗（设置与参数配置共用）
-  'instance.unsaved.savingDescription': '儲存完成後會自動繼續離開；儲存期間無法捨棄或取消。',
+  'instance.unsaved.savingDescription': '儲存完成後會自動離開此頁；儲存期間不能捨棄或取消。',
   'instance.unsaved.confirm': '捨棄修改並離開',
 } satisfies Record<keyof typeof en, string>;

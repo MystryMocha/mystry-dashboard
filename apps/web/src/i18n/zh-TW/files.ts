@@ -3,9 +3,9 @@ import type en from '../en/files';
 /** 文件管理文案（繁體中文）。 */
 export default {
   'files.validation.nameEmpty': '名稱不能為空',
-  'files.validation.nameSeparator': '名稱不能包含路徑分隔符號',
+  'files.validation.nameSeparator': '名稱裡不能有 / 或 \\',
   'files.validation.folderNameEmpty': '資料夾名稱不能為空',
-  'files.validation.folderNameSeparator': '資料夾名稱不能包含路徑分隔符號',
+  'files.validation.folderNameSeparator': '資料夾名稱裡不能有 / 或 \\',
   'files.rename.sameName': '新名稱與目前名稱相同',
   'files.download.busy': '下載忙碌中，請稍後再試一次',
 
@@ -36,7 +36,7 @@ export default {
   'files.edit.closeLabel': '關閉編輯',
   'files.edit.contentLabel': '檔案內容：{path}',
 
-  'files.rename.hint': '只能在同一個資料夾內重新命名，不可包含路徑分隔符號。',
+  'files.rename.hint': '只能在同一個資料夾內重新命名，名稱裡不能有 / 或 \\。',
   'files.rename.newName': '新名稱',
   'files.rename.renaming': '重新命名中…',
 

@@ -57,11 +57,11 @@ export default {
   'server.files.download.readFailed': '文件读取失败',
   'server.files.download.openFailed': '文件打开失败',
   'server.files.download.linkExpired': '下载链接无效或已过期，请重新下载',
-  'server.files.download.ticketExpired': '下载票据已过期',
+  'server.files.download.ticketExpired': '下载链接已过期',
   'server.files.download.cancelled': '下载已取消',
-  'server.files.download.ticketStreaming': '下载已开始，无法取消票据',
-  'server.files.download.ticketNotFoundCancel': '下载票据不存在或无权取消',
-  'server.files.download.ticketNotFoundView': '下载票据不存在或无权查看',
+  'server.files.download.ticketStreaming': '下载已开始，无法取消',
+  'server.files.download.ticketNotFoundCancel': '这个下载不存在，或你没有权限取消',
+  'server.files.download.ticketNotFoundView': '这个下载不存在，或你没有权限查看',
 
   // ZIP 解析与解压
   'server.files.zip.corrupted': 'ZIP 文件已损坏',

@@ -309,9 +309,9 @@ test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build �
   // 26.3 需要 Java 25，这台电脑没有：不能开始部署，并说明原因。
   expect(await screen.findByText('这个版本需要 Java 25。在上面的「Java 运行时」里安装或选择 Java 25 后才能开始部署。')).toBeTruthy();
   expect(submit.disabled).toBe(true);
-  // 装好 Java 25 后重新探测：自动选中，按钮可用。
+  // 装好 Java 25 后重新扫描：自动选中，按钮可用。
   javaRuntimes = [java25];
-  await user.click(screen.getByRole('button', { name: '重新探测' }));
+  await user.click(screen.getByRole('button', { name: '重新扫描' }));
   await waitFor(() => expect(submit.disabled).toBe(false));
   expect(screen.queryByText(/这个版本需要 Java 25/)).toBeNull();
   await user.click(submit);

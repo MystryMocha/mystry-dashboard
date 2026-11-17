@@ -7,7 +7,7 @@ export const AUTH_MESSAGES = {
   'server.auth.usernameTooLong': 'The username can be at most {max} characters.',
   'server.auth.passwordTooShort': 'The password must be at least {min} characters.',
   'server.auth.passwordTooLong': 'The password can be at most {max} characters.',
-  'server.auth.passwordTooManyBytes': 'The password can be at most {max} bytes (the bcrypt limit).',
+  'server.auth.passwordTooManyBytes': 'The password can be at most {max} bytes.',
   'server.auth.alreadyInitialized': 'The administrator account is already set up.',
   'server.auth.currentPasswordIncorrect': 'The current password is incorrect.',
   'server.auth.noAdministrator': "There's no administrator account yet.",

@@ -1,9 +1,9 @@
 /** 文件管理文案（英文主表）。 */
 export default {
   'files.validation.nameEmpty': 'Enter a name.',
-  'files.validation.nameSeparator': "The name can't contain path separators.",
+  'files.validation.nameSeparator': 'The name can\'t contain / or \\.',
   'files.validation.folderNameEmpty': 'Enter a folder name.',
-  'files.validation.folderNameSeparator': "The folder name can't contain path separators.",
+  'files.validation.folderNameSeparator': 'The folder name can\'t contain / or \\.',
   'files.rename.sameName': 'The new name is the same as the current name.',
   'files.download.busy': 'Downloads are busy. Try again later.',
 
@@ -34,7 +34,7 @@ export default {
   'files.edit.closeLabel': 'Close Editor',
   'files.edit.contentLabel': 'File content: {path}',
 
-  'files.rename.hint': "You can only rename within the same folder. Path separators aren't allowed.",
+  'files.rename.hint': 'You can only rename within the same folder. The name can\'t contain / or \\.',
   'files.rename.newName': 'New Name',
   'files.rename.renaming': 'Renaming…',
 

@@ -9,7 +9,7 @@ export default {
   'server.auth.usernameTooLong': '用户名最多 {max} 个字符',
   'server.auth.passwordTooShort': '密码至少 {min} 位',
   'server.auth.passwordTooLong': '密码最多 {max} 位',
-  'server.auth.passwordTooManyBytes': '密码最多 {max} 字节（bcrypt 截断上限）',
+  'server.auth.passwordTooManyBytes': '密码最多 {max} 字节',
   'server.auth.alreadyInitialized': '管理员已初始化',
   'server.auth.currentPasswordIncorrect': '当前密码不正确',
   'server.auth.noAdministrator': '还没有管理员账号',

@@ -33,7 +33,7 @@ chmod +x mystryctl
 | Java | 默认使用 PATH 中的 `java`；部署页和实例设置可选择面板扫描并验证的本机运行时 |
 | 操作系统 | 源码管理器支持 Windows（`PanelManager.cmd`）与 Linux / WSL（`PanelManager.sh`）；便携产物由 Windows x64 与 Linux x64 分别构建和冒烟验证 |
 
-面板不接受手填 Java 完整路径。先在运行面板的同一用户环境中执行 `java -version` 检查默认 PATH；需要其他已安装 Java 时，在部署页或实例设置中使用「重新探测」后的选择器。
+面板不接受手填 Java 完整路径。先在运行面板的同一用户环境中执行 `java -version` 检查默认 PATH；需要其他已安装 Java 时，在部署页或实例设置中使用「重新扫描」后的选择器。
 
 ## Windows 一键管理（推荐）
 

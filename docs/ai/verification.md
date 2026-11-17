@@ -100,7 +100,7 @@ npm.cmd run test:smoke
 5. 文件列表、文本读写、上传、流式下载和 `server.properties` 保存。
 6. `npm start` 后浏览器打开后端托管的整合页面。
 7. 每个平台从最终 Release 压缩包重新解压，使用包内 Node 完成 start、health、status、stop。
-8. 重新探测 Java 运行时后，验证选择器、版本告警、失效条目提示和绑定实例的启动失败反馈。
+8. 重新扫描 Java 运行时后，验证选择器、版本告警、失效条目提示和绑定实例的启动失败反馈。
 
 ## 结果解释
 

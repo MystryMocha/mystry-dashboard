@@ -258,7 +258,7 @@ The top shows the instance name, core, version and status, along with **Start / 
 - **Type a command + Enter** sends it to the server (the same as the in-game console). "Common Commands" below sends `list`, `save-all` and others with one click. Each command you send shows up in the log in bold white, such as `> list`, followed by the server's reply.
 - After the connection drops or you refresh the page, it reconnects automatically and shows the recent output history first.
 - The length of a single command and the number of commands you can send per minute are limited. The page tells you when you go over; see [Configuration](configuration.md).
-- If it shows "Your session has expired" or "The console connection ticket is invalid", try **signing out and signing in again**.
+- If it shows "Your session has expired" or "The console connection credentials are invalid", try **signing out and signing in again**.
 
 ### Files
 
@@ -353,7 +353,7 @@ A legacy external instance is one whose database record still points to an old f
 
 1. Stop the instance, and stop the panel service.
 2. Using your operating system's copy tools, copy the whole old external folder to `instances/<id>` under the data directory.
-3. Start the panel, open the instance (shown as "▲ Needs Migration" on the Instances page), and click **Adopt Managed Directory**.
+3. Start the panel, open the instance (shown as "▲ Needs Migration" on the Instances page), and click **Complete Migration**.
 4. Only after adoption succeeds is the instance handled as a panel-managed folder. The old folder stays yours to keep or manage.
 
 Adoption fails if the target folder is empty, incomplete, doesn't match the ID, or the instance is still running. Don't try to reach the old folder through the Files page in the panel.

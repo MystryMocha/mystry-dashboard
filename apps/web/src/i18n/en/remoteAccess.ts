@@ -115,7 +115,7 @@ export default {
   'remoteAccess.net.join.secret': 'Network Secret',
   'remoteAccess.net.join.peers': 'Nodes',
   'remoteAccess.net.join.qrLabel': 'QR code with the join details',
-  'remoteAccess.net.join.qrHelp': 'Scan this with the phone\'s camera or a QR scanner to get the details as text, so you can copy them instead of typing.',
+  'remoteAccess.net.join.qrHelp': 'Scan with the phone\'s camera to get these details as text you can copy.',
   'remoteAccess.net.join.copyCommand': 'Copy Command',
   'remoteAccess.net.open.wait': 'After the device joins, open this address on it.',
   'remoteAccess.net.devices.empty': 'No devices have joined yet.',

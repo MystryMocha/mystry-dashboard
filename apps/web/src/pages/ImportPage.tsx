@@ -414,11 +414,12 @@ export function ImportPage() {
                       <div className="drop-zone-title">
                         {file ? file.name : t('import.zip.drop.title')}
                       </div>
-                      <span className="drop-zone-hint">
-                        {file
-                          ? t('import.zip.drop.size', { size: fmt.fixed(file.size / 1024 / 1024, 1) })
-                          : t('import.zip.drop.hint')}
-                      </span>
+                      {/* 未选文件时不放提示：「限制由面板配置决定」说不出具体限制，只是占位的话。 */}
+                      {file && (
+                        <span className="drop-zone-hint">
+                          {t('import.zip.drop.size', { size: fmt.fixed(file.size / 1024 / 1024, 1) })}
+                        </span>
+                      )}
                       <button className="btn" type="button" disabled={busy || restoringPreview}
                         onClick={() => document.getElementById('existing-server-zip')?.click()}>
                         {t('import.zip.choose')}
