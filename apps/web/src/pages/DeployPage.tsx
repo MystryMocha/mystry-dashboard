@@ -210,33 +210,36 @@ export function DeployPage() {
               {t('deploy.basic.title')}
             </h2>
             <div className="card form-card">
-              <div className="field">
-                <label htmlFor={nameFieldId}>{t('deploy.form.name.label')}</label>
-                <input
-                  id={nameFieldId}
-                  value={name}
-                  disabled={busy}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
+              {/* 名称和游戏版本都短，宽时并排一行。 */}
+              <div className="grid grid-2">
+                <div className="field">
+                  <label htmlFor={nameFieldId}>{t('deploy.form.name.label')}</label>
+                  <input
+                    id={nameFieldId}
+                    value={name}
+                    disabled={busy}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
 
-              <div className="field">
-                <label id={`${nameFieldId}-mc-version-label`}>{t('deploy.form.mcVersion.label')}</label>
-                <LazyScrollSelect
-                  labelId={`${nameFieldId}-mc-version-label`}
-                  value={selectedMcVersion}
-                  options={versions.data ?? []}
-                  onChange={handleMcVersionChange}
-                  onOpen={() => void loadVersions()}
-                  loading={versions.loading}
-                  disabled={busy || !coreType}
-                  placeholder={
-                    !coreType ? t('deploy.form.mcVersion.placeholder.noCore')
-                      : versions.loading ? t('deploy.form.mcVersion.placeholder.loading')
-                        : t('deploy.form.mcVersion.placeholder.select')
-                  }
-                  emptyText={t('deploy.form.mcVersion.empty')}
-                />
+                <div className="field">
+                  <label id={`${nameFieldId}-mc-version-label`}>{t('deploy.form.mcVersion.label')}</label>
+                  <LazyScrollSelect
+                    labelId={`${nameFieldId}-mc-version-label`}
+                    value={selectedMcVersion}
+                    options={versions.data ?? []}
+                    onChange={handleMcVersionChange}
+                    onOpen={() => void loadVersions()}
+                    loading={versions.loading}
+                    disabled={busy || !coreType}
+                    placeholder={
+                      !coreType ? t('deploy.form.mcVersion.placeholder.noCore')
+                        : versions.loading ? t('deploy.form.mcVersion.placeholder.loading')
+                          : t('deploy.form.mcVersion.placeholder.select')
+                    }
+                    emptyText={t('deploy.form.mcVersion.empty')}
+                  />
+                </div>
               </div>
               {coreType === 'paper' && (
                 <div className="field">

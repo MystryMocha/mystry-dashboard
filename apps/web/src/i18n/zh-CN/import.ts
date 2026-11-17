@@ -19,7 +19,7 @@ export default {
   'import.directory.source.placeholder': '请选择文件夹',
   'import.directory.source.pendingCheck': '导入时再检查',
   'import.directory.source.ready': '{id} · {target}',
-  'import.directory.source.unavailable': '{id} · 不可用：{error}',
+  'import.directory.source.unavailable': '{id}（不可用：{error}）',
   'import.directory.refresh': '刷新目录',
   'import.directory.refreshing': '读取中…',
   'import.directory.empty': 'imports 文件夹里还没有服务端，复制完成后点「刷新目录」。',
@@ -36,7 +36,6 @@ export default {
   'import.zip.file.label': '服务端压缩包（.zip）',
   'import.zip.drop.title': '选择或拖拽 ZIP 压缩包至此处',
   'import.zip.drop.size': '文件大小：{size} MiB',
-  'import.zip.drop.hint': '上传大小与解压限制由面板配置决定',
   'import.zip.choose': '选择 ZIP',
   'import.zip.replaceHelp': '选择新文件并提交后，面板会先检查新文件，通过后才替换当前 ZIP。',
 

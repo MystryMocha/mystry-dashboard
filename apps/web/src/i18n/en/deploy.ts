@@ -3,7 +3,7 @@ export default {
   'deploy.page.subtitle': 'Download a server core from the official source. Installation and launch settings are configured for you.',
 
   'deploy.core.title': 'Choose a Server Core',
-  'deploy.core.paper.desc': 'Plugins · Best for beginners',
+  'deploy.core.paper.desc': 'Plugins, best for beginners',
   'deploy.core.fabric.desc': 'Lightweight, modern mods',
   'deploy.core.forge.desc': 'Classic, heavyweight mods',
   'deploy.core.neoforge.desc': 'Next-generation mod server',
@@ -36,7 +36,7 @@ export default {
   'deploy.confirm.eulaHelp': 'A Minecraft server can only run after you accept the EULA. Check the box to start deploying.',
   'deploy.confirm.javaRequired': 'This version needs Java {java}. Install or choose Java {java} under "Java Runtime" above to start deploying.',
   'deploy.progress.label': 'Deploy progress',
-  'deploy.progress.submitted': 'The deploy task is submitted. You can leave this page; progress keeps updating in the Task Center at the top right.',
+  'deploy.progress.submitted': 'Deploy started. You can leave this page and follow progress in the Task Center at the top right.',
   'deploy.error.title': 'Deploy Failed',
   'deploy.error.detailTitle': 'Deploy Error Details',
   'deploy.error.jvmInvalid': 'Fix the JVM argument errors first.',
@@ -47,11 +47,11 @@ export default {
 
   'deploy.guide.ariaLabel': 'Beginner guide',
   'deploy.guide.core.title': 'Which Core Should I Choose?',
-  'deploy.guide.core.paper': '<strong>Paper</strong>: choose it if you want plugins (land claims, economy, and more). It also performs better.',
+  'deploy.guide.core.paper': '<strong>Paper</strong>: choose it if you want plugins (land claims, economy, and more).',
   'deploy.guide.core.modded': '<strong>Fabric / NeoForge / Forge</strong>: for mods, choose the loader the mod page asks for.',
   'deploy.guide.core.vanilla': '<strong>Vanilla</strong>: pure vanilla, with no plugins or mods.',
   'deploy.guide.after.title': 'After Deploying',
   'deploy.guide.after.start': 'On the instance page, click "Start" and wait for <code>Done</code> in the console.',
   'deploy.guide.after.local': 'In the game on the same computer, add the server address <code>127.0.0.1</code>.',
-  'deploy.guide.after.friends': 'For friends to join, open Multiplayer. It shows the address to send them, and other ways to connect when they are not on your network.',
+  'deploy.guide.after.friends': 'For players to join, open Multiplayer. It shows the join address.',
 } satisfies Record<string, string>;

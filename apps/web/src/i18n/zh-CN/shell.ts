@@ -29,16 +29,10 @@ export default {
   'shell.error.reload': '刷新页面',
 
   'appearance.title': '外观',
-  'appearance.accent': '强调色',
   'appearance.auto': '自动',
   'appearance.light': '浅色',
   'appearance.dark': '深色',
-  'appearance.button': '外观设置，当前为{appearance}外观，{accent}强调色',
-  'accent.blue': '蓝色',
-  'accent.purple': '紫色',
-  'accent.pink': 'Mystry 粉',
-  'accent.green': '绿色',
-  'accent.graphite': '石墨',
+  'appearance.button': '外观设置，当前为{appearance}外观',
 
   'language.title': '语言',
   'language.auto': '自动',

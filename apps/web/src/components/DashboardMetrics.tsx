@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Cpu, HardDrive, MemoryStick, type LucideIcon } from 'lucide-react';
 import {
   isPanelMessage,
   type DashboardMetrics as Metrics,
@@ -73,103 +72,77 @@ export function useDashboardMetrics() {
   return { metrics, error, busy, refresh };
 }
 
-export type WidgetTone = 'green' | 'blue' | 'purple' | 'orange';
-
-const RING_RADIUS = 17;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
-/** 圆环进度：取值 0–100，null 时只显示底环。 */
-export function RingGauge({ ratio }: { ratio: number | null | undefined }) {
+/** 细长占用条：取值 0–100，超出按满格画；null 时只显示底槽。纯装饰，数值由旁边的文字给出。 */
+export function Meter({
+  ratio,
+  tone = 'neutral',
+}: {
+  ratio: number | null | undefined;
+  tone?: 'neutral' | 'accent' | 'warning';
+}) {
   const value = ratio == null || !Number.isFinite(ratio) ? 0 : Math.max(0, Math.min(100, ratio));
   return (
-    <svg className="ring" viewBox="0 0 44 44" aria-hidden="true">
-      <circle className="ring-track" cx="22" cy="22" r={RING_RADIUS} />
-      {/* 取值为 0 时不画进度弧，避免圆头端点留下一个小点。 */}
-      {value > 0 && (
-        <circle
-          className="ring-fill"
-          cx="22"
-          cy="22"
-          r={RING_RADIUS}
-          strokeDasharray={RING_CIRCUMFERENCE}
-          strokeDashoffset={RING_CIRCUMFERENCE * (1 - value / 100)}
-        />
-      )}
-    </svg>
+    <span className={`meter is-${tone}`} aria-hidden="true">
+      {value > 0 && <span className="meter-fill" style={{ inlineSize: `${value}%` }} />}
+    </span>
   );
 }
 
-/** 总览指标小组件：标题行 + 大号数值 + 说明，右侧圆环表示占用比例。 */
-export function MetricWidget({
-  label,
-  icon: Icon,
-  tone,
+function HostMeter({
+  name,
+  hint,
   value,
-  unit,
-  detail,
   ratio,
-  warning = false,
+  warning,
 }: {
-  label: string;
-  icon: LucideIcon;
-  tone: WidgetTone;
-  value: React.ReactNode;
-  unit?: string;
-  detail: React.ReactNode;
+  name: string;
+  hint: string;
+  value: string;
   ratio: number | null | undefined;
-  warning?: boolean;
+  warning: boolean;
 }) {
   return (
-    <div className={`widget tone-${warning ? 'red' : tone}${warning ? ' is-warning' : ''}`}>
-      <div className="widget-head">
-        <span className="widget-icon" aria-hidden="true"><Icon size={14} strokeWidth={2.4} /></span>
-        <span className="widget-label">{label}</span>
+    <div className={`host-meter${warning ? ' is-warning' : ''}`} title={hint}>
+      <div className="host-meter-head">
+        <span className="host-meter-name">{name}</span>
+        <span className="host-meter-value">{value}</span>
       </div>
-      <div className="widget-body">
-        <div className="widget-text">
-          <div className="widget-value">
-            {value}
-            {unit ? <span className="widget-unit">{unit}</span> : null}
-          </div>
-          <div className="widget-detail">{detail}</div>
-        </div>
-        <RingGauge ratio={ratio} />
-      </div>
+      <Meter ratio={ratio} tone={warning ? 'warning' : 'neutral'} />
     </div>
   );
 }
 
-export function HostMetricCards({ metrics, error }: { metrics: Metrics | null; error: string }) {
+/** 本机资源：CPU、内存、数据盘三条细占用条，告警时对应一条变红。 */
+export function HostMeters({ metrics, error }: { metrics: Metrics | null; error: string }) {
   const { t, fmt } = useI18n();
-  const unavailable = t('dashboard.metrics.unavailable');
-  const collecting = t('dashboard.metrics.collecting');
-  return <>
-    <MetricWidget
-      label={t('dashboard.metric.hostCpu.label')}
-      icon={Cpu}
-      tone="blue"
-      value={metrics?.cpuPercent == null ? (error ? unavailable : collecting) : fmt.percent(metrics.cpuPercent)}
-      detail={t('dashboard.metric.hostCpu.detail')}
-      ratio={metrics?.cpuPercent}
-      warning={hasWarning(metrics, 'server.system.metricsCpuHigh')}
-    />
-    <MetricWidget
-      label={t('dashboard.metric.hostMemory.label')}
-      icon={MemoryStick}
-      tone="purple"
-      value={metrics ? `${fmt.gib(metrics.memory.usedBytes)} / ${fmt.gib(metrics.memory.totalBytes)}` : (error ? unavailable : collecting)}
-      detail={t('dashboard.metric.hostMemory.detail')}
-      ratio={metrics ? metrics.memory.usedBytes / metrics.memory.totalBytes * 100 : null}
-      warning={hasWarning(metrics, 'server.system.metricsMemoryHigh')}
-    />
-    <MetricWidget
-      label={t('dashboard.metric.disk.label')}
-      icon={HardDrive}
-      tone="orange"
-      value={metrics?.disk ? `${fmt.gib(metrics.disk.availableBytes)} GiB` : (metrics || error ? unavailable : collecting)}
-      detail={t('dashboard.metric.disk.detail')}
-      ratio={metrics?.disk ? (1 - metrics.disk.availableBytes / metrics.disk.totalBytes) * 100 : null}
-      warning={hasWarning(metrics, 'server.system.metricsDiskLow')}
-    />
-  </>;
+  const placeholder = error ? t('dashboard.metrics.unavailable') : t('dashboard.metrics.collecting');
+  return (
+    <div className="host-meters">
+      <HostMeter
+        name={t('dashboard.host.cpu')}
+        hint={t('dashboard.host.cpu.hint')}
+        value={metrics?.cpuPercent == null ? placeholder : fmt.percent(metrics.cpuPercent)}
+        ratio={metrics?.cpuPercent}
+        warning={hasWarning(metrics, 'server.system.metricsCpuHigh')}
+      />
+      <HostMeter
+        name={t('dashboard.host.memory')}
+        hint={t('dashboard.host.memory.hint')}
+        value={metrics ? `${fmt.gib(metrics.memory.usedBytes)} / ${fmt.gib(metrics.memory.totalBytes)} GiB` : placeholder}
+        ratio={metrics ? metrics.memory.usedBytes / metrics.memory.totalBytes * 100 : null}
+        warning={hasWarning(metrics, 'server.system.metricsMemoryHigh')}
+      />
+      <HostMeter
+        name={t('dashboard.host.disk')}
+        hint={t('dashboard.host.disk.hint')}
+        value={
+          metrics?.disk
+            ? t('dashboard.host.diskFree', { value: `${fmt.gib(metrics.disk.availableBytes)} GiB` })
+            : metrics ? t('dashboard.metrics.unavailable') : placeholder
+        }
+        ratio={metrics?.disk ? (1 - metrics.disk.availableBytes / metrics.disk.totalBytes) * 100 : null}
+        warning={hasWarning(metrics, 'server.system.metricsDiskLow')}
+      />
+    </div>
+  );
 }

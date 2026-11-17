@@ -57,11 +57,11 @@ export default {
   'server.files.download.readFailed': '檔案讀取失敗',
   'server.files.download.openFailed': '檔案開啟失敗',
   'server.files.download.linkExpired': '下載連結無效或已過期，請重新下載',
-  'server.files.download.ticketExpired': '下載憑證已過期',
+  'server.files.download.ticketExpired': '下載連結已過期',
   'server.files.download.cancelled': '下載已取消',
-  'server.files.download.ticketStreaming': '下載已開始，無法取消憑證',
-  'server.files.download.ticketNotFoundCancel': '下載憑證不存在或無權取消',
-  'server.files.download.ticketNotFoundView': '下載憑證不存在或無權查看',
+  'server.files.download.ticketStreaming': '下載已開始，無法取消',
+  'server.files.download.ticketNotFoundCancel': '這個下載不存在，或你沒有權限取消',
+  'server.files.download.ticketNotFoundView': '這個下載不存在，或你沒有權限查看',
 
   // ZIP 解析与解压
   'server.files.zip.corrupted': 'ZIP 檔案已損毀',

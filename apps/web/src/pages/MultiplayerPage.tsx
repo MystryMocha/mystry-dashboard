@@ -1,10 +1,11 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { FolderDown, Globe, Network, Plus, Wifi } from 'lucide-react';
+import { BookOpen, FolderDown, Globe, Network, Plus, Wifi } from 'lucide-react';
 import type { InstanceInfo } from '@mystry/shared';
 import { api } from '../api';
 import { DirectSection } from '../components/DirectSection';
 import { LanSection } from '../components/LanSection';
+import { useGuideOpen } from '../components/MultiplayerLayout';
 import { MultiplayerTab } from '../components/MultiplayerTab';
 import { PageHeader } from '../components/PageHeader';
 import { errorMessage } from '../errors';
@@ -18,12 +19,30 @@ type MultiplayerMethod = (typeof METHODS)[number];
 function multiplayerMethod(value: string | null): MultiplayerMethod {
   return METHODS.find((method) => method === value) ?? 'direct';
 }
-/** 联机是面板级入口。先选定实例，再用分段切换同一网络、虚拟局域网或 frp，一次只显示一种。 */
+/**
+ * 联机是面板级入口。实例选择和方式切换在同一行，下面一次只显示一种方式；
+ * 每种方式自己决定右侧指引栏的内容，开关状态在这里统一保存。
+ */
 export function MultiplayerPage() {
   const { t } = useI18n();
   const [params, setParams] = useSearchParams();
   const [instances, setInstances] = useState<InstanceInfo[] | null>(null);
   const [error, setError] = useState('');
+  const [guideOpen, setGuideOpen] = useGuideOpen();
+  const guideToggleRef = useRef<HTMLButtonElement>(null);
+  const guideCloseRef = useRef<HTMLButtonElement>(null);
+  // 关闭或打开指引后，被点的按钮会消失；把焦点交给接替它的按钮，键盘用户不会掉回页面开头。
+  const guideFocus = useRef(false);
+  useEffect(() => {
+    if (!guideFocus.current) return;
+    guideFocus.current = false;
+    (guideOpen ? guideCloseRef : guideToggleRef).current?.focus();
+  }, [guideOpen]);
+  function changeGuide(next: boolean) {
+    guideFocus.current = true;
+    setGuideOpen(next);
+  }
+  const guide = { open: guideOpen, onClose: () => changeGuide(false), closeRef: guideCloseRef };
 
   const load = useCallback(async () => {
     try {
@@ -54,7 +73,7 @@ export function MultiplayerPage() {
 
   return (
     <div className="page">
-      <PageHeader title={t('nav.multiplayer')} subtitle={t('multiplayer.page.lead')} />
+      <PageHeader title={t('nav.multiplayer')} />
       {error && instances === null ? (
         <div className="empty-state card" role="alert">
           <p>{t('error.instances.load')}</p>
@@ -79,59 +98,63 @@ export function MultiplayerPage() {
         </div>
       ) : (
         <>
-          <div className="field">
-            <label htmlFor="multiplayer-instance">{t('multiplayer.page.instance')}</label>
-            <select
-              id="multiplayer-instance"
-              value={selected?.id ?? ''}
-              onChange={(event) => choose(event.target.value)}
-            >
-              {instances.map((instance) => (
-                <option key={instance.id} value={instance.id}>{instance.name}</option>
-              ))}
-            </select>
-          </div>
-          <div className="segmented multiplayer-mode-switch" role="group" aria-label={t('multiplayer.method.ariaLabel')}>
-            <button
-              type="button"
-              className={`segmented-item${method === 'direct' ? ' active' : ''}`}
-              aria-pressed={method === 'direct'}
-              onClick={() => chooseMethod('direct')}
-            >
-              <Wifi size={15} aria-hidden="true" />
-              {t('multiplayer.method.direct')}
-            </button>
-            <button
-              type="button"
-              className={`segmented-item${method === 'lan' ? ' active' : ''}`}
-              aria-pressed={method === 'lan'}
-              onClick={() => chooseMethod('lan')}
-            >
-              <Network size={15} aria-hidden="true" />
-              {t('multiplayer.method.lan')}
-            </button>
-            <button
-              type="button"
-              className={`segmented-item${method === 'frp' ? ' active' : ''}`}
-              aria-pressed={method === 'frp'}
-              onClick={() => chooseMethod('frp')}
-            >
-              <Globe size={15} aria-hidden="true" />
-              {t('multiplayer.method.frp')}
-            </button>
+          <div className="multiplayer-toolbar">
+            <div className="field multiplayer-instance">
+              <label htmlFor="multiplayer-instance">{t('multiplayer.page.instance')}</label>
+              <select
+                id="multiplayer-instance"
+                value={selected?.id ?? ''}
+                onChange={(event) => choose(event.target.value)}
+              >
+                {instances.map((instance) => (
+                  <option key={instance.id} value={instance.id}>{instance.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="segmented multiplayer-mode-switch" role="group" aria-label={t('multiplayer.method.ariaLabel')}>
+              <button
+                type="button"
+                className={`segmented-item${method === 'direct' ? ' active' : ''}`}
+                aria-pressed={method === 'direct'}
+                onClick={() => chooseMethod('direct')}
+              >
+                <Wifi size={15} aria-hidden="true" />
+                {t('multiplayer.method.direct')}
+              </button>
+              <button
+                type="button"
+                className={`segmented-item${method === 'lan' ? ' active' : ''}`}
+                aria-pressed={method === 'lan'}
+                onClick={() => chooseMethod('lan')}
+              >
+                <Network size={15} aria-hidden="true" />
+                {t('multiplayer.method.lan')}
+              </button>
+              <button
+                type="button"
+                className={`segmented-item${method === 'frp' ? ' active' : ''}`}
+                aria-pressed={method === 'frp'}
+                onClick={() => chooseMethod('frp')}
+              >
+                <Globe size={15} aria-hidden="true" />
+                {t('multiplayer.method.frp')}
+              </button>
+            </div>
+            {!guideOpen && (
+              <button ref={guideToggleRef} className="btn btn-sm multiplayer-guide-toggle" type="button" onClick={() => changeGuide(true)}>
+                <BookOpen size={15} aria-hidden="true" />
+                {t('multiplayer.guide.open')}
+              </button>
+            )}
           </div>
           {selected && method === 'direct' && (
-            <div className="form-stack settings-workspace">
-              <DirectSection key={selected.id} instance={selected} onChooseVirtualLan={() => chooseMethod('lan')} />
-            </div>
+            <DirectSection key={selected.id} instance={selected} guide={guide} onChooseVirtualLan={() => chooseMethod('lan')} />
           )}
           {selected && method === 'lan' && (
-            <div className="form-stack settings-workspace">
-              <LanSection key={selected.id} instanceId={selected.id} />
-            </div>
+            <LanSection key={selected.id} instanceId={selected.id} guide={guide} />
           )}
           {selected && method === 'frp' && (
-            <MultiplayerTab key={selected.id} instanceId={selected.id} />
+            <MultiplayerTab key={selected.id} instanceId={selected.id} guide={guide} />
           )}
         </>
       )}

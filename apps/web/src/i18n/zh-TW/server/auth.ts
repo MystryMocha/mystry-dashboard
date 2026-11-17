@@ -9,7 +9,7 @@ export default {
   'server.auth.usernameTooLong': '使用者名稱最多 {max} 個字元',
   'server.auth.passwordTooShort': '密碼至少需要 {min} 個字元',
   'server.auth.passwordTooLong': '密碼最多 {max} 個字元',
-  'server.auth.passwordTooManyBytes': '密碼最多 {max} 位元組（bcrypt 截斷上限）',
+  'server.auth.passwordTooManyBytes': '密碼最多 {max} 位元組',
   'server.auth.alreadyInitialized': '管理員帳號已完成初始化',
   'server.auth.currentPasswordIncorrect': '目前的密碼不正確',
   'server.auth.noAdministrator': '還沒有管理員帳號',

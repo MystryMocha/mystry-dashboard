@@ -19,7 +19,7 @@ export default {
   'import.directory.source.placeholder': '請選擇資料夾',
   'import.directory.source.pendingCheck': '匯入時再檢查',
   'import.directory.source.ready': '{id} · {target}',
-  'import.directory.source.unavailable': '{id} · 無法使用：{error}',
+  'import.directory.source.unavailable': '{id}（無法使用：{error}）',
   'import.directory.refresh': '重新整理資料夾',
   'import.directory.refreshing': '讀取中…',
   'import.directory.empty': 'imports 資料夾中還沒有伺服器，複製完成後點「重新整理資料夾」。',
@@ -36,7 +36,6 @@ export default {
   'import.zip.file.label': '伺服器壓縮檔（.zip）',
   'import.zip.drop.title': '選擇 ZIP 壓縮檔或拖曳到這裡',
   'import.zip.drop.size': '檔案大小：{size} MiB',
-  'import.zip.drop.hint': '上傳大小與解壓縮限制由面板設定決定',
   'import.zip.choose': '選擇 ZIP',
   'import.zip.replaceHelp': '選擇新檔案並送出後，面板會先檢查新檔案，通過後才會取代目前的 ZIP。',
 

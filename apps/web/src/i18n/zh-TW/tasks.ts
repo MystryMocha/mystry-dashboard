@@ -22,7 +22,7 @@ export default {
   'tasks.center.empty.body': '開始部署或匯入後，進度會顯示在這裡。',
   'tasks.card.runningProgress': '{percent} 進行中',
   'tasks.card.progressLabel': '{type}進度',
-  'tasks.card.viewInstance': '檢視實例 →',
+  'tasks.card.viewInstance': '檢視實例',
 
   'menu.more': '更多操作',
 
@@ -42,8 +42,8 @@ export default {
   'request.failed': '請求失敗（{status}）',
   'request.aborted': '操作已取消',
   'request.download.popupBlocked': '瀏覽器封鎖了下載視窗，請允許彈出式視窗後再試一次',
-  'request.download.ticketExpiredRetry': '下載憑證已過期，請再試一次',
-  'request.download.ticketExpired': '下載憑證已過期',
+  'request.download.ticketExpiredRetry': '下載連結已過期，請再試一次',
+  'request.download.ticketExpired': '下載連結已過期',
   'request.download.failed': '檔案下載失敗',
   'request.stopPending': '伺服器仍在儲存，請稍候或選擇強制停止',
   'request.taskFailed': '任務失敗',

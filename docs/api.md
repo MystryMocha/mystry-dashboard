@@ -400,6 +400,8 @@ Authorization: Bearer <token>
 { "type": "command", "data": "say hello" }
 ```
 
+命令写入实例 stdin 成功后，服务端把 `> 命令` 作为一行追加到该实例的控制台缓冲并作为 `output` 帧推送（上一块输出没换行时先补换行），因此所有连接和之后的 `history` 帧都能看到已发出的命令。`POST /api/instances/:id/command` 和备份时面板自动发送的 `save-off` / `save-all flush` / `save-on` 同样回显。
+
 ## PanelManager 本机接口
 
 `POST /api/launcher/shutdown` 只供仓库根目录的 PanelManager 调用，不使用登录 JWT。请求必须来自回环地址并携带：
@@ -436,9 +438,9 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 | DELETE | `/api/frp/endpoints/:id` | 删除。仍有实例启用着使用它的联机时 **409**；已关闭的隧道设置会随端点一起清除 |
 | GET | `/api/instances/:id/tunnel` | 该实例的联机状态 `InstanceTunnel` |
 | PUT | `/api/instances/:id/tunnel` | 保存并按当前实例状态启动或停止 `frpc` |
-| GET | `/api/instances/:id/tunnel/friend-config` | 内网模式的朋友配置 `friend-frpc.toml`。文件含令牌，只应交给要一起玩的人 |
+| GET | `/api/instances/:id/tunnel/friend-config` | 内网模式的玩家配置 `friend-frpc.toml`。文件含令牌，只应交给要加入的玩家 |
 
-`mode` 为 `public` 时朋友直接连接公网端口，必须提供 `remotePort`。`stcp` 经穿透服务器中转，`xtcp` 在双方客户端之间打洞；这两种模式由朋友在自己的电脑上运行官方 `frpc` 和下载的配置，再连接本机 `127.0.0.1`。`server-ip` 若指向某一块网卡，隧道不会启动。实例停止、崩溃或面板关闭时，对应的 `frpc` 会退出。面板重启后不会恢复已经消失的游戏进程，需要重新启动实例。
+`mode` 为 `public` 时玩家直接连接公网端口，必须提供 `remotePort`。`stcp` 经 frp 服务器中转，`xtcp` 在双方客户端之间打洞；这两种模式由玩家在自己的电脑上运行官方 `frpc` 和下载的配置，再连接本机 `127.0.0.1`。`server-ip` 若指向某一块网卡，隧道不会启动。实例停止、崩溃或面板关闭时，对应的 `frpc` 会退出。面板重启后不会恢复已经消失的游戏进程，需要重新启动实例。
 
 ## 虚拟局域网 `/api/lan`
 

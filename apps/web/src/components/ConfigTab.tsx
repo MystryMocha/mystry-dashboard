@@ -222,12 +222,15 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
         </div>
       )}
 
-      {GROUPS.map((group) => (
-        <section className="form-section" key={group.titleKey}>
-          <h3 className="form-section-title">{t(group.titleKey)}</h3>
-          <div className="list-group">{group.fields.map(renderField)}</div>
-        </section>
-      ))}
+      {/* 宽屏时各分组排成两列，窄屏仍是一列。 */}
+      <div className="config-groups">
+        {GROUPS.map((group) => (
+          <section className="form-section" key={group.titleKey}>
+            <h3 className="form-section-title">{t(group.titleKey)}</h3>
+            <div className="list-group">{group.fields.map(renderField)}</div>
+          </section>
+        ))}
+      </div>
 
       {advancedKeys.length > 0 && (
         <details className="disclosure config-advanced">

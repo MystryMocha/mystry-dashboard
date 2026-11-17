@@ -20,7 +20,7 @@ export default {
   'tasks.center.empty.body': 'Progress appears here after you start a deploy or import.',
   'tasks.card.runningProgress': '{percent} in progress',
   'tasks.card.progressLabel': '{type} progress',
-  'tasks.card.viewInstance': 'View Instance →',
+  'tasks.card.viewInstance': 'View Instance',
 
   'menu.more': 'More Actions',
 

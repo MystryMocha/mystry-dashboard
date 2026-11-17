@@ -13,8 +13,8 @@ export default {
   'server.tasks.timeout': '任務執行逾時',
   'server.tasks.aborted': '任務已取消',
   'server.tasks.notFound': '任務不存在',
-  'server.tasks.restartLost': '面板已重新啟動，記憶體中的任務無法恢復，請重新提交',
-  'server.tasks.restartLostKeptInstance': '面板已重新啟動，記憶體中的任務無法恢復；已保留實例資料夾，請重新提交或手動檢查任務狀態',
+  'server.tasks.restartLost': '面板重新啟動過，未完成的任務無法繼續，請重新操作',
+  'server.tasks.restartLostKeptInstance': '面板重新啟動過，未完成的任務無法繼續。實例資料夾已保留，請重新操作或自行檢查實例',
   'server.tasks.restartCleanupFailed': '面板已重新啟動，未完成的任務無法恢復；暫存資料夾清理失敗：{reason}',
   'server.tasks.stagingMarkerMismatch': '暫存資料夾中的任務標記與任務紀錄不符，已略過自動清理',
 } satisfies Record<keyof typeof TASKS_MESSAGES, string>;
