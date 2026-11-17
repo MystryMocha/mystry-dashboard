@@ -1,10 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  installJavaBodySchema,
   updateAccessModeBodySchema,
   updateDownloadSourceBodySchema,
   updatePanelNetworkBodySchema,
   updatePublicHostBodySchema,
   type DownloadSourceSetting,
+  type InstallJavaRequest,
+  type JavaRuntimeListResult,
   type PublicHostSetting,
   type UpdateDirectAccessRequest,
   type UpdatePanelNetworkRequest,
@@ -12,6 +15,7 @@ import {
 } from '@mystry/shared';
 import { getDownloadSource, setDownloadSource } from '../services/download-sources.js';
 import { detectJava } from '../services/java-detect.js';
+import { installableJavaMajors, startJavaInstall } from '../services/java-install-service.js';
 import { scanJavaRuntimes } from '../services/java-runtime-service.js';
 import { MetricsService } from '../services/metrics-service.js';
 import { processManager } from '../services/process-manager.js';
@@ -154,9 +158,27 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       try {
         const runtimes = await scanJavaRuntimes(req.query.refresh === '1');
-        return { runtimes };
+        return { runtimes, installable: installableJavaMajors() } satisfies JavaRuntimeListResult;
       } catch (err) {
         return sendRouteError(reply, err, 500);
+      }
+    },
+  );
+
+  // 一键安装 Java：只接受面板钉死了安装包的主版本，返回后台任务；
+  // 同一主版本已在安装时返回那个任务。
+  app.post<{ Body: InstallJavaRequest }>(
+    '/api/system/java-runtimes/install',
+    { attachValidation: true, schema: { body: installJavaBodySchema } },
+    async (req, reply) => {
+      if (req.validationError) {
+        const major = (req.body as { major?: unknown } | undefined)?.major;
+        return reply.code(400).send(panelErrorBody('server.jvm.javaInstall.unsupportedMajor', { major: String(major ?? '') }));
+      }
+      try {
+        return await startJavaInstall(req.body.major);
+      } catch (err) {
+        return sendRouteError(reply, err);
       }
     },
   );

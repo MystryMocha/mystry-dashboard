@@ -51,6 +51,11 @@ export default {
   'java.error.load': 'Couldn\'t read the Java list for this machine: {error}',
   'java.download.version': 'Download Java {java}',
   'java.download.any': 'Download Java',
+  'java.install.hint': 'Java {java} isn\'t installed. The panel can download it from Eclipse Temurin (about 40–60 MB) and set it up for you.',
+  'java.install.button': 'Install Java {java}',
+  'java.install.running': 'Installing Java {java}…',
+  'java.install.manual': 'Download It Yourself',
+  'java.install.progress': 'Java {java} Installation Progress',
 
   // EULA 勾选
   'eula.agree': 'I have read and agree to the <link>Minecraft EULA</link>. The panel writes eula.txt based on this choice.',

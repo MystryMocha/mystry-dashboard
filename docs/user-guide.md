@@ -234,7 +234,11 @@ Files already in the local cache aren't downloaded again, so switching the sourc
 
 ## Java Runtime
 
-The panel doesn't install Java automatically and doesn't accept a hand-typed Java path. For the Java each game version needs, see [Step-by-Step Tutorials: Install Java](tutorials.md#1-install-java).
+The panel doesn't accept a hand-typed Java path. For the Java each game version needs, see [Step-by-Step Tutorials: Install Java](tutorials.md#1-install-java).
+
+In "Quick Deploy" and on the import page, the panel selects a Java that matches the game version: the system default Java if it matches, otherwise an installed Java with the recommended version. After you choose one yourself, it stops changing your choice. In "Quick Deploy", **Start Deploy** is unavailable until the Java in use is the recommended version, and the page says which version it needs. "Settings" for an existing instance never changes the saved Java on its own.
+
+If the recommended Java isn't installed, **Install Java N** appears below the selector (Java 8, 17, 21 and 25 on Windows and Linux x64). The panel downloads the Eclipse Temurin JRE from GitHub, or through a GitHub mirror when the download source is set to the China mirror. Each version is pinned to a fixed release and checked against its SHA-256 before it's used. It's installed into `runtimes/java` in the data directory, added to the Java list and selected. The download runs as a task, so you can follow it in the "Task Center". If it fails, switch the download source or use the "Download It Yourself" link.
 
 By default the panel uses the `java` on the PATH of the environment it runs in, shown in the UI as "System Default Java". You can run `java -version` in the same environment to check its version.
 

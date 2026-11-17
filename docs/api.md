@@ -81,7 +81,8 @@ X-Setup-Token: <SETUP_TOKEN>
 | 方法 | 路径 | 认证 | 响应 |
 |------|------|------|------|
 | GET | `/api/system/java` | 是 | Java 状态对象 |
-| GET | `/api/system/java-runtimes` | 是 | `{ runtimes: JavaRuntimeInfo[] }` |
+| GET | `/api/system/java-runtimes` | 是 | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
+| POST | `/api/system/java-runtimes/install` | 是 | 请求体 `{ major }`（8、17、21、25），返回后台任务 `TaskInfo`；完成后 `result.javaRuntimeId` 是新运行时 |
 | GET | `/api/system/download-source` | 是 | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | 是 | 请求体 `{ source }`，返回保存后的值；其他取值返回 400 |
 | GET | `/api/system/remote-access` | 是 | `RemoteAccessStatus`；每次读取都重新枚举网卡 |
@@ -121,7 +122,9 @@ Java 状态响应准确结构为：
 
 找不到 Java 时返回 `{ "available": false, "version": null, "majorVersion": null }`。面板不提供全盘目录浏览接口。
 
-`/api/system/java-runtimes` 返回面板探测并验证过的 Java 运行时注册表；带 `?refresh=1` 请求重新扫描。并发扫描会合并为一个任务，连续强制刷新受 30 秒冷却限制；普通读取默认使用 60 秒缓存。候选路径只来自 `JAVA_HOME` 和常见安装目录扫描，且必须文件名为 `java`/`java.exe`、`-version` 输出可解析出版本号才会入表。实例可通过 `javaRuntimeId` 绑定表内条目（创建、更新、部署请求均接受该可选字段；`null` 表示使用 PATH 中的 `java`），请求不能提交任意可执行路径。绑定运行时在启动或 Forge/NeoForge Installer 执行前会再次验证；最近一次扫描未发现的条目会以 `available: false` 返回。
+`/api/system/java-runtimes` 返回面板探测并验证过的 Java 运行时注册表；带 `?refresh=1` 请求重新扫描。并发扫描会合并为一个任务，连续强制刷新受 30 秒冷却限制；普通读取默认使用 60 秒缓存。候选路径只来自 `JAVA_HOME`、常见安装目录和面板安装目录（数据根下 `runtimes/java/*`，`source: 'panel'`）扫描，且必须文件名为 `java`/`java.exe`、`-version` 输出可解析出版本号才会入表。实例可通过 `javaRuntimeId` 绑定表内条目（创建、更新、部署请求均接受该可选字段；`null` 表示使用 PATH 中的 `java`），请求不能提交任意可执行路径。绑定运行时在启动或 Forge/NeoForge Installer 执行前会再次验证；最近一次扫描未发现的条目会以 `available: false` 返回。
+
+`installable` 是面板能在这台电脑上自动安装的 Java 主版本（目前 Windows x64 和 Linux x64 上为 `[8, 17, 21, 25]`，其他系统或架构为空）。`POST /api/system/java-runtimes/install` 下载钉死版本的 Eclipse Temurin JRE（来源跟随下载来源设置：GitHub 或公共 GitHub 代理），按钉死的 SHA-256 校验，在数据根 `runtimes/java/.staging-*` 里解压后移到 `runtimes/java/temurin-<版本>`，执行 `-version` 验证后登记；已经装过且能运行时不重复下载。同一主版本已有任务排队或运行时返回那个任务。不在钉死列表里的主版本返回 400（`server.jvm.javaInstall.unsupportedMajor`），这台电脑没有安装包时返回 409（`server.jvm.javaInstall.platformUnsupported`）。任务失败原因：`downloadFailed`、`checksumMismatch`、`extractFailed`、`verifyFailed`（均在 `server.jvm.javaInstall.*` 下）。
 
 `JavaRuntimeInfo` 字段：
 

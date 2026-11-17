@@ -34,6 +34,7 @@ export default {
 
   'deploy.confirm.title': 'Review and Deploy',
   'deploy.confirm.eulaHelp': 'A Minecraft server can only run after you accept the EULA. Check the box to start deploying.',
+  'deploy.confirm.javaRequired': 'This version needs Java {java}. Install or choose Java {java} under "Java Runtime" above to start deploying.',
   'deploy.progress.label': 'Deploy progress',
   'deploy.progress.submitted': 'The deploy task is submitted. You can leave this page; progress keeps updating in the Task Center at the top right.',
   'deploy.error.title': 'Deploy Failed',

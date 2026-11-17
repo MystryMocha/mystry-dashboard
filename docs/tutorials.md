@@ -12,7 +12,9 @@ Best for: you're using the panel on this computer for the first time and want a 
 
 ### 1. Install Java
 
-A Minecraft server needs Java, and the panel doesn't install it for you. Install the Java that matches the game version you want to run:
+A Minecraft server needs Java. You don't have to install it ahead of time: when you deploy or import a server, the panel picks an installed Java that matches the game version. If there isn't one, it shows an **Install Java N** button. On Windows and Linux (x64), clicking it downloads Eclipse Temurin, checks it and selects it for you.
+
+To install Java yourself instead, use the version that matches the game version you want to run:
 
 | Game version | Java required |
 |---|---|
@@ -41,7 +43,7 @@ Don't send the password, the config file, or screenshots that contain them to an
 2. The page already has **Paper** selected (recommended for beginners, supports plugins) along with the latest release game version. Usually you only need:
    - **Instance Name**: for example `My Survival Server`.
    - **Game Version**: if you and your friends want a different version, pick it in the dropdown. The game client version must match it.
-   - **Java Runtime**: read the hint below it and confirm the system Java matches the recommended version. If it doesn't, install the right one as described in [Step 1](#1-install-java), or choose another Java in the dropdown.
+   - **Java Runtime**: the panel selects an installed Java that matches the game version. If you see **Install Java 21** (or another version), click it and wait for it to finish. The new Java is selected automatically. **Start Deploy** stays unavailable until the Java in use matches the recommended version. If the download fails, switch the download source to the China mirror and try again, or install Java yourself as described in [Step 1](#1-install-java).
    - Check **I have read and agree to the Minecraft EULA**. You can't start deploying without it.
 3. Leave **Paper Build**, memory and the optimization preset at their defaults. An empty build field uses the latest build (stable preferred), and memory is recommended from your computer's total memory.
 4. Click **Start Deploy** and wait for the progress bar to reach 100%. The task may be queued first. The page keeps showing its status until it completes or fails, so don't submit it again. You can also leave the page and follow the progress in the "Task Center" at the top right.

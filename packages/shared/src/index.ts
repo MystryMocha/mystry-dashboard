@@ -337,8 +337,8 @@ export interface JavaRuntimeInfo {
   version: string | null;
   /** 主版本号，如 8 / 17 / 21 */
   majorVersion: number | null;
-  /** 探测来源：JAVA_HOME 环境变量或常见安装目录扫描 */
-  source: 'env' | 'scan';
+  /** 探测来源：JAVA_HOME 环境变量、常见安装目录扫描，或面板自己安装到数据目录的 Java */
+  source: 'env' | 'scan' | 'panel';
   verifiedAt: string;
   /** 最近一次完整扫描是否仍发现并验证此运行时 */
   available: boolean;
@@ -347,6 +347,13 @@ export interface JavaRuntimeInfo {
 /** GET /api/system/java-runtimes 响应 */
 export interface JavaRuntimeListResult {
   runtimes: JavaRuntimeInfo[];
+  /** 面板能在这台电脑上自动安装的 Java 主版本；系统或架构不支持时为空数组 */
+  installable: number[];
+}
+
+/** POST /api/system/java-runtimes/install 请求：安装哪个主版本。响应为后台任务。 */
+export interface InstallJavaRequest {
+  major: number;
 }
 
 /**
@@ -420,7 +427,14 @@ export interface TaskInfo {
    * backupId：备份任务生成的备份，或还原任务使用的备份。
    * instanceRecordUpdated：还原后面板记录的启动文件、核心类型或版本已按备份更新。
    */
-  result?: { instanceId?: string; stagingToken?: string; backupId?: string; instanceRecordUpdated?: boolean };
+  result?: {
+    instanceId?: string;
+    stagingToken?: string;
+    backupId?: string;
+    instanceRecordUpdated?: boolean;
+    /** 安装 Java 任务：装好并登记的运行时 ID */
+    javaRuntimeId?: string;
+  };
   /** 英文失败原因；旧版本写入的任务可能是中文。 */
   error?: string;
   /** 失败原因的消息键与参数；旧任务或无法归类的原始错误没有此字段。 */
@@ -484,6 +498,8 @@ export {
   DEPLOYABLE_CORE_TYPE_ENUM,
   DOWNLOAD_SOURCE_ENUM,
   updateDownloadSourceBodySchema,
+  JAVA_INSTALL_MAJORS,
+  installJavaBodySchema,
   createInstanceBodySchema,
   updateInstanceBodySchema,
   deployCoreBodySchema,

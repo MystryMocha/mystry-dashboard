@@ -64,7 +64,7 @@ Most server panels are either heavyweight data-center suites (requiring Linux, D
 | **Import Server** | Two-stage ZIP preview & import (inspects `user_jvm_args.txt` before queuing) or safe copy-in from `DATA_DIR/imports` without modifying your original folder. |
 | **Backups** | One-click backup of a whole server folder (even while running), download, upload, delete, and atomic staged restore with automatic `pre-restore` backup. |
 | **Multiplayer** | Switch between **Direct Connection** (LAN IPv4, public IPv6 and public server addresses), **Virtual LAN** (EasyTier, no public IP needed), and **frp Tunnel**. Only the game port is shared. |
-| **Java & JVM** | Scan `JAVA_HOME` and common install paths for verified Java runtimes, warn on Minecraft/Java version mismatches, and configure JVM memory & presets. |
+| **Java & JVM** | Scan `JAVA_HOME` and common install paths for verified Java runtimes, pick the right Java for new servers automatically, install a checksum-pinned Eclipse Temurin JRE in one click when it's missing, and configure JVM memory & presets. |
 | **Download sources** | Switch between `Official` (default) and `Mainland China Mirror` (BMCLAPI & GitHub mirrors with automatic fallback) in **This Machine**. Vanilla manifests always come from Mojang; mirrored files are used only when their checksum can be verified; frp and EasyTier are checked against pinned SHA-256 values. |
 | **Tasks & monitoring** | Global Task Center tracks deploys, imports and backups. **Instances** shows host CPU, memory, free disk space, and per-instance CPU & resident memory. |
 | **Appearance & i18n** | Auto / Light / Dark appearance × 5 accent colors; English (default), Simplified Chinese and Traditional Chinese across UI, server errors and task progress. |
