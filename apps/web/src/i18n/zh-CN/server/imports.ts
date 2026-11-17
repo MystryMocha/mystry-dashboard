@@ -14,7 +14,7 @@ export default {
   'server.imports.progress.registering': '注册实例…',
 
   'server.imports.zip.task.queued': '正在导入安装包…',
-  'server.imports.zip.progress.extracting': '流式解压安装包…',
+  'server.imports.zip.progress.extracting': '正在解压安装包…',
   'server.imports.zip.progress.validating': '校验实例文件…',
   'server.imports.zip.progress.done': '导入完成',
   'server.imports.zip.duplicateRootPath': 'ZIP 根目录存在重复路径：{name}',

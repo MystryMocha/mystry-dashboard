@@ -28,16 +28,10 @@ export default {
   'shell.error.reload': 'Reload Page',
 
   'appearance.title': 'Appearance',
-  'appearance.accent': 'Accent Color',
   'appearance.auto': 'Auto',
   'appearance.light': 'Light',
   'appearance.dark': 'Dark',
-  'appearance.button': 'Appearance settings, currently {appearance} with {accent} accent',
-  'accent.blue': 'Blue',
-  'accent.purple': 'Purple',
-  'accent.pink': 'Mystry Pink',
-  'accent.green': 'Green',
-  'accent.graphite': 'Graphite',
+  'appearance.button': 'Appearance settings, currently {appearance}',
 
   'language.title': 'Language',
   'language.auto': 'Auto',

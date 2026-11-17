@@ -290,6 +290,10 @@ export class ProcessManager extends EventEmitter {
       managed.stdinBackpressured = true;
       throw new PanelError('server.instance.commandWriteFailed');
     }
+    // Minecraft 不回显 stdin，命令写进去后控制台看起来毫无反应；把命令以「> 命令」记进控制台缓冲，
+    // 重连、换页回来和其他人打开时都能看到它已发出。上一块输出没换行时先补一个，避免接在半行后面。
+    const last = managed.buffer[managed.buffer.length - 1] ?? '';
+    this.appendOutput(instanceId, `${last && !last.endsWith('\n') ? '\n' : ''}> ${command}\n`);
   }
 
   getHistory(instanceId: string): string {

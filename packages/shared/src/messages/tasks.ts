@@ -11,8 +11,8 @@ export const TASKS_MESSAGES = {
   'server.tasks.timeout': 'The task timed out.',
   'server.tasks.aborted': 'The task was cancelled.',
   'server.tasks.notFound': 'Task not found.',
-  'server.tasks.restartLost': 'The panel restarted and in-memory tasks can\'t be resumed. Submit it again.',
-  'server.tasks.restartLostKeptInstance': 'The panel restarted and in-memory tasks can\'t be resumed. The instance folder was kept. Submit it again or check the task manually.',
+  'server.tasks.restartLost': 'The panel restarted, so this unfinished task can\'t continue. Start it again.',
+  'server.tasks.restartLostKeptInstance': 'The panel restarted, so this unfinished task can\'t continue. The instance folder was kept. Start it again, or check the instance yourself.',
   'server.tasks.restartCleanupFailed': 'The panel restarted and the unfinished task can\'t be resumed. Cleaning up its temporary folder failed: {reason}',
   'server.tasks.stagingMarkerMismatch': 'The task marker in the temporary folder doesn\'t match the task record, so automatic cleanup was skipped.',
 } as const satisfies Record<string, string>;

@@ -2,18 +2,17 @@
 export default {
   // 工作台头部与标签页
   'instance.header.backTitle': 'Back to Instances',
-  'instance.header.version': 'Version {version}',
   'instance.tabs.label': 'Instance Sections',
 
   // 面板托管的实例目录（用于迁移提示与设置页的安装路径占位）
   'instance.path.managed': '<panel data directory>/instances/{id}',
 
   // 迁移到托管目录
-  'instance.migration.title': 'Adopt Managed Directory',
+  'instance.migration.title': 'Migrate Instance Files',
   'instance.migration.instructions': 'Use your system file manager to copy the old instance files into the instance folder under the panel data directory:',
-  'instance.migration.note': 'The panel doesn\'t read or delete the old directory. After copying, click "Adopt Managed Directory". Instance actions resume once it succeeds.',
+  'instance.migration.note': 'The panel doesn\'t read or delete the old directory. After copying, select "Complete Migration" to use the instance again.',
   'instance.migration.checking': 'Checking…',
-  'instance.migration.adopt': 'Adopt Managed Directory',
+  'instance.migration.adopt': 'Complete Migration',
 
   // 重启 / 强制停止确认
   'instance.restart.title': 'Restart instance "{name}"?',
@@ -52,8 +51,8 @@ export default {
 
   // 启动成功后的下一步提示（控制台上方）
   'instance.ready.title': 'The server is up. You can join now.',
-  'instance.ready.body': 'Want friends to join? Multiplayer shows the address to send them.',
-  'instance.ready.action': 'Invite Friends',
+  'instance.ready.body': 'Want players to join? Multiplayer shows the join address.',
+  'instance.ready.action': 'Invite Players',
   'instance.ready.dismiss': 'Don\'t Show Again',
 
   // 未保存修改弹窗（设置与参数配置共用）

@@ -172,7 +172,7 @@ export function NodesPage() {
       )}
 
       {localNode && (
-        <section className="form-section">
+        <section className="form-section remote-entry-section">
           <div className="list-group">
             <button type="button" className="list-row remote-entry-row" onClick={() => setRemoteAccessOpen(true)}>
               <MonitorSmartphone size={18} aria-hidden="true" className="remote-entry-icon" />

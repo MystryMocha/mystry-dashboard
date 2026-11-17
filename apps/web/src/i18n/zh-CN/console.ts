@@ -13,7 +13,7 @@ export default {
   'console.system.disconnected': '控制台连接已断开',
 
   // 连接状态
-  'console.status.connected': '实时日志 · 已连接',
+  'console.status.connected': '实时日志已连接',
   'console.status.connecting': '控制台正在连接…',
   'console.status.offline': '实例未运行',
 

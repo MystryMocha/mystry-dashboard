@@ -7,7 +7,7 @@ export default {
   'nodes.status.stale': '狀態可能已過期',
 
   'nodes.subtitle': '執行面板與 Minecraft 伺服器的這台電腦的基本資訊。',
-  'nodes.load.staleNotice': '目前資料可能已過期，正在顯示上次成功載入的節點資料。',
+  'nodes.load.staleNotice': '顯示的是上次載入的資料，可能已過期。',
   'nodes.load.retry': '重試載入',
   'nodes.load.loading': '正在載入節點資訊…',
   'nodes.empty.body': '尚無節點。',
@@ -34,6 +34,7 @@ export default {
   'nodes.downloadSource.saved': '已儲存，之後的下載使用這個來源。',
   'nodes.downloadSource.hint': '下載來源：{source}。',
   'nodes.downloadSource.hint.change': '變更',
+  'nodes.downloadSource.hint.done': '完成',
 
   'nodes.remote.title': '其他節點清單',
   'nodes.remote.desc_one': '遠端節點 · {count} 個實例 · 最近心跳 {lastSeen}',

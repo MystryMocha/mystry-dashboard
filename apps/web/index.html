@@ -7,32 +7,25 @@
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <title>Mystry Dashboard</title>
     <script>
-      // 渲染前确定外观与强调色，避免闪烁。
-      // 优先读取 mystry_appearance / mystry_accent；没有时迁移旧版 mystry_theme 六主题；
-      // 都没有则外观跟随系统、强调色为蓝色。
+      // 渲染前确定外观，避免闪烁。强调色已固定为墨紫，不再读取 mystry_accent。
+      // 优先读取 mystry_appearance；没有时从旧版 mystry_theme 六主题迁移外观；都没有则跟随系统。
       (function () {
         var root = document.documentElement;
         var appearance = 'auto';
-        var accent = 'blue';
         try {
           var legacy = {
-            dark: ['dark', 'pink'],
-            light: ['light', 'pink'],
-            codex: ['dark', 'green'],
-            'codex-light': ['light', 'green'],
-            grok: ['dark', 'graphite'],
-            'grok-light': ['light', 'graphite']
+            dark: 'dark',
+            light: 'light',
+            codex: 'dark',
+            'codex-light': 'light',
+            grok: 'dark',
+            'grok-light': 'light'
           }[localStorage.getItem('mystry_theme')];
-          if (legacy) {
-            appearance = legacy[0];
-            accent = legacy[1];
-          }
+          if (legacy) appearance = legacy;
           var savedAppearance = localStorage.getItem('mystry_appearance');
-          var savedAccent = localStorage.getItem('mystry_accent');
           if (savedAppearance === 'auto' || savedAppearance === 'light' || savedAppearance === 'dark') {
             appearance = savedAppearance;
           }
-          if (/^(blue|purple|pink|green|graphite)$/.test(savedAccent || '')) accent = savedAccent;
         } catch (e) {}
         var dark = appearance === 'dark';
         if (appearance === 'auto') {
@@ -42,7 +35,6 @@
         }
         root.dataset.appearancePreference = appearance;
         root.dataset.appearance = dark ? 'dark' : 'light';
-        root.dataset.accent = accent;
       })();
       // 渲染前确定界面语言并写入 <html lang>，规则与 src/i18n/locale.ts 的 detectLocale 一致：
       // 读取 mystry_locale（auto / en / zh-CN / zh-TW），自动时按浏览器语言列表取第一个 zh* 或 en*：

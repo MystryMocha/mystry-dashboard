@@ -17,12 +17,12 @@ export const INSTANCE_MESSAGES = {
   'server.instance.registerDirEmpty': 'The instance directory is empty, so the instance cannot be registered.',
   'server.instance.deleteRunning': 'Stop the instance before deleting it.',
   'server.instance.deleteDbFailed': 'Failed to delete the instance: the database record was not removed.',
-  'server.instance.adoptRunning': 'Stop the instance before taking over its directory.',
-  'server.instance.adoptAlreadyManaged': 'The instance already uses a panel-managed directory. No takeover is needed.',
+  'server.instance.adoptRunning': 'Stop the instance before completing the migration.',
+  'server.instance.adoptAlreadyManaged': 'This instance is already in the panel data directory. No migration is needed.',
   'server.instance.adoptDirEmpty': 'The default instance directory cannot be empty.',
-  'server.instance.adoptDirFailed': 'Cannot take over the panel-managed directory: {reason}',
-  'server.instance.adoptMarkerInvalid': 'Cannot take over the instance directory: the panel marker file in it is invalid or belongs to another instance.',
-  'server.instance.adoptStateChanged': 'Takeover failed: the instance state changed. Try again.',
+  'server.instance.adoptDirFailed': 'The migration couldn\'t be completed: {reason}',
+  'server.instance.adoptMarkerInvalid': 'The migration couldn\'t be completed: the panel marker file in the instance folder is invalid or belongs to another instance.',
+  'server.instance.adoptStateChanged': 'The migration failed because the instance state changed. Try again.',
   'server.instance.propertiesNotRegularFile': 'server.properties is not a regular file.',
 
   // 进程启停
@@ -51,9 +51,9 @@ export const INSTANCE_MESSAGES = {
   'server.instance.commandWriteFailed': 'Failed to write the command. The instance input stream is unavailable.',
 
   // 控制台连接
-  'server.instance.consoleTicketLimit': 'Too many console tickets have been issued. Try again later.',
-  'server.instance.consoleTicketMissing': 'The console connection ticket is missing. Refresh the page and try again.',
-  'server.instance.consoleTicketInvalid': 'The console connection ticket is invalid or has expired. Refresh the page and try again.',
+  'server.instance.consoleTicketLimit': 'Too many console connection requests. Try again later.',
+  'server.instance.consoleTicketMissing': 'The console connection is missing its credentials. Refresh the page and try again.',
+  'server.instance.consoleTicketInvalid': 'The console connection credentials are invalid or have expired. Refresh the page and try again.',
   'server.instance.consoleMessageTooLarge': 'The console message exceeds the size limit ({limit} bytes).',
   'server.instance.consoleCommandRateLimited': 'Commands are being sent too often. Try again later.',
 

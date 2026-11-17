@@ -22,7 +22,7 @@ export default {
   'tasks.center.empty.body': '开始部署或导入后，进度会显示在这里。',
   'tasks.card.runningProgress': '{percent} 进行中',
   'tasks.card.progressLabel': '{type}进度',
-  'tasks.card.viewInstance': '查看实例 →',
+  'tasks.card.viewInstance': '查看实例',
 
   'menu.more': '更多操作',
 
@@ -42,8 +42,8 @@ export default {
   'request.failed': '请求失败（{status}）',
   'request.aborted': '操作已取消',
   'request.download.popupBlocked': '浏览器拦截了下载窗口，请允许弹窗后重试',
-  'request.download.ticketExpiredRetry': '下载票据已过期，请重试',
-  'request.download.ticketExpired': '下载票据已过期',
+  'request.download.ticketExpiredRetry': '下载链接已过期，请重试',
+  'request.download.ticketExpired': '下载链接已过期',
   'request.download.failed': '文件下载失败',
   'request.stopPending': '服务仍在保存，请等待或选择强制停止',
   'request.taskFailed': '任务失败',

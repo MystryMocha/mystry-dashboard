@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Copy, TriangleAlert } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import type { InstanceInfo, InstanceLocalNetwork } from '@mystry/shared';
 import { getInstanceLocalNetwork, savePublicHost } from '../api';
 import { copyText } from '../clipboard';
+import { MultiplayerLayout, type GuideControl } from './MultiplayerLayout';
 import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n } from '../i18n';
@@ -15,12 +16,15 @@ function isPrivateHost(host: string): boolean {
  * 直连：朋友和这台电脑在同一个网络时用局域网地址；这台电脑有公网 IP（云服务器、机房）时，
  * 朋友用「公网地址:游戏端口」直接加入。这台电脑有公网 IPv6 时，另外给出可以试的地址。
  * 只显示地址、端口和检查清单，不安装任何东西，也不改服务器配置；公网地址由用户填写，不自动探测。
+ * 主栏放地址和必须处理的提示；排查、公网检查清单和 IPv6 路由器说明放右侧指引栏。
  */
 export function DirectSection({
   instance,
+  guide,
   onChooseVirtualLan,
 }: {
   instance: InstanceInfo;
+  guide: GuideControl;
   onChooseVirtualLan: () => void;
 }) {
   const { t } = useI18n();
@@ -110,8 +114,54 @@ export function DirectSection({
     </ul>
   );
 
+  const checklist = network && showPublicCard && (
+    <>
+      <h3>{t('multiplayer.direct.public.checklist')}</h3>
+      <ol className="direct-checklist">
+        <li>{t('multiplayer.direct.public.check.securityGroup', { port: String(port ?? 25565), panelPort: String(network.panelPort) })}</li>
+        <li>
+          {t(windows ? 'multiplayer.direct.public.check.firewallWindows' : 'multiplayer.direct.public.check.firewallLinux', {
+            port: String(port ?? 25565),
+          })}
+          <code className="direct-command">
+            {windows
+              ? `netsh advfirewall firewall add rule name="Minecraft ${port ?? 25565}" dir=in action=allow protocol=TCP localport=${port ?? 25565}`
+              : `sudo ufw allow ${port ?? 25565}/tcp`}
+          </code>
+          {!windows && (
+            <code className="direct-command">
+              {`sudo firewall-cmd --permanent --add-port=${port ?? 25565}/tcp && sudo firewall-cmd --reload`}
+            </code>
+          )}
+        </li>
+        <li>{t('multiplayer.direct.public.check.serverIp')}</li>
+        <li>{t('multiplayer.direct.public.check.domain')}</li>
+        <li>{t('multiplayer.direct.public.check.safety')}</li>
+        <li>{t('multiplayer.direct.public.check.test')}</li>
+      </ol>
+    </>
+  );
+
+  const guideContent = (
+    <>
+      <h3>{t('multiplayer.guide.troubleshoot')}</h3>
+      <ul>
+        <li>{t('multiplayer.guide.direct.running')}</li>
+        {(windows || !network) && <li>{t('multiplayer.guide.direct.javaBlocked')}</li>}
+        <li>{t('multiplayer.guide.direct.isolation')}</li>
+      </ul>
+      {checklist}
+      {ipv6Addresses.length > 0 && (
+        <>
+          <h3>{t('multiplayer.guide.ipv6.title')}</h3>
+          <p>{t('multiplayer.direct.ipv6.router', { port: String(port) })}</p>
+        </>
+      )}
+    </>
+  );
+
   return (
-    <section className="form-section">
+    <MultiplayerLayout guide={guideContent} control={guide}>
       <p className="section-lead">{t('multiplayer.direct.intro')}</p>
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
       {!running && <p className="callout" role="status">{t('multiplayer.direct.notRunning')}</p>}
@@ -123,11 +173,12 @@ export function DirectSection({
       {network && port == null && (
         <p className="callout callout-danger" role="alert">{t('multiplayer.direct.portInvalid')}</p>
       )}
-      <div className="card form-card">
-        <div className="direct-block">
-          <h3 className="direct-title">
-            {t(hasPublic ? 'multiplayer.direct.sameNetworkTitle' : 'multiplayer.direct.addressTitle')}
-          </h3>
+
+      <section className="form-section">
+        <h3 className="form-section-title">
+          {t(hasPublic ? 'multiplayer.direct.sameNetworkTitle' : 'multiplayer.direct.addressTitle')}
+        </h3>
+        <div className="card form-card direct-block">
           {network === null && !error ? (
             <p className="field-help" role="status">{t('common.loading')}</p>
           ) : addresses.length > 0 ? (
@@ -140,21 +191,16 @@ export function DirectSection({
             <p className="field-help">{t('multiplayer.direct.noAddress')}</p>
           ) : null}
           {port != null && <p className="field-help">{t('multiplayer.direct.self', { address: `127.0.0.1:${port}` })}</p>}
-          <p role="status" aria-live="polite" className="field-help direct-notice">{notice}</p>
+          {(windows || !network) && <p className="field-help">{t('multiplayer.direct.firewall')}</p>}
+          {/* 状态区一直保留，读屏软件才会播报；空的时候隐藏，不占间距。 */}
+          <p role="status" aria-live="polite" className={notice ? 'field-help' : 'visually-hidden'}>{notice}</p>
         </div>
-        {(windows || !network) && (
-          <div className="callout callout-warning">
-            <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
-            <p>{t('multiplayer.direct.firewall')}</p>
-          </div>
-        )}
-      </div>
+      </section>
 
       {network && showPublicCard && (
-        <div className="card form-card">
-          <div className="direct-block">
-            <h3 className="direct-title">{t('multiplayer.direct.public.title')}</h3>
-            <p className="field-help">{t('multiplayer.direct.public.intro')}</p>
+        <section className="form-section">
+          <h3 className="form-section-title">{t('multiplayer.direct.public.title')}</h3>
+          <div className="card form-card direct-block">
             {publicAddresses.length > 0 && addressList(publicAddresses)}
             <div className="field">
               <label htmlFor={hostId}>{t('multiplayer.direct.public.hostLabel')}</label>
@@ -189,60 +235,33 @@ export function DirectSection({
               {isPrivateHost(hostDraft.trim()) && <p className="field-warn">{t('multiplayer.direct.public.private')}</p>}
               {hostError && <p className="error" role="alert">{hostError}</p>}
             </div>
-            <h4 className="direct-subtitle">{t('multiplayer.direct.public.checklist')}</h4>
-            <ol className="direct-checklist">
-              <li>{t('multiplayer.direct.public.check.securityGroup', { port: String(port ?? 25565), panelPort: String(network.panelPort) })}</li>
-              <li>
-                {t(windows ? 'multiplayer.direct.public.check.firewallWindows' : 'multiplayer.direct.public.check.firewallLinux', {
-                  port: String(port ?? 25565),
-                })}
-                <code className="direct-command">
-                  {windows
-                    ? `netsh advfirewall firewall add rule name="Minecraft ${port ?? 25565}" dir=in action=allow protocol=TCP localport=${port ?? 25565}`
-                    : `sudo ufw allow ${port ?? 25565}/tcp`}
-                </code>
-                {!windows && (
-                  <code className="direct-command">
-                    {`sudo firewall-cmd --permanent --add-port=${port ?? 25565}/tcp && sudo firewall-cmd --reload`}
-                  </code>
-                )}
-              </li>
-              <li>{t('multiplayer.direct.public.check.serverIp')}</li>
-              <li>{t('multiplayer.direct.public.check.domain')}</li>
-              <li>{t('multiplayer.direct.public.check.safety')}</li>
-              <li>{t('multiplayer.direct.public.check.test')}</li>
-            </ol>
           </div>
-        </div>
+        </section>
       )}
 
       {ipv6Addresses.length > 0 && (
-        <div className="card form-card">
-          <div className="direct-block">
-            <h3 className="direct-title">{t('multiplayer.direct.ipv6.title')}</h3>
-            <p className="field-help">{t('multiplayer.direct.ipv6.intro')}</p>
+        <section className="form-section">
+          <h3 className="form-section-title">{t('multiplayer.direct.ipv6.title')}</h3>
+          <div className="card form-card direct-block">
             {addressList(ipv6Addresses)}
-            <p className="field-help">{t('multiplayer.direct.ipv6.changes')}</p>
+            <p className="field-help">{t('multiplayer.direct.ipv6.intro')}</p>
           </div>
-          <div className="callout callout-warning">
-            <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
-            <p>{t('multiplayer.direct.ipv6.router', { port: String(port) })}</p>
-          </div>
-        </div>
+        </section>
       )}
-      <div className="callout">
-        <p>{t(ipv6Addresses.length > 0 ? 'multiplayer.direct.ipv6.elsewhere' : 'multiplayer.direct.elsewhere')}</p>
+
+      <div className="direct-elsewhere">
+        <p>{t('multiplayer.direct.elsewhere')}</p>
         <div className="instance-actions">
-          <button className="btn" type="button" onClick={onChooseVirtualLan}>
-            {t('multiplayer.direct.useVirtualLan')}
-          </button>
           {network && !showPublicCard && (
             <button className="btn" type="button" onClick={() => setHostOpen(true)}>
               {t('multiplayer.direct.public.open')}
             </button>
           )}
+          <button className="btn" type="button" onClick={onChooseVirtualLan}>
+            {t('multiplayer.direct.useVirtualLan')}
+          </button>
         </div>
       </div>
-    </section>
+    </MultiplayerLayout>
   );
 }

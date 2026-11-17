@@ -46,10 +46,10 @@ The interface follows Apple's design style: a floating, translucent **sidebar** 
 | This Machine | `/nodes` | Shows this computer's system, CPU, memory and number of instances |
 | Task Center (top right) | — | Slides in from the right with recent deploy and import tasks. It keeps updating after you leave the deploy page, until each task completes or fails |
 | Language (top right) | — | Choose **Auto / English / 简体中文 / 繁體中文**. With Auto, the panel follows your browser language: Traditional Chinese (Taiwan, Hong Kong, Macau) shows 繁體中文, other Chinese shows 简体中文, and every other language shows English. The choice is saved in this browser. You can also switch it at the top right of the sign-in page |
-| Appearance (top right) | — | Choose the **Auto / Light / Dark** appearance (Auto follows the system) and one of five accent colors: Blue, Purple, Mystry Pink, Green or Graphite. The choice is saved in this browser |
+| Appearance (top right) | — | Choose the **Auto / Light / Dark** appearance (Auto follows the system). The choice is saved in this browser |
 | Sign Out | — | Signs this browser out |
 
-The top of the instance details page has five segmented buttons: **Console / Files / Properties / Backups / Settings**.
+The top of the instance details page has five tabs: **Console / Files / Properties / Backups / Settings**.
 
 At tablet width (1024 pixels and below), the sidebar collapses into "Open navigation menu" at the top left. At phone width (768 pixels and below), a tab bar with **Overview / Deploy / Import / Join / Machine** also appears at the bottom, and dialogs become sheets that rise from the bottom. Press Escape or click the backdrop to close menus, dialogs and the Task Center.
 
@@ -96,17 +96,17 @@ When you're done, click **Turn Off** and the panel goes back to accepting only t
 
 **Purpose**: see the status of all your servers at a glance and do everyday tasks.
 
-The metric cards at the top of the page show instance status, host CPU, host memory and free space on the data disk. Click the issues count to show only the instances that need attention. Click it again to show all of them. A running instance's card shows the process's CPU and actual memory use. "Max Memory" is the heap limit set for Java (`-Xmx`). The two are not the same thing. The first sample shows "Collecting…", and metrics the current system doesn't support show "Unavailable". If monitoring fails, the old values stay on screen, marked as possibly out of date, and you can click "Retry Monitoring".
+The "This Machine" strip under the title shows host CPU, host memory and free space on the data disk. Below it, each server has one row. After its status comes one sentence about what you can do now, such as "Players can join now" or "This server needs Java 21", followed by the matching next step (Invite Players, Open Settings, Review EULA, Open Console) and then Start or Stop. Switch between **All**, **Running** and **Issues** at the top right of the list. A running server shows the process's CPU and actual memory use, and the bar beside it compares that memory with "Max Memory", the heap limit set for Java (`-Xmx`). Actual use is usually slightly above that limit; the two are not the same thing. With no instances yet, the page lists three ways to add one: Quick Deploy, Import Server and Create Empty Instance. The first sample shows "Collecting…", and metrics the current system doesn't support show "Unavailable". If monitoring fails, the old values stay on screen, marked as possibly out of date, and you can click "Retry Monitoring".
 
 | Column / Area | Description |
 |-----------|------|
-| Name | Click to open that instance's details |
-| Core | `paper`, `fabric`, `vanilla`, `forge`, `neoforge`, `custom` and so on |
+| Name | Click anywhere on the row outside its buttons (the row ends with an arrow) to open that instance's details |
+| Core | Paper, Fabric, Vanilla, Forge, NeoForge, or "Custom Jar" for a jar you uploaded yourself |
 | Version | Minecraft version number (may be `-` for custom imports) |
-| Status | A colored badge; see the table below |
-| Actions | Open the instance, plus whichever of start/stop is available right now. Restart, Force Stop and Delete are under "More Actions" |
+| Status | A colored badge (see the table below), followed by what you can do now |
+| Actions | The next step when there is one (Invite Players, Open Settings, Review EULA, Open Console, Migrate), then whichever of start/stop is available right now. Restart, Force Stop and Delete are under "More Actions" |
 
-Instance status and metrics refresh automatically every 5 seconds, and pause while you're on another browser tab. At the top right of the instance list are **Quick Deploy**, **Import Server** and **Create Empty Instance** (for when you upload your own `server.jar`). If a refresh fails, the last data stays on screen with a note that it may be out of date.
+Instance status and metrics refresh automatically every 5 seconds, and pause while you're on another browser tab. At the top right of the page are **Quick Deploy**, **Import Server** and **Create Empty Instance** (for when you upload your own `server.jar`). With no instances yet, these three are listed in the middle of the page instead. If a refresh fails, the last data stays on screen with a note that it may be out of date.
 
 ### Instance Status
 
@@ -255,10 +255,10 @@ The top shows the instance name, core, version and status, along with **Start / 
 ### Console
 
 - Shows the server's output in real time.
-- **Type a command + Enter** sends it to the server (the same as the in-game console). "Common Commands" below sends `list`, `save-all` and others with one click.
+- **Type a command + Enter** sends it to the server (the same as the in-game console). "Common Commands" below sends `list`, `save-all` and others with one click. Each command you send shows up in the log in bold white, such as `> list`, followed by the server's reply.
 - After the connection drops or you refresh the page, it reconnects automatically and shows the recent output history first.
 - The length of a single command and the number of commands you can send per minute are limited. The page tells you when you go over; see [Configuration](configuration.md).
-- If it shows "Your session has expired" or "The console connection ticket is invalid", try **signing out and signing in again**.
+- If it shows "Your session has expired" or "The console connection credentials are invalid", try **signing out and signing in again**.
 
 ### Files
 
@@ -290,24 +290,28 @@ Deleting a file or folder always uses a confirmation dialog. Deleting a folder a
 
 ### Multiplayer
 
-To let friends join this server, open **Multiplayer** under **Deploy & Maintain** in the sidebar, then choose the instance. Once the server has finished loading the world, a notice above the instance console also says "The server is up. You can join now." Click **Invite Friends** to go straight to this page. If you don't want to see the notice again, click **Don't Show Again**. The segmented control on the page switches between **Direct Connection**, **Virtual LAN** and **frp Tunnel**, and shows one at a time. Switching doesn't turn off the settings you've already saved under the other methods. The panel only forwards this instance's game port. It doesn't expose the admin pages, and you never have to enter a program path.
+To let players join this server, open **Multiplayer** under **Deploy & Maintain** in the sidebar, choose the instance at the top left, then use the segmented control next to it to switch between **Direct Connection**, **Virtual LAN** and **frp Tunnel**. One method shows at a time, and switching doesn't turn off settings you've already saved under the others. Once the server has finished loading the world, a notice above the instance console also says "The server is up. You can join now." Click **Invite Players** to go straight to this page. If you don't want to see the notice again, click the **×** at its end (**Don't Show Again**). The panel only forwards this instance's game port. It doesn't expose the admin pages, and you never have to enter a program path.
 
-- **Direct Connection**: friends connect straight to this computer's address. Use it when friends are on the same Wi-Fi or router as this computer, or when this computer has a public address. The page shows the address to send to your friends. Click **Copy** and send it. There's nothing to install or set up. If this computer has a public IPv6 address, an **IPv6 Address for Friends Elsewhere** also appears below. Friends who aren't nearby can join with it directly if they have IPv6 too. If they can't connect, allow only the game port in your router and don't turn off the router's IPv6 firewall entirely, or use Virtual LAN instead. If this computer has a public IP, such as a cloud server or a machine in a data center, click **This Computer Has a Public IP** at the bottom of the page and enter the public IP or domain. The page then shows the public address with the game port for friends to join directly, plus a checklist. The most common cause of trouble is a cloud security group that doesn't allow the game port. The game port and the panel port are different things: friends only need the game port.
+The **Guide** column on the right explains how the tunnel modes differ and what to check when players can't connect. Once you know your way around, click its **×** to close it, and **Show Guide** to bring it back. This browser remembers the choice. On narrow screens the guide sits at the bottom of the page.
+
+- **Direct Connection**: players connect straight to this computer's address. Use it when players are on the same Wi-Fi or router as this computer, or when this computer has a public address. The page shows the **Join Address**. Click **Copy** and send it. There's nothing to install or set up.
   - The first time the server starts, Windows may ask whether to allow Java to access the network. Choose "Allow".
   - If the computer has several addresses, try the one that starts with `192.168` first.
+  - If this computer has a public IPv6 address, an **IPv6 Join Address** also appears. Players elsewhere can join with it directly if they have IPv6 too. If they can't connect, allow only the game port in your router and don't turn off the router's IPv6 firewall entirely.
+  - If this computer has a public IP, such as a cloud server or a machine in a data center, click **This Computer Has a Public IP** at the bottom of the page and enter the public IP or domain. The page then shows the **Public Join Address**, and the guide adds a checklist. The most common cause of trouble is a cloud security group that doesn't allow the game port. The game port and the panel port are different things: players only need the game port.
 
-- **Virtual LAN**: you don't need a public server of your own. Turn it on and send the instructions to your friends. They run the command as it is, then join using the virtual address shown on the page.
-  - On Windows, start the panel as administrator. Friends must also run the command as administrator, or the virtual network adapter can't be created.
+- **Virtual LAN**: you don't need a public server of your own. Turn on **Open This Instance to Players** at the top. It takes effect right away, with no Save step. **Let Players Join** then shows three steps: copy or download the **Join Instructions** and send them to players; players run EasyTier as the instructions say; players join the address shown in the last step. Until EasyTier is installed, the page shows only the download button, and the switch appears once it is installed.
+  - On Windows, start the panel as administrator. Players must also run the command as administrator, or the virtual network adapter can't be created.
   - When hole punching fails, traffic is relayed through community-shared nodes, encrypted with the network secret.
-  - **Relay nodes**: by default the community-shared nodes are run by volunteers. They can go offline at any time, and may be far from you and your friends. Under **Your Relay Nodes** you can add your own nodes, one per line (for example `tcp://relay.example.com:11010`), or clear **Also use community shared nodes** to use only your own. After changing nodes, send the new instructions to your friends again.
-  - **Direct connection**: the panel also opens a direct connection port. Friends who have IPv6 or are on the same LAN can connect without a relay.
-  - **Windows Firewall**: the panel adds firewall rules that allow only the game port on the virtual address and the direct connection port, and removes them when the virtual LAN stops. The direct connection rules apply only to the EasyTier program the panel starts. If the panel was closed abnormally, leftover rules are removed the next time it starts. If you once blocked Java in a Windows Firewall prompt, first delete that block rule under "Windows Defender Firewall → Advanced settings → Inbound Rules".
-  - Anyone who gets the network secret can enter this virtual LAN and reach the game port. Don't post it publicly.
-- **frp Tunnel**: needs an frp server of your own (address, port and token).
-  - **Public Port**: friends add the address shown on the page directly in Minecraft's multiplayer menu.
-  - **Relayed Intranet** / **Direct Intranet**: download the "friend config" and send it to them. They open it with the official frpc, then connect to `127.0.0.1` on their own computer and the port shown on the page. This file contains the token. Send it only to the people you're playing with.
+  - **Relay nodes**: by default the community-shared nodes are run by volunteers. They can go offline at any time, and may be far from you and your players. Expand **Relay Nodes** to add your own nodes under **Your Relay Nodes**, one per line (for example `tcp://relay.example.com:11010`), or clear **Also use community shared nodes** to use only your own, then click **Save Relay Nodes**. After changing nodes, send the new join instructions again.
+  - **Direct port**: the panel also opens a direct port, shown at the bottom of the page. Players who have IPv6 or are on the same LAN can connect without a relay.
+  - **Windows Firewall**: the panel adds firewall rules that allow only the game port on the virtual address and the direct port, and removes them when the virtual LAN stops. The direct port rules apply only to the EasyTier program the panel starts. If the panel was closed abnormally, leftover rules are removed the next time it starts. If you once blocked Java in a Windows Firewall prompt, first delete that block rule under "Windows Defender Firewall → Advanced settings → Inbound Rules".
+  - The join instructions contain the network secret. Anyone who gets it can enter this virtual LAN and reach the game port. Don't post it publicly.
+- **frp Tunnel**: needs an frp server of your own (address, port and token). Until you add one, the page shows the form for it. Then choose the server, tunnel mode and port and click **Save and Open**. After that, use the **Open This Instance to Players** switch at the top to turn it on or off, and **Tunnel Settings** (with **Add frp Server**) folds away. The delete button sits next to the server dropdown and deletes the server selected there.
+  - With the **Public Port** tunnel mode, players add the join address directly in Minecraft's multiplayer menu. They don't install frp.
+  - **STCP Relay** / **XTCP P2P**: follow the steps under **Let Players Join** to copy or download the **Player Config** and send it. Players run it with the official frpc, then connect to `127.0.0.1` at the **Port on Player's Computer**. STCP goes through the frp server; XTCP connects directly for lower latency, but some networks block it. This file contains the token. Send it only to players who are joining.
 
-If the panel can't reach GitHub and downloading the client fails, the page shows the file name and SHA-256 of the official archive. Download that file on any device, from the official page or a mirror, then click **Upload Archive**. The panel installs it only if the SHA-256 matches.
+If the panel can't reach GitHub and downloading the client fails, click **Install Manually** under the download button. It shows the file name and SHA-256 of the official archive. Download that file on any device, from the official page or a mirror, then click **Upload Archive**. The panel installs it only if the SHA-256 matches.
 
 Multiplayer opens only after the instance is started. If `server-ip` in the game config is set to the address of one specific network adapter, clear it first, or connections from outside can't get in.
 
@@ -353,7 +357,7 @@ A legacy external instance is one whose database record still points to an old f
 
 1. Stop the instance, and stop the panel service.
 2. Using your operating system's copy tools, copy the whole old external folder to `instances/<id>` under the data directory.
-3. Start the panel, open the instance (shown as "▲ Needs Migration" on the Instances page), and click **Adopt Managed Directory**.
+3. Start the panel, open the instance (shown as "▲ Needs Migration" on the Instances page), and click **Complete Migration**.
 4. Only after adoption succeeds is the instance handled as a panel-managed folder. The old folder stays yours to keep or manage.
 
 Adoption fails if the target folder is empty, incomplete, doesn't match the ID, or the instance is still running. Don't try to reach the old folder through the Files page in the panel.

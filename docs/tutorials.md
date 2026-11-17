@@ -39,7 +39,7 @@ Don't send the password, the config file, or screenshots that contain them to an
 
 ### 3. Deploy Paper with Quick Deploy
 
-1. Click **Quick Deploy** on the left (or **Quick Deploy** at the top right of the Instances page).
+1. Click **Quick Deploy** on the left (or **Quick Deploy** in the middle of the Instances page while you have no instances yet).
 2. The page already has **Paper** selected (recommended for beginners, supports plugins) along with the latest release game version. Usually you only need:
    - **Instance Name**: for example `My Survival Server`.
    - **Game Version**: if you and your friends want a different version, pick it in the dropdown. The game client version must match it.
@@ -66,7 +66,7 @@ Don't send the password, the config file, or screenshots that contain them to an
 ### 6. Let Friends Join (Same LAN)
 
 1. On the **Properties** page, confirm `online-mode=true` (account verification), or change it to suit your needs.
-2. Open **Multiplayer** in the sidebar and choose this instance. **Direct Connection** shows the address to send your friends (for example `192.168.1.100:25565`). Click **Copy** and send it to them.
+2. Open **Multiplayer** in the sidebar and choose this instance. **Direct Connection** shows the join address (for example `192.168.1.100:25565`). Click **Copy** and send it to them.
 3. Your friends add the server in the game and enter that address.
 
 If your friends aren't on the same Wi-Fi or router, switch to **Virtual LAN** or **frp Tunnel** on the Multiplayer page. See [User Guide: Multiplayer](user-guide.md#multiplayer) for the steps.
@@ -198,7 +198,7 @@ If `panel.db-wal` or `panel.db-shm` still exist after stopping, keep them togeth
 
 1. Stop the panel process.
 2. Restore `panel.db` and `DATA_DIR/instances/<id>/`, keeping the same `DATA_DIR` and instance IDs.
-3. Start the panel and check the instance list. If needed, run **Adopt Managed Directory** on the instance page.
+3. Start the panel and check the instance list. If needed, run **Complete Migration** on the instance page.
 
 ### Take Over an Existing Server Outside the Panel
 
@@ -206,7 +206,7 @@ First run `stop` in the original server's console. Then follow [Import from a Lo
 
 ### Migrate from a Legacy External Directory
 
-Follow [Adopting a Legacy External Instance](user-guide.md#adopting-a-legacy-external-instance): stop the instance and the panel, copy the old directory completely, then click **Adopt Managed Directory**.
+Follow [Adopting a Legacy External Instance](user-guide.md#adopting-a-legacy-external-instance): stop the instance and the panel, copy the old directory completely, then click **Complete Migration**.
 
 ### Migrate Only the World
 

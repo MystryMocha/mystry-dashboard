@@ -17,7 +17,7 @@ export default {
   'import.directory.source.placeholder': 'Choose a folder',
   'import.directory.source.pendingCheck': 'Checked on import',
   'import.directory.source.ready': '{id} · {target}',
-  'import.directory.source.unavailable': '{id} · Unavailable: {error}',
+  'import.directory.source.unavailable': '{id} (Unavailable: {error})',
   'import.directory.refresh': 'Refresh Folders',
   'import.directory.refreshing': 'Reading…',
   'import.directory.empty': 'There are no servers in the imports folder yet. After copying one in, click "Refresh Folders".',
@@ -34,7 +34,6 @@ export default {
   'import.zip.file.label': 'Server Archive (.zip)',
   'import.zip.drop.title': 'Choose or drop a ZIP here',
   'import.zip.drop.size': 'File size: {size} MiB',
-  'import.zip.drop.hint': 'Upload size and extraction limits are set in the panel configuration.',
   'import.zip.choose': 'Choose ZIP',
   'import.zip.replaceHelp': 'When you choose and submit a new file, the panel checks it first. The current ZIP is replaced only if the check passes.',
 

@@ -23,9 +23,9 @@ export default {
   'server.jvm.javaInstall.extracting': '正在解壓縮 Java {major}',
   'server.jvm.javaInstall.verifying': '正在檢查 Java {major}',
   'server.jvm.javaInstall.unsupportedMajor': '面板無法自動安裝 Java {major}。',
-  'server.jvm.javaInstall.platformUnsupported': '這個系統上面板無法自動安裝 Java。請自行下載安裝 Java，再點「重新偵測」。',
+  'server.jvm.javaInstall.platformUnsupported': '這個系統上面板無法自動安裝 Java。請自行下載安裝 Java，再點「重新掃描」。',
   'server.jvm.javaInstall.downloadFailed': 'Java {major} 沒能下載。如果這裡連 GitHub 很慢或打不開，請把下載來源改成中國大陸鏡像再試，或自行下載安裝 Java。',
-  'server.jvm.javaInstall.checksumMismatch': '下載的 Java {major} 與鎖定的校驗值不符，已捨棄。',
+  'server.jvm.javaInstall.checksumMismatch': '下載的 Java {major} 沒有通過檢查碼驗證，已捨棄。',
   'server.jvm.javaInstall.extractFailed': 'Java {major} 的壓縮檔無法解壓縮。',
   'server.jvm.javaInstall.verifyFailed': '安裝好的 Java {major} 執行不正常，沒有加入清單。',
 

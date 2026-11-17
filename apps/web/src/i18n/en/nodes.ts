@@ -5,7 +5,7 @@ export default {
   'nodes.status.stale': 'Status May Be Outdated',
 
   'nodes.subtitle': 'Basic information about the computer running the panel and your Minecraft servers.',
-  'nodes.load.staleNotice': 'This data may be out of date. Showing the last node data that loaded successfully.',
+  'nodes.load.staleNotice': 'Showing the last data that loaded. It may be out of date.',
   'nodes.load.retry': 'Retry',
   'nodes.load.loading': 'Loading node info…',
   'nodes.empty.body': 'No nodes.',
@@ -32,6 +32,7 @@ export default {
   'nodes.downloadSource.saved': 'Saved. New downloads use this source.',
   'nodes.downloadSource.hint': 'Download source: {source}.',
   'nodes.downloadSource.hint.change': 'Change',
+  'nodes.downloadSource.hint.done': 'Done',
 
   'nodes.remote.title': 'Other Nodes',
   'nodes.remote.desc_one': 'Remote node · {count} instance · Last heartbeat {lastSeen}',
