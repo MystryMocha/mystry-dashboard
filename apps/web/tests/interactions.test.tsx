@@ -1196,7 +1196,6 @@ test('修改密码成功后换上新令牌并说明其他设备需重新登录',
   render(<ChangePasswordDialog onClose={() => {}} />);
   await user.type(screen.getByLabelText('当前密码'), 'password1234');
   await user.type(screen.getByLabelText('新密码'), 'changed-password');
-  await user.type(screen.getByLabelText('确认新密码'), 'changed-password');
   await user.click(screen.getByRole('button', { name: '修改密码' }));
   expect(await screen.findByText('密码已修改。当前页面保持登录，其他浏览器和设备需要用新密码重新登录。')).toBeTruthy();
   expect(getToken()).toBe('fresh-token');
