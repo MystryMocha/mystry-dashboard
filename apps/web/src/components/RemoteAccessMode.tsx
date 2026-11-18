@@ -289,7 +289,15 @@ export function RemoteAccessMode({
           onChange={(event) => change({ interfaceName: event.target.value === ALL_ADAPTERS ? null : event.target.value })}
         >
           {mode === 'direct' && <option value={ALL_ADAPTERS}>{t('remoteAccess.adapter.all')}</option>}
-          {mode === 'overlay' && names.length === 0 && <option value={ALL_ADAPTERS}>{t('common.none')}</option>}
+          {/*
+            组网方式必须选一块网卡，没有「所有网卡」。还没选时（打开时没有网卡、之后才连上）给一个占位项，
+            否则浏览器把下拉框显示成第一块网卡，开启按钮却因为没选而点不了。
+          */}
+          {mode === 'overlay' && selectedName === ALL_ADAPTERS && (
+            <option value={ALL_ADAPTERS} disabled={names.length > 0}>
+              {names.length === 0 ? t('common.none') : t('remoteAccess.adapter.choose')}
+            </option>
+          )}
           {/* 选中的网卡已经不在了：照样列出，否则下拉框会显示成别的网卡。 */}
           {selectedName !== ALL_ADAPTERS && !names.includes(selectedName) && (
             <option value={selectedName}>{selectedName}</option>

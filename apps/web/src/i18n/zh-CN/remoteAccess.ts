@@ -25,6 +25,7 @@ export default {
 
   'remoteAccess.adapter.label': '网卡',
   'remoteAccess.adapter.all': '所有网卡',
+  'remoteAccess.adapter.choose': '选择网卡',
   'remoteAccess.adapter.option': '{name}（{address}）',
   'remoteAccess.adapter.allHelp': '面板会在所有网卡上监听（实例的联机网络除外），地址变了会自动跟上。',
   'remoteAccess.adapter.missing': '现在找不到这块网卡，换一块。',
