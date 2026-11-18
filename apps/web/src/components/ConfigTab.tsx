@@ -31,7 +31,7 @@ interface FieldMeta {
   /**
    * 文件里没写这个键时游戏实际使用的值：开关和下拉按它显示，文本和数字框拿它做占位字。
    * 已和 1.21.8、1.21.10 官方服务端首次运行生成的 server.properties 逐项核对；
-   * spawn-animals 除外，这两个版本都已经没有这个键。
+   * spawn-animals 这两个版本都已经没有，它的默认值取自 1.12.2 官方核心里读这个键的代码。
    */
   defaultValue?: string;
   /** 输入框为空时的占位文案，优先于 defaultValue（世界种子留空表示随机，没有固定默认值）。 */
