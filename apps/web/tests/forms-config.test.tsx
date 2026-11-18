@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import { useState } from 'react';
 import { ConfigTab } from '../src/components/ConfigTab';
+import type { RestartControl } from '../src/components/SaveBar';
 import { InstancePage } from '../src/pages/InstancePage';
 import { setupFormTestEnv } from './form-test-env';
 
@@ -192,7 +194,7 @@ test('参数配置：在输入框里按 Enter，合法就保存，不合法跳�
   fireEvent.keyDown(view, { key: 'Enter', isComposing: true });
   expect(saves).toEqual([]);
 
-  // 改对了再按 Enter 就保存；开关上的 Enter 不由表单接管。
+  // 改对了再按 Enter 就保存。
   await user.type(view, '{Enter}');
   await waitFor(() => expect(saves).toEqual([{ motd: 'Old!', 'view-distance': '20', 'server-port': '25565' }]));
   // 实例没在运行（没有重启入口）：只提示已保存，没有重启按钮。
@@ -346,5 +348,52 @@ test('实例设置：实例在运行时，改了启动才读取的设置保存�
   await user.click(within(bar).getByRole('button', { name: '重启实例' }));
   await user.click(within(screen.getByRole('dialog', { name: '重启实例「测试服」？' })).getByRole('button', { name: '确认重启' }));
   await waitFor(() => expect(calls.at(-1)).toContain('POST /api/instances/test/restart'));
+  expect(document.querySelector('.save-bar')).toBeNull();
+});
+
+test('参数配置：下拉和开关上的 Enter 带出来的隐式提交不保存，点保存按钮照常保存', async () => {
+  const user = userEvent.setup();
+  const saves = mountConfigTab({ motd: 'Old', difficulty: 'easy' });
+
+  const difficulty = await screen.findByRole('combobox', { name: '难度' }) as HTMLSelectElement;
+  await waitFor(() => expect(difficulty.value).toBe('easy'));
+  await user.selectOptions(difficulty, 'hard');
+  const form = difficulty.closest('form')!;
+  // jsdom 不模拟隐式提交，这里手动补上浏览器紧跟在 Enter 之后发出的 submit 事件。
+  for (const control of [difficulty, screen.getByRole('switch', { name: '启用白名单' })]) {
+    const notPrevented = fireEvent.keyDown(control, { key: 'Enter' });
+    // 不拦默认行为，控件自己的键盘操作不受影响。
+    expect(notPrevented).toBe(true);
+    fireEvent.submit(form);
+  }
+  expect(saves).toEqual([]);
+
+  await user.click(saveButton()!);
+  await waitFor(() => expect(saves).toEqual([{ motd: 'Old', difficulty: 'hard' }]));
+});
+
+test('参数配置：保存后实例停止再启动，「重启实例后生效」的提示不会重新出现', async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal('fetch', vi.fn(async () => json({ motd: 'Old' })));
+  let setRunning: (running: boolean) => void = () => {};
+  function Host() {
+    const [running, update] = useState(true);
+    setRunning = update;
+    const restart: RestartControl = { running, disabled: false, signal: 0, request: () => {} };
+    return <ConfigTab instanceId="test" restart={restart} />;
+  }
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <Host /> }])} />);
+
+  const motd = await screen.findByRole('textbox', { name: '服务器简介' }) as HTMLInputElement;
+  await waitFor(() => expect(motd.value).toBe('Old'));
+  await user.type(motd, '!');
+  await user.click(saveButton()!);
+  expect(await screen.findByText('已保存，重启实例后生效')).toBeTruthy();
+
+  // 在页头停止实例：提示收起；再启动后配置已经生效，提示不该回来。
+  act(() => setRunning(false));
+  expect(screen.queryByText('已保存，重启实例后生效')).toBeNull();
+  act(() => setRunning(true));
+  expect(screen.queryByText('已保存，重启实例后生效')).toBeNull();
   expect(document.querySelector('.save-bar')).toBeNull();
 });

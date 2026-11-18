@@ -6,7 +6,7 @@ import { useI18n, type MessageKey } from '../i18n';
 import { integerIssue, type Issue } from '../validation';
 import { FormFeedbackProvider, focusFirstInvalidField, useFieldFeedback, useFormFeedback } from './Field';
 import { NumberInput } from './NumberInput';
-import { SaveBar, isEnterSubmit, useSavedNotice, type RestartControl } from './SaveBar';
+import { SaveBar, useFormSubmit, useSavedNotice, type RestartControl } from './SaveBar';
 import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 
 /**
@@ -360,6 +360,8 @@ export function ConfigTab({
     else void save();
   }
 
+  const formSubmit = useFormSubmit(submit);
+
   function discard() {
     setProps(originalProps);
     feedback.reset();
@@ -399,15 +401,7 @@ export function ConfigTab({
           ref={formRef}
           className="form-stack config-workspace"
           noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-          onKeyDown={(event) => {
-            if (!isEnterSubmit(event)) return;
-            event.preventDefault();
-            submit();
-          }}
+          {...formSubmit}
         >
           <p className="section-lead">{t('config.lead')}</p>
           {error && <p className="callout callout-danger" role="alert">{error}</p>}
