@@ -35,7 +35,6 @@ export default {
   'deploy.runtime.title': '运行环境',
 
   'deploy.confirm.title': '确认并部署',
-  'deploy.confirm.eulaHelp': 'Minecraft 服务器必须同意 EULA 才能运行，勾选后才能开始部署。',
   'deploy.confirm.javaRequired': '这个版本需要 Java {java}。在上面的「Java 运行时」里安装或选择 Java {java} 后才能开始部署。',
   'deploy.progress.label': '部署进度',
   'deploy.progress.submitted': '已开始部署。可以离开此页，在右上角「任务中心」查看进度。',
