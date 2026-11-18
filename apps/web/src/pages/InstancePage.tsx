@@ -29,6 +29,7 @@ import { InstanceStatusPill } from '../components/StatusPill';
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
 import { errorMessage } from '../errors';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useToolbarTitle } from '../hooks/useToolbarTitle';
 import { useInstanceAction } from '../hooks/useInstanceAction';
 import { usePolling } from '../hooks/usePolling';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
@@ -309,6 +310,8 @@ export function InstancePage() {
   }, [id]);
   usePolling(load);
 
+  // 滚动后顶栏显示实例名，比「实例工作台」更能说明正在改哪个实例。
+  useToolbarTitle(instance?.name ?? null);
   const tabTitleKey = TAB_TITLE_KEYS.get(subPath.replace(/\/+$/, ''));
   useDocumentTitle(
     !instance
