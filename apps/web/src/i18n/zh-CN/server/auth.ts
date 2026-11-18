@@ -7,7 +7,7 @@ export default {
   'server.auth.invalidCredentials': '用户名或密码错误',
   'server.auth.usernameTooShort': '用户名至少 {min} 个字符',
   'server.auth.usernameTooLong': '用户名最多 {max} 个字符',
-  'server.auth.passwordTooShort': '密码至少 {min} 位',
+  'server.auth.passwordTooShort': '密码至少 {min} 个字符',
   'server.auth.passwordTooLong': '密码最多 {max} 位',
   'server.auth.passwordTooManyBytes': '密码最多 {max} 字节',
   'server.auth.alreadyInitialized': '管理员已初始化',

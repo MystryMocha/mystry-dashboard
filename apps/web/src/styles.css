@@ -957,6 +957,9 @@ select.input,
 .float-field .input-affix-text { padding-top: 16px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 /* 字段的错误行排在整组输入框下面：放进 .float-field 会把按 50% 定位的浮动标签挤歪。 */
 .login-form > .error { padding: 0 6px; }
+/* 错误行在整组下面，出错的那一格自己也描红，才对得上是哪一项。 */
+.float-field input[aria-invalid='true'],
+.float-field input[aria-invalid='true']:focus { box-shadow: inset 0 0 0 1.5px var(--danger); }
 
 /* -- 表单：内存与 JVM -- */
 /* 内存输入框下面的常用档位：窄栏里自动换行。 */

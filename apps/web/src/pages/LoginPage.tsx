@@ -232,7 +232,7 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
               onBlur={passwordFeedback.onBlur}
               autoComplete={needsSetup ? 'new-password' : 'current-password'}
               placeholder=" "
-              aria-describedby={describedBy(passwordFeedback.shown && 'password-error', needsSetup && 'password-help')}
+              aria-describedby={describedBy(passwordFeedback.shown && 'password-error', needsSetup && !passwordFeedback.shown && 'password-help')}
               aria-invalid={passwordFeedback.shown ? true : undefined}
               required
               minLength={needsSetup ? 12 : 1}
@@ -247,7 +247,8 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
             <p id="setup-token-help">
               {t('login.form.setupTokenHelp')}
             </p>
-            <p id="password-help">{t('login.form.passwordHelp')}</p>
+            {/* 密码的错误出现时说的也是长度，这句说明就不再重复。 */}
+            {!passwordFeedback.shown && <p id="password-help">{t('login.form.passwordHelp')}</p>}
           </div>
         )}
 
