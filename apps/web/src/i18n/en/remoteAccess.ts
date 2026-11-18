@@ -23,6 +23,7 @@ export default {
 
   'remoteAccess.adapter.label': 'Network Adapter',
   'remoteAccess.adapter.all': 'All Adapters',
+  'remoteAccess.adapter.choose': 'Choose an Adapter',
   'remoteAccess.adapter.option': '{name} ({address})',
   'remoteAccess.adapter.allHelp': 'The panel listens on every adapter except the instances\' multiplayer networks, and follows along when addresses change.',
   'remoteAccess.adapter.missing': "This adapter can't be found right now. Choose another one.",

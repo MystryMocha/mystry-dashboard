@@ -25,6 +25,7 @@ export default {
 
   'remoteAccess.adapter.label': '網路卡',
   'remoteAccess.adapter.all': '所有網路卡',
+  'remoteAccess.adapter.choose': '選擇網路卡',
   'remoteAccess.adapter.option': '{name}（{address}）',
   'remoteAccess.adapter.allHelp': '面板會在所有網路卡上監聽（實例的多人連線網路除外），位址變了會自動跟上。',
   'remoteAccess.adapter.missing': '現在找不到這張網路卡，換一張。',

@@ -3,7 +3,9 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
+import type { RemoteAccessStatus } from '@mystry/shared';
 import { JavaRuntimeSelect } from '../src/components/JavaRuntimeSelect';
+import { RemoteAccessMode } from '../src/components/RemoteAccessMode';
 import { InstancePage } from '../src/pages/InstancePage';
 import { setupFormTestEnv } from './form-test-env';
 
@@ -105,4 +107,37 @@ test('实例设置：Java 已失效时下拉框不显示成「系统默认」；
   await user.click(screen.getByRole('button', { name: '保存设置' }));
   await waitFor(() => expect(patches).toHaveLength(1));
   expect(patches[0]).toEqual({ name: '测试服2' });
+});
+
+function remoteStatus(interfaces: RemoteAccessStatus['interfaces']): RemoteAccessStatus {
+  const mode = { enabled: false, interfaceName: null, restrictToSubnet: false, https: true, urls: [], problem: null, firewall: null };
+  return {
+    managedByConfig: false, configuredHost: null, port: 3000, frontendServed: true, platform: 'win32',
+    interfaces, publicHost: null, certificate: null, direct: mode, overlay: mode,
+    panelNetwork: { enabled: false, platformSupported: true, installed: false } as RemoteAccessStatus['panelNetwork'],
+  };
+}
+
+test('组网网卡：打开时还没有网卡、之后才出现，下拉框写「选择网卡」而不是显示成第一块网卡', async () => {
+  const user = userEvent.setup();
+  const { rerender } = render(<RemoteAccessMode mode="overlay" status={remoteStatus([])} onStatus={() => {}} />);
+  const select = screen.getByRole('combobox', { name: '网卡' }) as HTMLSelectElement;
+  expect(shownOption(select)).toBe('无');
+
+  // 轮询读到了刚连上的组网网卡。
+  rerender(<RemoteAccessMode
+    mode="overlay"
+    status={remoteStatus([
+      { name: 'WLAN', address: '192.168.2.10', cidr: '192.168.2.10/24', kind: 'lan' },
+      { name: 'Tailscale', address: '100.64.0.2', cidr: null, kind: 'overlay' },
+    ])}
+    onStatus={() => {}}
+  />);
+  expect(select.value).toBe('');
+  expect(shownOption(select)).toBe('选择网卡');
+  expect(screen.getByRole('button', { name: '开启' }).hasAttribute('disabled')).toBe(true);
+
+  await user.selectOptions(select, 'Tailscale');
+  expect(shownOption(select)).toBe('Tailscale（100.64.0.2）');
+  expect(screen.getByRole('button', { name: '开启' }).hasAttribute('disabled')).toBe(false);
 });
