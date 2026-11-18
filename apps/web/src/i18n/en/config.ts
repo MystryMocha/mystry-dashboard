@@ -5,9 +5,7 @@ export default {
   'config.select.placeholder': 'Choose…',
   'config.advanced.summary_one': 'Advanced ({count} more property)',
   'config.advanced.summary_other': 'Advanced ({count} more properties)',
-  'config.status.dirty': 'You have unsaved changes. They\'ll be lost if you leave this page.',
   'config.status.saved': 'Saved. Changes take effect after you restart the instance.',
-  'config.status.idle': 'Changes take effect after you restart the instance.',
   'config.save': 'Save Properties',
   'config.unsaved.title': 'Discard unsaved property changes?',
   'config.unsaved.savingTitle': 'Saving properties…',
@@ -21,6 +19,9 @@ export default {
   // 这个游戏版本已改成游戏规则的项不再显示，在组末尾说明去哪里设置
   'config.group.multiplayer.gameRuleNote': 'In this Minecraft version, PvP is a game rule. Set it with <code>/gamerule</code> in the console.',
   'config.group.world.gameRuleNote': 'In this Minecraft version, Nether access and monster spawning are game rules. Set them with <code>/gamerule</code> in the console.',
+
+  // 这个游戏版本直接去掉、没有变成游戏规则的项，隐藏后在组末尾说明
+  'config.group.world.animalsNote': 'Minecraft 1.21.2 removed the "Spawn Animals" setting, so it isn\'t shown for this version.',
 
   // 属性说明（键名本身是技术名，不翻译）
   'config.field.motd.label': 'Server Description',

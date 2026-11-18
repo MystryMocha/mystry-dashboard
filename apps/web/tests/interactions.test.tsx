@@ -795,33 +795,34 @@ test('参数配置：文件里没写的键显示游戏默认值，拨回默认�
   expect(difficulty.value).toBe('easy');
   expect(within(difficulty).getByRole('option', { name: '简单（默认）' })).toBeTruthy();
   expect(within(difficulty).queryByRole('option', { name: '请选择' })).toBeNull();
-  const maxPlayers = screen.getByRole('spinbutton', { name: '最大在线人数' }) as HTMLInputElement;
+  const maxPlayers = screen.getByRole('textbox', { name: '最大在线人数' }) as HTMLInputElement;
   expect(maxPlayers.value).toBe('');
   expect(maxPlayers.placeholder).toBe('20');
   expect((screen.getByRole('textbox', { name: '世界种子' }) as HTMLInputElement).placeholder).toBe('随机');
-  const save = screen.getByRole('button', { name: '保存配置' }) as HTMLButtonElement;
-  expect(save.disabled).toBe(true);
+  // 保存栏只在有修改时出现。
+  const findSave = () => screen.queryByRole('button', { name: '保存配置' }) as HTMLButtonElement | null;
+  expect(findSave()).toBeNull();
 
   // 拨离默认值算修改，拨回去又回到没改。
   await user.click(onlineMode);
   expect(onlineMode.checked).toBe(false);
-  expect(save.disabled).toBe(false);
+  expect(findSave()!.disabled).toBe(false);
   await user.click(onlineMode);
   expect(onlineMode.checked).toBe(true);
-  expect(save.disabled).toBe(true);
+  expect(findSave()).toBeNull();
   await user.selectOptions(difficulty, 'hard');
-  expect(save.disabled).toBe(false);
+  expect(findSave()!.disabled).toBe(false);
   await user.selectOptions(difficulty, 'easy');
-  expect(save.disabled).toBe(true);
+  expect(findSave()).toBeNull();
   // 数字框填了再清空同样回到没改。
   await user.type(maxPlayers, '8');
-  expect(save.disabled).toBe(false);
+  expect(findSave()!.disabled).toBe(false);
   await user.clear(maxPlayers);
-  expect(save.disabled).toBe(true);
+  expect(findSave()).toBeNull();
 
   // 显示出来的默认值不会跟着写进文件。
   await user.selectOptions(difficulty, 'hard');
-  await user.click(save);
+  await user.click(findSave()!);
   await waitFor(() => expect(saves).toEqual([{ motd: 'Imported', 'server-port': '25565', difficulty: 'hard' }]));
 });
 
@@ -833,33 +834,36 @@ test('参数配置：文件里值留空的键按服务端实际生效的情况�
   await waitFor(() => expect(difficulty.value).toBe('easy'));
   expect(within(difficulty).queryByRole('option', { name: '请选择' })).toBeNull();
   expect((screen.getByRole('switch', { name: '正版验证（在线模式）' }) as HTMLInputElement).checked).toBe(false);
-  expect((screen.getByRole('spinbutton', { name: '最大在线人数' }) as HTMLInputElement).placeholder).toBe('20');
+  expect((screen.getByRole('textbox', { name: '最大在线人数' }) as HTMLInputElement).placeholder).toBe('20');
   expect((screen.getByRole('textbox', { name: '服务器简介' }) as HTMLInputElement).placeholder).toBe('');
   expect((screen.getByRole('textbox', { name: '世界种子' }) as HTMLInputElement).placeholder).toBe('随机');
-  expect((screen.getByRole('button', { name: '保存配置' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole('button', { name: '保存配置' })).toBeNull();
 });
 
 test('参数配置：已有的数字项可以清空保存，填了超范围的值仍然拦住', async () => {
   const user = userEvent.setup();
   const saves = mountConfigTab({ 'view-distance': '12', 'server-port': '25570' });
 
-  const view = await screen.findByRole('spinbutton', { name: '视距（区块）' }) as HTMLInputElement;
+  const view = await screen.findByRole('textbox', { name: '视距（区块）' }) as HTMLInputElement;
   await waitFor(() => expect(view.value).toBe('12'));
-  const port = screen.getByRole('spinbutton', { name: '服务器端口' }) as HTMLInputElement;
-  const save = screen.getByRole('button', { name: '保存配置' }) as HTMLButtonElement;
+  const port = screen.getByRole('textbox', { name: '服务器端口' }) as HTMLInputElement;
 
   // 清空后不报错，占位字是服务端会用的默认值。
-  await user.clear(view);
   await user.clear(port);
+  await user.clear(view);
   expect(view.getAttribute('aria-invalid')).toBeNull();
   expect(view.placeholder).toBe('10');
   expect(port.placeholder).toBe('25565');
+  const save = screen.getByRole('button', { name: '保存配置' }) as HTMLButtonElement;
   expect(save.disabled).toBe(false);
 
+  // 超范围的值马上拦住保存，红字等失焦后才显示。
   await user.type(view, '99');
-  expect(view.getAttribute('aria-invalid')).toBe('true');
   expect(save.disabled).toBe(true);
   expect(screen.getByRole('status').textContent).toBe('先修正「视距（区块）」');
+  expect(view.getAttribute('aria-invalid')).toBeNull();
+  await user.tab();
+  expect(view.getAttribute('aria-invalid')).toBe('true');
 
   await user.clear(view);
   await user.click(save);
@@ -878,7 +882,7 @@ test('参数配置：文件读取失败时不把游戏默认值当成文件内�
   const difficulty = screen.getByRole('combobox', { name: '难度' }) as HTMLSelectElement;
   expect(difficulty.value).toBe('');
   expect(within(difficulty).queryByRole('option', { name: '简单（默认）' })).toBeNull();
-  expect((screen.getByRole('spinbutton', { name: '最大在线人数' }) as HTMLInputElement).placeholder).toBe('');
+  expect((screen.getByRole('textbox', { name: '最大在线人数' }) as HTMLInputElement).placeholder).toBe('');
   expect((screen.getByRole('textbox', { name: '世界种子' }) as HTMLInputElement).placeholder).toBe('');
 });
 

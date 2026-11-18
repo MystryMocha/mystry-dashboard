@@ -30,9 +30,7 @@ export default {
   'instance.settings.jarFile.label': 'Jar File Name',
   'instance.settings.installPath.label': 'Install Path',
   'instance.settings.installPath.help': 'The panel manages the instance directory. It can\'t be changed after creation.',
-  'instance.settings.status.dirty': 'You have unsaved settings.',
   'instance.settings.status.saved': 'Settings saved.',
-  'instance.settings.status.idle': 'Changes take effect after you click "Save Settings".',
   'instance.settings.save': 'Save Settings',
   'instance.settings.unsaved.title': 'Discard unsaved changes to settings?',
   'instance.settings.unsaved.savingTitle': 'Saving settings…',
@@ -54,6 +52,13 @@ export default {
   'instance.ready.body': 'Want players to join? Multiplayer shows the join address.',
   'instance.ready.action': 'Invite Players',
   'instance.ready.dismiss': 'Don\'t Show Again',
+
+  // 保存栏（设置与参数配置共用）：有修改才出现
+  'instance.saveBar.dirty_one': '{count} unsaved change',
+  'instance.saveBar.dirty_other': '{count} unsaved changes',
+  'instance.saveBar.discard': 'Discard Changes',
+  'instance.saveBar.savedRestart': 'Saved. Restart the instance to apply.',
+  'instance.saveBar.restart': 'Restart Instance',
 
   // 未保存修改弹窗（设置与参数配置共用）
   'instance.unsaved.savingDescription': 'You\'ll leave automatically once saving finishes. You can\'t discard or cancel while saving.',

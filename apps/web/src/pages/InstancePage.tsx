@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Link, Navigate, NavLink, Route, Routes, useParams } from 'react-router-dom';
 import {
   Archive,
@@ -20,10 +20,12 @@ import { ConfigTab } from '../components/ConfigTab';
 import { ConsolePanel } from '../components/ConsolePanel';
 import { CoreIcon, coreDisplayName } from '../components/CoreIcon';
 import { EulaCheckbox } from '../components/EulaCheckbox';
+import { Field, FormFeedbackProvider, focusFirstInvalidField, useFormFeedback } from '../components/Field';
 import { FilesTab } from '../components/FilesTab';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
 import { ReadyHint } from '../components/ReadyHint';
+import { SaveBar, useFormSubmit, useSavedNotice, type RestartControl } from '../components/SaveBar';
 import { StartIssueBanner } from '../components/StartIssueBanner';
 import { InstanceStatusPill } from '../components/StatusPill';
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
@@ -106,19 +108,21 @@ function settingsFromInstance(instance: InstanceInfo): SettingsDraft {
   };
 }
 
-function isSameSettings(left: SettingsDraft, right: SettingsDraft): boolean {
-  return left.name === right.name
-    && left.jarFile === right.jarFile
-    && left.jvmArgs === right.jvmArgs
-    && left.acceptEula === right.acceptEula
-    && left.javaRuntimeId === right.javaRuntimeId;
+const SETTINGS_KEYS = ['name', 'jarFile', 'jvmArgs', 'acceptEula', 'javaRuntimeId'] as const;
+
+/** 和加载时不一样的设置项；保存栏据此写「N 项修改未保存」。 */
+function changedSettings(left: SettingsDraft, right: SettingsDraft): (keyof SettingsDraft)[] {
+  return SETTINGS_KEYS.filter((key) => left[key] !== right[key]);
 }
 
 function SettingsTab({
   instance,
+  restart,
   onSaved,
 }: {
   instance: InstanceInfo;
+  /** 实例页的重启入口：实例在运行时，保存后的提示里给出「重启实例」。 */
+  restart: RestartControl;
   onSaved: () => void;
 }) {
   const { t } = useI18n();
@@ -132,19 +136,27 @@ function SettingsTab({
   const [originalSettings, setOriginalSettings] = useState<SettingsDraft>(() => settingsFromInstance(instance));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const feedback = useFormFeedback();
+  const savedNotice = useSavedNotice(restart);
+  const formRef = useRef<HTMLFormElement>(null);
   const draft: SettingsDraft = { name, jarFile, jvmArgs, acceptEula, javaRuntimeId };
-  const dirty = !isSameSettings(draft, originalSettings);
+  const changed = changedSettings(draft, originalSettings);
+  const dirty = changed.length > 0;
   const blocker = useUnsavedGuard(dirty, saving);
+  // 这里改的是已有的名称，清空算填错（失焦后说明原因），和新建表单里「还没填」不是一回事。
   const nameIssue = instanceNameIssue(name);
   // 只在用户改过 Jar 文件名时检查，库里原有的值不拦其他设置的保存。
   const jarFileIssue: Issue | null = jarFile !== originalSettings.jarFile && jarFile.trim() === '' ? { key: 'validation.jarFile.required' } : null;
-  const invalid: Issue | null = nameIssue ?? jarFileIssue ?? (jvmValid ? null : { key: 'validation.jvm.invalid' });
+  // 保存栏点名第一个要改的字段，顺序和页面上的一致。
+  const invalidLabel = nameIssue ? t('validation.fixField', { field: t('instance.settings.name.label') })
+    : jarFileIssue ? t('validation.fixField', { field: t('instance.settings.jarFile.label') })
+      : jvmValid ? null : t('validation.jvm.invalid');
+  const invalid = invalidLabel !== null;
 
   async function save() {
     if (!dirty || saving || invalid) return;
     setSaving(true);
-    setSaved(false);
+    savedNotice.clear();
     try {
       await api(instanceApi(instance.id), {
         method: 'PATCH',
@@ -152,7 +164,9 @@ function SettingsTab({
       });
       setError('');
       setOriginalSettings(draft);
-      setSaved(true);
+      feedback.reset();
+      // 名称改了立即生效；Jar、Java、JVM 参数和 EULA 只在启动时读取，实例在运行就要重启。
+      savedNotice.show(changed.some((key) => key !== 'name'));
       onSaved();
     } catch (err) {
       setError(errorMessage(err));
@@ -161,114 +175,155 @@ function SettingsTab({
     }
   }
 
+  /** 让各字段显示错误原因，并跳到第一个要改的字段；按 Enter 提交不了和点保存栏的状态文字是同一个动作。 */
+  function revealInvalid() {
+    feedback.revealAll();
+    focusFirstInvalidField(formRef.current);
+  }
+
+  function submit() {
+    if (!dirty || saving) return;
+    if (invalid) revealInvalid();
+    else void save();
+  }
+
+  const formSubmit = useFormSubmit(submit);
+
+  function discard() {
+    setName(originalSettings.name);
+    setJarFile(originalSettings.jarFile);
+    setJvmArgs(originalSettings.jvmArgs);
+    setAcceptEula(originalSettings.acceptEula);
+    setJavaRuntimeId(originalSettings.javaRuntimeId);
+    feedback.reset();
+    setError('');
+  }
+
   return (
-    <div className="form-stack settings-workspace">
-      {/* 宽屏时左栏基本信息与许可协议，右栏运行环境；窄屏按原顺序上下排列。 */}
-      <div className="form-columns">
-        <div className="form-column">
-          <section className="form-section">
-            <h3 className="form-section-title">{t('instance.settings.section.basic')}</h3>
-            <div className="card form-card">
-              <div className="field">
-                <label htmlFor="instance-settings-name">{t('instance.settings.name.label')}</label>
-                <input
-                  id="instance-settings-name"
-                  value={name}
-                  disabled={saving}
-                  aria-invalid={nameIssue ? true : undefined}
-                  aria-describedby={nameIssue ? 'instance-settings-name-error' : undefined}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setSaved(false);
-                  }}
-                />
-                {nameIssue && <p className="error" id="instance-settings-name-error">{t(nameIssue.key, nameIssue.params)}</p>}
-              </div>
-              <div className="field">
-                <label htmlFor="instance-settings-jar-file">{t('instance.settings.jarFile.label')}</label>
-                <input
-                  id="instance-settings-jar-file"
-                  value={jarFile}
-                  disabled={saving}
-                  aria-invalid={jarFileIssue ? true : undefined}
-                  aria-describedby={jarFileIssue ? 'instance-settings-jar-file-error' : undefined}
-                  onChange={(e) => {
-                    setJarFile(e.target.value);
-                    setSaved(false);
-                  }}
-                />
-                {jarFileIssue && <p className="error" id="instance-settings-jar-file-error">{t(jarFileIssue.key)}</p>}
-              </div>
-              <div className="field">
-                <label htmlFor="instance-settings-install-path">{t('instance.settings.installPath.label')}</label>
-                <input
-                  id="instance-settings-install-path"
-                  value={instance.installPath ?? t('instance.path.managed', { id: instance.id })}
-                  readOnly
-                />
-                <p className="field-help">{t('instance.settings.installPath.help')}</p>
-              </div>
-            </div>
-          </section>
+    <>
+      <FormFeedbackProvider value={feedback.value}>
+        {/* noValidate：校验由页面自己做，不让浏览器的原生提示拦住提交。 */}
+        <form
+          ref={formRef}
+          className="form-stack settings-workspace"
+          noValidate
+          {...formSubmit}
+        >
+          {/* 宽屏时左栏基本信息与许可协议，右栏运行环境；窄屏按原顺序上下排列。 */}
+          <div className="form-columns">
+            <div className="form-column">
+              <section className="form-section">
+                <h3 className="form-section-title">{t('instance.settings.section.basic')}</h3>
+                <div className="card form-card">
+                  <Field
+                    id="instance-settings-name"
+                    label={t('instance.settings.name.label')}
+                    error={nameIssue ? t(nameIssue.key, nameIssue.params) : null}
+                  >
+                    {(control) => (
+                      <input
+                        {...control}
+                        value={name}
+                        disabled={saving}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          savedNotice.clear();
+                        }}
+                      />
+                    )}
+                  </Field>
+                  <Field
+                    id="instance-settings-jar-file"
+                    label={t('instance.settings.jarFile.label')}
+                    error={jarFileIssue ? t(jarFileIssue.key) : null}
+                  >
+                    {(control) => (
+                      <input
+                        {...control}
+                        value={jarFile}
+                        disabled={saving}
+                        onChange={(e) => {
+                          setJarFile(e.target.value);
+                          savedNotice.clear();
+                        }}
+                      />
+                    )}
+                  </Field>
+                  <div className="field">
+                    <label htmlFor="instance-settings-install-path">{t('instance.settings.installPath.label')}</label>
+                    <input
+                      id="instance-settings-install-path"
+                      value={instance.installPath ?? t('instance.path.managed', { id: instance.id })}
+                      readOnly
+                    />
+                    <p className="field-help">{t('instance.settings.installPath.help')}</p>
+                  </div>
+                </div>
+              </section>
 
-          <section className="form-section">
-            <h3 className="form-section-title">{t('instance.settings.section.eula')}</h3>
-            <div className="card form-card">
-              <EulaCheckbox
-                checked={acceptEula}
-                disabled={saving}
-                onChange={(checked) => {
-                  setAcceptEula(checked);
-                  setSaved(false);
-                }}
-              />
+              <section className="form-section">
+                <h3 className="form-section-title">{t('instance.settings.section.eula')}</h3>
+                <div className="card form-card">
+                  <EulaCheckbox
+                    checked={acceptEula}
+                    disabled={saving}
+                    onChange={(checked) => {
+                      setAcceptEula(checked);
+                      savedNotice.clear();
+                    }}
+                  />
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
-        <div className="form-column">
-          <section className="form-section">
-            <h3 className="form-section-title">{t('instance.settings.section.runtime')}</h3>
-            <div className="card form-card">
-              <JavaRuntimeSelect
-                value={javaRuntimeId}
-                onChange={(nextRuntimeId) => {
-                  setJavaRuntimeId(nextRuntimeId);
-                  setSaved(false);
-                }}
-                mcVersion={instance.mcVersion}
-                disabled={saving}
-                onResolvedMajorChange={setJavaMajor}
-              />
-              <JvmSettingsEditor
-                value={jvmArgs}
-                onChange={(next) => {
-                  setJvmArgs(next);
-                  setSaved(false);
-                }}
-                coreType={instance.coreType}
-                javaMajor={javaMajor}
-                disabled={saving}
-                onValidityChange={setJvmValid}
-              />
+            <div className="form-column">
+              <section className="form-section">
+                <h3 className="form-section-title">{t('instance.settings.section.runtime')}</h3>
+                <div className="card form-card">
+                  <JavaRuntimeSelect
+                    value={javaRuntimeId}
+                    onChange={(nextRuntimeId) => {
+                      setJavaRuntimeId(nextRuntimeId);
+                      savedNotice.clear();
+                    }}
+                    mcVersion={instance.mcVersion}
+                    disabled={saving}
+                    onResolvedMajorChange={setJavaMajor}
+                  />
+                  {/* JVM 配置器自己显示错误；这层容器不参与排版，只让「跳到要改的字段」能落到它里面。 */}
+                  <div className="form-fields" data-field-invalid={jvmValid ? undefined : ''}>
+                    <JvmSettingsEditor
+                      value={jvmArgs}
+                      onChange={(next) => {
+                        setJvmArgs(next);
+                        savedNotice.clear();
+                      }}
+                      coreType={instance.coreType}
+                      javaMajor={javaMajor}
+                      disabled={saving}
+                      onValidityChange={setJvmValid}
+                    />
+                  </div>
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
-      </div>
+          </div>
 
-      {error && <p className="callout callout-danger" role="alert">{error}</p>}
+          {error && <p className="callout callout-danger" role="alert">{error}</p>}
 
-      <div className="action-bar">
-        <span className="action-bar-status" role="status" aria-live="polite">
-          {dirty && invalid
-            ? t(invalid.key, invalid.params)
-            : dirty
-            ? t('instance.settings.status.dirty')
-            : saved ? t('instance.settings.status.saved') : t('instance.settings.status.idle')}
-        </span>
-        <button className="btn btn-primary" type="button" disabled={!dirty || saving || invalid !== null} onClick={() => void save()}>
-          {saving ? t('action.saving') : t('instance.settings.save')}
-        </button>
-      </div>
+          <SaveBar
+            dirtyCount={changed.length}
+            saving={saving}
+            saveLabel={t('instance.settings.save')}
+            invalidLabel={invalidLabel}
+            onFixInvalid={revealInvalid}
+            onDiscard={discard}
+            notice={savedNotice.notice}
+            savedLabel={t('instance.settings.status.saved')}
+            restart={restart}
+            onDismissNotice={savedNotice.clear}
+          />
+        </form>
+      </FormFeedbackProvider>
 
       <UnsavedChangesDialog
         blocker={blocker}
@@ -277,7 +332,7 @@ function SettingsTab({
         savingTitle={t('instance.settings.unsaved.savingTitle')}
         description={t('instance.settings.unsaved.description')}
       />
-    </div>
+    </>
   );
 }
 
@@ -299,6 +354,8 @@ export function InstancePage() {
   const [loadError, setLoadError] = useState('');
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [confirmForceStop, setConfirmForceStop] = useState(false);
+  // 每确认一次重启加一：保存栏里「重启实例后生效」的提示据此收起。
+  const [restartSignal, setRestartSignal] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -358,6 +415,14 @@ export function InstancePage() {
       </div>
     );
   }
+
+  // 参数配置和实例设置的保存栏用的重启入口：和页头的重启按钮走同一个确认框、同一套禁用条件。
+  const restart: RestartControl = {
+    running: instance.status === 'running',
+    disabled: busy || instance.requiresMigration || isLifecycleBusy(instance.status),
+    signal: restartSignal,
+    request: () => setConfirmRestart(true),
+  };
 
   return (
     <div className="page instance-page">
@@ -462,9 +527,9 @@ export function InstancePage() {
               element={<ConsoleTab instance={instance} busy={busy} onAgreeEulaAndStart={agreeEulaAndStart} />}
             />
             <Route path="files" element={<FilesTab instanceId={instance.id} />} />
-            <Route path="config" element={<ConfigTab instanceId={instance.id} mcVersion={instance.mcVersion} />} />
+            <Route path="config" element={<ConfigTab instanceId={instance.id} mcVersion={instance.mcVersion} restart={restart} />} />
             <Route path="backups" element={<BackupsTab instance={instance} onRestored={() => void load()} />} />
-            <Route path="settings" element={<SettingsTab instance={instance} onSaved={load} />} />
+            <Route path="settings" element={<SettingsTab instance={instance} restart={restart} onSaved={load} />} />
             <Route path="multiplayer" element={<Navigate to={`/multiplayer?instance=${encodeURIComponent(id ?? '')}`} replace />} />
             <Route path="*" element={<Navigate to={`/instances/${id}`} replace />} />
           </Routes>
@@ -479,6 +544,7 @@ export function InstancePage() {
         busy={busy}
         onConfirm={() => {
           setConfirmRestart(false);
+          setRestartSignal((value) => value + 1);
           act('restart');
         }}
         onCancel={() => setConfirmRestart(false)}
