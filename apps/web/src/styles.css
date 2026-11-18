@@ -973,6 +973,10 @@ select.input,
 .multiplayer-form-hint { align-self: center; font-size: var(--text-small); text-align: start; white-space: normal; }
 
 /* -- 表单：部署 -- */
+/* 包住 Java 选择框和 JVM 配置器的定位容器：只用来让「跳到要改的字段」找到里面的控件，不参与布局。 */
+.deploy-field-anchor { display: contents; }
+/* 操作栏里可点的状态文字：换行时靠起始侧对齐，字号跟着状态文字。 */
+.action-bar-status .link-button { text-align: start; font-size: inherit; }
 
 input[type='checkbox']:not(.switch),
 input[type='radio'] {
