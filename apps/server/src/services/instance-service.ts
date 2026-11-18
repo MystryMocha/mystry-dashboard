@@ -232,7 +232,8 @@ export function updateInstance(id: string, input: UpdateInstanceInput): Instance
 
   // 启动时只在同意时写 eula=true。从同意改成不同意时要把文件改回来，否则之前写进去的同意一直有效。
   // 只看这一次变化：从没勾选过的实例（例如导入时自带同意记录）不碰原有的 eula.txt。
-  if (existing.accept_eula && input.acceptEula === false) {
+  // 旧版绑定外部目录的实例迁移前不能启动，也解析不到实例目录，只改数据库，和以前一样能保存。
+  if (existing.accept_eula && input.acceptEula === false && existing.install_path === null) {
     // 还原备份会整体替换目录，这时写进去的文件会丢，数据库和文件对不上。
     processManager.assertNotInMaintenance(id);
     const dir = assertSafeInstanceRoot(resolveDirFromRow(existing));
@@ -268,10 +269,14 @@ export function updateInstance(id: string, input: UpdateInstanceInput): Instance
 
 /**
  * 实例设置的保存入口（PATCH）。取消同意 EULA 时会改实例目录里的 eula.txt，
- * 所以和启动、还原替换目录用同一把实例锁，不会和它们交错。
+ * 这时和启动、还原替换目录用同一把实例锁，不会和它们交错。
+ * 其他保存不拿锁：停止实例会在等进程退出期间一直占着锁，改个名不能跟着等。
  */
 export async function updateInstanceSettings(id: string, input: UpdateInstanceInput): Promise<InstanceInfo> {
-  return processManager.runExclusive(id, async () => updateInstance(id, input));
+  if (input.acceptEula === false && getInstanceRow(id)?.accept_eula) {
+    return processManager.runExclusive(id, async () => updateInstance(id, input));
+  }
+  return updateInstance(id, input);
 }
 
 /** 还原备份后同步面板记录的启动文件、核心类型与版本；调用方负责持有实例锁。 */

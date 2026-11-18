@@ -247,3 +247,21 @@ test('实例设置：模组加载器还没装好的实例不显示「@modloader�
   expect(screen.queryByDisplayValue('@modloader')).toBeNull();
   expect(screen.getByText(/还没有安装完成/)).toBeTruthy();
 });
+
+test('导入：Forge 文件夹的启动目标是参数文件时，来源下拉和「已找到启动文件」不显示 @args: 标记', async () => {
+  const argsPath = 'libraries/net/minecraftforge/forge/1.20.1-47.2.0/win_args.txt';
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (String(url).includes('/import/sources')) {
+      return json({ sources: [{ id: 'forge-server', launchTarget: `@args:${argsPath}`, coreType: 'forge', mcVersion: '1.20.1', modifiedAt: '2026-11-01T00:00:00.000Z', ready: true }] });
+    }
+    if (String(url).startsWith('/api/system/java-runtimes')) return json({ runtimes: [], installable: [] });
+    if (url === '/api/system/java') return json(javaDefault);
+    return json({});
+  }));
+  render(<MemoryRouter><ImportPage /></MemoryRouter>);
+  const sourceSelect = await screen.findByRole('combobox', { name: '选择要导入的文件夹' }) as HTMLSelectElement;
+  await waitFor(() => expect(sourceSelect.value).toBe('forge-server'));
+  expect(shownOption(sourceSelect)).toBe(`forge-server · ${argsPath}`);
+  expect(screen.getByText(argsPath, { selector: 'code' })).toBeTruthy();
+  expect(document.body.textContent).not.toContain('@args:');
+});
