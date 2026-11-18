@@ -1,0 +1,260 @@
+<!doctype html>
+<!--
+  表单体验优化：静态原型（配合 docs/plans/form-experience-design.md）。
+  直接用浏览器打开本文件即可，样式引用仓库里的 apps/web/src/styles.css，没有脚本和请求。
+  地址后加 #dark 看深色。左边是现在的样子，右边是方案；文案只用于看效果，正式实现要走 i18n 三语言。
+-->
+<html lang="zh-CN" data-appearance="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>表单体验优化原型</title>
+<link rel="stylesheet" href="../../apps/web/src/styles.css">
+<style>
+  /* 只放原型自己的排版和方案里新增的三个小部件；其余都是 styles.css 里已有的类。 */
+  html, body { height: auto; overflow: auto; }
+  body { background: var(--bg); color: var(--label); }
+  .proto { max-width: 1180px; margin: 0 auto; padding: 28px 40px 80px; }
+  .proto > .page { gap: 34px; }
+  .proto-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 40px; align-items: start; }
+  .proto-side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+  .proto-tag { margin: 0; font-size: var(--text-small); font-weight: 600; color: var(--label-2); }
+  .proto-note { margin: 0; font-size: var(--text-small); color: var(--label-2); }
+  .proto-states { display: flex; flex-direction: column; gap: 12px; }
+  .proto-states .action-bar { position: static; }
+  /* 参数配置页宽屏是两栏，这里按那一栏的控件宽度摆，免得下拉框掉到下一行。 */
+  @media (min-width: 769px) {
+    .proto .config-row-select .list-row-control { flex-basis: 190px; }
+    .proto .config-row-number .list-row-control { flex-basis: 110px; }
+    .proto .list-row-text { flex-basis: 160px; }
+  }
+  /* 方案里的保存栏在手机上：状态单独一行，按钮在第二行并排；关闭按钮不撑开。 */
+  .action-bar > .btn-icon { flex: 0 0 auto; }
+  @media (max-width: 768px) {
+    .action-bar.is-edit .action-bar-status { flex-basis: 100%; }
+    .action-bar.is-saved .action-bar-status { flex: 1 1 0; }
+    .action-bar.is-saved > .btn:not(.btn-icon) { flex: 0 0 auto; }
+  }
+  .input-affix.has-count > input { padding-right: 76px; }
+  @media (max-width: 768px) {
+    .proto { padding: 18px 16px 60px; }
+    .proto-pair { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  /* 新部件 1：带单位的输入框。单位是输入框的一部分，不占标签。 */
+  .input-affix { position: relative; display: flex; }
+  .input-affix > input { padding-right: 46px; font-variant-numeric: tabular-nums; }
+  .input-affix > .affix {
+    position: absolute; inset-block: 0; right: 12px; display: flex; align-items: center;
+    font-size: var(--text-small); color: var(--label-2); pointer-events: none;
+  }
+  /* 新部件 2：当前选中的常用档位。 */
+  .chip.is-selected { background: var(--accent-soft-strong); color: var(--accent-text); font-weight: 600; }
+  /* 新部件 3：输入框里的显示/隐藏按钮。 */
+  .input-affix > .btn-icon { position: absolute; right: 2px; top: 2px; }
+  .input-affix.has-button > input { padding-right: 44px; }
+  /* 操作栏状态可以点：跳到要改的字段。 */
+  .action-bar-status .link-button { font-size: inherit; }
+</style>
+<script>if (location.hash === '#dark') document.documentElement.dataset.appearance = 'dark';</script>
+</head>
+<body>
+<div class="proto">
+<div class="page">
+
+  <header class="page-header">
+    <div>
+      <h1 class="large-title">表单体验优化原型</h1>
+      <p class="page-subtitle">左边是现在的样子，右边是方案。</p>
+    </div>
+  </header>
+
+  <!-- 1 内存 -->
+  <section class="form-section">
+    <h2 class="section-title">最大内存用 GB 填</h2>
+    <div class="proto-pair">
+      <div class="proto-side">
+        <p class="proto-tag">现在</p>
+        <div class="card form-card">
+          <div class="field">
+            <label for="p-mem-old">最大内存（MiB）</label>
+            <input id="p-mem-old" type="number" value="7680" step="512">
+            <p class="field-help">推荐 7680 MiB，主机总内存约 32 GiB</p>
+          </div>
+        </div>
+        <p class="proto-note">两种单位要自己换算；框里的数字删不空。</p>
+      </div>
+      <div class="proto-side">
+        <p class="proto-tag">方案</p>
+        <div class="card form-card">
+          <div class="field">
+            <label for="p-mem-new">最大内存</label>
+            <div class="input-affix">
+              <!-- 读屏不读后缀，所以把单位也挂到 aria-describedby 上。 -->
+              <input id="p-mem-new" type="text" inputmode="decimal" value="6" aria-describedby="p-mem-unit p-mem-help">
+              <span class="affix" id="p-mem-unit">GB</span>
+            </div>
+            <div class="quick-cmd-bar" role="group" aria-label="常用内存大小">
+              <button class="chip" type="button">2 GB</button>
+              <button class="chip" type="button">4 GB</button>
+              <button class="chip is-selected" type="button" aria-pressed="true">6 GB</button>
+              <button class="chip" type="button">7.5 GB <span class="chip-desc">推荐</span></button>
+            </div>
+            <p class="field-help" id="p-mem-help">这台电脑共 32 GB。</p>
+          </div>
+        </div>
+        <p class="proto-note">「最终参数」里仍是 -Xmx6144M，保存的格式不变。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 参数配置：文件里没写的项 -->
+  <section class="form-section">
+    <h2 class="section-title">文件里没写的项，显示游戏的默认值</h2>
+    <div class="proto-pair">
+      <div class="proto-side">
+        <p class="proto-tag">现在</p>
+        <div class="list-group">
+          <div class="list-row config-row config-row-boolean">
+            <div class="list-row-text"><label class="list-row-title" for="p-pvp-old">正版验证（在线模式）</label><p class="list-row-desc">开启后仅允许正版账号登录。</p></div>
+            <div class="list-row-control"><input id="p-pvp-old" type="checkbox" role="switch" class="switch"></div>
+          </div>
+          <div class="list-row config-row config-row-number">
+            <div class="list-row-text"><label class="list-row-title" for="p-view-old">视距</label><p class="list-row-desc">玩家可见的区块范围。</p></div>
+            <div class="list-row-control"><input id="p-view-old" class="input" type="number"></div>
+          </div>
+          <div class="list-row config-row config-row-select">
+            <div class="list-row-text"><label class="list-row-title" for="p-diff-old">难度</label><p class="list-row-desc">影响怪物伤害与饥饿等生存压力。</p></div>
+            <div class="list-row-control"><select id="p-diff-old" class="input"><option>请选择</option></select></div>
+          </div>
+        </div>
+        <p class="proto-note">文件里只有 motd 和端口两行时的样子：开关显示「关」，游戏实际按默认值「开」运行。</p>
+      </div>
+      <div class="proto-side">
+        <p class="proto-tag">方案</p>
+        <div class="list-group">
+          <div class="list-row config-row config-row-boolean">
+            <div class="list-row-text"><label class="list-row-title" for="p-pvp-new">正版验证（在线模式）</label><p class="list-row-desc">开启后仅允许正版账号登录。</p></div>
+            <div class="list-row-control"><input id="p-pvp-new" type="checkbox" role="switch" class="switch" checked></div>
+          </div>
+          <div class="list-row config-row config-row-number">
+            <div class="list-row-text"><label class="list-row-title" for="p-view-new">视距</label><p class="list-row-desc">玩家可见的区块范围，3–32。</p></div>
+            <div class="list-row-control"><input id="p-view-new" class="input" type="text" inputmode="numeric" placeholder="10"></div>
+          </div>
+          <div class="list-row config-row config-row-select">
+            <div class="list-row-text"><label class="list-row-title" for="p-diff-new">难度</label><p class="list-row-desc">影响怪物伤害与饥饿等生存压力。</p></div>
+            <div class="list-row-control"><select id="p-diff-new" class="input"><option>简单（默认）</option></select></div>
+          </div>
+        </div>
+        <p class="proto-note">只显示，不写进文件；改过的项才会保存。开关留不留见方案的拍板 1。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 保存栏 -->
+  <section class="form-section">
+    <h2 class="section-title">保存栏只在有修改时出现</h2>
+    <div class="proto-pair">
+      <div class="proto-side">
+        <p class="proto-tag">现在</p>
+        <div class="proto-states">
+          <div class="action-bar">
+            <span class="action-bar-status">修改后需重启实例生效。</span>
+            <button class="btn btn-primary" type="button" disabled>保存配置</button>
+          </div>
+          <div class="action-bar">
+            <span class="action-bar-status">有未保存的修改，离开页面会丢失。</span>
+            <button class="btn btn-primary" type="button">保存配置</button>
+          </div>
+          <div class="action-bar">
+            <span class="action-bar-status">已保存，重启实例后生效。</span>
+            <button class="btn btn-primary" type="button" disabled>保存配置</button>
+          </div>
+        </div>
+        <p class="proto-note">没改动时也占着底部；想撤销只能离开页面再确认。</p>
+      </div>
+      <div class="proto-side">
+        <p class="proto-tag">方案</p>
+        <div class="proto-states">
+          <p class="proto-note">没改动：不显示保存栏。</p>
+          <div class="action-bar is-edit">
+            <span class="action-bar-status">2 项修改未保存</span>
+            <button class="btn btn-plain" type="button">放弃修改</button>
+            <button class="btn btn-primary" type="button">保存配置</button>
+          </div>
+          <div class="action-bar is-edit">
+            <span class="action-bar-status"><button class="link-button" type="button">先修正「视距」</button></span>
+            <button class="btn btn-plain" type="button">放弃修改</button>
+            <button class="btn btn-primary" type="button" disabled>保存配置</button>
+          </div>
+          <div class="action-bar is-saved">
+            <span class="action-bar-status">已保存，重启后生效。</span>
+            <button class="btn" type="button">重启实例</button>
+            <button class="btn btn-plain btn-icon" type="button" aria-label="关闭">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <p class="proto-note">有错时点状态文字，跳到要改的字段并显示原因；实例没在运行时保存后直接收起。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 报错时机 -->
+  <section class="form-section">
+    <h2 class="section-title">填完一项再检查，改对了马上消除</h2>
+    <div class="proto-pair">
+      <div class="proto-side">
+        <p class="proto-tag">现在：第一次按键就报错</p>
+        <div class="card form-card">
+          <div class="field">
+            <label for="p-pw-old">密码</label>
+            <input id="p-pw-old" type="password" value="abc" aria-invalid="true">
+            <p class="error">密码至少 12 个字符</p>
+          </div>
+        </div>
+      </div>
+      <div class="proto-side">
+        <p class="proto-tag">方案：输入中 → 离开后 → 改对</p>
+        <div class="card form-card">
+          <div class="grid grid-2">
+            <div class="field">
+              <label for="p-port-a">公网端口</label>
+              <input id="p-port-a" type="text" inputmode="numeric" value="7000">
+              <p class="field-help">输入中不打断。</p>
+            </div>
+            <div class="field">
+              <label for="p-port-b">公网端口</label>
+              <input id="p-port-b" type="text" inputmode="numeric" value="70000" aria-invalid="true">
+              <p class="error">端口填写 1–65535 之间的整数</p>
+            </div>
+          </div>
+          <div class="grid grid-2">
+            <div class="field">
+              <label for="p-pw-new">新密码</label>
+              <div class="input-affix has-button">
+                <input id="p-pw-new" type="text" value="correct-horse-9" autocomplete="off">
+                <button class="btn btn-plain btn-icon" type="button" aria-label="隐藏密码" aria-pressed="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/></svg>
+                </button>
+              </div>
+              <p class="field-help">至少 12 个字符。可以点右边的按钮核对。</p>
+            </div>
+            <div class="field">
+              <label for="p-token-new">初始化令牌</label>
+              <div class="input-affix has-count">
+                <input id="p-token-new" type="text" class="mono" value="9f2c41d07be8a6…" aria-invalid="true" aria-describedby="p-token-count" autocomplete="off" spellcheck="false">
+                <span class="affix" id="p-token-count">61 / 64</span>
+              </div>
+              <p class="error">令牌是 64 个字符，现在有 61 个</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+</div>
+</body>
+</html>
