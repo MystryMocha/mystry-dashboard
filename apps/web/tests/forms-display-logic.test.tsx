@@ -225,6 +225,7 @@ test('实例设置：Forge / NeoForge 实例显示参数文件路径（只读）
 
   const launch = await screen.findByRole('textbox', { name: '启动文件' }) as HTMLInputElement;
   expect(launch.value).toBe(argsPath);
+  expect(launch.title).toBe(argsPath);
   expect(launch.readOnly).toBe(true);
   expect(screen.queryByRole('textbox', { name: 'Jar 文件名' })).toBeNull();
   expect(screen.queryByDisplayValue(/@args:/)).toBeNull();
@@ -240,7 +241,9 @@ test('实例设置：模组加载器还没装好的实例不显示「@modloader�
   mountSettings({ coreType: 'neoforge', jarFile: '@modloader' });
   const launch = await screen.findByRole('textbox', { name: '启动文件' }) as HTMLInputElement;
   expect(launch.readOnly).toBe(true);
-  expect(launch.value).toBe('');
+  // 状态按正文显示，不用低对比度的占位符。
+  expect(launch.value).toBe('未安装');
+  expect(launch.placeholder).toBe('');
   expect(screen.queryByDisplayValue('@modloader')).toBeNull();
   expect(screen.getByText(/还没有安装完成/)).toBeTruthy();
 });
