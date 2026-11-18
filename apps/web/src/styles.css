@@ -37,6 +37,12 @@
 
   --sidebar-width: 256px;
   --toolbar-height: 60px;
+  /* 纵向间距：矮屏桌面档（见响应式部分）整体收紧这几个值。 */
+  --content-top-gap: 6px;
+  --page-gap: 24px;
+  --instance-page-gap: 20px;
+  --page-header-top: 6px;
+  --form-section-gap: 10px;
   --content-max: 1240px;
   --tab-bar-space: 0px;
 
@@ -545,7 +551,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: calc(var(--toolbar-height) + 6px) 40px var(--tab-bar-space);
+  padding: calc(var(--toolbar-height) + var(--content-top-gap)) 40px var(--tab-bar-space);
   scroll-padding-top: calc(var(--toolbar-height) + 12px);
   overflow-wrap: anywhere;
 }
@@ -561,7 +567,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 .tab-bar { display: none; }
 
 /* ========== 页面结构 ========== */
-.page { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.page { display: flex; flex-direction: column; gap: var(--page-gap); min-width: 0; }
 
 .page-header {
   display: flex;
@@ -569,7 +575,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px 24px;
-  padding-top: 6px;
+  padding-top: var(--page-header-top);
 }
 .page-header-text { min-width: 0; flex: 1 1 320px; }
 .page-header-actions { display: flex; flex-wrap: wrap; gap: 10px; }
@@ -631,7 +637,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 }
 
 .form-stack { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
-.form-section { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.form-section { display: flex; flex-direction: column; gap: var(--form-section-gap); min-width: 0; }
 
 .form-section-title {
   display: flex;
@@ -1515,7 +1521,7 @@ input[type='radio'] {
 .core-custom { --core: #6a5ae6; }
 
 /* ========== 实例工作台 ========== */
-.instance-page { gap: 20px; }
+.instance-page { gap: var(--instance-page-gap); }
 .instance-header { display: flex; flex-direction: column; gap: 12px; }
 
 .back-link {
@@ -2642,6 +2648,21 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .login-footer { margin: 28px 0 0; font-size: var(--text-footnote); color: var(--label-2); }
 
 /* ========== 响应式 ========== */
+/*
+ * 矮屏桌面（笔记本高缩放、浏览器网页区不到 820px 高）：收紧顶栏和纵向间距，大标题保持 30px。
+ * 必须同时限定桌面宽度，否则手机横屏、平板和软键盘弹起时也会命中，布局来回跳。
+ */
+@media (max-height: 820px) and (min-width: 1025px) {
+  :root {
+    --toolbar-height: 56px;
+    --content-top-gap: 2px;
+    --page-gap: 18px;
+    --instance-page-gap: 14px;
+    --page-header-top: 0px;
+    --form-section-gap: 8px;
+  }
+}
+
 @media (max-width: 1180px) {
   .deploy-layout { grid-template-columns: minmax(0, 1fr); }
   .deploy-guide { position: static; }
