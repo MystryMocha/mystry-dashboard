@@ -24,6 +24,8 @@ import { instanceNameIssue, type Issue } from '../validation';
 type ImportMode = 'directory' | 'zip';
 
 const IMPORT_PREVIEW_SESSION_KEY = 'mystry_import_preview_id';
+/** 进页面和换来源后的 JVM 参数；JVM 配置器挂载时会换成按本机内存推荐的大小。 */
+const DEFAULT_JVM_ARGS = '-Xms1G -Xmx2G';
 
 // 核心名是技术名词不翻译；只有「自动识别」存文案键，渲染时再取当前语言。提交的 custom 由服务端按识别结果替换。
 const coreTypeOptions: Array<{ value: CoreType; label: string; labelKey?: MessageKey }> = [
@@ -54,7 +56,11 @@ export function ImportPage() {
   const [sourcesError, setSourcesError] = useState('');
   const [coreType, setCoreType] = useState<CoreType>('custom');
   const [mcVersion, setMcVersion] = useState('');
-  const [jvmArgs, setJvmArgs] = useState('-Xms1G -Xmx2G');
+  const [jvmArgs, setJvmArgs] = useState(DEFAULT_JVM_ARGS);
+  // 换来源时加一，让 JVM 配置器重新挂载：推荐内存重新套用，内存框里没填完的文本也一并丢掉。
+  const [jvmEpoch, setJvmEpoch] = useState(0);
+  // 当前 JVM 参数是不是对某个来源的检测结果做出的选择（沿用、推荐或以它为底自定义）。
+  const jvmFromDetectionRef = useRef(false);
   const [javaRuntimeId, setJavaRuntimeId] = useState<string | null>(null);
   const [javaMajor, setJavaMajor] = useState<number | null>(null);
   const [detectedChoice, setDetectedChoice] = useState<DetectedJvmChoice>(null);
@@ -161,6 +167,13 @@ export function ImportPage() {
   }, [mode, selectedSource?.id, selectedSource?.ready, selectedSource?.coreType, selectedSource?.mcVersion]);
 
   useEffect(() => {
+    // 检测结果只属于上一个来源：换来源、换模式或换 ZIP 预检后回到默认参数。
+    // 用户没用检测结果、自己填的参数和来源无关，保留。
+    if (jvmFromDetectionRef.current) {
+      jvmFromDetectionRef.current = false;
+      setJvmArgs(DEFAULT_JVM_ARGS);
+      setJvmEpoch((epoch) => epoch + 1);
+    }
     setDetectedChoice(null);
   }, [mode, preview?.id, selectedSource?.id]);
 
@@ -521,6 +534,7 @@ export function ImportPage() {
                     onInstallingChange={setJavaInstalling}
                   />
                   <JvmSettingsEditor
+                    key={jvmEpoch}
                     value={jvmArgs}
                     onChange={setJvmArgs}
                     coreType={coreType}
@@ -529,7 +543,10 @@ export function ImportPage() {
                     useRecommendedDefault
                     detectedJvmConfig={detectedJvmConfig}
                     detectedChoice={detectedChoice}
-                    onDetectedChoiceChange={setDetectedChoice}
+                    onDetectedChoiceChange={(choice) => {
+                      jvmFromDetectionRef.current = choice !== null;
+                      setDetectedChoice(choice);
+                    }}
                     onValidityChange={setJvmValid}
                   />
                 </div>
