@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Plus } from 'lucide-react';
 import type { FrpEndpoint, FrpRuntimeInfo, InstanceTunnel, TunnelMode, TunnelStatus } from '@mystry/shared';
 import { FRP_TRANSPORTS } from '@mystry/shared';
@@ -20,6 +20,9 @@ import { useI18n, type MessageKey } from '../i18n';
 import { frpHostIssue, frpTokenIssue, portIssue } from '../validation';
 import { StatusPill, type StatusTone } from './StatusPill';
 import { ConfirmDialog } from './ConfirmDialog';
+import { Field, FormFeedbackProvider, focusField, focusFirstInvalidField, useFormFeedback } from './Field';
+import { NumberInput } from './NumberInput';
+import { PasswordInput } from './PasswordInput';
 import { RuntimeInstallCallout } from './RuntimeArchiveUpload';
 import { FlashNote, JoinAddressStep, JoinSteps, MultiplayerLayout, OpenSwitch, useFlash, type GuideControl } from './MultiplayerLayout';
 
@@ -64,6 +67,34 @@ const EMPTY_ENDPOINT: EndpointDraft = {
   token: '',
 };
 
+/** 主按钮不可点的原因：第一个要改或要填的字段。 */
+interface Blocker {
+  id: string;
+  label: string;
+  /** fix：填了但不合规；fill：必填项还空着。 */
+  kind: 'fix' | 'fill';
+}
+
+/** 先找填错的（和 focusFirstInvalidField 找到的是同一个），没有再找空着的必填项。checks 按页面上字段的先后排。 */
+function firstBlocker(checks: { id: string; label: string; invalid: boolean; empty: boolean }[]): Blocker | null {
+  const invalid = checks.find((check) => check.invalid);
+  if (invalid) return { id: invalid.id, label: invalid.label, kind: 'fix' };
+  const empty = checks.find((check) => check.empty);
+  return empty ? { id: empty.id, label: empty.label, kind: 'fill' } : null;
+}
+
+/**
+ * 在输入框里按 Enter 等同于点主按钮。主按钮禁用时浏览器不会触发 submit，所以表单自己接；
+ * 只管输入框，不拦按钮和下拉框，输入法选词时的 Enter 也不算。
+ */
+function submitOnEnter(event: KeyboardEvent<HTMLFormElement>, submit: () => void): void {
+  // Safari 确认候选词的那次 Enter 不带 isComposing，只能靠 keyCode 229 认出来。
+  if (event.key !== 'Enter' || event.nativeEvent.isComposing || event.keyCode === 229) return;
+  if (!(event.target instanceof HTMLInputElement)) return;
+  event.preventDefault();
+  submit();
+}
+
 function tunnelDraft(tunnel: InstanceTunnel, endpoints: FrpEndpoint[]): TunnelDraft {
   return {
     endpointId: tunnel.endpointId ?? endpoints[0]?.id ?? '',
@@ -98,6 +129,11 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
   useEffect(() => {
     if (tunnel && settingsOpen === null) setSettingsOpen(!tunnel.enabled);
   }, [tunnel, settingsOpen]);
+  // 两张表单各有一份「错误显没显示」的状态，互不影响。
+  const endpointFeedback = useFormFeedback();
+  const tunnelFeedback = useFormFeedback();
+  const endpointFormRef = useRef<HTMLFormElement>(null);
+  const tunnelFormRef = useRef<HTMLFormElement>(null);
   const loadError = useRef(false);
   const refresh = useCallback(async () => {
     try {
@@ -122,23 +158,55 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
 
   usePolling(refresh);
 
-  // 添加 frp 服务器：名称、地址、令牌必填，端口和地址格式与服务端一致；填了但不合规时在字段下说明。
+  // 添加 frp 服务器：名称、地址、端口、令牌必填，端口和地址格式与服务端一致。
+  // 空的必填项不算填错（不标红），只让主按钮不可点，并在按钮旁说出要填哪一项。
   const endpointIssues = {
     address: frpHostIssue(endpointDraft.serverAddr),
-    port: portIssue(endpointDraft.serverPort),
+    port: endpointDraft.serverPort.trim() === '' ? null : portIssue(endpointDraft.serverPort),
     visitHost: frpHostIssue(endpointDraft.visitHost),
     token: frpTokenIssue(endpointDraft.token),
   };
-  const endpointReady = endpointDraft.name.trim() !== ''
-    && endpointDraft.serverAddr.trim() !== ''
-    && endpointDraft.token !== ''
-    && Object.values(endpointIssues).every((issue) => issue === null);
-  // 穿透设置只校验当前模式用到的那个端口。
-  const tunnelPortIssue = draft ? portIssue(draft.mode === 'public' ? draft.remotePort : draft.visitorBindPort) : null;
+  const endpointBlocker = firstBlocker([
+    { id: 'frp-name', label: t('multiplayer.endpoint.name'), invalid: false, empty: endpointDraft.name.trim() === '' },
+    { id: 'frp-visit', label: t('multiplayer.endpoint.visitHost'), invalid: endpointIssues.visitHost !== null, empty: false },
+    { id: 'frp-address', label: t('multiplayer.endpoint.address'), invalid: endpointIssues.address !== null, empty: endpointDraft.serverAddr.trim() === '' },
+    { id: 'frp-port', label: t('multiplayer.endpoint.port'), invalid: endpointIssues.port !== null, empty: endpointDraft.serverPort.trim() === '' },
+    { id: 'frp-token', label: t('multiplayer.endpoint.token'), invalid: endpointIssues.token !== null, empty: endpointDraft.token === '' },
+  ]);
+  // 穿透设置只校验当前模式用到的那个端口；另一个端口的输入框不在页面上，它的草稿不参与校验也不提交。
+  const tunnelPortText = draft ? (draft.mode === 'public' ? draft.remotePort : draft.visitorBindPort) : '';
+  const tunnelPortIssue = tunnelPortText.trim() === '' ? null : portIssue(tunnelPortText);
+  const tunnelBlocker = draft ? firstBlocker([
+    { id: 'frp-endpoint', label: t('multiplayer.section.server'), invalid: false, empty: draft.endpointId.length === 0 },
+    {
+      id: draft.mode === 'public' ? 'frp-remote' : 'frp-visitor',
+      label: t(draft.mode === 'public' ? 'multiplayer.tunnel.remotePort' : 'multiplayer.tunnel.visitorPort'),
+      invalid: tunnelPortIssue !== null,
+      empty: tunnelPortText.trim() === '',
+    },
+  ]) : null;
+
+  /** 提交不了时：让所有字段显示原因，并跳到第一个要改的；没有填错、只是空着时跳到第一个要填的。 */
+  function showBlocker(blocker: Blocker, feedback: typeof endpointFeedback, form: HTMLFormElement | null) {
+    feedback.revealAll();
+    if (!focusFirstInvalidField(form)) focusField(blocker.id);
+  }
+
+  function submitEndpoint() {
+    if (busy) return;
+    if (endpointBlocker) showBlocker(endpointBlocker, endpointFeedback, endpointFormRef.current);
+    else void saveEndpoint();
+  }
+
+  function submitTunnel() {
+    if (busy) return;
+    if (tunnelBlocker) showBlocker(tunnelBlocker, tunnelFeedback, tunnelFormRef.current);
+    else void saveTunnel();
+  }
 
   async function saveEndpoint() {
     const port = Number(endpointDraft.serverPort);
-    if (!endpointReady || !Number.isInteger(port)) return;
+    if (endpointBlocker || !Number.isInteger(port)) return;
     setBusy(true);
     setNotice('');
     try {
@@ -152,6 +220,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
         token: endpointDraft.token,
       });
       setEndpointDraft(EMPTY_ENDPOINT);
+      endpointFeedback.reset();
       setAdding(false);
       setError('');
       setDraft((current) => current ? { ...current, endpointId: created.id } : current);
@@ -168,8 +237,11 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
     setBusy(true);
     setConfirmDelete(false);
     try {
-      await deleteFrpEndpoint(draft.endpointId);
-      setDraft((current) => current ? { ...current, endpointId: '' } : current);
+      const deletedId = draft.endpointId;
+      await deleteFrpEndpoint(deletedId);
+      // 还有别的服务器时改选第一个：下拉框本来就会显示它，值留空的话看着选了却保存不了。
+      const nextId = endpoints.find((endpoint) => endpoint.id !== deletedId)?.id ?? '';
+      setDraft((current) => current ? { ...current, endpointId: nextId } : current);
       setError('');
       await refresh();
     } catch (err) {
@@ -201,17 +273,19 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
   }
 
   async function saveTunnel() {
-    if (!draft || tunnelPortIssue) return;
+    if (!draft || !tunnel || tunnelBlocker) return;
     // 第一次保存（还没选定过服务器）就是「保存并开放」：用户已经看过表单里的端口和模式，不用再回顶部开开关。
-    const openNow = !tunnel?.endpointId && Boolean(runtime?.installed);
+    const openNow = !tunnel.endpointId && Boolean(runtime?.installed);
     const remotePort = Number(draft.remotePort);
-    const visitorBindPort = Number(draft.visitorBindPort);
+    // 公网端口模式下「玩家本机端口」的输入框不在页面上：沿用服务端已保存的值，不提交看不见的草稿。
+    // 不能省略这个字段，服务端会把省略当成默认值 25565 覆盖掉已保存的端口。
+    const visitorBindPort = draft.mode === 'public' ? tunnel.visitorBindPort : Number(draft.visitorBindPort);
     setBusy(true);
     setNotice('');
     try {
       // 之后开关单独保存；这里只改穿透设置，开没开沿用服务端当前状态。
       const saved = await saveInstanceTunnel(instanceId, {
-        enabled: openNow || (tunnel?.enabled ?? false),
+        enabled: openNow || tunnel.enabled,
         endpointId: draft.endpointId,
         mode: draft.mode,
         ...(draft.mode === 'public' ? { remotePort } : {}),
@@ -219,6 +293,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
       });
       setTunnel(saved);
       setDraft(tunnelDraft(saved, endpoints));
+      tunnelFeedback.reset();
       if (openNow) setSettingsOpen(false);
       setNotice(t('multiplayer.saved'));
       setError('');
@@ -331,112 +406,133 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
       <JoinAddressStep address={tunnel.joinAddress} />,
     ]);
 
-  // 穿透设置的字段：第一次直接展开在页面上，保存过以后放进折叠区。
-  const settingsFields = draft && (
-    <>
-      <div className="field">
-        <label htmlFor="frp-endpoint">{t('multiplayer.section.server')}</label>
-        {/* 删除的是下拉框里选中的服务器，按钮放在它旁边。 */}
-        <div className="remote-host-row">
-          <select id="frp-endpoint" value={draft.endpointId} disabled={busy} onChange={(event) => setDraft({ ...draft, endpointId: event.target.value })}>
-            {endpoints.map((endpoint) => (
-              <option key={endpoint.id} value={endpoint.id}>{endpoint.name}</option>
-            ))}
-          </select>
-          <button className="btn btn-plain is-danger" type="button" disabled={busy || draft.endpointId.length === 0} onClick={() => setConfirmDelete(true)}>
-            {t('multiplayer.endpoint.delete')}
+  /** 按钮旁的一句话：主按钮不可点时说出先改哪一项，点了就跳过去并显示原因。 */
+  function blockerHint(blocker: Blocker | null, feedback: typeof endpointFeedback, form: { current: HTMLFormElement | null }) {
+    if (!blocker || busy) return null;
+    return (
+      <button className="link-button multiplayer-form-hint" type="button" onClick={() => showBlocker(blocker, feedback, form.current)}>
+        {t(blocker.kind === 'fix' ? 'multiplayer.form.fix' : 'multiplayer.form.fill', { field: blocker.label })}
+      </button>
+    );
+  }
+
+  // 穿透设置的表单：第一次直接展开在页面上，保存过以后放进折叠区，两处只是外层类名不同。
+  const tunnelForm = (className: string) => draft && (
+    <FormFeedbackProvider value={tunnelFeedback.value}>
+      <form
+        ref={tunnelFormRef}
+        className={className}
+        noValidate
+        onSubmit={(event: FormEvent) => { event.preventDefault(); submitTunnel(); }}
+        onKeyDown={(event) => submitOnEnter(event, submitTunnel)}
+      >
+        <Field id="frp-endpoint" label={t('multiplayer.section.server')}>
+          {(control) => (
+            // 删除的是下拉框里选中的服务器，按钮放在它旁边。
+            <div className="remote-host-row">
+              <select {...control} value={draft.endpointId} disabled={busy} onChange={(event) => setDraft({ ...draft, endpointId: event.target.value })}>
+                {endpoints.map((endpoint) => (
+                  <option key={endpoint.id} value={endpoint.id}>{endpoint.name}</option>
+                ))}
+              </select>
+              <button className="btn btn-plain is-danger" type="button" disabled={busy || draft.endpointId.length === 0} onClick={() => setConfirmDelete(true)}>
+                {t('multiplayer.endpoint.delete')}
+              </button>
+            </div>
+          )}
+        </Field>
+        <div className="grid grid-2">
+          <Field id="frp-mode" label={t('multiplayer.tunnel.mode')}>
+            {(control) => (
+              <select {...control} value={draft.mode} disabled={busy} onChange={(event) => setDraft({ ...draft, mode: event.target.value as TunnelMode })}>
+                <option value="public">{t('multiplayer.tunnel.mode.public')}</option>
+                <option value="stcp">{t('multiplayer.tunnel.mode.stcp')}</option>
+                <option value="xtcp">{t('multiplayer.tunnel.mode.xtcp')}</option>
+              </select>
+            )}
+          </Field>
+          {/* 两个端口是不同的字段：各带 key，切换模式时不把「失焦过」带给另一个。 */}
+          {draft.mode === 'public' ? (
+            <Field key="remote" id="frp-remote" label={t('multiplayer.tunnel.remotePort')} error={tunnelPortIssue ? t(tunnelPortIssue.key) : null}>
+              {(control) => <NumberInput {...control} value={draft.remotePort} disabled={busy} onChange={(text) => setDraft({ ...draft, remotePort: text })} />}
+            </Field>
+          ) : (
+            <Field key="visitor" id="frp-visitor" label={t('multiplayer.tunnel.visitorPort')} error={tunnelPortIssue ? t(tunnelPortIssue.key) : null}>
+              {(control) => <NumberInput {...control} value={draft.visitorBindPort} disabled={busy} onChange={(text) => setDraft({ ...draft, visitorBindPort: text })} />}
+            </Field>
+          )}
+        </div>
+        <div className="instance-actions">
+          <button className={!configured && installed ? 'btn btn-primary' : 'btn'} type="submit" disabled={busy || tunnelBlocker !== null}>
+            {t(!configured && installed ? 'multiplayer.tunnel.saveOpen' : 'multiplayer.tunnel.save')}
           </button>
+          {blockerHint(tunnelBlocker, tunnelFeedback, tunnelFormRef)}
         </div>
-      </div>
-      <div className="grid grid-2">
-        <div className="field">
-          <label htmlFor="frp-mode">{t('multiplayer.tunnel.mode')}</label>
-          <select id="frp-mode" value={draft.mode} disabled={busy} onChange={(event) => setDraft({ ...draft, mode: event.target.value as TunnelMode })}>
-            <option value="public">{t('multiplayer.tunnel.mode.public')}</option>
-            <option value="stcp">{t('multiplayer.tunnel.mode.stcp')}</option>
-            <option value="xtcp">{t('multiplayer.tunnel.mode.xtcp')}</option>
-          </select>
-        </div>
-        {draft.mode === 'public' ? (
-          <div className="field">
-            <label htmlFor="frp-remote">{t('multiplayer.tunnel.remotePort')}</label>
-            <input id="frp-remote" inputMode="numeric" value={draft.remotePort} disabled={busy} aria-invalid={tunnelPortIssue ? true : undefined} onChange={(event) => setDraft({ ...draft, remotePort: event.target.value })} />
-            {tunnelPortIssue && <p className="error">{t(tunnelPortIssue.key)}</p>}
-          </div>
-        ) : (
-          <div className="field">
-            <label htmlFor="frp-visitor">{t('multiplayer.tunnel.visitorPort')}</label>
-            <input id="frp-visitor" inputMode="numeric" value={draft.visitorBindPort} disabled={busy} aria-invalid={tunnelPortIssue ? true : undefined} onChange={(event) => setDraft({ ...draft, visitorBindPort: event.target.value })} />
-            {tunnelPortIssue && <p className="error">{t(tunnelPortIssue.key)}</p>}
-          </div>
-        )}
-      </div>
-      <div className="instance-actions">
-        <button className={!configured && installed ? 'btn btn-primary' : 'btn'} type="button" disabled={busy || draft.endpointId.length === 0 || tunnelPortIssue !== null} onClick={() => void saveTunnel()}>
-          {t(!configured && installed ? 'multiplayer.tunnel.saveOpen' : 'multiplayer.tunnel.save')}
-        </button>
-      </div>
-    </>
+      </form>
+    </FormFeedbackProvider>
   );
 
   const endpointForm = (
-    <div className="card form-card">
-      <div className="grid grid-2">
-        <div className="field">
-          <label htmlFor="frp-name">{t('multiplayer.endpoint.name')}</label>
-          <input id="frp-name" value={endpointDraft.name} maxLength={64} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, name: event.target.value })} />
+    <FormFeedbackProvider value={endpointFeedback.value}>
+      <form
+        ref={endpointFormRef}
+        className="card form-card"
+        noValidate
+        onSubmit={(event: FormEvent) => { event.preventDefault(); submitEndpoint(); }}
+        onKeyDown={(event) => submitOnEnter(event, submitEndpoint)}
+      >
+        <div className="grid grid-2">
+          <Field id="frp-name" label={t('multiplayer.endpoint.name')}>
+            {(control) => <input {...control} value={endpointDraft.name} maxLength={64} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, name: event.target.value })} />}
+          </Field>
+          <Field
+            id="frp-visit"
+            label={t('multiplayer.endpoint.visitHost')}
+            optional
+            help={t('multiplayer.endpoint.visitHostHelp')}
+            error={endpointIssues.visitHost ? t(endpointIssues.visitHost.key) : null}
+          >
+            {(control) => <input {...control} value={endpointDraft.visitHost} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, visitHost: event.target.value })} />}
+          </Field>
         </div>
-        <div className="field">
-          <label htmlFor="frp-visit">{t('multiplayer.endpoint.visitHost')}</label>
-          <input id="frp-visit" value={endpointDraft.visitHost} disabled={busy} aria-describedby="frp-visit-help" aria-invalid={endpointIssues.visitHost ? true : undefined} onChange={(event) => setEndpointDraft({ ...endpointDraft, visitHost: event.target.value })} />
-          {endpointIssues.visitHost && <p className="error">{t(endpointIssues.visitHost.key)}</p>}
-          <p className="field-help" id="frp-visit-help">{t('multiplayer.endpoint.visitHostHelp')}</p>
+        <div className="grid grid-2">
+          <Field id="frp-address" label={t('multiplayer.endpoint.address')} error={endpointIssues.address ? t(endpointIssues.address.key) : null}>
+            {(control) => <input {...control} value={endpointDraft.serverAddr} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, serverAddr: event.target.value })} />}
+          </Field>
+          <Field id="frp-port" label={t('multiplayer.endpoint.port')} error={endpointIssues.port ? t(endpointIssues.port.key) : null}>
+            {(control) => <NumberInput {...control} value={endpointDraft.serverPort} disabled={busy} onChange={(text) => setEndpointDraft({ ...endpointDraft, serverPort: text })} />}
+          </Field>
         </div>
-      </div>
-      <div className="grid grid-2">
-        <div className="field">
-          <label htmlFor="frp-address">{t('multiplayer.endpoint.address')}</label>
-          <input id="frp-address" value={endpointDraft.serverAddr} disabled={busy} aria-invalid={endpointIssues.address ? true : undefined} onChange={(event) => setEndpointDraft({ ...endpointDraft, serverAddr: event.target.value })} />
-          {endpointIssues.address && <p className="error">{t(endpointIssues.address.key)}</p>}
+        <div className="grid grid-2">
+          <Field id="frp-transport" label={t('multiplayer.endpoint.transport')}>
+            {(control) => (
+              <select {...control} value={endpointDraft.transport} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, transport: event.target.value as EndpointDraft['transport'] })}>
+                {FRP_TRANSPORTS.map((transport) => <option key={transport} value={transport}>{transport}</option>)}
+              </select>
+            )}
+          </Field>
+          <Field id="frp-token" label={t('multiplayer.endpoint.token')} error={endpointIssues.token ? t(endpointIssues.token.key) : null}>
+            {(control) => <PasswordInput {...control} autoComplete="off" value={endpointDraft.token} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, token: event.target.value })} />}
+          </Field>
         </div>
-        <div className="field">
-          <label htmlFor="frp-port">{t('multiplayer.endpoint.port')}</label>
-          <input id="frp-port" inputMode="numeric" value={endpointDraft.serverPort} disabled={busy} aria-invalid={endpointIssues.port ? true : undefined} onChange={(event) => setEndpointDraft({ ...endpointDraft, serverPort: event.target.value })} />
-          {endpointIssues.port && <p className="error">{t(endpointIssues.port.key)}</p>}
-        </div>
-      </div>
-      <div className="grid grid-2">
-        <div className="field">
-          <label htmlFor="frp-transport">{t('multiplayer.endpoint.transport')}</label>
-          <select id="frp-transport" value={endpointDraft.transport} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, transport: event.target.value as EndpointDraft['transport'] })}>
-            {FRP_TRANSPORTS.map((transport) => <option key={transport} value={transport}>{transport}</option>)}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="frp-token">{t('multiplayer.endpoint.token')}</label>
-          <input id="frp-token" type="password" autoComplete="off" value={endpointDraft.token} disabled={busy} aria-invalid={endpointIssues.token ? true : undefined} onChange={(event) => setEndpointDraft({ ...endpointDraft, token: event.target.value })} />
-          {endpointIssues.token && <p className="error">{t(endpointIssues.token.key)}</p>}
-        </div>
-      </div>
-      <label className="checkbox-field">
-        <input type="checkbox" checked={endpointDraft.tls} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, tls: event.target.checked })} />
-        <span>{t('multiplayer.endpoint.tls')}</span>
-      </label>
-      <div className="instance-actions">
-        <button className={serverIsNext ? 'btn btn-primary' : 'btn'} type="button" disabled={busy || !endpointReady} onClick={() => void saveEndpoint()}>
-          {t('multiplayer.endpoint.save')}
-        </button>
-        {/* 对话式表单没有操作栏：必填项还空着、又没有格式错误时，在按钮旁说缺什么。 */}
-        {!endpointReady && Object.values(endpointIssues).every((issue) => issue === null) && (
-          <span className="field-help">{t('multiplayer.endpoint.needRequired')}</span>
-        )}
-        {hasEndpoints && (
-          <button className="btn btn-plain" type="button" disabled={busy} onClick={() => { setAdding(false); setEndpointDraft(EMPTY_ENDPOINT); }}>
-            {t('action.cancel')}
+        <label className="checkbox-field">
+          <input type="checkbox" checked={endpointDraft.tls} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, tls: event.target.checked })} />
+          <span>{t('multiplayer.endpoint.tls')}</span>
+        </label>
+        <div className="instance-actions">
+          <button className={serverIsNext ? 'btn btn-primary' : 'btn'} type="submit" disabled={busy || endpointBlocker !== null}>
+            {t('multiplayer.endpoint.save')}
           </button>
-        )}
-      </div>
-    </div>
+          {/* 对话式表单没有操作栏：主按钮不可点时，在按钮旁说先填或先改哪一项。 */}
+          {blockerHint(endpointBlocker, endpointFeedback, endpointFormRef)}
+          {hasEndpoints && (
+            <button className="btn btn-plain" type="button" disabled={busy} onClick={() => { setAdding(false); setEndpointDraft(EMPTY_ENDPOINT); endpointFeedback.reset(); }}>
+              {t('action.cancel')}
+            </button>
+          )}
+        </div>
+      </form>
+    </FormFeedbackProvider>
   );
 
   const endpointSection = (
@@ -494,15 +590,15 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
       {hasEndpoints && !configured && (
         <section className="form-section">
           <h3 className="form-section-title">{t('multiplayer.section.access')}</h3>
-          <div className="card form-card">{settingsFields}</div>
+          {tunnelForm('card form-card')}
         </section>
       )}
       {hasEndpoints && !configured && endpointSection}
       {hasEndpoints && configured && (
         <details className="disclosure multiplayer-settings" open={settingsOpen ?? false} onToggle={(event) => setSettingsOpen(event.currentTarget.open)}>
           <summary>{t('multiplayer.section.access')}</summary>
-          {settingsFields}
-          {/* 添加服务器和上面的保存是两件事，单独成组，展开后有自己的标题。 */}
+          {tunnelForm('multiplayer-settings-form')}
+          {/* 添加服务器和上面的保存是两件事，单独成组，展开后有自己的标题；它是另一张表单，不能套在上面那张里。 */}
           <div className="multiplayer-add">
             {showEndpointForm ? (
               <section className="form-section">
