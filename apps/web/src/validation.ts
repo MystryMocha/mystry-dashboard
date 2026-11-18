@@ -75,7 +75,7 @@ export function setupTokenIssue(token: string): Issue | null {
   return { key: 'login.form.setupTokenLength', params: { max: SETUP_TOKEN_LENGTH, count: token.length } };
 }
 
-const IPV4 =/^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 const HOST_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
 function isHostname(host: string): boolean {
