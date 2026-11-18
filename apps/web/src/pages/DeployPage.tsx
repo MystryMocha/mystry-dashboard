@@ -5,7 +5,7 @@ import { recommendedJavaMajor, type TaskInfo } from '@mystry/shared';
 import { api, pollTask } from '../api';
 import { CoreIcon } from '../components/CoreIcon';
 import { DownloadSourceHint } from '../components/DownloadSourceSection';
-import { EulaCheckbox } from '../components/EulaCheckbox';
+import { MINECRAFT_EULA_URL } from '../components/EulaCheckbox';
 import { ErrorSummary } from '../components/ErrorSummary';
 import { LazyScrollSelect } from '../components/LazyScrollSelect';
 import { JavaRuntimeSelect, type JavaMatchStatus } from '../components/JavaRuntimeSelect';
@@ -58,6 +58,8 @@ export function DeployPage() {
   /** 组件卸载时中止进行中的任务轮询，避免登出/离开页面后仍持续请求或跳转。 */
   const pollAbortRef = useRef<AbortController | null>(null);
   const coreOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  /** 第 4 节（进度、失败原因、Java 警告）：出现失败原因时滚到可视范围，免得被操作栏挡住。 */
+  const confirmRef = useRef<HTMLElement>(null);
   const nameFieldId = useId();
 
   // 元数据按「核心 / 核心 + 版本」缓存，切换后旧列表立即失效，迟到的旧响应被丢弃。
@@ -175,6 +177,12 @@ export function DeployPage() {
                 : !acceptEula ? { key: 'deploy.action.needEula' }
                   : null;
   const selectedCore = CORE_ITEMS.find((item) => item.id === coreType);
+  const showConfirm = (javaStatus === 'mismatch' && !busy) || busy || progress !== null || error !== '';
+
+  // 第 4 节在长页面底部：开始部署和失败时滚到能看见进度或原因的位置（scroll-margin 让开底部操作栏）。
+  useEffect(() => {
+    if (busy || error) confirmRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [busy, error]);
 
   return (
     <div className="page">
@@ -343,18 +351,14 @@ export function DeployPage() {
             </div>
           </section>
 
-          <section className="form-section">
+          {/* EULA 同意项在底部操作栏；这一节只放 Java 警告、部署进度和失败原因，都没有时整节不显示。 */}
+          {showConfirm && (
+          <section className="form-section deploy-confirm" ref={confirmRef}>
             <h2 className="form-section-title">
               <span className="step-badge" aria-hidden="true">4</span>
               {t('deploy.confirm.title')}
             </h2>
             <div className="card form-card">
-              <EulaCheckbox checked={acceptEula} disabled={busy} onChange={setAcceptEula} />
-              {!acceptEula && (
-                <p className="field-help">
-                  {t('deploy.confirm.eulaHelp')}
-                </p>
-              )}
               {javaStatus === 'mismatch' && !busy && (
                 <p className="field-warn" role="status">
                   {t('deploy.confirm.javaRequired', { java: recommendedJavaMajor(selectedMcVersion) ?? '' })}
@@ -376,6 +380,7 @@ export function DeployPage() {
               )}
             </div>
           </section>
+          )}
 
           <div className="action-bar">
             <span className="action-bar-status" role="status" aria-live="polite">
@@ -383,6 +388,15 @@ export function DeployPage() {
                 ? t(blocker.key, blocker.params)
                 : `${selectedCore?.name ?? ''}${selectedMcVersion ? ` ${selectedMcVersion}` : ''} · ${name.trim()}`}
             </span>
+            {/* 必须由用户主动勾选；部署开始后和按钮一起禁用，避免请求途中被取消。 */}
+            <label className="action-bar-check">
+              <input type="checkbox" checked={acceptEula} disabled={busy} onChange={(e) => setAcceptEula(e.target.checked)} />
+              <span>
+                {rich('eula.agree.short', {
+                  link: (chunk) => <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" className="link">{chunk}</a>,
+                })}
+              </span>
+            </label>
             <button
               className="btn btn-primary"
               type="button"

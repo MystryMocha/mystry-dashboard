@@ -126,7 +126,7 @@ The class names to reach for. Each one is a plain CSS class in `styles.css`; the
 | Disclosure | `details.disclosure` | Advanced options only |
 | QR code | `qr-code` inside `remote-qr` | Always black on white with a quiet zone, in both appearances, so it scans; drawn as inline SVG by `QrCode.tsx` |
 | Copyable value | `direct-address`, `direct-command`, `remote-url`, `remote-join-value` | Monospace, `user-select: all`; copy with `copyText()` from `clipboard.ts`, which also works outside a secure context |
-| Action bar | `action-bar`, `action-bar-status` | One per page, sticky at the bottom; while the button is disabled the status names the first thing still missing |
+| Action bar | `action-bar`, `action-bar-status`, `action-bar-check` | One per page, sticky at the bottom; while the button is disabled the status names the first thing still missing. It may hold one required consent (`action-bar-check`, short copy, link still clickable), such as the EULA on Quick Deploy |
 | Callout | `callout` + `callout-info` / `callout-success` / `callout-warning` / `callout-danger`, `callout-icon` | Body stays `label`; only `<strong>` turns `danger` |
 | Ready strip | `ready-strip`, `ready-strip-icon`, `ready-strip-text` | One line above the console once the server is ready: green only on the icon and a 9% tint, a small tinted Invite Friends button and an icon-only dismiss [`ReadyHint`] |
 | Status pill | `status-pill` + `running` / `stopped` / `starting` / `stopping` / `crashed` / `warning`, `status-dot` | [`StatusPill`, `InstanceStatusPill`] |

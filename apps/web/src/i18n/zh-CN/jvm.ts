@@ -60,6 +60,7 @@ export default {
 
   // EULA 勾选
   'eula.agree': '我已阅读并同意 <link>Minecraft EULA</link>（面板会据此写入 eula.txt）',
+  'eula.agree.short': '同意 <link>Minecraft EULA</link>',
 
   // 懒加载下拉框
   'select.placeholder': '请选择',

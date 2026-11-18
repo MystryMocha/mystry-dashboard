@@ -705,6 +705,14 @@ h1[tabindex="-1"]:focus { outline: none; }
   box-shadow: var(--glass-edge), var(--float-shadow);
 }
 .action-bar-status { flex: 1 1 220px; min-width: 0; font-size: var(--text-small); color: var(--label-2); }
+/* 部署页第 4 节紧挨着吸底操作栏：滚进视口时下沿让出操作栏的高度（窄屏操作栏换成两行，按两行留）。 */
+.deploy-confirm { scroll-margin-bottom: 140px; }
+/* 操作栏里唯一允许放的输入：一个必需的同意项（部署页的 EULA），短文案，链接仍可点。 */
+.action-bar-check { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-small); color: var(--label); }
+.action-bar-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+@media (pointer: coarse) {
+  .action-bar-check { position: relative; min-height: 44px; }
+}
 
 /* ========== 按钮 ========== */
 .btn {

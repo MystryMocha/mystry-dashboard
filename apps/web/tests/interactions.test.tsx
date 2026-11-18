@@ -300,10 +300,9 @@ test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build �
   expect(screen.getByRole('button', { name: /^Paper 构建版本（可选）/ }).textContent).toContain('自动使用最新构建');
 
   const submit = screen.getByRole('button', { name: '开始部署' }) as HTMLButtonElement;
-  const eula = screen.getByRole('checkbox', { name: /我已阅读并同意/ }) as HTMLInputElement;
+  const eula = screen.getByRole('checkbox', { name: /同意 Minecraft EULA/ }) as HTMLInputElement;
   expect(eula.checked).toBe(false);
   expect(submit.disabled).toBe(true);
-  expect(screen.getByText(/勾选后才能开始部署/)).toBeTruthy();
 
   await user.click(eula);
   // 26.3 需要 Java 25，这台电脑没有：不能开始部署，并说明原因。
@@ -314,6 +313,11 @@ test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build �
   await user.click(screen.getByRole('button', { name: '重新扫描' }));
   await waitFor(() => expect(submit.disabled).toBe(false));
   expect(screen.queryByText(/这个版本需要 Java 25/)).toBeNull();
+  // 取消同意后按钮变灰，操作栏说明要先勾选 EULA；再勾上恢复。
+  await user.click(eula);
+  expect(submit.disabled).toBe(true);
+  expect(screen.getByText('勾选同意 Minecraft EULA 后才能部署')).toBeTruthy();
+  await user.click(eula);
   await user.click(submit);
   await waitFor(() => expect(deployBodies).toHaveLength(1));
   expect(deployBodies[0]).toMatchObject({ coreType: 'paper', mcVersion: '26.3', acceptEula: true, javaRuntimeId: 'rt25' });
