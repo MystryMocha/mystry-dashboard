@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileArchive, FolderInput, FolderUp, Info, RefreshCw } from 'lucide-react';
-import type { CoreType, ExistingServerSourceInfo, ImportPreviewInfo, TaskInfo } from '@mystry/shared';
+import { parseLaunchTarget, type CoreType, type ExistingServerSourceInfo, type ImportPreviewInfo, type TaskInfo } from '@mystry/shared';
 import {
   ApiError,
   api,
@@ -36,6 +36,12 @@ const coreTypeOptions: Array<{ value: CoreType; label: string; labelKey?: Messag
   { value: 'neoforge', label: 'NeoForge' },
   { value: 'vanilla', label: 'Vanilla' },
 ];
+
+/** 给人看的启动目标：Forge / NeoForge 的 `@args:` 标记只显示参数文件路径。 */
+function launchTargetText(target: string): string {
+  const parsed = parseLaunchTarget(target);
+  return parsed.kind === 'modloader' ? '' : parsed.path;
+}
 
 function clearStoredPreview() {
   sessionStorage.removeItem(IMPORT_PREVIEW_SESSION_KEY);
@@ -355,7 +361,7 @@ export function ImportPage() {
                             {source.ready
                               ? t('import.directory.source.ready', {
                                 id: source.id,
-                                target: source.launchTarget ?? t('import.directory.source.pendingCheck'),
+                                target: source.launchTarget ? launchTargetText(source.launchTarget) : t('import.directory.source.pendingCheck'),
                               })
                               : t('import.directory.source.unavailable', { id: source.id, error: tm(source.errorI18n, source.error ?? '') })}
                           </option>
@@ -379,7 +385,7 @@ export function ImportPage() {
                         {rich(
                           'import.directory.launchTarget',
                           { code: (chunk) => <code>{chunk}</code> },
-                          { target: selectedSource.launchTarget },
+                          { target: launchTargetText(selectedSource.launchTarget) },
                         )}
                       </p>
                     ) : null}
