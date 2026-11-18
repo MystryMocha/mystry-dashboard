@@ -334,9 +334,9 @@ Mystry Dashboard 运行在你**本机**上：用网页管理多个 Minecraft **�
 | 字段 | 说明 |
 |------|------|
 | 名称 | 可改 |
-| Jar 文件名 | 相对实例目录，如 `server.jar` |
+| Jar 文件名 | 相对实例目录，如 `server.jar`。Forge / NeoForge 实例这一栏换成只读的「启动文件」，显示部署或导入时面板识别出的参数文件 |
 | JVM 设置 | 使用统一配置器修改内存、预设和高级参数；改后建议重启 |
-| Minecraft EULA | 勾选后每次启动会写 `eula=true` 到 `eula.txt`；不勾选时保留实例目录中原有的 `eula.txt` |
+| Minecraft EULA | 勾选后每次启动会写 `eula=true` 到 `eula.txt`；不勾选时保留实例目录中原有的 `eula.txt`（导入的服务端可以自带同意记录）。勾选过之后取消勾选并保存，会把它改成 `eula=false` |
 | 安装路径 | 只读，显示实例目录的完整路径；由面板分配，创建后不可修改 |
 | Java 运行时 | 默认「系统默认 Java」，或选择面板探测到的其他 Java；可重新扫描 |
 
