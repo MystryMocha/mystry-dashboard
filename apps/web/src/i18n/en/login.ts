@@ -15,6 +15,8 @@ export default {
   'login.form.setupToken': 'Setup Token',
   'login.form.password': 'Password',
   'login.form.setupTokenHelp': 'Copy the value of SETUP_TOKEN from the panel config file: config/panel.env for the portable and Linux builds, .env for the Windows source build.',
+  'login.form.setupTokenCount': '{count} / {max}',
+  'login.form.setupTokenLength': 'The token is {max} characters long. This one has {count}.',
   'login.form.passwordHelp': 'Use at least 12 characters.',
 
   'login.submit.busy': 'Working…',

@@ -17,6 +17,8 @@ export default {
   'login.form.setupToken': '初始化權杖',
   'login.form.password': '密碼',
   'login.form.setupTokenHelp': '從面板設定檔複製 SETUP_TOKEN 的值。可攜版和 Linux 版在 config/panel.env，Windows 原始碼版在 .env。',
+  'login.form.setupTokenCount': '{count} / {max}',
+  'login.form.setupTokenLength': '權杖是 {max} 個字元，目前有 {count} 個。',
   'login.form.passwordHelp': '密碼至少需要 12 個字元。',
 
   'login.submit.busy': '處理中…',

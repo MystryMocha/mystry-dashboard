@@ -66,7 +66,16 @@ export function newPasswordIssue(password: string): Issue | null {
   return null;
 }
 
-const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+/** 初始化令牌固定 64 个字符（配置文件里的 64 位十六进制值）。 */
+export const SETUP_TOKEN_LENGTH = 64;
+
+/** 初始化令牌已经填了但长度不对时说明现在有几个字符；空令牌只让按钮不可点，不提前报错。 */
+export function setupTokenIssue(token: string): Issue | null {
+  if (token === '' || token.length === SETUP_TOKEN_LENGTH) return null;
+  return { key: 'login.form.setupTokenLength', params: { max: SETUP_TOKEN_LENGTH, count: token.length } };
+}
+
+const IPV4 =/^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
 const HOST_LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
 function isHostname(host: string): boolean {

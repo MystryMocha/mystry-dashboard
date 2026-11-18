@@ -17,6 +17,8 @@ export default {
   'login.form.setupToken': '初始化令牌',
   'login.form.password': '密码',
   'login.form.setupTokenHelp': '从面板配置文件复制 SETUP_TOKEN 的值。便携版和 Linux 版在 config/panel.env，Windows 源码版在 .env。',
+  'login.form.setupTokenCount': '{count} / {max}',
+  'login.form.setupTokenLength': '令牌是 {max} 个字符，现在有 {count} 个。',
   'login.form.passwordHelp': '密码至少 12 个字符。',
 
   'login.submit.busy': '处理中…',
