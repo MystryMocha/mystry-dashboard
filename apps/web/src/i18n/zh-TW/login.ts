@@ -2,7 +2,7 @@ import type en from '../en/login';
 
 /** 登录与首次初始化页、登录态文案（繁體中文）。 */
 export default {
-  'login.footer': 'Mystry Dashboard v{version} · Minecraft Java 伺服器管理面板',
+  'login.footer': 'Mystry Dashboard v{version}',
   'login.unavailable.title': '面板服務無法使用',
   'login.unavailable.checking': '正在檢查…',
   'login.unavailable.recheck': '重新檢查',

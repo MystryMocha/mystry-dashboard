@@ -1,6 +1,6 @@
 /** 登录与首次初始化页、登录态文案（英文主表）。 */
 export default {
-  'login.footer': 'Mystry Dashboard v{version} · Minecraft Java server admin panel',
+  'login.footer': 'Mystry Dashboard v{version}',
   'login.unavailable.title': 'Panel Service Unavailable',
   'login.unavailable.checking': 'Checking…',
   'login.unavailable.recheck': 'Check Again',
