@@ -157,7 +157,7 @@ Java 状态响应准确结构为：
 
 `InstanceInfo.ready` 表示本次运行服务端已打印过完成启动的 `Done (` 行、玩家可以进服；状态为 `running` 但世界还在加载时为 `false`，正在停止或没在运行时也为 `false`。它同样只存在内存里。
 
-`local-network` 的 `addresses` 是这台电脑的局域网 IPv4 地址（不含回环、`169.254.*` 和能认出的虚拟网卡，如 WSL、虚拟机、组网或代理软件的网卡；全是虚拟网卡时照常列出。最多 6 个，`192.168.*` 排在前面），`port` 取自 `server.properties` 的 `server-port`，无效时为 `null`。`server-ip` 留空或为 `0.0.0.0` 时返回全部地址；等于其中一个地址时只返回它；其余情况 `serverIpBlocked` 为 `true` 且 `addresses` 为空。`publicIpv6` 是实体网卡上的公网 IPv6 地址（`2000::/3`，不含 6to4、Teredo 和文档示例段，最多 3 个），只在 `server-ip` 留空、为 `*` 或 `::` 时给出，`0.0.0.0` 或具体地址时为空；面板不区分固定地址和系统的临时地址，也不检测路由器是否放行。
+`local-network` 的 `addresses` 是这台电脑的局域网 IPv4 地址（不含回环、`169.254.*` 和能认出的虚拟网卡，如 WSL、虚拟机、组网或代理软件的网卡；全是虚拟网卡时照常列出。最多 6 个，`192.168.*` 排在前面），`port` 取自 `server.properties` 的 `server-port`，没写或留空时按游戏默认的 `25565`，写了但不是 1–65535 的整数时为 `null`（frp 和虚拟局域网读端口用同一套规则）。`server-ip` 留空或为 `0.0.0.0` 时返回全部地址；等于其中一个地址时只返回它；其余情况 `serverIpBlocked` 为 `true` 且 `addresses` 为空。`publicIpv6` 是实体网卡上的公网 IPv6 地址（`2000::/3`，不含 6to4、Teredo 和文档示例段，最多 3 个），只在 `server-ip` 留空、为 `*` 或 `::` 时给出，`0.0.0.0` 或具体地址时为空；面板不区分固定地址和系统的临时地址，也不检测路由器是否放行。
 
 `addresses` 不含网卡上的公网地址和实例自己的联机网卡地址；网卡上直接有的公网 IPv4 单独放在 `publicIpv4`。`publicHost` 是用户在 `PUT /api/system/public-host` 填写的公网 IP 或域名，没填为 `null`。`server-ip` 等于 `addresses` 或 `publicIpv4` 里的某个地址时只返回这一个，`serverIpBlocked` 为 `false`；`server-ip` 等于 `publicHost` 但网卡上没有这个地址时（云服务器上的常见错误），`serverIpBlocked` 和 `serverIpIsUnboundPublicHost` 都为 `true`。`panelPort` 是面板端口，`platform` 是面板所在系统（`process.platform`），界面用它们区分游戏端口和面板端口、显示对应系统的防火墙写法。
 

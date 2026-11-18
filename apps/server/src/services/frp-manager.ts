@@ -4,7 +4,7 @@ import type { InstanceTunnel, PanelMessage, TunnelStatus } from '@mystry/shared'
 import { config } from '../config.js';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
 import { PanelError } from '../utils/errors.js';
-import { readServerProperties } from './config-service.js';
+import { gamePortFromProperties, readServerProperties } from './config-service.js';
 import {
   formatJoinAddress,
   renderServerConfig,
@@ -116,10 +116,8 @@ export async function syncEnabledTunnels(): Promise<void> {
 
 function gameBind(instanceId: string): { port: number; serverIpBlocked: boolean } {
   const properties = readServerProperties(instanceId);
-  const port = Number((properties['server-port'] ?? '25565').trim());
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new PanelError('server.frp.localPortInvalid');
-  }
+  const port = gamePortFromProperties(properties);
+  if (port === null) throw new PanelError('server.frp.localPortInvalid');
   if (port === config.port) throw new PanelError('server.frp.localPortIsPanel');
   return { port, serverIpBlocked: serverIpBlocksTunnel(properties['server-ip']) };
 }

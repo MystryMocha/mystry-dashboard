@@ -770,6 +770,161 @@ test('参数配置遇到选项之外的值时原样显示，不误显示成第�
   expect(within(gamemode).queryByRole('option', { name: 'creative' })).toBeNull();
 });
 
+// 参数配置的测试共用：按给定文件内容挂载，并记下保存时提交的内容。
+function mountConfigTab(fileProps: Record<string, string>, mcVersion?: string) {
+  const saves: Record<string, string>[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => {
+    if (options?.method === 'PUT') saves.push(JSON.parse(String(options.body)) as Record<string, string>);
+    return new Response(JSON.stringify(fileProps), { status: 200, headers: { 'content-type': 'application/json' } });
+  }));
+  const router = createMemoryRouter([{ path: '/', element: <ConfigTab instanceId="test" mcVersion={mcVersion} /> }]);
+  render(<RouterProvider router={router} />);
+  return saves;
+}
+
+test('参数配置：文件里没写的键显示游戏默认值，拨回默认值不算修改，保存时只写改过的键', async () => {
+  const user = userEvent.setup();
+  const saves = mountConfigTab({ motd: 'Imported', 'server-port': '25565' });
+
+  const onlineMode = await screen.findByRole('switch', { name: '正版验证（在线模式）' }) as HTMLInputElement;
+  await waitFor(() => expect(onlineMode.disabled).toBe(false));
+  // 开关和下拉按默认值显示，数字和文本框把默认值放在占位字里，输入框本身是空的。
+  expect(onlineMode.checked).toBe(true);
+  expect((screen.getByRole('switch', { name: '启用白名单' }) as HTMLInputElement).checked).toBe(false);
+  const difficulty = screen.getByRole('combobox', { name: '难度' }) as HTMLSelectElement;
+  expect(difficulty.value).toBe('easy');
+  expect(within(difficulty).getByRole('option', { name: '简单（默认）' })).toBeTruthy();
+  expect(within(difficulty).queryByRole('option', { name: '请选择' })).toBeNull();
+  const maxPlayers = screen.getByRole('spinbutton', { name: '最大在线人数' }) as HTMLInputElement;
+  expect(maxPlayers.value).toBe('');
+  expect(maxPlayers.placeholder).toBe('20');
+  expect((screen.getByRole('textbox', { name: '世界种子' }) as HTMLInputElement).placeholder).toBe('随机');
+  const save = screen.getByRole('button', { name: '保存配置' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+
+  // 拨离默认值算修改，拨回去又回到没改。
+  await user.click(onlineMode);
+  expect(onlineMode.checked).toBe(false);
+  expect(save.disabled).toBe(false);
+  await user.click(onlineMode);
+  expect(onlineMode.checked).toBe(true);
+  expect(save.disabled).toBe(true);
+  await user.selectOptions(difficulty, 'hard');
+  expect(save.disabled).toBe(false);
+  await user.selectOptions(difficulty, 'easy');
+  expect(save.disabled).toBe(true);
+  // 数字框填了再清空同样回到没改。
+  await user.type(maxPlayers, '8');
+  expect(save.disabled).toBe(false);
+  await user.clear(maxPlayers);
+  expect(save.disabled).toBe(true);
+
+  // 显示出来的默认值不会跟着写进文件。
+  await user.selectOptions(difficulty, 'hard');
+  await user.click(save);
+  await waitFor(() => expect(saves).toEqual([{ motd: 'Imported', 'server-port': '25565', difficulty: 'hard' }]));
+});
+
+test('参数配置：文件里值留空的键按服务端实际生效的情况显示', async () => {
+  mountConfigTab({ difficulty: '', 'online-mode': '', 'max-players': '', motd: '', 'level-seed': '' });
+
+  const difficulty = await screen.findByRole('combobox', { name: '难度' }) as HTMLSelectElement;
+  // 下拉项和数字留空时服务端用默认值，开关留空等于关，文本留空就是空的（世界种子留空是随机）。
+  await waitFor(() => expect(difficulty.value).toBe('easy'));
+  expect(within(difficulty).queryByRole('option', { name: '请选择' })).toBeNull();
+  expect((screen.getByRole('switch', { name: '正版验证（在线模式）' }) as HTMLInputElement).checked).toBe(false);
+  expect((screen.getByRole('spinbutton', { name: '最大在线人数' }) as HTMLInputElement).placeholder).toBe('20');
+  expect((screen.getByRole('textbox', { name: '服务器简介' }) as HTMLInputElement).placeholder).toBe('');
+  expect((screen.getByRole('textbox', { name: '世界种子' }) as HTMLInputElement).placeholder).toBe('随机');
+  expect((screen.getByRole('button', { name: '保存配置' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test('参数配置：已有的数字项可以清空保存，填了超范围的值仍然拦住', async () => {
+  const user = userEvent.setup();
+  const saves = mountConfigTab({ 'view-distance': '12', 'server-port': '25570' });
+
+  const view = await screen.findByRole('spinbutton', { name: '视距（区块）' }) as HTMLInputElement;
+  await waitFor(() => expect(view.value).toBe('12'));
+  const port = screen.getByRole('spinbutton', { name: '服务器端口' }) as HTMLInputElement;
+  const save = screen.getByRole('button', { name: '保存配置' }) as HTMLButtonElement;
+
+  // 清空后不报错，占位字是服务端会用的默认值。
+  await user.clear(view);
+  await user.clear(port);
+  expect(view.getAttribute('aria-invalid')).toBeNull();
+  expect(view.placeholder).toBe('10');
+  expect(port.placeholder).toBe('25565');
+  expect(save.disabled).toBe(false);
+
+  await user.type(view, '99');
+  expect(view.getAttribute('aria-invalid')).toBe('true');
+  expect(save.disabled).toBe(true);
+  expect(screen.getByRole('status').textContent).toBe('先修正「视距（区块）」');
+
+  await user.clear(view);
+  await user.click(save);
+  await waitFor(() => expect(saves).toEqual([{ 'view-distance': '', 'server-port': '' }]));
+});
+
+test('参数配置：文件读取失败时不把游戏默认值当成文件内容显示', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: '测试读取失败' }), { status: 500 })));
+  const router = createMemoryRouter([{ path: '/', element: <ConfigTab instanceId="test" /> }]);
+  render(<RouterProvider router={router} />);
+
+  expect((await screen.findByRole('alert')).textContent).toContain('测试读取失败');
+  const onlineMode = screen.getByRole('switch', { name: '正版验证（在线模式）' }) as HTMLInputElement;
+  expect(onlineMode.disabled).toBe(true);
+  expect(onlineMode.checked).toBe(false);
+  const difficulty = screen.getByRole('combobox', { name: '难度' }) as HTMLSelectElement;
+  expect(difficulty.value).toBe('');
+  expect(within(difficulty).queryByRole('option', { name: '简单（默认）' })).toBeNull();
+  expect((screen.getByRole('spinbutton', { name: '最大在线人数' }) as HTMLInputElement).placeholder).toBe('');
+  expect((screen.getByRole('textbox', { name: '世界种子' }) as HTMLInputElement).placeholder).toBe('');
+});
+
+test('参数配置：按实例游戏版本隐藏已改成游戏规则的项，文件里的旧值保存时原样带回', async () => {
+  const user = userEvent.setup();
+  const saves = mountConfigTab({ motd: 'Old', pvp: 'false', 'spawn-animals': 'false' }, '26.3');
+
+  const motd = await screen.findByRole('textbox', { name: '服务器简介' }) as HTMLInputElement;
+  await waitFor(() => expect(motd.value).toBe('Old'));
+  for (const name of ['玩家对战（PVP）', '开启下界', '生成怪物', '生成动物']) {
+    expect(screen.queryByRole('switch', { name })).toBeNull();
+  }
+  // 藏起来的键不出现在「高级选项」里，两个分组末尾说明去哪里设置。
+  expect(screen.queryByLabelText('pvp')).toBeNull();
+  expect(screen.queryByLabelText('spawn-animals')).toBeNull();
+  expect(screen.getAllByText('/gamerule')).toHaveLength(2);
+  expect(screen.getByRole('switch', { name: '正版验证（在线模式）' })).toBeTruthy();
+
+  await user.clear(motd);
+  await user.type(motd, 'New');
+  await user.click(screen.getByRole('button', { name: '保存配置' }));
+  await waitFor(() => expect(saves).toEqual([{ motd: 'New', pvp: 'false', 'spawn-animals': 'false' }]));
+});
+
+test('参数配置：旧版本和版本未知时不隐藏仍在用的项', async () => {
+  mountConfigTab({ motd: 'Old' }, '1.21.8');
+  // 1.21.8：生成动物已在 1.21.2 移除，其余三项到 1.21.9 才移除。
+  const pvp = await screen.findByRole('switch', { name: '玩家对战（PVP）' }) as HTMLInputElement;
+  await waitFor(() => expect(pvp.disabled).toBe(false));
+  expect(pvp.checked).toBe(true);
+  expect(screen.getByRole('switch', { name: '开启下界' })).toBeTruthy();
+  expect(screen.getByRole('switch', { name: '生成怪物' })).toBeTruthy();
+  expect(screen.queryByRole('switch', { name: '生成动物' })).toBeNull();
+  expect(screen.queryByText('/gamerule')).toBeNull();
+  cleanup();
+
+  // 快照号、自定义 Jar 等认不出版本的实例全部照常显示。
+  for (const version of [undefined, '25w35a']) {
+    mountConfigTab({ motd: 'Old' }, version);
+    expect(await screen.findByRole('switch', { name: '生成动物' })).toBeTruthy();
+    expect(screen.getByRole('switch', { name: '玩家对战（PVP）' })).toBeTruthy();
+    expect(screen.queryByText('/gamerule')).toBeNull();
+    cleanup();
+  }
+});
+
 test('未同意 EULA 的启动失败给出提示，「同意并启动」先保存同意再启动', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;

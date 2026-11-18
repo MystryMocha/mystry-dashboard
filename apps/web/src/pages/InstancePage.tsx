@@ -462,7 +462,7 @@ export function InstancePage() {
               element={<ConsoleTab instance={instance} busy={busy} onAgreeEulaAndStart={agreeEulaAndStart} />}
             />
             <Route path="files" element={<FilesTab instanceId={instance.id} />} />
-            <Route path="config" element={<ConfigTab instanceId={instance.id} />} />
+            <Route path="config" element={<ConfigTab instanceId={instance.id} mcVersion={instance.mcVersion} />} />
             <Route path="backups" element={<BackupsTab instance={instance} onRestored={() => void load()} />} />
             <Route path="settings" element={<SettingsTab instance={instance} onSaved={load} />} />
             <Route path="multiplayer" element={<Navigate to={`/multiplayer?instance=${encodeURIComponent(id ?? '')}`} replace />} />

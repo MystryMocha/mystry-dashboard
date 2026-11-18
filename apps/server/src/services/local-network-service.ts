@@ -1,7 +1,7 @@
 import os from 'node:os';
 import type { InstanceLocalNetwork, NetworkInterfaceKind, PanelNetworkInterface } from '@mystry/shared';
 import { config } from '../config.js';
-import { readServerProperties } from './config-service.js';
+import { gamePortFromProperties, readServerProperties } from './config-service.js';
 import { getPublicHost } from './public-host.js';
 
 type InterfaceMap = NodeJS.Dict<os.NetworkInterfaceInfo[]>;
@@ -164,8 +164,7 @@ export function describeLocalNetwork(
   } catch {
     return { ...base, port: null, addresses: [], publicIpv4: [], publicIpv6: [], serverIpBlocked: false };
   }
-  const parsedPort = Number((properties['server-port'] ?? '25565').trim());
-  const port = Number.isInteger(parsedPort) && parsedPort >= 1 && parsedPort <= 65535 ? parsedPort : null;
+  const port = gamePortFromProperties(properties);
   // 按网卡分类拆开：公网地址单独列出，实例自己的联机网卡不算「同一网络」的地址。
   const kinds = new Map(listNetworkInterfaces(interfaces).map((entry) => [entry.address, entry.kind]));
   const listed = listLanAddresses(interfaces);
