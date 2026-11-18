@@ -32,9 +32,7 @@ export default {
   'instance.settings.jarFile.label': 'Jar 檔名',
   'instance.settings.installPath.label': '安裝路徑',
   'instance.settings.installPath.help': '實例目錄由面板託管，建立後無法修改。',
-  'instance.settings.status.dirty': '有尚未儲存的設定。',
   'instance.settings.status.saved': '設定已儲存。',
-  'instance.settings.status.idle': '修改後按「儲存設定」即可生效。',
   'instance.settings.save': '儲存設定',
   'instance.settings.unsaved.title': '要捨棄尚未儲存的設定修改嗎？',
   'instance.settings.unsaved.savingTitle': '正在儲存設定…',
@@ -56,6 +54,13 @@ export default {
   'instance.ready.body': '想讓玩家加入？「多人連線」頁會列出加入位址。',
   'instance.ready.action': '邀請玩家',
   'instance.ready.dismiss': '不再提示',
+
+  // 保存栏（设置与参数配置共用）：有修改才出现
+  'instance.saveBar.dirty_one': '{count} 項修改尚未儲存',
+  'instance.saveBar.dirty_other': '{count} 項修改尚未儲存',
+  'instance.saveBar.discard': '捨棄修改',
+  'instance.saveBar.savedRestart': '已儲存，重新啟動實例後生效',
+  'instance.saveBar.restart': '重新啟動實例',
 
   // 未保存修改弹窗（设置与参数配置共用）
   'instance.unsaved.savingDescription': '儲存完成後會自動離開此頁；儲存期間不能捨棄或取消。',

@@ -965,6 +965,54 @@ select.input,
 .jvm-memory-tiers .chip.is-selected .chip-desc { color: inherit; }
 
 /* -- 表单：参数配置与实例设置（含保存栏） -- */
+/*
+ * 保存栏只在有修改（或刚保存完）时出现。占位容器一直在、高度固定，吸在页面底部：
+ * 栏出现和消失时内容不跳，滚到底时最后一行落在占位之上，不会被栏挡住。
+ * 容器本身不接收点按，空着的时候不会挡住下面的内容。
+ */
+.save-bar-slot {
+  --save-bar-space: 52px;
+  position: sticky;
+  bottom: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  height: var(--save-bar-space);
+  pointer-events: none;
+}
+.save-bar-slot > .save-bar {
+  position: static;
+  flex: 1 1 auto;
+  min-width: 0;
+  pointer-events: auto;
+  animation: save-bar-in 0.18s ease-out;
+}
+@keyframes save-bar-in {
+  from { opacity: 0; transform: translateY(6px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .save-bar-slot > .save-bar { animation: none; }
+}
+/* 状态文字里点名要改的字段：字段名可能很长，允许换行。 */
+.save-bar .link-button { white-space: normal; text-align: start; }
+/* 「已保存」那一态始终一行：文字放不下就自己换行，按钮不被拉宽。 */
+.save-bar.is-notice { flex-wrap: nowrap; }
+.save-bar.is-notice > .action-bar-status { flex: 1 1 0; }
+.save-bar.is-notice > .btn { flex: 0 0 auto; }
+/* 只有一句提示、没有按钮时，和有按钮时一样高。 */
+.save-bar.is-notice > .action-bar-status:only-child { padding-block: 7px; }
+@media (pointer: coarse) {
+  .save-bar-slot { --save-bar-space: 62px; }
+}
+@media (max-width: 480px) {
+  /* 手机上状态文字单独一行，「放弃修改」和「保存」在第二行并排、等宽。 */
+  .save-bar-slot { --save-bar-space: 88px; }
+  .save-bar:not(.is-notice) > .action-bar-status { flex: 1 1 100%; }
+  .save-bar:not(.is-notice) > .btn { flex: 1 1 0; }
+}
+@media (max-width: 480px) and (pointer: coarse) {
+  .save-bar-slot { --save-bar-space: 98px; }
+}
 
 /* -- 表单：联机 -- */
 /* 折叠区里的穿透设置表单：字段之间的间距和原来直接放在折叠区里时一样。 */
