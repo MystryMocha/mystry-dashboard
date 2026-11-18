@@ -25,6 +25,7 @@ export default {
   'remoteAccess.adapter.all': 'All Adapters',
   'remoteAccess.adapter.option': '{name} ({address})',
   'remoteAccess.adapter.allHelp': 'The panel listens on every adapter except the instances\' multiplayer networks, and follows along when addresses change.',
+  'remoteAccess.adapter.missing': "This adapter can't be found right now. Choose another one.",
 
   'remoteAccess.kind.lan': 'For devices on the same Wi-Fi or router.',
   'remoteAccess.kind.public': 'Public address. It works from anywhere once the firewall or security group allows the port.',

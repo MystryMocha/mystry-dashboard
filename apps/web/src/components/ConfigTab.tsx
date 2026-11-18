@@ -3,6 +3,7 @@ import { api, instanceApi } from '../api';
 import { errorMessage } from '../errors';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import { useI18n, type MessageKey } from '../i18n';
+import { integerIssue, type Issue } from '../validation';
 import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 
 /**
@@ -21,6 +22,9 @@ interface FieldMeta {
   descKey: MessageKey;
   type: FieldType;
   options?: { value: string; labelKey: MessageKey }[];
+  /** 数字字段的取值范围，与 Minecraft 文档一致；max 省略表示只限下限。 */
+  min?: number;
+  max?: number;
 }
 
 interface GroupMeta {
@@ -39,8 +43,8 @@ const GROUPS: GroupMeta[] = [
     titleKey: 'config.group.basic',
     fields: [
       { key: 'motd', labelKey: 'config.field.motd.label', descKey: 'config.field.motd.desc', type: 'text' },
-      { key: 'server-port', labelKey: 'config.field.serverPort.label', descKey: 'config.field.serverPort.desc', type: 'number' },
-      { key: 'max-players', labelKey: 'config.field.maxPlayers.label', descKey: 'config.field.maxPlayers.desc', type: 'number' },
+      { key: 'server-port', labelKey: 'config.field.serverPort.label', descKey: 'config.field.serverPort.desc', type: 'number', min: 1, max: 65535 },
+      { key: 'max-players', labelKey: 'config.field.maxPlayers.label', descKey: 'config.field.maxPlayers.desc', type: 'number', min: 0 },
       {
         key: 'difficulty', labelKey: 'config.field.difficulty.label', descKey: 'config.field.difficulty.desc', type: 'select',
         options: [
@@ -69,7 +73,7 @@ const GROUPS: GroupMeta[] = [
       { key: 'white-list', labelKey: 'config.field.whiteList.label', descKey: 'config.field.whiteList.desc', type: 'boolean' },
       { key: 'pvp', labelKey: 'config.field.pvp.label', descKey: 'config.field.pvp.desc', type: 'boolean' },
       { key: 'allow-flight', labelKey: 'config.field.allowFlight.label', descKey: 'config.field.allowFlight.desc', type: 'boolean' },
-      { key: 'op-permission-level', labelKey: 'config.field.opPermissionLevel.label', descKey: 'config.field.opPermissionLevel.desc', type: 'number' },
+      { key: 'op-permission-level', labelKey: 'config.field.opPermissionLevel.label', descKey: 'config.field.opPermissionLevel.desc', type: 'number', min: 0, max: 4 },
     ],
   },
   {
@@ -80,19 +84,20 @@ const GROUPS: GroupMeta[] = [
       { key: 'allow-nether', labelKey: 'config.field.allowNether.label', descKey: 'config.field.allowNether.desc', type: 'boolean' },
       { key: 'spawn-monsters', labelKey: 'config.field.spawnMonsters.label', descKey: 'config.field.spawnMonsters.desc', type: 'boolean' },
       { key: 'spawn-animals', labelKey: 'config.field.spawnAnimals.label', descKey: 'config.field.spawnAnimals.desc', type: 'boolean' },
-      { key: 'spawn-protection', labelKey: 'config.field.spawnProtection.label', descKey: 'config.field.spawnProtection.desc', type: 'number' },
+      { key: 'spawn-protection', labelKey: 'config.field.spawnProtection.label', descKey: 'config.field.spawnProtection.desc', type: 'number', min: 0 },
     ],
   },
   {
     titleKey: 'config.group.performance',
     fields: [
-      { key: 'view-distance', labelKey: 'config.field.viewDistance.label', descKey: 'config.field.viewDistance.desc', type: 'number' },
-      { key: 'simulation-distance', labelKey: 'config.field.simulationDistance.label', descKey: 'config.field.simulationDistance.desc', type: 'number' },
-      { key: 'network-compression-threshold', labelKey: 'config.field.networkCompressionThreshold.label', descKey: 'config.field.networkCompressionThreshold.desc', type: 'number' },
+      { key: 'view-distance', labelKey: 'config.field.viewDistance.label', descKey: 'config.field.viewDistance.desc', type: 'number', min: 3, max: 32 },
+      { key: 'simulation-distance', labelKey: 'config.field.simulationDistance.label', descKey: 'config.field.simulationDistance.desc', type: 'number', min: 3, max: 32 },
+      { key: 'network-compression-threshold', labelKey: 'config.field.networkCompressionThreshold.label', descKey: 'config.field.networkCompressionThreshold.desc', type: 'number', min: -1 },
     ],
   },
 ];
 
+const NUMBER_FIELDS = GROUPS.flatMap((group) => group.fields).filter((field) => field.type === 'number');
 const KNOWN_KEYS = new Set(GROUPS.flatMap((group) => group.fields.map((field) => field.key)));
 
 /** 切换实例时由上层按实例 ID 重新挂载。 */
@@ -124,10 +129,21 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
   }, [instanceId]);
 
   const dirty = loaded && !arePropertiesEqual(props, originalProps);
+  // 只校验改过的数字字段：文件里原有的值即使不规范也不拦保存，只拦用户新填的错误值。
+  const fieldIssues = new Map<string, Issue>();
+  for (const field of NUMBER_FIELDS) {
+    const value = props[field.key];
+    if (value === undefined || value === originalProps[field.key]) continue;
+    const issue = integerIssue(value, field.min ?? 0, field.max);
+    if (issue) fieldIssues.set(field.key, issue);
+  }
+  const invalid = fieldIssues.size > 0;
+  // 操作栏点名第一个要改的字段，长页面里不用上下找。
+  const firstInvalid = NUMBER_FIELDS.find((field) => fieldIssues.has(field.key));
   const blocker = useUnsavedGuard(dirty, saving);
 
   async function save() {
-    if (!loaded || !dirty || saving) return;
+    if (!loaded || !dirty || saving || invalid) return;
     setSaving(true);
     setSaved(false);
     try {
@@ -149,7 +165,14 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
 
   function setValue(key: string, value: string) {
     setSaved(false);
-    setProps((prev) => ({ ...prev, [key]: value }));
+    setProps((prev) => {
+      // 文件里原本没有的键清空后视为没改，避免多写一行空值，也不会一直显示「有未保存的修改」。
+      if (value === '' && !(key in originalProps)) {
+        const { [key]: _removed, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [key]: value };
+    });
   }
 
   function renderField(field: FieldMeta) {
@@ -157,6 +180,8 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
     const inputId = `server-property-${field.key}`;
     const descId = `${inputId}-desc`;
     const disabled = !loaded || saving;
+    const issue = fieldIssues.get(field.key);
+    const errorId = `${inputId}-error`;
     return (
       <div className={`list-row config-row config-row-${field.type}`} key={field.key}>
         <div className="list-row-text">
@@ -200,13 +225,19 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
               id={inputId}
               className="input"
               type={field.type === 'number' ? 'number' : 'text'}
+              min={field.min}
+              max={field.max}
+              step={field.type === 'number' ? 1 : undefined}
               value={raw ?? ''}
               disabled={disabled}
-              aria-describedby={descId}
+              aria-invalid={issue ? true : undefined}
+              aria-describedby={issue ? `${descId} ${errorId}` : descId}
               onChange={(e) => setValue(field.key, e.target.value)}
             />
           )}
         </div>
+        {/* 说明放在整行最后：窄屏时紧跟在输入框下面，宽屏时右对齐在输入框下方。 */}
+        {issue && <p className="error config-row-error" id={errorId}>{t(issue.key, issue.params)}</p>}
       </div>
     );
   }
@@ -261,9 +292,9 @@ export function ConfigTab({ instanceId }: { instanceId: string }) {
 
       <div className="action-bar">
         <span className="action-bar-status" role="status" aria-live="polite">
-          {dirty ? t('config.status.dirty') : saved ? t('config.status.saved') : t('config.status.idle')}
+          {firstInvalid ? t('validation.fixField', { field: t(firstInvalid.labelKey) }) : dirty ? t('config.status.dirty') : saved ? t('config.status.saved') : t('config.status.idle')}
         </span>
-        <button className="btn btn-primary" type="button" disabled={!loaded || !dirty || saving} onClick={() => void save()}>
+        <button className="btn btn-primary" type="button" disabled={!loaded || !dirty || saving || invalid} onClick={() => void save()}>
           {saving ? t('action.saving') : t('config.save')}
         </button>
       </div>

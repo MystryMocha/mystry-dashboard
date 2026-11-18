@@ -31,11 +31,14 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
   const [backupCurrent, setBackupCurrent] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<BackupInfo | null>(null);
   const [deleting, setDeleting] = useState(false);
+  /** 已点击、服务器还没回复任务时为真；连点或接着点别的操作都要被挡住。 */
+  const [starting, setStarting] = useState(false);
+  const startingRef = useRef(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const controllersRef = useRef(new Set<AbortController>());
 
   const running = isProcessAlive(instance.status);
-  const busy = task !== null || uploading || deleting;
+  const busy = task !== null || starting || uploading || deleting;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,12 +71,22 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
     doneKey: MessageKey | ((result: TaskInfo['result']) => MessageKey),
     after?: () => void,
   ) {
+    // 同一事件循环里的第二次点击还看不到 starting，用 ref 同步拦住。
+    if (startingRef.current) return;
+    startingRef.current = true;
+    setStarting(true);
     const controller = new AbortController();
     controllersRef.current.add(controller);
     setError('');
     setNotice('');
     try {
-      const started = await start();
+      let started: TaskInfo;
+      try {
+        started = await start();
+      } finally {
+        startingRef.current = false;
+        if (!controller.signal.aborted) setStarting(false);
+      }
       setTask(started);
       const result = await pollTask(started.id, setTask, controller.signal);
       setNotice(t(typeof doneKey === 'function' ? doneKey(result) : doneKey));

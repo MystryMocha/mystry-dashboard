@@ -7,6 +7,7 @@ import { MultiplayerLayout, type GuideControl } from './MultiplayerLayout';
 import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n } from '../i18n';
+import { publicHostIssue } from '../validation';
 
 function isPrivateHost(host: string): boolean {
   return /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(host) || host === 'localhost';
@@ -94,6 +95,7 @@ export function DirectSection({
   const hasPublic = publicHosts.length > 0;
   const showPublicCard = hasPublic || hostOpen;
   const windows = network?.platform === 'win32';
+  const hostIssue = publicHostIssue(hostDraft);
 
   const addressList = (items: string[]) => (
     <ul className="direct-address-list">
@@ -238,7 +240,7 @@ export function DirectSection({
                 <button
                   className="btn btn-primary"
                   type="button"
-                  disabled={hostBusy || hostDraft.trim() === '' || hostDraft.trim() === (network.publicHost ?? '')}
+                  disabled={hostBusy || hostDraft.trim() === '' || hostIssue !== null || hostDraft.trim() === (network.publicHost ?? '')}
                   onClick={() => void saveHost(hostDraft)}
                 >
                   {t('action.save')}
@@ -250,7 +252,8 @@ export function DirectSection({
                 )}
               </div>
               <p className="field-help">{t('multiplayer.direct.public.hostHelp')}</p>
-              {isPrivateHost(hostDraft.trim()) && <p className="field-warn">{t('multiplayer.direct.public.private')}</p>}
+              {hostIssue && <p className="error">{t(hostIssue.key)}</p>}
+              {!hostIssue && isPrivateHost(hostDraft.trim()) && <p className="field-warn">{t('multiplayer.direct.public.private')}</p>}
               {hostError && <p className="error" role="alert">{hostError}</p>}
             </div>
           </div>

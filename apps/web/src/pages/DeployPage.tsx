@@ -15,6 +15,7 @@ import { TaskProgress } from '../components/TaskProgress';
 import { errorMessage, isAbortError } from '../errors';
 import { useKeyedLoader } from '../hooks/useKeyedLoader';
 import { useI18n, type MessageKey } from '../i18n';
+import { instanceNameIssue, type Issue } from '../validation';
 
 type CoreType = 'paper' | 'fabric' | 'vanilla' | 'forge' | 'neoforge';
 
@@ -114,7 +115,7 @@ export function DeployPage() {
   }
 
   async function deploy() {
-    if (!coreType || !selectedMcVersion) return;
+    if (!coreType || !selectedMcVersion || blocker) return;
     if (!jvmValid) {
       setError(t('deploy.error.jvmInvalid'));
       return;
@@ -161,7 +162,18 @@ export function DeployPage() {
   );
 
   // Build、Loader 与 Installer 留空时由服务端解析为最新稳定版，只有核心与游戏版本必填。
-  const canDeploy = Boolean(coreType && selectedMcVersion) && acceptEula;
+  const nameIssue = instanceNameIssue(name);
+  // 按表单从上到下的顺序找第一个还没满足的条件，操作栏直接说缺什么，而不是只把按钮变灰。
+  const javaRecommended = recommendedJavaMajor(selectedMcVersion);
+  const blocker: Issue | null = !coreType ? { key: 'deploy.action.noCore' }
+    : !selectedMcVersion ? { key: 'deploy.action.needVersion' }
+      : nameIssue ? nameIssue
+        : !jvmValid ? { key: 'validation.jvm.invalid' }
+          : javaInstalling ? { key: 'validation.java.installing' }
+            : javaStatus === 'loading' ? { key: 'validation.java.checking' }
+              : javaStatus === 'mismatch' ? { key: 'validation.java.mismatch', params: { java: javaRecommended ?? '' } }
+                : !acceptEula ? { key: 'deploy.action.needEula' }
+                  : null;
   const selectedCore = CORE_ITEMS.find((item) => item.id === coreType);
 
   return (
@@ -218,8 +230,11 @@ export function DeployPage() {
                     id={nameFieldId}
                     value={name}
                     disabled={busy}
+                    aria-invalid={nameIssue ? true : undefined}
+                    aria-describedby={nameIssue ? `${nameFieldId}-error` : undefined}
                     onChange={(e) => setName(e.target.value)}
                   />
+                  {nameIssue && <p className="error" id={`${nameFieldId}-error`}>{t(nameIssue.key, nameIssue.params)}</p>}
                 </div>
 
                 <div className="field">
@@ -363,14 +378,15 @@ export function DeployPage() {
           </section>
 
           <div className="action-bar">
-            <span className="action-bar-status">
-              {selectedCore ? `${selectedCore.name}${selectedMcVersion ? ` ${selectedMcVersion}` : ''}` : t('deploy.action.noCore')}
-              {name ? ` · ${name}` : ''}
+            <span className="action-bar-status" role="status" aria-live="polite">
+              {!busy && blocker
+                ? t(blocker.key, blocker.params)
+                : `${selectedCore?.name ?? ''}${selectedMcVersion ? ` ${selectedMcVersion}` : ''} · ${name.trim()}`}
             </span>
             <button
               className="btn btn-primary"
               type="button"
-              disabled={busy || javaInstalling || javaStatus !== 'match' || !canDeploy || !jvmValid}
+              disabled={busy || blocker !== null}
               onClick={() => void deploy()}
             >
               {busy ? t('deploy.action.running') : t('deploy.action.start')}

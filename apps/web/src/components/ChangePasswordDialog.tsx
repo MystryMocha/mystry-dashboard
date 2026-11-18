@@ -3,9 +3,8 @@ import type { ChangePasswordInput, ChangePasswordResult } from '@mystry/shared';
 import { api, setToken } from '../api';
 import { errorMessage } from '../errors';
 import { useI18n } from '../i18n';
+import { PASSWORD_MIN, newPasswordIssue } from '../validation';
 import { ConfirmDialog } from './ConfirmDialog';
-
-const PASSWORD_MIN_LENGTH = 12;
 
 /**
  * 修改当前管理员密码。打开时才挂载：表单不留旧密码，输入框的 autoFocus 也不会抢走页面焦点。
@@ -24,8 +23,10 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
   const confirmId = useId();
 
   const mismatch = confirmPassword !== '' && confirmPassword !== newPassword;
+  const newIssue = newPasswordIssue(newPassword);
   const canSubmit = currentPassword !== ''
-    && newPassword.length >= PASSWORD_MIN_LENGTH
+    && newPassword.length >= PASSWORD_MIN
+    && newIssue === null
     && confirmPassword === newPassword;
 
   async function submit(): Promise<void> {
@@ -90,6 +91,7 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
               onKeyDown={onEnter}
               autoComplete="new-password"
               maxLength={128}
+              aria-invalid={newIssue !== null && newPassword.length >= PASSWORD_MIN ? true : undefined}
             />
           </div>
           <div className="field">
@@ -105,7 +107,10 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
               aria-invalid={mismatch}
             />
           </div>
-          <p className="muted">{mismatch ? t('shell.password.mismatch') : t('shell.password.help')}</p>
+          {/* 长度不够时说明文字已经写了 12 位；只有超长（含按字节超出）才单独报错。 */}
+          {mismatch ? <p className="error">{t('shell.password.mismatch')}</p>
+            : newIssue && newPassword.length >= PASSWORD_MIN ? <p className="error">{t(newIssue.key, newIssue.params)}</p>
+              : <p className="muted">{t('shell.password.help')}</p>}
         </>
       )}
     />

@@ -69,4 +69,16 @@ export default {
   'common.required': '必填',
   'common.latest': '最新',
   'common.default': '默认',
+
+  'validation.instanceName.required': '填写实例名称',
+  'validation.instanceName.tooLong': '实例名称最多 {max} 个字符',
+  'validation.jarFile.required': '填写 Jar 文件名',
+  'validation.number.range': '填写 {min}–{max} 之间的整数',
+  'validation.number.min': '填写不小于 {min} 的整数',
+  'validation.port.range': '端口填写 1–65535 之间的整数',
+  'validation.jvm.invalid': '先修正 JVM 参数',
+  'validation.java.checking': '正在检查 Java…',
+  'validation.java.installing': '正在安装 Java…',
+  'validation.java.mismatch': '先安装或选择 Java {java}',
+  'validation.fixField': '先修正「{field}」',
 } satisfies Record<keyof typeof en, string>;

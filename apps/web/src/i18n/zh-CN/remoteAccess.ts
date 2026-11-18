@@ -27,6 +27,7 @@ export default {
   'remoteAccess.adapter.all': '所有网卡',
   'remoteAccess.adapter.option': '{name}（{address}）',
   'remoteAccess.adapter.allHelp': '面板会在所有网卡上监听（实例的联机网络除外），地址变了会自动跟上。',
+  'remoteAccess.adapter.missing': '现在找不到这块网卡，换一块。',
 
   'remoteAccess.kind.lan': '同一个 Wi-Fi 或路由器下的设备用这个。',
   'remoteAccess.kind.public': '公网地址。防火墙或安全组放行端口后，任何地方都能打开。',

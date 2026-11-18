@@ -11,6 +11,7 @@ import { getPanelNetworkJoinInfo, resetPanelNetworkSecret, savePanelNetwork } fr
 import { copyText } from '../clipboard';
 import { errorMessage } from '../errors';
 import { useI18n, type MessageKey } from '../i18n';
+import { lanPeersIssue } from '../validation';
 import { QrCode } from './QrCode';
 import { StatusPill, type StatusTone } from './StatusPill';
 
@@ -95,6 +96,9 @@ export function RemotePanelNetwork({
   const peers = parsePeers(peersText);
   const tooManyPeers = peers.length > LAN_CUSTOM_PEER_LIMIT;
   const noPeers = !useShared && peers.length === 0;
+  const peersIssue = lanPeersIssue(peers);
+  // 「开启」用的是已保存的节点设置，不是下面还没保存的草稿，所以按已保存的判断能不能开。
+  const savedNoPeers = !network.useSharedPeers && network.customPeers.length === 0;
 
   async function run(action: () => Promise<void>): Promise<void> {
     setBusy(true);
@@ -195,9 +199,13 @@ export function RemotePanelNetwork({
             {busy ? t('remoteAccess.action.working') : t('remoteAccess.action.turnOff')}
           </button>
         ) : (
-          <button className="btn btn-primary" type="button" disabled={busy || noPeers} onClick={() => void toggle(true)}>
-            {busy ? t('remoteAccess.action.working') : t('remoteAccess.action.turnOn')}
-          </button>
+          <>
+            <button className="btn btn-primary" type="button" disabled={busy || savedNoPeers} onClick={() => void toggle(true)}>
+              {busy ? t('remoteAccess.action.working') : t('remoteAccess.action.turnOn')}
+            </button>
+            {/* 节点设置在收起的高级区里，按钮不可点时在旁边说原因。 */}
+            {savedNoPeers && <span className="field-help">{t('remoteAccess.net.peers.required')}</span>}
+          </>
         )}
       </div>
 
@@ -363,6 +371,7 @@ export function RemotePanelNetwork({
             {t('remoteAccess.net.peers.help', { limit: LAN_CUSTOM_PEER_LIMIT })}
           </p>
           {tooManyPeers && <p className="error" role="alert">{t('remoteAccess.net.peers.tooMany', { limit: LAN_CUSTOM_PEER_LIMIT })}</p>}
+          {peersIssue && <p className="error">{t(peersIssue.key, peersIssue.params)}</p>}
         </div>
         <label className="checkbox-field">
           <input
@@ -384,7 +393,7 @@ export function RemotePanelNetwork({
         </p>
         {noPeers && <p className="error" role="alert">{t('remoteAccess.net.peers.required')}</p>}
         <div className="instance-actions">
-          <button className="btn" type="button" disabled={busy || tooManyPeers || noPeers} onClick={() => void savePeers()}>
+          <button className="btn" type="button" disabled={busy || tooManyPeers || noPeers || peersIssue !== null} onClick={() => void savePeers()}>
             {t('remoteAccess.net.peers.save')}
           </button>
         </div>

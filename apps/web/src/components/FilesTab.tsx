@@ -155,6 +155,8 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   const [loading, setLoading] = useState(true);
   const [editPath, setEditPath] = useState<string | null>(null);
   const [content, setContent] = useState('');
+  /** 读取成功时的原始内容；null 表示还没读到或读取失败，此时不显示编辑框也不能保存，避免用空内容覆盖原文件。 */
+  const [editOriginal, setEditOriginal] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [editError, setEditError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -222,6 +224,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     editGenerationRef.current += 1;
     setEditPath(null);
     setContent('');
+    setEditOriginal(null);
     setEditError('');
     setLoadingEdit(false);
   }
@@ -263,6 +266,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setEditError('');
     setEditPath(file.path);
     setContent('');
+    setEditOriginal(null);
     try {
       const res = await api<{ content: string }>(
         instanceApi(instanceId, `/files/content?path=${encodeURIComponent(file.path)}`),
@@ -270,6 +274,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       // 期间可能已关闭编辑器或打开其他文件，过期响应必须丢弃，否则会把 A 内容存进 B 文件。
       if (generation !== editGenerationRef.current) return;
       setContent(res.content);
+      setEditOriginal(res.content);
     } catch (err) {
       if (generation !== editGenerationRef.current) return;
       setEditError(errorMessage(err));
@@ -279,7 +284,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   }, [instanceId]);
 
   async function saveFile() {
-    if (!editPath) return;
+    if (!editPath || editOriginal === null) return;
     setSaving(true);
     try {
       await api(instanceApi(instanceId, '/files/content'), {
@@ -345,6 +350,11 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setRenameName(file.name);
     setRenameError('');
   }, []);
+
+  // 名称不合规或没改时确认按钮不可点；只有填了内容但不合规才在输入框下说明，空着时不提前报错。
+  const renameIssue = renameTarget ? validateEntryName(renameName) : null;
+  const renameUnchanged = renameTarget !== null && renameName.trim() === renameTarget.name;
+  const newDirIssue = validateEntryName(newDir, true);
 
   async function confirmRename() {
     if (!renameTarget) return;
@@ -568,7 +578,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
               <span className="spinner" aria-hidden="true" />
               {t('common.loading')}
             </div>
-          ) : (
+          ) : editOriginal !== null && (
             <textarea
               className="file-edit-dialog-textarea"
               value={content}
@@ -584,7 +594,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
             <button
               className="btn btn-primary"
               type="button"
-              disabled={saving || loadingEdit || !editPath}
+              disabled={saving || loadingEdit || !editPath || editOriginal === null || content === editOriginal}
               onClick={() => void saveFile()}
             >
               {saving ? t('action.saving') : t('action.save')}
@@ -627,15 +637,17 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
                 autoComplete="off"
                 autoFocus
                 disabled={renaming}
+                aria-invalid={renameIssue && renameName.trim() ? true : undefined}
               />
             </div>
-            {renameError && <p className="error">{renameError}</p>}
+            {renameIssue && renameName.trim() ? <p className="error">{t(renameIssue)}</p>
+              : renameError && <p className="error">{renameError}</p>}
           </div>
           <footer className="confirm-dialog-footer">
             <button className="btn" type="button" disabled={renaming} onClick={closeRename}>
               {t('action.cancel')}
             </button>
-            <button className="btn btn-primary" type="submit" disabled={renaming || !renameTarget}>
+            <button className="btn btn-primary" type="submit" disabled={renaming || !renameTarget || renameIssue !== null || renameUnchanged}>
               {renaming ? t('files.rename.renaming') : t('action.confirm')}
             </button>
           </footer>
@@ -677,15 +689,17 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
                 autoComplete="off"
                 autoFocus
                 disabled={creatingDir}
+                aria-invalid={newDirIssue && newDir.trim() ? true : undefined}
               />
             </div>
-            {newDirError && <p className="error">{newDirError}</p>}
+            {newDirIssue && newDir.trim() ? <p className="error">{t(newDirIssue)}</p>
+              : newDirError && <p className="error">{newDirError}</p>}
           </div>
           <footer className="confirm-dialog-footer">
             <button className="btn" type="button" disabled={creatingDir} onClick={closeNewDir}>
               {t('action.cancel')}
             </button>
-            <button className="btn btn-primary" type="submit" disabled={creatingDir}>
+            <button className="btn btn-primary" type="submit" disabled={creatingDir || newDirIssue !== null}>
               {creatingDir ? t('files.mkdir.creating') : t('files.mkdir.create')}
             </button>
           </footer>

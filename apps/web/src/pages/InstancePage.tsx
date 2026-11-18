@@ -33,6 +33,7 @@ import { useInstanceAction } from '../hooks/useInstanceAction';
 import { usePolling } from '../hooks/usePolling';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import { useI18n, type MessageKey } from '../i18n';
+import { instanceNameIssue, type Issue } from '../validation';
 import {
   canStartInstance,
   canStopInstance,
@@ -134,9 +135,13 @@ function SettingsTab({
   const draft: SettingsDraft = { name, jarFile, jvmArgs, acceptEula, javaRuntimeId };
   const dirty = !isSameSettings(draft, originalSettings);
   const blocker = useUnsavedGuard(dirty, saving);
+  const nameIssue = instanceNameIssue(name);
+  // 只在用户改过 Jar 文件名时检查，库里原有的值不拦其他设置的保存。
+  const jarFileIssue: Issue | null = jarFile !== originalSettings.jarFile && jarFile.trim() === '' ? { key: 'validation.jarFile.required' } : null;
+  const invalid: Issue | null = nameIssue ?? jarFileIssue ?? (jvmValid ? null : { key: 'validation.jvm.invalid' });
 
   async function save() {
-    if (!dirty || saving || !jvmValid) return;
+    if (!dirty || saving || invalid) return;
     setSaving(true);
     setSaved(false);
     try {
@@ -169,11 +174,14 @@ function SettingsTab({
                   id="instance-settings-name"
                   value={name}
                   disabled={saving}
+                  aria-invalid={nameIssue ? true : undefined}
+                  aria-describedby={nameIssue ? 'instance-settings-name-error' : undefined}
                   onChange={(e) => {
                     setName(e.target.value);
                     setSaved(false);
                   }}
                 />
+                {nameIssue && <p className="error" id="instance-settings-name-error">{t(nameIssue.key, nameIssue.params)}</p>}
               </div>
               <div className="field">
                 <label htmlFor="instance-settings-jar-file">{t('instance.settings.jarFile.label')}</label>
@@ -181,11 +189,14 @@ function SettingsTab({
                   id="instance-settings-jar-file"
                   value={jarFile}
                   disabled={saving}
+                  aria-invalid={jarFileIssue ? true : undefined}
+                  aria-describedby={jarFileIssue ? 'instance-settings-jar-file-error' : undefined}
                   onChange={(e) => {
                     setJarFile(e.target.value);
                     setSaved(false);
                   }}
                 />
+                {jarFileIssue && <p className="error" id="instance-settings-jar-file-error">{t(jarFileIssue.key)}</p>}
               </div>
               <div className="field">
                 <label htmlFor="instance-settings-install-path">{t('instance.settings.installPath.label')}</label>
@@ -247,11 +258,13 @@ function SettingsTab({
 
       <div className="action-bar">
         <span className="action-bar-status" role="status" aria-live="polite">
-          {dirty
+          {dirty && invalid
+            ? t(invalid.key, invalid.params)
+            : dirty
             ? t('instance.settings.status.dirty')
             : saved ? t('instance.settings.status.saved') : t('instance.settings.status.idle')}
         </span>
-        <button className="btn btn-primary" type="button" disabled={!dirty || saving || !jvmValid} onClick={() => void save()}>
+        <button className="btn btn-primary" type="button" disabled={!dirty || saving || invalid !== null} onClick={() => void save()}>
           {saving ? t('action.saving') : t('instance.settings.save')}
         </button>
       </div>
