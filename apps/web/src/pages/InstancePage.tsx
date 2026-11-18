@@ -160,9 +160,10 @@ function SettingsTab({
     setSaving(true);
     savedNotice.clear();
     try {
+      // 只提交改过的项：没动的 Java 已失效、或 Jar 是面板识别的启动标记时，不能拦住其他设置的保存。
       await api(instanceApi(instance.id), {
         method: 'PATCH',
-        json: draft,
+        json: Object.fromEntries(changed.map((key) => [key, draft[key]])),
       });
       setError('');
       setOriginalSettings(draft);
