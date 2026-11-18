@@ -147,11 +147,18 @@ export function ImportPage() {
     && (mode === 'zip' && file !== null ? true : confirmStep && blocker === null);
 
   useEffect(() => {
+    // 识别结果只属于文件夹来源。ZIP 的核心和版本由服务端在导入时识别，这里回到「没选」，
+    // 否则进页面时自动选中的那个文件夹的核心和版本会留在表单里，被当成用户的选择提交上去。
+    if (mode !== 'directory') {
+      setCoreType('custom');
+      setMcVersion('');
+      return;
+    }
     if (!selectedSource?.ready) return;
     setCoreType(selectedSource.coreType);
     // 从文件名认出的版本先填上，Java 选择处才能提前提示版本是否合适；用户仍可改。
     setMcVersion(selectedSource.mcVersion ?? '');
-  }, [selectedSource?.id, selectedSource?.ready, selectedSource?.coreType, selectedSource?.mcVersion]);
+  }, [mode, selectedSource?.id, selectedSource?.ready, selectedSource?.coreType, selectedSource?.mcVersion]);
 
   useEffect(() => {
     setDetectedChoice(null);

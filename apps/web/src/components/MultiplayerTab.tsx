@@ -574,7 +574,14 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
       )}
       {loading && <p className="field-help" role="status">{t('common.loading')}</p>}
 
-      {!loading && !hasEndpoints && endpointSection}
+      {/* 第一次读取就失败时不知道有没有服务器：不画添加表单（会被当成「一台都没配过」），只给重试。 */}
+      {tunnel === null && error && (
+        <div className="instance-actions">
+          <button className="btn" type="button" onClick={() => void refresh()}>{t('action.retry')}</button>
+        </div>
+      )}
+
+      {!loading && tunnel !== null && !hasEndpoints && endpointSection}
 
       {hasEndpoints && tunnel && configured && (installed || tunnel.enabled) && (
         <OpenSwitch

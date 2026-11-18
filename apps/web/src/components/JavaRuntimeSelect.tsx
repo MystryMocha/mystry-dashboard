@@ -16,7 +16,8 @@ import { TaskProgress } from './TaskProgress';
  * - 推荐版本没装、面板能装时给出「安装 Java N」按钮，装好后选中它。
  */
 /** 实际要用的 Java 是否就是推荐版本：loading 还没读完；版本未知（不推荐）时算 match。 */
-export type JavaMatchStatus = 'loading' | 'match' | 'mismatch';
+/** unknown：Java 列表一次都没读到，不知道装没装、是哪个版本，不能说成「版本不符」。 */
+export type JavaMatchStatus = 'loading' | 'match' | 'mismatch' | 'unknown';
 
 export function JavaRuntimeSelect({
   value,
@@ -45,6 +46,8 @@ export function JavaRuntimeSelect({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  // 至少成功读到过一次。之后刷新失败时沿用上次的结果，只在下方报错。
+  const [loaded, setLoaded] = useState(false);
   const [defaultJava, setDefaultJava] = useState<JavaDetectResult | null>(null);
   const [installable, setInstallable] = useState<number[]>([]);
   const [installTask, setInstallTask] = useState<TaskInfo | null>(null);
@@ -71,6 +74,7 @@ export function JavaRuntimeSelect({
       setRuntimes(result.runtimes);
       setInstallable(result.installable);
       setDefaultJava(detectedDefaultJava);
+      setLoaded(true);
       setError('');
     } catch (err) {
       if (generation !== loadGenerationRef.current) return;
@@ -141,12 +145,16 @@ export function JavaRuntimeSelect({
   const resolvedAvailable = value ? Boolean(selected?.available) : Boolean(defaultJava?.available);
   const mismatch =
     resolvedAvailable && resolvedMajor != null && recommended != null && resolvedMajor !== recommended;
+  // 第一次读取就失败：什么都不知道，下面的「没检测到」「已不可用」都不能说。
+  const unknown = !loading && !loaded;
   // 没装 Java、选中的已不可用、主版本不是推荐版本，都算不符。
   const matchStatus: JavaMatchStatus = recommended == null
     ? 'match'
     : loading
       ? 'loading'
-      : resolvedAvailable && resolvedMajor === recommended ? 'match' : 'mismatch';
+      : unknown
+        ? 'unknown'
+        : resolvedAvailable && resolvedMajor === recommended ? 'match' : 'mismatch';
 
   useEffect(() => {
     onMatchStatusChange?.(matchStatus);
@@ -193,7 +201,7 @@ export function JavaRuntimeSelect({
           {refreshing ? t('java.runtime.rescanning') : t('java.runtime.rescan')}
         </button>
       </div>
-      <div className={`environment-status${loading && defaultJava === null ? '' : defaultJava?.available ? ' is-ready' : ' is-missing'}`}>
+      {!unknown && <div className={`environment-status${loading && defaultJava === null ? '' : defaultJava?.available ? ' is-ready' : ' is-missing'}`}>
         <span className="status-dot" aria-hidden="true" />
         {loading && defaultJava === null
           ? t('java.default.checking')
@@ -202,7 +210,7 @@ export function JavaRuntimeSelect({
               ? t('java.default.availableWithVersion', { version: defaultJava.version })
               : t('java.default.available')
             : t('java.default.missing')}
-      </div>
+      </div>}
       {mismatch && (
         <p className="field-warn" role="alert">
           {t(value ? 'java.warn.mismatch.selected' : 'java.warn.mismatch.default', {
@@ -248,12 +256,12 @@ export function JavaRuntimeSelect({
           {installError && <p className="error" role="alert">{installError}</p>}
         </div>
       )}
-      {value && !loading && (!selected || !selected.available) && (
+      {value && !loading && !unknown && (!selected || !selected.available) && (
         <p className="field-warn" role="alert">
           {t('java.warn.unavailable')}
         </p>
       )}
-      {error && <p className="error">{t('java.error.load', { error })}</p>}
+      {error && <p className="error" role="alert">{t(unknown ? 'java.error.loadRetry' : 'java.error.load', { error })}</p>}
     </div>
   );
 }

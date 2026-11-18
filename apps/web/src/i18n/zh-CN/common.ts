@@ -83,5 +83,6 @@ export default {
   'validation.java.checking': '正在检查 Java…',
   'validation.java.installing': '正在安装 Java…',
   'validation.java.mismatch': '先安装或选择 Java {java}',
+  'validation.java.unknown': '先重新扫描 Java',
   'validation.fixField': '先修正「{field}」',
 } satisfies Record<keyof typeof en, string>;
