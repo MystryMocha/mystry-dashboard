@@ -67,6 +67,9 @@ export default {
   'common.no': '否',
   'common.optional': '選填',
   'common.required': '必填',
+  'common.optionalLabel': '{label}（選填）',
+  'common.password.show': '顯示密碼',
+  'common.password.hide': '隱藏密碼',
   'common.latest': '最新',
   'common.default': '預設',
 

@@ -65,6 +65,9 @@ export default {
   'common.no': 'No',
   'common.optional': 'Optional',
   'common.required': 'Required',
+  'common.optionalLabel': '{label} (Optional)',
+  'common.password.show': 'Show Password',
+  'common.password.hide': 'Hide Password',
   'common.latest': 'Latest',
   'common.default': 'Default',
 
