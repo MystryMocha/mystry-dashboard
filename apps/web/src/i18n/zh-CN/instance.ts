@@ -32,9 +32,7 @@ export default {
   'instance.settings.jarFile.label': 'Jar 文件名',
   'instance.settings.installPath.label': '安装路径',
   'instance.settings.installPath.help': '实例目录由面板托管，创建后不可修改。',
-  'instance.settings.status.dirty': '有未保存的设置。',
   'instance.settings.status.saved': '设置已保存。',
-  'instance.settings.status.idle': '修改后点「保存设置」生效。',
   'instance.settings.save': '保存设置',
   'instance.settings.unsaved.title': '放弃未保存的设置修改？',
   'instance.settings.unsaved.savingTitle': '正在保存设置…',
@@ -56,6 +54,13 @@ export default {
   'instance.ready.body': '想让玩家加入？「联机」页会给出加入地址。',
   'instance.ready.action': '邀请玩家',
   'instance.ready.dismiss': '不再提示',
+
+  // 保存栏（设置与参数配置共用）：有修改才出现
+  'instance.saveBar.dirty_one': '{count} 项修改未保存',
+  'instance.saveBar.dirty_other': '{count} 项修改未保存',
+  'instance.saveBar.discard': '放弃修改',
+  'instance.saveBar.savedRestart': '已保存，重启实例后生效',
+  'instance.saveBar.restart': '重启实例',
 
   // 未保存修改弹窗（设置与参数配置共用）
   'instance.unsaved.savingDescription': '保存完成后会自动离开此页；保存期间不能放弃或取消。',

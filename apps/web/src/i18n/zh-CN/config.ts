@@ -7,9 +7,7 @@ export default {
   'config.select.placeholder': '请选择',
   'config.advanced.summary_one': '高级选项（其余 {count} 项）',
   'config.advanced.summary_other': '高级选项（其余 {count} 项）',
-  'config.status.dirty': '有未保存的修改，离开页面会丢失。',
   'config.status.saved': '已保存，重启实例后生效。',
-  'config.status.idle': '修改后需重启实例生效。',
   'config.save': '保存配置',
   'config.unsaved.title': '放弃未保存的配置修改？',
   'config.unsaved.savingTitle': '正在保存配置…',
@@ -23,6 +21,9 @@ export default {
   // 这个游戏版本已改成游戏规则的项不再显示，在组末尾说明去哪里设置
   'config.group.multiplayer.gameRuleNote': '这个游戏版本的玩家对战改成了游戏规则，在控制台用 <code>/gamerule</code> 设置。',
   'config.group.world.gameRuleNote': '这个游戏版本的下界和怪物生成改成了游戏规则，在控制台用 <code>/gamerule</code> 设置。',
+
+  // 这个游戏版本直接去掉、没有变成游戏规则的项，隐藏后在组末尾说明
+  'config.group.world.animalsNote': 'Minecraft 从 1.21.2 起去掉了「生成动物」这项设置，这个版本不再显示。',
 
   // 属性说明（键名本身是技术名，不翻译）
   'config.field.motd.label': '服务器简介',
