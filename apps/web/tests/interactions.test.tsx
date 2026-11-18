@@ -1374,7 +1374,7 @@ test('Java 选择器：新建实例自动选推荐版本，手动改过后不再
   const values: Array<string | null> = [];
   const user = userEvent.setup();
   render(<JavaSelectHarness autoSelect onValue={(value) => values.push(value)} />);
-  const select = await screen.findByLabelText('Java 运行时') as HTMLSelectElement;
+  const select = await screen.findByLabelText(/^Java 运行时/) as HTMLSelectElement;
   // 默认 Java 是 8，Minecraft 1.21.1 推荐 21：自动选已装的 Java 21，不出现安装按钮。
   await waitFor(() => expect(select.value).toBe('rt21'));
   expect(screen.queryByRole('button', { name: /安装 Java/ })).toBeNull();
@@ -1396,7 +1396,7 @@ test('Java 选择器：实例设置页不自动改已保存的选择', async () 
   stubJava({ runtimes: [java21, java8], installable: [21] });
   const values: Array<string | null> = [];
   render(<JavaSelectHarness onValue={(value) => values.push(value)} />);
-  const select = await screen.findByLabelText('Java 运行时') as HTMLSelectElement;
+  const select = await screen.findByLabelText(/^Java 运行时/) as HTMLSelectElement;
   await screen.findByText(/系统默认 Java 是 Java 8/);
   expect(select.value).toBe('');
   expect(values).toEqual([]);
@@ -1426,7 +1426,7 @@ test('Java 选择器：推荐版本没装时一键安装，装好后自动选中
   // 手动下载链接留作后备。
   expect(screen.getByRole('link', { name: '自己下载安装' }).getAttribute('href')).toBe('https://adoptium.net/temurin/releases/?version=21');
   await user.click(button);
-  const select = screen.getByLabelText('Java 运行时') as HTMLSelectElement;
+  const select = screen.getByLabelText(/^Java 运行时/) as HTMLSelectElement;
   await waitFor(() => expect(select.value).toBe('panel21'));
   expect(posted).toEqual([{ major: 21 }]);
   expect(values.at(-1)).toBe('panel21');
