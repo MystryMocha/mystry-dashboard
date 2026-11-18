@@ -9,6 +9,7 @@ import { LanguageToggle } from './components/LanguageToggle';
 import { TaskCenter } from './components/TaskCenter';
 import { ThemeToggle } from './components/ThemeToggle';
 import { useDocumentTitle } from './hooks/useDocumentTitle';
+import { ToolbarTitleContext } from './hooks/useToolbarTitle';
 import { useRouteFocus } from './hooks/useRouteFocus';
 import { LoginPage } from './pages/LoginPage';
 
@@ -121,6 +122,8 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [remoteAccessOpen, setRemoteAccessOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  /** 页面给出的顶栏标题（如实例名）；没有时用路由对应的固定文案。 */
+  const [toolbarTitle, setToolbarTitle] = useState<string | null>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
   const firstNavRef = useRef<HTMLAnchorElement>(null);
@@ -264,6 +267,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         </Suspense>
       )}
 
+      <ToolbarTitleContext.Provider value={setToolbarTitle}>
       <div className="viewport">
         <header className={`topbar${scrolled ? ' is-scrolled' : ''}`}>
           <div className="topbar-left">
@@ -281,7 +285,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             >
               {sidebarOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
             </button>
-            <h2 className="toolbar-title">{t(pageTitleKeyFor(location.pathname))}</h2>
+            <h2 className="toolbar-title">{toolbarTitle ?? t(pageTitleKeyFor(location.pathname))}</h2>
           </div>
           <div className="topbar-right" ref={topbarToolsRef}>
             <div className="toolbar-group">
@@ -334,6 +338,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           </NavLink>
         </nav>
       </div>
+      </ToolbarTitleContext.Provider>
     </div>
   );
 }

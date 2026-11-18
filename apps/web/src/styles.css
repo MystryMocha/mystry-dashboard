@@ -1523,6 +1523,10 @@ input[type='radio'] {
   font-weight: 500;
 }
 .back-link:hover { background: var(--accent-soft); }
+/* 侧栏常驻时（与侧栏变抽屉的断点一致）侧栏里已有「实例总览」，实例页头不再放返回链接。 */
+@media (min-width: 1025px) {
+  .instance-header .back-link { display: none; }
+}
 
 .instance-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; }
 .instance-title-text { flex: 1 1 300px; min-width: 0; }
@@ -1532,7 +1536,7 @@ input[type='radio'] {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px 12px;
-  margin-top: 8px;
+  margin-top: 4px;
   font-size: var(--text-small);
   color: var(--label-2);
 }
