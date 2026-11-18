@@ -189,8 +189,7 @@ export function JvmSettingsEditor({
     }
     const next = draftFromValue(value);
     loadDraft(next);
-    // 外部换入的参数（如导入时选择沿用检测到的配置）带自定义部分时展开，免得用户自己的参数被藏起来。
-    if (next.manualXms || next.extraArgs.trim() !== '') setAdvancedOpen(true);
+    revealCustomParts(next);
   }, [value]);
 
   /** 换成一份不是用户在内存框里打出来的配置：丢掉两个框里没填完的文本。 */
@@ -199,6 +198,14 @@ export function JvmSettingsEditor({
     setXmxText(null);
     setXmsText(null);
     loadedRef.current = { xmxMiB: next.rawMode ? null : next.xmxMiB, xmsMiB: next.rawMode ? null : next.xmsMiB };
+  }
+
+  /**
+   * 整份换入的配置（外部传入、沿用或以检测结果为底自定义）带自定义部分时展开高级区，
+   * 免得附加参数、手动初始内存藏在折叠区里就被提交。
+   */
+  function revealCustomParts(next: Draft) {
+    if (next.manualXms || next.extraArgs.trim() !== '') setAdvancedOpen(true);
   }
 
   const recommendedMaximum = recommendedMaxMemoryMiB(totalMemoryMiB);
@@ -301,6 +308,8 @@ export function JvmSettingsEditor({
     if (choice === 'detected' && detectedJvmConfig?.canonicalArgs) {
       const next = draftFromValue(detectedJvmConfig.canonicalArgs);
       loadDraft(next);
+      // lastEmittedRef 会让上面的 value effect 跳过这次换入，展开要在这里自己做。
+      revealCustomParts(next);
       lastEmittedRef.current = detectedJvmConfig.canonicalArgs;
       onChange(detectedJvmConfig.canonicalArgs);
       return;
@@ -310,6 +319,7 @@ export function JvmSettingsEditor({
       const next = draftFromValue(seed);
       // 检测到的值也算「外面传进来的原值」，填回同样的数时不四舍五入。
       loadedRef.current = { xmxMiB: next.rawMode ? null : next.xmxMiB, xmsMiB: next.rawMode ? null : next.xmsMiB };
+      revealCustomParts(next);
       emit(next);
     }
   };

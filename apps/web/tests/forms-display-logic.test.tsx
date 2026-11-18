@@ -2,10 +2,13 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createMemoryRouter, RouterProvider } from 'react-router-dom';
-import type { RemoteAccessStatus } from '@mystry/shared';
+import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router-dom';
+import { useState } from 'react';
+import type { DetectedJvmConfig, RemoteAccessStatus } from '@mystry/shared';
 import { JavaRuntimeSelect } from '../src/components/JavaRuntimeSelect';
+import { JvmSettingsEditor, type DetectedJvmChoice } from '../src/components/JvmSettingsEditor';
 import { RemoteAccessMode } from '../src/components/RemoteAccessMode';
+import { ImportPage } from '../src/pages/ImportPage';
 import { InstancePage } from '../src/pages/InstancePage';
 import { setupFormTestEnv } from './form-test-env';
 
@@ -140,4 +143,77 @@ test('组网网卡：打开时还没有网卡、之后才出现，下拉框写�
   await user.selectOptions(select, 'Tailscale');
   expect(shownOption(select)).toBe('Tailscale（100.64.0.2）');
   expect(screen.getByRole('button', { name: '开启' }).hasAttribute('disabled')).toBe(false);
+});
+
+const detectedWithExtra: DetectedJvmConfig = {
+  source: 'user_jvm_args.txt',
+  raw: '-Xms2G -Xmx6G -Dfoo=bar',
+  canonicalArgs: '-Xms2G -Xmx6G -Dfoo=bar',
+  issues: [],
+};
+
+/** 和导入页一样：上层存 jvmArgs 和对检测结果的选择。 */
+function DetectedHost() {
+  const [value, setValue] = useState('-Xms1G -Xmx2G');
+  const [choice, setChoice] = useState<DetectedJvmChoice>(null);
+  return (
+    <JvmSettingsEditor
+      value={value}
+      onChange={setValue}
+      coreType="forge"
+      javaMajor={17}
+      detectedJvmConfig={detectedWithExtra}
+      detectedChoice={choice}
+      onDetectedChoiceChange={setChoice}
+    />
+  );
+}
+
+for (const choice of ['沿用检测到的参数', '自定义配置']) {
+  test(`JVM：选「${choice}」后带着附加参数时展开高级区，不把它藏着提交`, async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal('fetch', vi.fn(async () => json([])));
+    render(<DetectedHost />);
+    const advanced = screen.getByText('高级 JVM 参数').closest('details')!;
+    expect(advanced.open).toBe(false);
+    await user.click(screen.getByRole('radio', { name: choice }));
+    expect(advanced.open).toBe(true);
+    expect((screen.getByLabelText('附加参数') as HTMLTextAreaElement).value).toBe('-Dfoo=bar');
+  });
+}
+
+test('导入：换到别的文件夹后不再沿用上一个文件夹检测出的 JVM 参数；没用检测结果、自己填的参数换来源后保留', async () => {
+  const user = userEvent.setup();
+  const source = (id: string, detected?: DetectedJvmConfig) => ({
+    id, launchTarget: 'server.jar', coreType: 'forge', mcVersion: '1.20.1', modifiedAt: '2026-11-01T00:00:00.000Z', ready: true,
+    ...(detected ? { detectedJvmConfig: detected } : {}),
+  });
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+    if (String(url).includes('/import/sources')) {
+      return json({ sources: [source('with-args', detectedWithExtra), source('plain'), source('plain-2')] });
+    }
+    if (String(url).startsWith('/api/system/java-runtimes')) return json({ runtimes: [], installable: [] });
+    if (url === '/api/system/java') return json(javaDefault);
+    if (url === '/api/nodes') return json([]);
+    return json({});
+  }));
+  render(<MemoryRouter><ImportPage /></MemoryRouter>);
+  const sourceSelect = await screen.findByRole('combobox', { name: '选择要导入的文件夹' }) as HTMLSelectElement;
+  await waitFor(() => expect(sourceSelect.value).toBe('with-args'));
+  await user.click(await screen.findByRole('radio', { name: '沿用检测到的参数' }));
+  const maxMemory = () => (screen.getByLabelText('最大内存') as HTMLInputElement).value;
+  const preview = () => screen.getByLabelText('最终 JVM 参数').textContent;
+  expect(maxMemory()).toBe('6');
+  expect(preview()).toContain('-Dfoo=bar');
+
+  await user.selectOptions(sourceSelect, 'plain');
+  expect(screen.queryByRole('radio', { name: '沿用检测到的参数' })).toBeNull();
+  expect(maxMemory()).toBe('2');
+  expect(preview()).not.toContain('-Dfoo=bar');
+
+  // 自己填的不是检测结果，换到另一个没有检测结果的文件夹时保留。
+  await user.clear(screen.getByLabelText('最大内存'));
+  await user.type(screen.getByLabelText('最大内存'), '3');
+  await user.selectOptions(sourceSelect, 'plain-2');
+  expect(maxMemory()).toBe('3');
 });
