@@ -951,6 +951,12 @@ select.input,
 
 /* 以下五段各归一个表单页，新样式只加在自己那一段里，互不相邻，合并时不会撞在一起。 */
 /* -- 表单：登录与初始化 -- */
+/* 初始化令牌：等宽显示，右侧给「61 / 64」留出位置。选择器要压过后面 .float-field input 的 padding 简写。 */
+.float-field .input-affix > input.token-input { padding-inline-end: 84px; font-family: var(--mono); }
+/* 浮动标签的框里文字偏下（上 24px、下 8px 内边距），计数跟着下移才和令牌在同一行。 */
+.float-field .input-affix-text { padding-top: 16px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+/* 字段的错误行排在整组输入框下面：放进 .float-field 会把按 50% 定位的浮动标签挤歪。 */
+.login-form > .error { padding: 0 6px; }
 
 /* -- 表单：内存与 JVM -- */
 
