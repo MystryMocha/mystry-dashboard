@@ -91,6 +91,8 @@ function submitOnEnter(event: KeyboardEvent<HTMLFormElement>, submit: () => void
   // Safari 确认候选词的那次 Enter 不带 isComposing，只能靠 keyCode 229 认出来。
   if (event.key !== 'Enter' || event.nativeEvent.isComposing || event.keyCode === 229) return;
   if (!(event.target instanceof HTMLInputElement)) return;
+  // 勾选框上的 Enter 不算提交。
+  if (event.target.type === 'checkbox' || event.target.type === 'radio') return;
   event.preventDefault();
   submit();
 }
