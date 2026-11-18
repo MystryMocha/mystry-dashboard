@@ -54,6 +54,7 @@ export default {
   'java.warn.mismatch.default': 'System default Java is Java {actual}, but Java {recommended} is recommended. The server might not start with a mismatched version.',
   'java.warn.unavailable': 'The Java you chose before is no longer available. Select "Rescan" and choose again before you save.',
   'java.error.load': 'Couldn\'t read the Java list for this machine: {error}',
+  'java.error.loadRetry': 'Couldn\'t read the Java list for this machine: {error} Select Rescan to try again.',
   'java.download.version': 'Download Java {java}',
   'java.download.any': 'Download Java',
   'java.install.hint': 'Java {java} isn\'t installed. The panel can download it from Eclipse Temurin (about 40–60 MB) and set it up for you.',

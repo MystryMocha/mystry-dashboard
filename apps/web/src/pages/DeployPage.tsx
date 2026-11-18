@@ -195,6 +195,7 @@ export function DeployPage() {
         : !jvmValid ? { issue: { key: 'validation.jvm.invalid' }, target: 'runtime' }
           : javaInstalling ? { issue: { key: 'validation.java.installing' }, target: null }
             : javaStatus === 'loading' ? { issue: { key: 'validation.java.checking' }, target: null }
+              : javaStatus === 'unknown' ? { issue: { key: 'validation.java.unknown' }, target: 'runtime' }
               : javaStatus === 'mismatch'
                 ? { issue: { key: 'validation.java.mismatch', params: { java: javaRecommended ?? '' } }, target: 'runtime' }
                 : !acceptEula ? { issue: { key: 'deploy.action.needEula' }, target: 'eula' }
@@ -203,7 +204,7 @@ export function DeployPage() {
   const nameError = name !== '' && nameIssue ? t(nameIssue.key, nameIssue.params) : null;
   // 只给当前挡路的那一个容器打标记：JVM 排在 Java 前面检查，但在页面上位于 Java 下面，两个都标会跳错。
   const jvmBlocking = blocker?.issue.key === 'validation.jvm.invalid';
-  const javaBlocking = blocker?.issue.key === 'validation.java.mismatch';
+  const javaBlocking = blocker?.issue.key === 'validation.java.mismatch' || blocker?.issue.key === 'validation.java.unknown';
   const selectedCore = CORE_ITEMS.find((item) => item.id === coreType);
   const showConfirm = busy || progress !== null || error !== '';
 

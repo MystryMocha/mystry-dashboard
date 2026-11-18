@@ -82,5 +82,6 @@ export default {
   'validation.java.checking': 'Checking Java…',
   'validation.java.installing': 'Installing Java…',
   'validation.java.mismatch': 'Install or choose Java {java} first',
+  'validation.java.unknown': 'Rescan Java first',
   'validation.fixField': 'Fix {field} first',
 } satisfies Record<string, string>;

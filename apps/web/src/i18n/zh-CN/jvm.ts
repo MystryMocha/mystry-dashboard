@@ -56,6 +56,7 @@ export default {
   'java.warn.mismatch.default': '系统默认 Java 是 Java {actual}，推荐使用 Java {recommended}；版本不符时服务器可能无法启动。',
   'java.warn.unavailable': '之前选择的 Java 已不可用，保存前请点「重新扫描」并重新选择。',
   'java.error.load': '无法读取本机 Java 列表：{error}',
+  'java.error.loadRetry': '无法读取本机 Java 列表：{error}点「重新扫描」重试。',
   'java.download.version': '下载 Java {java}',
   'java.download.any': '下载 Java',
   'java.install.hint': '这台电脑还没装 Java {java}。面板可以从 Eclipse Temurin 下载（约 40–60 MB）并替你装好。',
