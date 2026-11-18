@@ -209,7 +209,11 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   const panelPort = await syncInstanceLan(first.id);
   assert.equal(panelPort.detail?.key, 'server.lan.localPortIsPanel');
 
-  writeServerProperties(first.id, { 'server-ip': '', 'server-port': '25565' });
+  writeServerProperties(first.id, { 'server-ip': '', 'server-port': 'abc' });
+  assert.equal((await syncInstanceLan(first.id)).detail?.key, 'server.lan.localPortInvalid');
+
+  // 端口留空时游戏用 25565，不算端口无效。
+  writeServerProperties(first.id, { 'server-ip': '', 'server-port': '' });
   const missing = await syncInstanceLan(first.id);
   assert.equal(
     missing.detail?.key,

@@ -316,6 +316,21 @@ export function readServerProperties(instanceId: string): PropertiesMap {
   return withNamedEnumValues(parseProperties(fs.readFileSync(file, 'utf8')));
 }
 
+/** 游戏在 server.properties 没写端口、或端口留空时使用的端口。 */
+const DEFAULT_GAME_PORT = 25565;
+
+/**
+ * 从 server.properties 的键值里取游戏端口，供组网、穿透和直连地址使用。
+ * 没有 server-port 这个键、或值留空时，游戏用 25565（留空已在 1.21.10 服务端上实测），这里同样处理；
+ * 写了但不是 1–65535 的整数时返回 null，由调用方报端口无效。
+ */
+export function gamePortFromProperties(properties: PropertiesMap): number | null {
+  const text = (properties['server-port'] ?? '').trim();
+  if (text === '') return DEFAULT_GAME_PORT;
+  const port = Number(text);
+  return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null;
+}
+
 /** 首次启动前写入面板默认配置；已有 server.properties 保持不变。 */
 export function ensureServerPropertiesDefaults(instanceId: string, mcVersion?: string | null): void {
   const root = getInstanceDir(instanceId);

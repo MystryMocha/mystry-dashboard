@@ -20,6 +20,9 @@ export default {
   'config.group.multiplayer': '多人與權限',
   'config.group.world': '世界',
   'config.group.performance': '效能',
+  // 这个游戏版本已改成游戏规则的项不再显示，在组末尾说明去哪里设置
+  'config.group.multiplayer.gameRuleNote': '此遊戲版本的玩家對戰已改為遊戲規則，請在主控台用 <code>/gamerule</code> 設定。',
+  'config.group.world.gameRuleNote': '此遊戲版本的地獄與怪物生成已改為遊戲規則，請在主控台用 <code>/gamerule</code> 設定。',
 
   // 属性说明（键名本身是技术名，不翻译）
   'config.field.motd.label': '伺服器簡介',
@@ -48,6 +51,7 @@ export default {
   'config.field.levelName.desc': '更換後會產生或載入另一個世界資料夾。',
   'config.field.levelSeed.label': '世界種子碼',
   'config.field.levelSeed.desc': '留空則隨機產生；僅對新產生的世界生效。',
+  'config.field.levelSeed.placeholder': '隨機',
   'config.field.allowNether.label': '開啟地獄',
   'config.field.allowNether.desc': '關閉後地獄傳送門將無法使用。',
   'config.field.spawnMonsters.label': '生成怪物',
@@ -63,7 +67,8 @@ export default {
   'config.field.networkCompressionThreshold.label': '網路壓縮門檻',
   'config.field.networkCompressionThreshold.desc': '封包超過此位元組數才會壓縮，-1 表示關閉壓縮。',
 
-  // 下拉选项
+  // 下拉选项；游戏默认的那一项在名称后标出
+  'config.option.default': '{label}（預設）',
   'config.option.difficulty.peaceful': '和平',
   'config.option.difficulty.easy': '簡單',
   'config.option.difficulty.normal': '普通',

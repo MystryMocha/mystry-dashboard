@@ -8,7 +8,7 @@ import { config } from '../config.js';
 import { getDb } from '../db.js';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
 import { PanelError } from '../utils/errors.js';
-import { readServerProperties } from './config-service.js';
+import { gamePortFromProperties, readServerProperties } from './config-service.js';
 import { getInstanceRow } from './instance-service.js';
 import {
   LAN_SHARED_PEERS,
@@ -534,8 +534,8 @@ function readBind(instanceId: string): { port: number; serverIpBlocked: boolean;
   } catch {
     return null;
   }
-  const port = Number((properties['server-port'] ?? '25565').trim());
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  const port = gamePortFromProperties(properties);
+  if (port === null) {
     return { port: 0, serverIpBlocked: false, error: { key: 'server.lan.localPortInvalid' } };
   }
   if (port === config.port) {

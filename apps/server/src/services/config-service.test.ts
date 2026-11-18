@@ -62,6 +62,17 @@ test('parseProperties 对重复键取最后有效值', async () => {
   assert.deepEqual(map, { a: '2', b: '3' });
 });
 
+test('游戏端口：没写或留空按 25565，写了但不是端口号时为 null', async () => {
+  const { gamePortFromProperties } = await import('./config-service.js');
+  assert.equal(gamePortFromProperties({}), 25565);
+  assert.equal(gamePortFromProperties({ 'server-port': '' }), 25565);
+  assert.equal(gamePortFromProperties({ 'server-port': '  ' }), 25565);
+  assert.equal(gamePortFromProperties({ 'server-port': ' 25570 ' }), 25570);
+  for (const value of ['0', '65536', '25565.5', 'abc', '-1']) {
+    assert.equal(gamePortFromProperties({ 'server-port': value }), null, value);
+  }
+});
+
 test('缺少 server.properties 时默认难度为普通', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');

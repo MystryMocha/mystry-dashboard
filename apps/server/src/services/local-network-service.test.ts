@@ -144,4 +144,10 @@ test('server-ip 决定是否给出公网 IPv6：留空给出，0.0.0.0 或具体
     publicIpv6: [],
     serverIpBlocked: true,
   });
+
+  // 端口留空时游戏用 25565；写了但不是端口号时才是 null。
+  writeServerProperties(instanceId, { 'server-port': '', 'server-ip': '' });
+  assert.equal(describeLocalNetwork(instanceId, interfaces).port, 25565);
+  writeServerProperties(instanceId, { 'server-port': 'abc', 'server-ip': '' });
+  assert.equal(describeLocalNetwork(instanceId, interfaces).port, null);
 });

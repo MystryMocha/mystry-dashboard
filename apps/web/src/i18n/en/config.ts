@@ -18,6 +18,9 @@ export default {
   'config.group.multiplayer': 'Multiplayer & Permissions',
   'config.group.world': 'World',
   'config.group.performance': 'Performance',
+  // 这个游戏版本已改成游戏规则的项不再显示，在组末尾说明去哪里设置
+  'config.group.multiplayer.gameRuleNote': 'In this Minecraft version, PvP is a game rule. Set it with <code>/gamerule</code> in the console.',
+  'config.group.world.gameRuleNote': 'In this Minecraft version, Nether access and monster spawning are game rules. Set them with <code>/gamerule</code> in the console.',
 
   // 属性说明（键名本身是技术名，不翻译）
   'config.field.motd.label': 'Server Description',
@@ -46,6 +49,7 @@ export default {
   'config.field.levelName.desc': 'Changing it generates or loads a different world folder.',
   'config.field.levelSeed.label': 'World Seed',
   'config.field.levelSeed.desc': 'Leave blank for a random seed. Only applies to newly generated worlds.',
+  'config.field.levelSeed.placeholder': 'Random',
   'config.field.allowNether.label': 'Allow Nether',
   'config.field.allowNether.desc': 'When off, Nether portals don\'t work.',
   'config.field.spawnMonsters.label': 'Spawn Monsters',
@@ -61,7 +65,8 @@ export default {
   'config.field.networkCompressionThreshold.label': 'Network Compression Threshold',
   'config.field.networkCompressionThreshold.desc': 'Packets larger than this many bytes are compressed. -1 turns compression off.',
 
-  // 下拉选项
+  // 下拉选项；游戏默认的那一项在名称后标出
+  'config.option.default': '{label} (Default)',
   'config.option.difficulty.peaceful': 'Peaceful',
   'config.option.difficulty.easy': 'Easy',
   'config.option.difficulty.normal': 'Normal',

@@ -246,7 +246,9 @@ test('frp 只转发游戏端口，且令牌不进入配置正文或子进程环�
     mode: 'stcp',
     visitorBindPort: 25566,
   });
-  writeServerProperties(first.id, { 'server-ip': '' });
+  // 端口留空时游戏用 25565，穿透照常工作，不报「本地端口无效」。
+  writeServerProperties(first.id, { 'server-ip': '', 'server-port': '' });
+  assert.equal(describeInstanceTunnel(first.id).detail?.key === 'server.frp.localPortInvalid', false);
   const visitorChild = fakeChild();
   setFrpcSpawnerForTests(() => {
     queueMicrotask(() => visitorChild.stdout.emit('data', Buffer.from('start proxy success\n')));
