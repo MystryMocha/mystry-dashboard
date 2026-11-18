@@ -7,6 +7,7 @@ import { CoreIcon } from '../components/CoreIcon';
 import { DownloadSourceHint } from '../components/DownloadSourceSection';
 import { MINECRAFT_EULA_URL } from '../components/EulaCheckbox';
 import { ErrorSummary } from '../components/ErrorSummary';
+import { Field, FormFeedbackProvider, focusField, focusFirstInvalidField, useFormFeedback } from '../components/Field';
 import { LazyScrollSelect } from '../components/LazyScrollSelect';
 import { JavaRuntimeSelect, type JavaMatchStatus } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
@@ -26,6 +27,17 @@ const CORE_ITEMS: Array<{ id: CoreType; name: string; descKey: MessageKey }> = [
   { id: 'neoforge', name: 'NeoForge', descKey: 'deploy.core.neoforge.desc' },
   { id: 'vanilla', name: 'Vanilla', descKey: 'deploy.core.vanilla.desc' },
 ];
+
+/**
+ * 操作栏说「还缺什么」时可以跳去的地方。null 表示只是在等（加载版本、检查或安装 Java），没有字段可改。
+ * runtime 指 Java 选择框和 JVM 配置器：控件在子组件里，靠本页包在外面的 data-field-invalid 容器找到。
+ */
+type BlockerTarget = 'core' | 'version' | 'name' | 'runtime' | 'eula' | null;
+
+interface Blocker {
+  issue: Issue;
+  target: BlockerTarget;
+}
 
 function hasLoader(coreType: CoreType | ''): coreType is 'fabric' | 'forge' | 'neoforge' {
   return coreType === 'fabric' || coreType === 'forge' || coreType === 'neoforge';
@@ -58,9 +70,16 @@ export function DeployPage() {
   /** 组件卸载时中止进行中的任务轮询，避免登出/离开页面后仍持续请求或跳转。 */
   const pollAbortRef = useRef<AbortController | null>(null);
   const coreOptionRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  /** 第 4 节（进度、失败原因、Java 警告）：出现失败原因时滚到可视范围，免得被操作栏挡住。 */
+  /** 第 4 节（进度、失败原因）：出现失败原因时滚到可视范围，免得被操作栏挡住。 */
   const confirmRef = useRef<HTMLElement>(null);
-  const nameFieldId = useId();
+  const formRef = useRef<HTMLFormElement>(null);
+  /** 请求发出后到本次部署结束前为 true：同一轮事件里连按两次 Enter 时，busy 还没来得及生效。 */
+  const submittingRef = useRef(false);
+  const feedback = useFormFeedback();
+  const baseId = useId();
+  const nameId = `${baseId}-name`;
+  const versionFieldId = `${baseId}-mc-version`;
+  const eulaId = `${baseId}-eula`;
 
   // 元数据按「核心 / 核心 + 版本」缓存，切换后旧列表立即失效，迟到的旧响应被丢弃。
   const versions = useKeyedLoader(coreType || null, async () =>
@@ -117,11 +136,12 @@ export function DeployPage() {
   }
 
   async function deploy() {
-    if (!coreType || !selectedMcVersion || blocker) return;
+    if (!coreType || !selectedMcVersion || blocker || submittingRef.current) return;
     if (!jvmValid) {
       setError(t('deploy.error.jvmInvalid'));
       return;
     }
+    submittingRef.current = true;
     setBusy(true);
     setError('');
     setProgress(null);
@@ -153,6 +173,7 @@ export function DeployPage() {
       if (isAbortError(err)) return;
       setError(errorMessage(err));
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   }
@@ -167,17 +188,75 @@ export function DeployPage() {
   const nameIssue = instanceNameIssue(name);
   // 按表单从上到下的顺序找第一个还没满足的条件，操作栏直接说缺什么，而不是只把按钮变灰。
   const javaRecommended = recommendedJavaMajor(selectedMcVersion);
-  const blocker: Issue | null = !coreType ? { key: 'deploy.action.noCore' }
-    : !selectedMcVersion ? { key: 'deploy.action.needVersion' }
-      : nameIssue ? nameIssue
-        : !jvmValid ? { key: 'validation.jvm.invalid' }
-          : javaInstalling ? { key: 'validation.java.installing' }
-            : javaStatus === 'loading' ? { key: 'validation.java.checking' }
-              : javaStatus === 'mismatch' ? { key: 'validation.java.mismatch', params: { java: javaRecommended ?? '' } }
-                : !acceptEula ? { key: 'deploy.action.needEula' }
+  // 两个「正在…」和版本列表还在加载时没有字段可改，target 为 null，操作栏只显示普通文字。
+  const blocker: Blocker | null = !coreType ? { issue: { key: 'deploy.action.noCore' }, target: 'core' }
+    : !selectedMcVersion ? { issue: { key: 'deploy.action.needVersion' }, target: versions.loading ? null : 'version' }
+      : nameIssue ? { issue: nameIssue, target: 'name' }
+        : !jvmValid ? { issue: { key: 'validation.jvm.invalid' }, target: 'runtime' }
+          : javaInstalling ? { issue: { key: 'validation.java.installing' }, target: null }
+            : javaStatus === 'loading' ? { issue: { key: 'validation.java.checking' }, target: null }
+              : javaStatus === 'mismatch'
+                ? { issue: { key: 'validation.java.mismatch', params: { java: javaRecommended ?? '' } }, target: 'runtime' }
+                : !acceptEula ? { issue: { key: 'deploy.action.needEula' }, target: 'eula' }
                   : null;
+  // 名称空着时不标红（操作栏已经说了要填），填了但不合规才给 Field 错误原因。
+  const nameError = name !== '' && nameIssue ? t(nameIssue.key, nameIssue.params) : null;
+  // 只给当前挡路的那一个容器打标记：JVM 排在 Java 前面检查，但在页面上位于 Java 下面，两个都标会跳错。
+  const jvmBlocking = blocker?.issue.key === 'validation.jvm.invalid';
+  const javaBlocking = blocker?.issue.key === 'validation.java.mismatch';
   const selectedCore = CORE_ITEMS.find((item) => item.id === coreType);
-  const showConfirm = (javaStatus === 'mismatch' && !busy) || busy || progress !== null || error !== '';
+  const showConfirm = busy || progress !== null || error !== '';
+
+  /** 让各字段显示错误原因，并滚动、聚焦到当前挡住部署的那一项。点操作栏的状态文字和按 Enter 提交不了时共用。 */
+  function jumpToBlocker() {
+    feedback.revealAll();
+    switch (blocker?.target) {
+      case 'core':
+        focusField(`${baseId}-core-0`);
+        break;
+      case 'version': {
+        // 版本下拉是自绘的按钮，不在 focusFirstInvalidField 认识的控件里，这里自己找。
+        const trigger = document.getElementById(versionFieldId)?.querySelector<HTMLElement>('button');
+        trigger?.scrollIntoView?.({ block: 'center' });
+        trigger?.focus({ preventScroll: true });
+        break;
+      }
+      case 'name':
+        focusField(nameId);
+        break;
+      case 'runtime':
+        focusFirstInvalidField(formRef.current);
+        break;
+      case 'eula':
+        focusField(eulaId);
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** 表单提交的唯一入口：主按钮、输入框里的 Enter 都走这里。 */
+  function submitForm() {
+    if (busy) return;
+    if (blocker) {
+      jumpToBlocker();
+      return;
+    }
+    void deploy();
+  }
+
+  /**
+   * 主按钮禁用时浏览器不会因为 Enter 触发 submit，所以输入框里的 Enter 统一在这里接。
+   * 多行文本框、下拉框、按钮和折叠标题保持各自的默认行为；勾选框和单选框里的 Enter 不提交。
+   */
+  function onFormKeyDown(event: React.KeyboardEvent<HTMLFormElement>) {
+    if (event.key !== 'Enter' || event.defaultPrevented || event.nativeEvent.isComposing) return;
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    event.preventDefault();
+    if (target.type === 'checkbox' || target.type === 'radio' || target.type === 'file') return;
+    submitForm();
+  }
 
   // 第 4 节在长页面底部：开始部署和失败时滚到能看见进度或原因的位置（scroll-margin 让开底部操作栏）。
   useEffect(() => {
@@ -192,18 +271,29 @@ export function DeployPage() {
       />
 
       <div className="deploy-layout">
-        <div className="form-stack">
-          <section className="form-section" aria-labelledby={`${nameFieldId}-core-title`}>
-            <h2 className="form-section-title" id={`${nameFieldId}-core-title`}>
+        <FormFeedbackProvider value={feedback.value}>
+        <form
+          className="form-stack"
+          ref={formRef}
+          noValidate
+          onKeyDown={onFormKeyDown}
+          onSubmit={(event) => {
+            event.preventDefault();
+            submitForm();
+          }}
+        >
+          <section className="form-section" aria-labelledby={`${baseId}-core-title`}>
+            <h2 className="form-section-title" id={`${baseId}-core-title`}>
               <span className="step-badge" aria-hidden="true">1</span>
               {t('deploy.core.title')}
             </h2>
-            <div className="core-select-grid" role="radiogroup" aria-labelledby={`${nameFieldId}-core-title`}>
+            <div className="core-select-grid" role="radiogroup" aria-labelledby={`${baseId}-core-title`}>
               {CORE_ITEMS.map((item, index) => {
                 const selected = coreType === item.id;
                 return (
                   <button
                     key={item.id}
+                    id={`${baseId}-core-${index}`}
                     ref={(el) => { coreOptionRefs.current[index] = el; }}
                     type="button"
                     role="radio"
@@ -232,23 +322,21 @@ export function DeployPage() {
             <div className="card form-card">
               {/* 名称和游戏版本都短，宽时并排一行。 */}
               <div className="grid grid-2">
-                <div className="field">
-                  <label htmlFor={nameFieldId}>{t('deploy.form.name.label')}</label>
-                  <input
-                    id={nameFieldId}
-                    value={name}
-                    disabled={busy}
-                    aria-invalid={nameIssue ? true : undefined}
-                    aria-describedby={nameIssue ? `${nameFieldId}-error` : undefined}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                  {nameIssue && <p className="error" id={`${nameFieldId}-error`}>{t(nameIssue.key, nameIssue.params)}</p>}
-                </div>
+                <Field id={nameId} label={t('deploy.form.name.label')} error={nameError}>
+                  {(control) => (
+                    <input
+                      {...control}
+                      value={name}
+                      disabled={busy}
+                      onChange={(e) => setName(e.target.value)}
+                    />
+                  )}
+                </Field>
 
-                <div className="field">
-                  <label id={`${nameFieldId}-mc-version-label`}>{t('deploy.form.mcVersion.label')}</label>
+                <div className="field" id={versionFieldId}>
+                  <label id={`${baseId}-mc-version-label`}>{t('deploy.form.mcVersion.label')}</label>
                   <LazyScrollSelect
-                    labelId={`${nameFieldId}-mc-version-label`}
+                    labelId={`${baseId}-mc-version-label`}
                     value={selectedMcVersion}
                     options={versions.data ?? []}
                     onChange={handleMcVersionChange}
@@ -264,11 +352,12 @@ export function DeployPage() {
                   />
                 </div>
               </div>
+              {/* 下面三个可选项是自绘下拉（LazyScrollSelect 要的是标签的 id），套不进 Field，「（可选）」用和 Field 相同的那条文案。 */}
               {coreType === 'paper' && (
                 <div className="field">
-                  <label id={`${nameFieldId}-paper-build-label`}>{t('deploy.form.paperBuild.label')}</label>
+                  <label id={`${baseId}-paper-build-label`}>{t('common.optionalLabel', { label: t('deploy.form.paperBuild.label') })}</label>
                   <LazyScrollSelect
-                    labelId={`${nameFieldId}-paper-build-label`}
+                    labelId={`${baseId}-paper-build-label`}
                     value={build}
                     options={builds.data ?? []}
                     onChange={setBuild}
@@ -283,9 +372,9 @@ export function DeployPage() {
               )}
               {hasLoader(coreType) && (
                 <div className="field">
-                  <label id={`${nameFieldId}-loader-label`}>{t('deploy.form.optionalLabel', { label: loaderLabel })}</label>
+                  <label id={`${baseId}-loader-label`}>{t('common.optionalLabel', { label: loaderLabel })}</label>
                   <LazyScrollSelect
-                    labelId={`${nameFieldId}-loader-label`}
+                    labelId={`${baseId}-loader-label`}
                     value={loaderVersion}
                     options={loaders.data?.loaders ?? []}
                     onChange={setLoaderVersion}
@@ -299,9 +388,9 @@ export function DeployPage() {
               )}
               {coreType === 'fabric' && (
                 <div className="field">
-                  <label id={`${nameFieldId}-installer-label`}>{t('deploy.form.installer.label')}</label>
+                  <label id={`${baseId}-installer-label`}>{t('common.optionalLabel', { label: t('deploy.form.installer.label') })}</label>
                   <LazyScrollSelect
-                    labelId={`${nameFieldId}-installer-label`}
+                    labelId={`${baseId}-installer-label`}
                     value={installerVersion}
                     options={loaders.data?.installers ?? []}
                     onChange={setInstallerVersion}
@@ -329,29 +418,34 @@ export function DeployPage() {
               {t('deploy.runtime.title')}
             </h2>
             <div className="card form-card">
-              <JavaRuntimeSelect
-                value={javaRuntimeId}
-                onChange={setJavaRuntimeId}
-                mcVersion={selectedMcVersion || null}
-                disabled={busy}
-                onResolvedMajorChange={setJavaMajor}
-                autoSelect
-                onInstallingChange={setJavaInstalling}
-                onMatchStatusChange={setJavaStatus}
-              />
-              <JvmSettingsEditor
-                value={jvmArgs}
-                onChange={setJvmArgs}
-                coreType={coreType || 'custom'}
-                javaMajor={javaMajor}
-                disabled={busy}
-                useRecommendedDefault
-                onValidityChange={setJvmValid}
-              />
+              {/* 两个子组件各包一层不占布局的容器：挡住部署时打上 data-field-invalid，操作栏和 Enter 据此跳到里面的控件。 */}
+              <div className="deploy-field-anchor" data-field-invalid={javaBlocking ? '' : undefined}>
+                <JavaRuntimeSelect
+                  value={javaRuntimeId}
+                  onChange={setJavaRuntimeId}
+                  mcVersion={selectedMcVersion || null}
+                  disabled={busy}
+                  onResolvedMajorChange={setJavaMajor}
+                  autoSelect
+                  onInstallingChange={setJavaInstalling}
+                  onMatchStatusChange={setJavaStatus}
+                />
+              </div>
+              <div className="deploy-field-anchor" data-field-invalid={jvmBlocking ? '' : undefined}>
+                <JvmSettingsEditor
+                  value={jvmArgs}
+                  onChange={setJvmArgs}
+                  coreType={coreType || 'custom'}
+                  javaMajor={javaMajor}
+                  disabled={busy}
+                  useRecommendedDefault
+                  onValidityChange={setJvmValid}
+                />
+              </div>
             </div>
           </section>
 
-          {/* EULA 同意项在底部操作栏；这一节只放 Java 警告、部署进度和失败原因，都没有时整节不显示。 */}
+          {/* EULA 同意项在底部操作栏；这一节只放部署进度和失败原因，都没有时整节不显示。Java 版本不符由 Java 选择框和操作栏说明，这里不再重复。 */}
           {showConfirm && (
           <section className="form-section deploy-confirm" ref={confirmRef}>
             <h2 className="form-section-title">
@@ -359,11 +453,6 @@ export function DeployPage() {
               {t('deploy.confirm.title')}
             </h2>
             <div className="card form-card">
-              {javaStatus === 'mismatch' && !busy && (
-                <p className="field-warn" role="status">
-                  {t('deploy.confirm.javaRequired', { java: recommendedJavaMajor(selectedMcVersion) ?? '' })}
-                </p>
-              )}
               {progress && <TaskProgress task={progress} label={t('deploy.progress.label')} />}
               {busy && (
                 <p className="field-help" role="status" aria-live="polite">
@@ -384,13 +473,18 @@ export function DeployPage() {
 
           <div className="action-bar">
             <span className="action-bar-status" role="status" aria-live="polite">
-              {!busy && blocker
-                ? t(blocker.key, blocker.params)
-                : `${selectedCore?.name ?? ''}${selectedMcVersion ? ` ${selectedMcVersion}` : ''} · ${name.trim()}`}
+              {busy || !blocker ? (
+                `${selectedCore?.name ?? ''}${selectedMcVersion ? ` ${selectedMcVersion}` : ''} · ${name.trim()}`
+              ) : blocker.target ? (
+                // 能改的问题做成链接：点了跳到那一项并显示原因。只是在等数据时没有可跳的地方，保持普通文字。
+                <button type="button" className="link-button" onClick={jumpToBlocker}>
+                  {t(blocker.issue.key, blocker.issue.params)}
+                </button>
+              ) : t(blocker.issue.key, blocker.issue.params)}
             </span>
             {/* 必须由用户主动勾选；部署开始后和按钮一起禁用，避免请求途中被取消。 */}
             <label className="action-bar-check">
-              <input type="checkbox" checked={acceptEula} disabled={busy} onChange={(e) => setAcceptEula(e.target.checked)} />
+              <input id={eulaId} type="checkbox" checked={acceptEula} disabled={busy} onChange={(e) => setAcceptEula(e.target.checked)} />
               <span>
                 {rich('eula.agree.short', {
                   link: (chunk) => <a href={MINECRAFT_EULA_URL} target="_blank" rel="noreferrer" className="link">{chunk}</a>,
@@ -399,14 +493,14 @@ export function DeployPage() {
             </label>
             <button
               className="btn btn-primary"
-              type="button"
+              type="submit"
               disabled={busy || blocker !== null}
-              onClick={() => void deploy()}
             >
               {busy ? t('deploy.action.running') : t('deploy.action.start')}
             </button>
           </div>
-        </div>
+        </form>
+        </FormFeedbackProvider>
 
         {/* 右侧新手指引：怎么选核心、部署后怎么进服 */}
         <aside className="card deploy-guide" aria-label={t('deploy.guide.ariaLabel')}>
