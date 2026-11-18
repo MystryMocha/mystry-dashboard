@@ -25,7 +25,7 @@ import { FilesTab } from '../components/FilesTab';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
 import { ReadyHint } from '../components/ReadyHint';
-import { SaveBar, isEnterSubmit, useSavedNotice, type RestartControl } from '../components/SaveBar';
+import { SaveBar, useFormSubmit, useSavedNotice, type RestartControl } from '../components/SaveBar';
 import { StartIssueBanner } from '../components/StartIssueBanner';
 import { InstanceStatusPill } from '../components/StatusPill';
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
@@ -187,6 +187,8 @@ function SettingsTab({
     else void save();
   }
 
+  const formSubmit = useFormSubmit(submit);
+
   function discard() {
     setName(originalSettings.name);
     setJarFile(originalSettings.jarFile);
@@ -205,15 +207,7 @@ function SettingsTab({
           ref={formRef}
           className="form-stack settings-workspace"
           noValidate
-          onSubmit={(event) => {
-            event.preventDefault();
-            submit();
-          }}
-          onKeyDown={(event) => {
-            if (!isEnterSubmit(event)) return;
-            event.preventDefault();
-            submit();
-          }}
+          {...formSubmit}
         >
           {/* 宽屏时左栏基本信息与许可协议，右栏运行环境；窄屏按原顺序上下排列。 */}
           <div className="form-columns">

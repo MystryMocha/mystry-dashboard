@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { RotateCcw, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 
@@ -45,24 +45,24 @@ export function useSavedNotice(restart: RestartControl | undefined): {
     return () => window.clearTimeout(timer);
   }, [state]);
 
+  // 实例被重启或不再运行后，「重启后生效」这条提示就不成立了：直接清掉，
+  // 否则停止后再启动（状态又回到运行中）它会重新冒出来。渲染期间按属性调整自己的状态，不需要副作用。
+  if (state?.kind === 'restart' && (!running || state.signal !== signal)) setState(null);
+
   const show = useCallback(
     (needsRestart: boolean) => setState({ kind: needsRestart && running ? 'restart' : 'saved', signal }),
     [running, signal],
   );
   const clear = useCallback(() => setState(null), []);
 
-  // 记下提示是在第几次重启之前给出的：之后确认过重启或实例停了，这条提示就不再成立，不用副作用去清。
-  const notice: SavedNotice = !state ? null
-    : state.kind === 'saved' ? 'saved'
-      : running && state.signal === signal ? 'restart' : null;
-  return { notice, show, clear };
+  return { notice: state?.kind ?? null, show, clear };
 }
 
 const NON_TEXT_INPUT_TYPES = new Set(['checkbox', 'radio', 'file', 'button', 'submit', 'reset', 'range', 'color', 'image', 'search']);
 
 /**
- * 表单 onKeyDown 里判断这次按键是不是「在输入框里按 Enter 提交」。
- * 主按钮禁用或保存栏没显示时浏览器不会触发 submit，所以表单自己接 Enter，并由调用方 preventDefault，只走这一条路。
+ * 判断这次按键是不是「在输入框里按 Enter 提交」。
+ * 主按钮禁用或保存栏没显示时浏览器不会触发 submit，所以表单自己接 Enter，并由 useFormSubmit 调用 preventDefault，只走这一条路。
  * 多行文本框、下拉框、搜索框、开关和按钮里的 Enter 不算；输入法选词的 Enter 也不算。
  */
 export function isEnterSubmit(event: KeyboardEvent<HTMLElement>): boolean {
@@ -75,6 +75,44 @@ export function isEnterSubmit(event: KeyboardEvent<HTMLElement>): boolean {
   // 自己实现的下拉、搜索框用 Enter 选中候选项。
   if (target.getAttribute('role') === 'combobox' || target.hasAttribute('aria-autocomplete')) return false;
   return true;
+}
+
+/** 开关、下拉等控件上的 Enter 之后多久以内到达的 submit 算它带出来的。 */
+const IMPLICIT_SUBMIT_WINDOW_MS = 100;
+
+/**
+ * 表单的提交入口，把返回值展开到 <form> 上。submit 由页面实现：合法就保存，不合法就显示原因并跳到要改的字段。
+ * - 输入框里的 Enter：这里接管并调用 submit（见 isEnterSubmit）。
+ * - 点主按钮：浏览器触发 submit 事件，照常调用 submit。
+ * - 开关、单选、下拉上的 Enter：浏览器会顺带「隐式提交」表单（等于替用户点了主按钮），这不是用户的意思，忽略掉。
+ *   不能对这些 Enter 调 preventDefault，那会影响控件自己的键盘操作，所以只记下时间，让紧跟着的 submit 事件作废。
+ */
+export function useFormSubmit(submit: () => void): {
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onKeyDown: (event: KeyboardEvent<HTMLFormElement>) => void;
+} {
+  const ignoreSubmitUntil = useRef(0);
+  return {
+    onSubmit(event) {
+      event.preventDefault();
+      if (Date.now() < ignoreSubmitUntil.current) {
+        ignoreSubmitUntil.current = 0;
+        return;
+      }
+      submit();
+    },
+    onKeyDown(event) {
+      if (event.key !== 'Enter') return;
+      if (isEnterSubmit(event)) {
+        event.preventDefault();
+        submit();
+        return;
+      }
+      // 按钮上的 Enter 就是点这个按钮（主按钮即提交），不算隐式提交。
+      if (event.target instanceof HTMLButtonElement) return;
+      ignoreSubmitUntil.current = Date.now() + IMPLICIT_SUBMIT_WINDOW_MS;
+    },
+  };
 }
 
 export interface SaveBarProps {
