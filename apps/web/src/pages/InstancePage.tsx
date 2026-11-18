@@ -12,7 +12,7 @@ import {
   Terminal,
   TriangleAlert,
 } from 'lucide-react';
-import type { InstanceInfo } from '@mystry/shared';
+import { parseLaunchTarget, type InstanceInfo } from '@mystry/shared';
 import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
 import { BackupsTab } from '../components/BackupsTab';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -154,6 +154,8 @@ function SettingsTab({
     : jarFileIssue ? t('validation.fixField', { field: t('instance.settings.jarFile.label') })
       : jvmValid ? null : t('validation.jvm.invalid');
   const invalid = invalidLabel !== null;
+  // Forge / NeoForge 的启动目标是面板识别出的参数文件，不是 jar 文件名，只读显示。
+  const launchTarget = parseLaunchTarget(originalSettings.jarFile);
 
   async function save() {
     if (!dirty || saving || invalid) return;
@@ -237,23 +239,39 @@ function SettingsTab({
                       />
                     )}
                   </Field>
-                  <Field
-                    id="instance-settings-jar-file"
-                    label={t('instance.settings.jarFile.label')}
-                    error={jarFileIssue ? t(jarFileIssue.key) : null}
-                  >
-                    {(control) => (
+                  {launchTarget.kind === 'jar' ? (
+                    <Field
+                      id="instance-settings-jar-file"
+                      label={t('instance.settings.jarFile.label')}
+                      error={jarFileIssue ? t(jarFileIssue.key) : null}
+                    >
+                      {(control) => (
+                        <input
+                          {...control}
+                          value={jarFile}
+                          disabled={saving}
+                          onChange={(e) => {
+                            setJarFile(e.target.value);
+                            savedNotice.clear();
+                          }}
+                        />
+                      )}
+                    </Field>
+                  ) : (
+                    <div className="field">
+                      <label htmlFor="instance-settings-launch-file">{t('instance.settings.launchFile.label')}</label>
                       <input
-                        {...control}
-                        value={jarFile}
-                        disabled={saving}
-                        onChange={(e) => {
-                          setJarFile(e.target.value);
-                          savedNotice.clear();
-                        }}
+                        id="instance-settings-launch-file"
+                        value={launchTarget.kind === 'args' ? launchTarget.path : ''}
+                        placeholder={launchTarget.kind === 'modloader' ? t('instance.settings.launchFile.pendingPlaceholder') : undefined}
+                        readOnly
+                        aria-describedby="instance-settings-launch-file-help"
                       />
-                    )}
-                  </Field>
+                      <p className="field-help" id="instance-settings-launch-file-help">
+                        {t(launchTarget.kind === 'args' ? 'instance.settings.launchFile.argsHelp' : 'instance.settings.launchFile.pendingHelp')}
+                      </p>
+                    </div>
+                  )}
                   <div className="field">
                     <label htmlFor="instance-settings-install-path">{t('instance.settings.installPath.label')}</label>
                     <input

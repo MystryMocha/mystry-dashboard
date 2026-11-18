@@ -217,3 +217,30 @@ test('导入：换到别的文件夹后不再沿用上一个文件夹检测出�
   await user.selectOptions(sourceSelect, 'plain-2');
   expect(maxMemory()).toBe('3');
 });
+
+test('实例设置：Forge / NeoForge 实例显示参数文件路径（只读），不显示内部标记；改名保存时不提交它', async () => {
+  const user = userEvent.setup();
+  const argsPath = 'libraries/net/minecraftforge/forge/1.20.1-47.2.0/win_args.txt';
+  const patches = mountSettings({ coreType: 'forge', jarFile: `@args:${argsPath}` });
+
+  const launch = await screen.findByRole('textbox', { name: '启动文件' }) as HTMLInputElement;
+  expect(launch.value).toBe(argsPath);
+  expect(launch.readOnly).toBe(true);
+  expect(screen.queryByRole('textbox', { name: 'Jar 文件名' })).toBeNull();
+  expect(screen.queryByDisplayValue(/@args:/)).toBeNull();
+  expect(screen.getByText(/Forge \/ NeoForge 通过这个参数文件启动/)).toBeTruthy();
+
+  await user.type(screen.getByRole('textbox', { name: '名称' }), '2');
+  await user.click(screen.getByRole('button', { name: '保存设置' }));
+  await waitFor(() => expect(patches).toHaveLength(1));
+  expect(patches[0]).toEqual({ name: '测试服2' });
+});
+
+test('实例设置：模组加载器还没装好的实例不显示「@modloader」', async () => {
+  mountSettings({ coreType: 'neoforge', jarFile: '@modloader' });
+  const launch = await screen.findByRole('textbox', { name: '启动文件' }) as HTMLInputElement;
+  expect(launch.readOnly).toBe(true);
+  expect(launch.value).toBe('');
+  expect(screen.queryByDisplayValue('@modloader')).toBeNull();
+  expect(screen.getByText(/还没有安装完成/)).toBeTruthy();
+});

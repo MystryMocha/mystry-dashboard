@@ -191,6 +191,24 @@ export interface InstanceInfo {
   ready?: boolean;
 }
 
+/** `InstanceInfo.jarFile` 里 Forge / NeoForge 参数文件的前缀，后面是相对实例目录的路径。 */
+export const LAUNCH_ARGS_PREFIX = '@args:';
+/** `InstanceInfo.jarFile` 为这个值时，模组加载器还没装好，没有可启动的文件。 */
+export const LAUNCH_MODLOADER_PENDING = '@modloader';
+
+/** 实例的启动目标：普通 jar、Forge / NeoForge 参数文件，或还没装好的模组加载器。 */
+export type LaunchTarget =
+  | { kind: 'jar'; path: string }
+  | { kind: 'args'; path: string }
+  | { kind: 'modloader' };
+
+/** 把 `jarFile` 里面板自己写的标记拆开；界面不能把 `@args:` 这类标记当文件名给人看。 */
+export function parseLaunchTarget(jarFile: string): LaunchTarget {
+  if (jarFile.startsWith(LAUNCH_ARGS_PREFIX)) return { kind: 'args', path: jarFile.slice(LAUNCH_ARGS_PREFIX.length) };
+  if (jarFile === LAUNCH_MODLOADER_PENDING) return { kind: 'modloader' };
+  return { kind: 'jar', path: jarFile };
+}
+
 export interface CreateInstanceInput {
   name: string;
   jarFile?: string;
