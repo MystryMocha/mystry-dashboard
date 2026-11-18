@@ -34,6 +34,7 @@ export default {
 
   // Java 运行时选择
   'java.runtime.label': 'Java 執行環境',
+  'java.runtime.labelRecommended': 'Java 執行環境（建議 Java {java}）',
   'java.runtime.systemDefault': '系統預設 Java',
   'java.runtime.option': 'Java {version} · {path}',
   'java.runtime.optionUnavailable': 'Java {version} · {path}（無法使用）',
@@ -45,8 +46,6 @@ export default {
   'java.default.available': '系統預設 Java 可以使用',
   'java.default.availableWithVersion': '系統預設 Java {version} 可以使用',
   'java.default.missing': '找不到系統預設 Java，請先安裝 Java 後點「重新掃描」',
-  'java.help.default': '未選擇時使用系統預設 Java；電腦上安裝了多個 Java 時，可以在上方選擇要使用的版本。',
-  'java.help.recommended': '目前的 Minecraft {mcVersion} 建議使用 Java {java}。',
   'java.warn.mismatch.selected': '所選的 Java 是 Java {actual}，建議使用 Java {recommended}；版本不符時伺服器可能無法啟動。',
   'java.warn.mismatch.default': '系統預設 Java 是 Java {actual}，建議使用 Java {recommended}；版本不符時伺服器可能無法啟動。',
   'java.warn.unavailable': '之前選擇的 Java 已無法使用，儲存前請點「重新掃描」並重新選擇。',

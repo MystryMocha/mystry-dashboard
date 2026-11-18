@@ -32,6 +32,7 @@ export default {
 
   // Java 运行时选择
   'java.runtime.label': 'Java Runtime',
+  'java.runtime.labelRecommended': 'Java Runtime (Java {java} recommended)',
   'java.runtime.systemDefault': 'System Default Java',
   'java.runtime.option': 'Java {version} · {path}',
   'java.runtime.optionUnavailable': 'Java {version} · {path} (Unavailable)',
@@ -43,8 +44,6 @@ export default {
   'java.default.available': 'System default Java is available',
   'java.default.availableWithVersion': 'System default Java {version} is available',
   'java.default.missing': 'System default Java wasn\'t found. Install Java, then select "Rescan".',
-  'java.help.default': 'If you don\'t choose one, the system default Java is used. If this computer has several Java versions, you can choose one above.',
-  'java.help.recommended': 'Minecraft {mcVersion} recommends Java {java}.',
   'java.warn.mismatch.selected': 'The selected Java is Java {actual}, but Java {recommended} is recommended. The server might not start with a mismatched version.',
   'java.warn.mismatch.default': 'System default Java is Java {actual}, but Java {recommended} is recommended. The server might not start with a mismatched version.',
   'java.warn.unavailable': 'The Java you chose before is no longer available. Select "Rescan" and choose again before you save.',

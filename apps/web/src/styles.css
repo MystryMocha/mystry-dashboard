@@ -249,7 +249,10 @@ h1[tabindex="-1"]:focus { outline: none; }
 .field-warn { margin: 0; color: var(--warn); font-size: var(--text-small); line-height: 1.5; }
 
 /* Java 选择器里的一键安装：说明、按钮和手动下载链接，进度条在下方 */
-.java-install { display: grid; gap: 8px; }
+.java-install { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+/* 安装说明和按钮同一行，放不下时自动换行；进度和错误占整行。 */
+.java-install > .field-help { flex: 1 1 320px; margin: 0; }
+.java-install > :is(.task-progress, .error) { flex: 1 1 100%; }
 .java-install-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 
 .link { color: var(--accent-text); font-weight: 500; }

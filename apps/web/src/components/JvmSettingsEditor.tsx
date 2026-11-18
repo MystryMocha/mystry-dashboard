@@ -115,6 +115,9 @@ export function JvmSettingsEditor({
   const xmsId = useId();
   const extraId = useId();
   const [draft, setDraft] = useState<Draft>(() => draftFromValue(value));
+  // 「高级 JVM 参数」折叠区（「最终参数」也在里面）：挂载时或外部换入的参数里有手动初始内存、额外参数就展开；
+  // 参数第一次出现错误时也单向展开一次。不做成完全受控，用户填了自定义参数后仍能收起。
+  const [advancedOpen, setAdvancedOpen] = useState(() => draft.manualXms || draft.extraArgs.trim() !== '');
   const [totalMemoryMiB, setTotalMemoryMiB] = useState<number | null>(null);
   const touchedRef = useRef(false);
   const recommendedAppliedRef = useRef(false);
@@ -140,7 +143,10 @@ export function JvmSettingsEditor({
       lastEmittedRef.current = null;
       return;
     }
-    setDraft(draftFromValue(value));
+    const next = draftFromValue(value);
+    setDraft(next);
+    // 外部换入的参数（如导入时选择沿用检测到的配置）带自定义部分时展开，免得用户自己的参数被藏起来。
+    if (next.manualXms || next.extraArgs.trim() !== '') setAdvancedOpen(true);
   }, [value]);
 
   const recommendedMaximum = recommendedMaxMemoryMiB(totalMemoryMiB);
@@ -177,7 +183,15 @@ export function JvmSettingsEditor({
   );
   const selectedPreset = JVM_PRESETS.find((item) => item.id === draft.presetId) ?? null;
   const needsDetectedChoice = Boolean(detectedJvmConfig && detectedChoice === null);
-  const valid = !needsDetectedChoice && !issues.some((item) => item.severity === 'error');
+  const hasError = issues.some((item) => item.severity === 'error');
+  const valid = !needsDetectedChoice && !hasError;
+
+  const openedForErrorRef = useRef(false);
+  useEffect(() => {
+    if (!hasError || openedForErrorRef.current) return;
+    openedForErrorRef.current = true;
+    setAdvancedOpen(true);
+  }, [hasError]);
 
   useEffect(() => {
     onValidityChange?.(valid);
@@ -233,6 +247,19 @@ export function JvmSettingsEditor({
   const g1JavaMajors = JVM_PRESETS.find((preset) => preset.id === 'g1-balanced')?.supportedJavaMajors;
   const g1Available = javaMajor !== null && (g1JavaMajors?.includes(javaMajor) ?? false);
   const paperAvailable = coreType === 'paper' && g1Available;
+
+  const preview = (
+    <div className="jvm-args-preview" aria-label={t('jvm.preview.ariaLabel')}>
+      <strong>{t('jvm.preview.title')}</strong>
+      {tokens.length > 0 ? (
+        <div className="jvm-token-list">
+          {tokens.map((token, index) => <code key={`${token}-${index}`}>{token}</code>)}
+        </div>
+      ) : (
+        <code>{value || t('jvm.preview.empty')}</code>
+      )}
+    </div>
+  );
 
   return (
     <section className="jvm-settings" aria-label={t('jvm.section.ariaLabel')}>
@@ -354,7 +381,7 @@ export function JvmSettingsEditor({
             </div>
           </div>
 
-          <details className="disclosure jvm-advanced">
+          <details className="disclosure jvm-advanced" open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
             <summary>{t('jvm.advanced.summary')}</summary>
             <label className="checkbox-field">
               <input
@@ -392,20 +419,13 @@ export function JvmSettingsEditor({
               />
               <p className="muted field-help">{t('jvm.extra.help')}</p>
             </div>
+            {preview}
           </details>
         </>
       )}
 
-      <div className="jvm-args-preview" aria-label={t('jvm.preview.ariaLabel')}>
-        <strong>{t('jvm.preview.title')}</strong>
-        {tokens.length > 0 ? (
-          <div className="jvm-token-list">
-            {tokens.map((token, index) => <code key={`${token}-${index}`}>{token}</code>)}
-          </div>
-        ) : (
-          <code>{value || t('jvm.preview.empty')}</code>
-        )}
-      </div>
+      {/* 原始文本模式没有折叠区，预览照旧放在外面。 */}
+      {draft.rawMode && preview}
       {issues.map((item, index) => (
         <p
           key={`${item.code}-${index}`}

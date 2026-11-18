@@ -158,7 +158,10 @@ export function JavaRuntimeSelect({
 
   return (
     <div className="field">
-      <label htmlFor={selectId}>{t('java.runtime.label')}</label>
+      {/* 推荐版本写进标签：没装 Java 时不出橙色警告，只靠警告会漏掉。 */}
+      <label htmlFor={selectId}>
+        {recommended != null ? t('java.runtime.labelRecommended', { java: recommended }) : t('java.runtime.label')}
+      </label>
       <div className="input-row">
         <select
           id={selectId}
@@ -200,10 +203,6 @@ export function JavaRuntimeSelect({
               : t('java.default.available')
             : t('java.default.missing')}
       </div>
-      <p className="field-help">{t('java.help.default')}</p>
-      {recommended != null && (
-        <p className="field-help">{t('java.help.recommended', { mcVersion: mcVersion ?? '', java: recommended })}</p>
-      )}
       {mismatch && (
         <p className="field-warn" role="alert">
           {t(value ? 'java.warn.mismatch.selected' : 'java.warn.mismatch.default', {
