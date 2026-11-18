@@ -141,6 +141,9 @@ export function JavaRuntimeSelect({
     }
   };
   const selected = value ? runtimes.find((runtime) => runtime.id === value) ?? null : null;
+  // 选中的 Java 不在列表里（还没读完、没读到、或已从注册表里消失）：下拉框里没有对应选项时，
+  // 浏览器会显示第一项「系统默认」，看起来像是用默认 Java，所以单独补一个选项把它显示出来。
+  const selectedMissing = Boolean(value) && selected === null;
   const resolvedMajor = value ? selected?.majorVersion ?? null : defaultJava?.majorVersion ?? null;
   const resolvedAvailable = value ? Boolean(selected?.available) : Boolean(defaultJava?.available);
   const mismatch =
@@ -181,6 +184,12 @@ export function JavaRuntimeSelect({
           }}
         >
           <option value="">{t('java.runtime.systemDefault')}</option>
+          {/* 只有列表读到了、里面确实没有，才说「已不可用」并禁止再选回来；没读到时不下结论。 */}
+          {selectedMissing && (
+            <option value={value!} disabled={!loading && !unknown}>
+              {loading ? t('common.loading') : unknown ? t('java.runtime.optionUnloaded') : t('java.runtime.optionMissing')}
+            </option>
+          )}
           {runtimes.map((runtime) => (
             <option key={runtime.id} value={runtime.id} disabled={!runtime.available}>
               {t(runtime.available ? 'java.runtime.option' : 'java.runtime.optionUnavailable', {
