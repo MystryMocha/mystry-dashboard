@@ -262,8 +262,10 @@ function SettingsTab({
                       <label htmlFor="instance-settings-launch-file">{t('instance.settings.launchFile.label')}</label>
                       <input
                         id="instance-settings-launch-file"
-                        value={launchTarget.kind === 'args' ? launchTarget.path : ''}
-                        placeholder={launchTarget.kind === 'modloader' ? t('instance.settings.launchFile.pendingPlaceholder') : undefined}
+                        // 「未安装」是状态不是待填的提示，按正文颜色作为值显示，不用低对比度的占位符。
+                        value={launchTarget.kind === 'args' ? launchTarget.path : t('instance.settings.launchFile.pendingValue')}
+                        // 路径常被截断，悬停可看全。
+                        title={launchTarget.kind === 'args' ? launchTarget.path : undefined}
                         readOnly
                         aria-describedby="instance-settings-launch-file-help"
                       />
