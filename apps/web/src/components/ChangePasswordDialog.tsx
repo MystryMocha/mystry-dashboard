@@ -88,6 +88,7 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
             <Field
               label={t('shell.password.new')}
               help={t('shell.password.help')}
+              errorReplacesHelp
               error={newIssue ? t(newIssue.key, newIssue.params) : null}
             >
               {(control) => (

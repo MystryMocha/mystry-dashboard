@@ -96,22 +96,22 @@ test('初始化：密码和用户名不在输入途中报错，失焦后才报�
   expect(descriptions(password)).toEqual(['密码至少 12 个字符。']);
 
   await user.type(password, 'short');
-  expect(screen.queryByText('密码至少 12 位')).toBeNull();
+  expect(screen.queryByText('密码至少 12 个字符')).toBeNull();
   expect(password.getAttribute('aria-invalid')).toBeNull();
   expect(submit.disabled).toBe(true);
 
   await user.tab();
   // Tab 先到密码的显示按钮，焦点已经离开输入框。
-  const passwordError = screen.getByText('密码至少 12 位');
+  const passwordError = screen.getByText('密码至少 12 个字符');
   expect(passwordError.id).toBe('password-error');
-  expect(password.getAttribute('aria-describedby')!.split(' ')).toEqual(['password-error', 'password-help']);
+  expect(password.getAttribute('aria-describedby')!.split(' ')).toEqual(['password-error']);
   expect(password.getAttribute('aria-invalid')).toBe('true');
 
   await user.click(screen.getByRole('button', { name: '显示密码' }));
   expect(password.type).toBe('text');
 
   await user.type(password, '-longer');
-  expect(screen.queryByText('密码至少 12 位')).toBeNull();
+  expect(screen.queryByText('密码至少 12 个字符')).toBeNull();
   expect(password.getAttribute('aria-invalid')).toBeNull();
 
   await user.clear(username);
@@ -145,7 +145,7 @@ test('初始化：按钮禁用时按 Enter 显示全部原因并跳到第一个�
   username.focus();
   await user.keyboard('{Enter}');
   expect(screen.getByText(TOKEN_ERROR(3))).toBeTruthy();
-  expect(screen.getByText('密码至少 12 位')).toBeTruthy();
+  expect(screen.getByText('密码至少 12 个字符')).toBeTruthy();
   expect(document.activeElement).toBe(token);
   expect(posts).toEqual([]);
 

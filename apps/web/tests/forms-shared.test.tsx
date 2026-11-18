@@ -151,8 +151,8 @@ test('改密码：只输一遍新密码，太短时失焦后说明原因，按 E
   await user.tab();
   expect(next.getAttribute('aria-invalid')).toBe('true');
   const describedBy = next.getAttribute('aria-describedby')!.split(' ').map((id) => document.getElementById(id)!.textContent ?? '');
-  expect(describedBy.some((text) => text.includes('12') && text !== '密码至少 12 个字符。')).toBe(true);
-  expect(describedBy).toContain('密码至少 12 个字符。');
+  // 错误说的就是长度，原来那句说明不再重复。
+  expect(describedBy).toEqual(['密码至少 12 个字符']);
   // 焦点在别处时按 Enter：提交不了，回到要改的字段。
   current.focus();
   await user.keyboard('{Enter}');

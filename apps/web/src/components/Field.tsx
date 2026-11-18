@@ -68,6 +68,8 @@ export interface FieldProps {
   /** 可选项在标签后标「（可选）」；必填项不标。 */
   optional?: boolean;
   help?: ReactNode;
+  /** 错误和说明讲的是同一件事时设为 true：错误显示出来后不再显示说明，免得一句话说两遍。 */
+  errorReplacesHelp?: boolean;
   /** 已经翻译好的错误原因；合法或为空时传 null。 */
   error?: string | null;
   className?: string;
@@ -75,13 +77,14 @@ export interface FieldProps {
 }
 
 /** 标签在上、控件居中、错误和说明在下的字段。类名沿用 field、error、field-help，外观不变。 */
-export function Field({ id, label, optional = false, help, error, className, children }: FieldProps) {
+export function Field({ id, label, optional = false, help: helpContent, errorReplacesHelp = false, error, className, children }: FieldProps) {
   const { t } = useI18n();
   const generatedId = useId();
   const controlId = id ?? generatedId;
   const errorId = `${controlId}-error`;
   const helpId = `${controlId}-help`;
   const { shown, onBlur } = useFieldFeedback(error);
+  const help = shown && errorReplacesHelp ? null : helpContent;
   const describedBy = [shown ? errorId : null, help ? helpId : null].filter(Boolean).join(' ') || undefined;
   return (
     // data-field-invalid 不管红字显没显示都标着，focusFirstInvalidField 靠它找到第一个要改的字段。

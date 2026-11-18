@@ -133,6 +133,8 @@ function SettingsTab({
   const [javaRuntimeId, setJavaRuntimeId] = useState<string | null>(instance.javaRuntimeId);
   const [javaMajor, setJavaMajor] = useState<number | null>(null);
   const [jvmValid, setJvmValid] = useState(true);
+  // 放弃修改时加一，让 JVM 配置器重新挂载：它的内存框里没填完的文本没有发到这里，只把值设回去清不掉。
+  const [jvmEpoch, setJvmEpoch] = useState(0);
   const [originalSettings, setOriginalSettings] = useState<SettingsDraft>(() => settingsFromInstance(instance));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -195,6 +197,8 @@ function SettingsTab({
     setJvmArgs(originalSettings.jvmArgs);
     setAcceptEula(originalSettings.acceptEula);
     setJavaRuntimeId(originalSettings.javaRuntimeId);
+    setJvmEpoch((epoch) => epoch + 1);
+    setJvmValid(true);
     feedback.reset();
     setError('');
   }
@@ -292,6 +296,7 @@ function SettingsTab({
                   {/* JVM 配置器自己显示错误；这层容器不参与排版，只让「跳到要改的字段」能落到它里面。 */}
                   <div className="form-fields" data-field-invalid={jvmValid ? undefined : ''}>
                     <JvmSettingsEditor
+                      key={jvmEpoch}
                       value={jvmArgs}
                       onChange={(next) => {
                         setJvmArgs(next);
