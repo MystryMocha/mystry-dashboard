@@ -33,6 +33,8 @@ export function PasswordInput({ after, className, disabled, ...rest }: PasswordI
         aria-label={t(visible ? 'common.password.hide' : 'common.password.show')}
         aria-pressed={visible}
         disabled={disabled}
+        // 按下时不让输入框失焦：否则点一下「显示」就算离开过这个字段，还没输完的密码会提前报错。
+        onMouseDown={(event) => event.preventDefault()}
         onClick={() => setVisible((prev) => !prev)}
       >
         {visible ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
