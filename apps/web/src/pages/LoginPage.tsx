@@ -5,6 +5,19 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { useAuth } from '../auth';
 import { errorMessage } from '../errors';
 import { useI18n } from '../i18n';
+import { charCount, newPasswordIssue, type Issue } from '../validation';
+
+// 与服务端初始化管理员的规则一致：用户名去掉首尾空格后 2–64 个字符。
+const USERNAME_MIN = 2;
+const USERNAME_MAX = 64;
+
+/** 已经填了内容但不合规时给出原因；空字段只让按钮不可点，不提前报错。 */
+function setupIssue(username: string, password: string): Issue | null {
+  const name = username.trim();
+  if (name && charCount(name) < USERNAME_MIN) return { key: 'server.auth.usernameTooShort', params: { min: USERNAME_MIN } };
+  if (charCount(name) > USERNAME_MAX) return { key: 'server.auth.usernameTooLong', params: { max: USERNAME_MAX } };
+  return newPasswordIssue(password);
+}
 
 export function LoginPage() {
   const { t } = useI18n();
@@ -17,9 +30,15 @@ export function LoginPage() {
   const [checking, setChecking] = useState(false);
   const submittingRef = useRef(false);
 
+  const issue = needsSetup ? setupIssue(username, password) : null;
+  // 只有初始化按规则禁用。登录按钮不预先禁用：浏览器自动填充的密码在用户操作前可能还没进 React 状态，
+  // 禁用后连回车都提交不了；空字段由输入框的 required 拦住。
+  const canSubmit = !busy && (!needsSetup
+    || (username.trim() !== '' && password !== '' && issue === null && setupToken.length === 64));
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (submittingRef.current) return;
+    if (submittingRef.current || !canSubmit) return;
     submittingRef.current = true;
     setBusy(true);
     setError('');
@@ -135,8 +154,9 @@ export function LoginPage() {
             </div>
           )}
 
+          {issue && <p className="error" role="status">{t(issue.key, issue.params)}</p>}
           {error && <p className="callout callout-danger" role="alert">{error}</p>}
-          <button className="btn btn-primary btn-lg btn-block" type="submit" disabled={busy}>
+          <button className="btn btn-primary btn-lg btn-block" type="submit" disabled={!canSubmit}>
             {busy ? t('login.submit.busy') : needsSetup ? t('login.submit.setup') : t('login.submit.signin')}
           </button>
         </form>

@@ -20,6 +20,7 @@ export default {
   'multiplayer.endpoint.tls': 'Use TLS',
   'multiplayer.endpoint.token': 'Token',
   'multiplayer.endpoint.save': 'Save frp Server',
+  'multiplayer.endpoint.needRequired': 'Fill in the name, server address and token.',
   'multiplayer.endpoint.delete': 'Delete frp Server',
   'multiplayer.endpoint.deleteTitle': 'Delete this frp server?',
   'multiplayer.endpoint.deleteBody': 'Instances using it must turn off their frp tunnel first.',

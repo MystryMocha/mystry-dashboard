@@ -42,6 +42,8 @@ export default {
   'deploy.error.jvmInvalid': 'Fix the JVM argument errors first.',
 
   'deploy.action.noCore': 'No core selected',
+  'deploy.action.needVersion': 'Choose a game version',
+  'deploy.action.needEula': 'Agree to the Minecraft EULA to deploy',
   'deploy.action.running': 'Deploying…',
   'deploy.action.start': 'Start Deploy',
 

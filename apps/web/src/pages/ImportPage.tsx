@@ -19,6 +19,7 @@ import { PageHeader } from '../components/PageHeader';
 import { TaskProgress } from '../components/TaskProgress';
 import { errorMessage, isAbortError } from '../errors';
 import { useI18n, type MessageKey } from '../i18n';
+import { instanceNameIssue, type Issue } from '../validation';
 
 type ImportMode = 'directory' | 'zip';
 
@@ -132,12 +133,18 @@ export function ImportPage() {
   }
 
   const configurationVisible = mode === 'directory' || preview !== null;
+  const nameIssue = instanceNameIssue(name);
+  // 确认导入这一步（选好了已有服务端，或 ZIP 已预检）才需要名称和 JVM 参数；上传 ZIP 预检只需要选好文件。
+  const confirmStep = mode === 'directory' ? Boolean(selectedSource?.ready) : file === null && preview !== null;
+  const blocker: Issue | null = !confirmStep ? null
+    : nameIssue ? nameIssue
+      : !jvmValid ? { key: 'validation.jvm.invalid' }
+        : javaInstalling ? { key: 'validation.java.installing' }
+          : null;
   const canSubmit = !busy
     && !restoringPreview
     && !javaInstalling
-    && (mode === 'directory'
-      ? Boolean(selectedSource?.ready && jvmValid)
-      : file !== null || Boolean(preview && jvmValid));
+    && (mode === 'zip' && file !== null ? true : confirmStep && blocker === null);
 
   useEffect(() => {
     if (!selectedSource?.ready) return;
@@ -188,6 +195,7 @@ export function ImportPage() {
       setError(t('import.error.jvmInvalid'));
       return;
     }
+    if (!isPreviewUpload && blocker) return;
 
     setBusy(true);
     setError('');
@@ -452,10 +460,11 @@ export function ImportPage() {
                       id="import-instance-name"
                       value={name}
                       disabled={busy}
-                      maxLength={128}
+                      aria-invalid={nameIssue ? true : undefined}
+                      aria-describedby={nameIssue ? 'import-instance-name-error' : undefined}
                       onChange={(e) => setName(e.target.value)}
-                      required
                     />
+                    {nameIssue && <p className="error" id="import-instance-name-error">{t(nameIssue.key, nameIssue.params)}</p>}
                   </div>
                   <div className="grid grid-2 import-meta-grid">
                     <div className="field">
@@ -536,6 +545,7 @@ export function ImportPage() {
           <span className="action-bar-status" role="status" aria-live="polite">
             {busy
               ? mode === 'zip' && file ? t('import.status.uploading') : t('import.status.background')
+              : blocker ? t(blocker.key, blocker.params)
               : mode === 'directory'
                 ? selectedSource?.ready ? t('import.status.willCopy', { id: selectedSource.id }) : t('import.status.chooseSource')
                 : preview ? t('import.status.previewReady') : t('import.status.uploadFirst')}

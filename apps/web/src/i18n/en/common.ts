@@ -67,4 +67,17 @@ export default {
   'common.required': 'Required',
   'common.latest': 'Latest',
   'common.default': 'Default',
+
+  // 表单本地校验：操作栏和字段下方说明缺什么。
+  'validation.instanceName.required': 'Enter an instance name',
+  'validation.instanceName.tooLong': 'The instance name can be at most {max} characters',
+  'validation.jarFile.required': 'Enter the jar file name',
+  'validation.number.range': 'Enter a whole number from {min} to {max}',
+  'validation.number.min': 'Enter a whole number of {min} or more',
+  'validation.port.range': 'Enter a port from 1 to 65535',
+  'validation.jvm.invalid': 'Fix the JVM settings first',
+  'validation.java.checking': 'Checking Java…',
+  'validation.java.installing': 'Installing Java…',
+  'validation.java.mismatch': 'Install or choose Java {java} first',
+  'validation.fixField': 'Fix {field} first',
 } satisfies Record<string, string>;

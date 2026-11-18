@@ -38,6 +38,7 @@ import { errorMessage } from '../errors';
 import { useInstanceAction } from '../hooks/useInstanceAction';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n, type I18n, type MessageKey } from '../i18n';
+import { instanceNameIssue } from '../validation';
 import {
   canStartInstance,
   canStopInstance,
@@ -380,7 +381,10 @@ export function DashboardPage() {
     await run(target.id, () => api(`${instanceApi(target.id)}${query}`, { method: 'DELETE' }));
   }
 
+  const emptyNameIssue = instanceNameIssue(emptyName);
+
   async function confirmCreateEmpty() {
+    if (emptyNameIssue) return;
     setEmptyBusy(true);
     setEmptyError('');
     try {
@@ -578,8 +582,11 @@ export function DashboardPage() {
                 id="empty-instance-name"
                 value={emptyName}
                 disabled={emptyBusy}
+                aria-invalid={emptyNameIssue ? true : undefined}
+                aria-describedby={emptyNameIssue ? 'empty-instance-name-error' : undefined}
                 onChange={(e) => setEmptyName(e.target.value)}
               />
+              {emptyNameIssue && <p className="error" id="empty-instance-name-error">{t(emptyNameIssue.key, emptyNameIssue.params)}</p>}
             </div>
             <JavaRuntimeSelect
               value={emptyJavaRuntimeId}
@@ -603,7 +610,7 @@ export function DashboardPage() {
         confirmLabel={t('dashboard.createEmpty.confirm')}
         busy={emptyBusy}
         error={emptyError}
-        confirmDisabled={!emptyJvmValid}
+        confirmDisabled={!emptyJvmValid || emptyNameIssue !== null}
         onConfirm={() => void confirmCreateEmpty()}
         onCancel={() => {
           setEmptyOpen(false);

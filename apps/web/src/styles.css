@@ -850,6 +850,12 @@ h1[tabindex="-1"]:focus { outline: none; }
   box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--focus-ring);
 }
 
+/* 填了但不合规的字段：红色描边，和下方的红字说明对应；聚焦时也保持红色。 */
+.field :is(input, select, textarea)[aria-invalid='true'],
+.input[aria-invalid='true'] { box-shadow: 0 0 0 1px var(--danger); }
+.field :is(input, select, textarea)[aria-invalid='true']:focus,
+.input[aria-invalid='true']:focus { box-shadow: 0 0 0 1px var(--danger), 0 0 0 4px color-mix(in srgb, var(--danger) 22%, transparent); }
+
 .field :is(input, select, textarea):disabled,
 .input:disabled,
 .input-row > select:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -978,6 +984,7 @@ input[type='radio'] {
 .config-row-select .list-row-control { flex: 0 1 280px; }
 .config-row-number .list-row-control { flex: 0 1 160px; }
 .config-row .list-row-control > .input { width: 100%; }
+.config-row-error { flex: 1 1 100%; margin-top: -6px; text-align: end; }
 
 /* ========== 折叠区 ========== */
 .disclosure > summary {
@@ -2764,6 +2771,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .config-row-text .list-row-control,
   .config-row-select .list-row-control,
   .config-row-number .list-row-control { flex: 1 1 100%; }
+  .config-row-error { text-align: start; }
 
   .about-card { padding: 22px 18px; }
   .about-icon { width: 64px; height: 64px; border-radius: 17px; }

@@ -12,6 +12,7 @@ import { renewPanelCertificate, saveAccessMode, savePublicHost } from '../api';
 import { copyText } from '../clipboard';
 import { errorMessage } from '../errors';
 import { useI18n, type MessageKey } from '../i18n';
+import { publicHostIssue } from '../validation';
 import { QrCode } from './QrCode';
 
 const KIND_HINT: Record<NetworkInterfaceKind | 'publicHost', MessageKey> = {
@@ -108,6 +109,9 @@ export function RemoteAccessMode({
   const selectedName = current.interfaceName ?? ALL_ADAPTERS;
   const selectedEntry = status.interfaces.find((entry) => entry.name === selectedName);
   const hasOverlayAdapter = status.interfaces.some((entry) => entry.kind === 'overlay');
+  // 之前选的网卡现在找不到了（拔了网线、关了虚拟网卡）：不能用它开启，提示换一块。
+  const adapterMissing = selectedName !== ALL_ADAPTERS && !names.includes(selectedName);
+  const hostIssue = publicHostIssue(hostDraft);
 
   async function apply(next: UpdateDirectAccessRequest): Promise<void> {
     setBusy(true);
@@ -300,7 +304,8 @@ export function RemoteAccessMode({
           ))}
         </select>
         <p className="field-help">
-          {selectedEntry ? t(KIND_HINT[selectedEntry.kind]) : mode === 'direct' ? t('remoteAccess.adapter.allHelp') : ''}
+          {adapterMissing ? <span className="error">{t('remoteAccess.adapter.missing')}</span>
+            : selectedEntry ? t(KIND_HINT[selectedEntry.kind]) : mode === 'direct' ? t('remoteAccess.adapter.allHelp') : ''}
         </p>
       </div>
 
@@ -385,7 +390,7 @@ export function RemoteAccessMode({
               <button
                 className="btn btn-primary"
                 type="button"
-                disabled={busy || hostDraft.trim() === '' || hostDraft.trim() === (status.publicHost ?? '')}
+                disabled={busy || hostDraft.trim() === '' || hostIssue !== null || hostDraft.trim() === (status.publicHost ?? '')}
                 onClick={() => void saveHost(hostDraft)}
               >
                 {t('action.save')}
@@ -397,7 +402,8 @@ export function RemoteAccessMode({
               )}
             </div>
             <p className="field-help">{t('remoteAccess.publicHost.help')}</p>
-            {isPrivateHost(hostDraft.trim()) && <p className="field-warn">{t('remoteAccess.publicHost.private')}</p>}
+            {hostIssue && <p className="error">{t(hostIssue.key)}</p>}
+            {!hostIssue && isPrivateHost(hostDraft.trim()) && <p className="field-warn">{t('remoteAccess.publicHost.private')}</p>}
             {/* 只提醒、不改默认值：云服务器上开「只允许同一网段」会把用户自己挡在外面。 */}
             {status.publicHost && !current.restrictToSubnet && <p className="field-warn">{t('remoteAccess.publicHost.exposed')}</p>}
           </div>
@@ -425,7 +431,7 @@ export function RemoteAccessMode({
             <button
               className="btn btn-primary"
               type="button"
-              disabled={busy || (mode === 'overlay' && !current.interfaceName)}
+              disabled={busy || adapterMissing || (mode === 'overlay' && !current.interfaceName)}
               onClick={() => void apply({ ...current, enabled: true })}
             >
               {busy ? t('remoteAccess.action.working') : t('remoteAccess.action.turnOn')}

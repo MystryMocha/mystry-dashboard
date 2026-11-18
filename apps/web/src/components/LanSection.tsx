@@ -16,6 +16,7 @@ import { copyText } from '../clipboard';
 import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n, type MessageKey } from '../i18n';
+import { lanPeersIssue } from '../validation';
 
 const STATUS_KEY: Record<LanStatus, MessageKey> = {
   disabled: 'multiplayer.status.disabled',
@@ -92,6 +93,8 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
 
   const peers = parsePeers(peersText);
   const tooManyPeers = peers.length > LAN_CUSTOM_PEER_LIMIT;
+  // 节点格式与服务端一致；不合规时保存按钮不可点，并指出是哪一个。
+  const peersIssue = lanPeersIssue(peers);
 
   async function toggle(next: boolean) {
     if (!lan) return;
@@ -282,6 +285,7 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
                 {t('multiplayer.lan.peers.tooMany', { limit: LAN_CUSTOM_PEER_LIMIT })}
               </p>
             )}
+            {peersIssue && <p className="error">{t(peersIssue.key, peersIssue.params)}</p>}
           </div>
           <label className="checkbox-field">
             <input type="checkbox" checked={useSharedPeers} disabled={busy} onChange={(event) => { peersTouched.current = true; setUseSharedPeers(event.target.checked); }} />
@@ -303,7 +307,7 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
             <button
               className="btn"
               type="button"
-              disabled={busy || tooManyPeers || (!useSharedPeers && peers.length === 0)}
+              disabled={busy || tooManyPeers || peersIssue !== null || (!useSharedPeers && peers.length === 0)}
               onClick={() => void savePeers()}
             >
               {t('multiplayer.lan.peers.save')}

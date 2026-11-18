@@ -17,6 +17,7 @@ import { copyText } from '../clipboard';
 import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n, type MessageKey } from '../i18n';
+import { frpHostIssue, frpTokenIssue, portIssue } from '../validation';
 import { StatusPill, type StatusTone } from './StatusPill';
 import { ConfirmDialog } from './ConfirmDialog';
 import { RuntimeInstallCallout } from './RuntimeArchiveUpload';
@@ -121,9 +122,23 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
 
   usePolling(refresh);
 
+  // 添加 frp 服务器：名称、地址、令牌必填，端口和地址格式与服务端一致；填了但不合规时在字段下说明。
+  const endpointIssues = {
+    address: frpHostIssue(endpointDraft.serverAddr),
+    port: portIssue(endpointDraft.serverPort),
+    visitHost: frpHostIssue(endpointDraft.visitHost),
+    token: frpTokenIssue(endpointDraft.token),
+  };
+  const endpointReady = endpointDraft.name.trim() !== ''
+    && endpointDraft.serverAddr.trim() !== ''
+    && endpointDraft.token !== ''
+    && Object.values(endpointIssues).every((issue) => issue === null);
+  // 穿透设置只校验当前模式用到的那个端口。
+  const tunnelPortIssue = draft ? portIssue(draft.mode === 'public' ? draft.remotePort : draft.visitorBindPort) : null;
+
   async function saveEndpoint() {
     const port = Number(endpointDraft.serverPort);
-    if (!Number.isInteger(port)) return;
+    if (!endpointReady || !Number.isInteger(port)) return;
     setBusy(true);
     setNotice('');
     try {
@@ -186,7 +201,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
   }
 
   async function saveTunnel() {
-    if (!draft) return;
+    if (!draft || tunnelPortIssue) return;
     // 第一次保存（还没选定过服务器）就是「保存并开放」：用户已经看过表单里的端口和模式，不用再回顶部开开关。
     const openNow = !tunnel?.endpointId && Boolean(runtime?.installed);
     const remotePort = Number(draft.remotePort);
@@ -345,17 +360,19 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
         {draft.mode === 'public' ? (
           <div className="field">
             <label htmlFor="frp-remote">{t('multiplayer.tunnel.remotePort')}</label>
-            <input id="frp-remote" inputMode="numeric" value={draft.remotePort} disabled={busy} onChange={(event) => setDraft({ ...draft, remotePort: event.target.value })} />
+            <input id="frp-remote" inputMode="numeric" value={draft.remotePort} disabled={busy} aria-invalid={tunnelPortIssue ? true : undefined} onChange={(event) => setDraft({ ...draft, remotePort: event.target.value })} />
+            {tunnelPortIssue && <p className="error">{t(tunnelPortIssue.key)}</p>}
           </div>
         ) : (
           <div className="field">
             <label htmlFor="frp-visitor">{t('multiplayer.tunnel.visitorPort')}</label>
-            <input id="frp-visitor" inputMode="numeric" value={draft.visitorBindPort} disabled={busy} onChange={(event) => setDraft({ ...draft, visitorBindPort: event.target.value })} />
+            <input id="frp-visitor" inputMode="numeric" value={draft.visitorBindPort} disabled={busy} aria-invalid={tunnelPortIssue ? true : undefined} onChange={(event) => setDraft({ ...draft, visitorBindPort: event.target.value })} />
+            {tunnelPortIssue && <p className="error">{t(tunnelPortIssue.key)}</p>}
           </div>
         )}
       </div>
       <div className="instance-actions">
-        <button className={!configured && installed ? 'btn btn-primary' : 'btn'} type="button" disabled={busy || draft.endpointId.length === 0} onClick={() => void saveTunnel()}>
+        <button className={!configured && installed ? 'btn btn-primary' : 'btn'} type="button" disabled={busy || draft.endpointId.length === 0 || tunnelPortIssue !== null} onClick={() => void saveTunnel()}>
           {t(!configured && installed ? 'multiplayer.tunnel.saveOpen' : 'multiplayer.tunnel.save')}
         </button>
       </div>
@@ -367,22 +384,25 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
       <div className="grid grid-2">
         <div className="field">
           <label htmlFor="frp-name">{t('multiplayer.endpoint.name')}</label>
-          <input id="frp-name" value={endpointDraft.name} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, name: event.target.value })} />
+          <input id="frp-name" value={endpointDraft.name} maxLength={64} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, name: event.target.value })} />
         </div>
         <div className="field">
           <label htmlFor="frp-visit">{t('multiplayer.endpoint.visitHost')}</label>
-          <input id="frp-visit" value={endpointDraft.visitHost} disabled={busy} aria-describedby="frp-visit-help" onChange={(event) => setEndpointDraft({ ...endpointDraft, visitHost: event.target.value })} />
+          <input id="frp-visit" value={endpointDraft.visitHost} disabled={busy} aria-describedby="frp-visit-help" aria-invalid={endpointIssues.visitHost ? true : undefined} onChange={(event) => setEndpointDraft({ ...endpointDraft, visitHost: event.target.value })} />
+          {endpointIssues.visitHost && <p className="error">{t(endpointIssues.visitHost.key)}</p>}
           <p className="field-help" id="frp-visit-help">{t('multiplayer.endpoint.visitHostHelp')}</p>
         </div>
       </div>
       <div className="grid grid-2">
         <div className="field">
           <label htmlFor="frp-address">{t('multiplayer.endpoint.address')}</label>
-          <input id="frp-address" value={endpointDraft.serverAddr} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, serverAddr: event.target.value })} />
+          <input id="frp-address" value={endpointDraft.serverAddr} disabled={busy} aria-invalid={endpointIssues.address ? true : undefined} onChange={(event) => setEndpointDraft({ ...endpointDraft, serverAddr: event.target.value })} />
+          {endpointIssues.address && <p className="error">{t(endpointIssues.address.key)}</p>}
         </div>
         <div className="field">
           <label htmlFor="frp-port">{t('multiplayer.endpoint.port')}</label>
-          <input id="frp-port" inputMode="numeric" value={endpointDraft.serverPort} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, serverPort: event.target.value })} />
+          <input id="frp-port" inputMode="numeric" value={endpointDraft.serverPort} disabled={busy} aria-invalid={endpointIssues.port ? true : undefined} onChange={(event) => setEndpointDraft({ ...endpointDraft, serverPort: event.target.value })} />
+          {endpointIssues.port && <p className="error">{t(endpointIssues.port.key)}</p>}
         </div>
       </div>
       <div className="grid grid-2">
@@ -394,7 +414,8 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
         </div>
         <div className="field">
           <label htmlFor="frp-token">{t('multiplayer.endpoint.token')}</label>
-          <input id="frp-token" type="password" autoComplete="off" value={endpointDraft.token} disabled={busy} onChange={(event) => setEndpointDraft({ ...endpointDraft, token: event.target.value })} />
+          <input id="frp-token" type="password" autoComplete="off" value={endpointDraft.token} disabled={busy} aria-invalid={endpointIssues.token ? true : undefined} onChange={(event) => setEndpointDraft({ ...endpointDraft, token: event.target.value })} />
+          {endpointIssues.token && <p className="error">{t(endpointIssues.token.key)}</p>}
         </div>
       </div>
       <label className="checkbox-field">
@@ -402,9 +423,13 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
         <span>{t('multiplayer.endpoint.tls')}</span>
       </label>
       <div className="instance-actions">
-        <button className={serverIsNext ? 'btn btn-primary' : 'btn'} type="button" disabled={busy} onClick={() => void saveEndpoint()}>
+        <button className={serverIsNext ? 'btn btn-primary' : 'btn'} type="button" disabled={busy || !endpointReady} onClick={() => void saveEndpoint()}>
           {t('multiplayer.endpoint.save')}
         </button>
+        {/* 对话式表单没有操作栏：必填项还空着、又没有格式错误时，在按钮旁说缺什么。 */}
+        {!endpointReady && Object.values(endpointIssues).every((issue) => issue === null) && (
+          <span className="field-help">{t('multiplayer.endpoint.needRequired')}</span>
+        )}
         {hasEndpoints && (
           <button className="btn btn-plain" type="button" disabled={busy} onClick={() => { setAdding(false); setEndpointDraft(EMPTY_ENDPOINT); }}>
             {t('action.cancel')}

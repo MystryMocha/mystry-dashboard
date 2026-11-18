@@ -44,6 +44,8 @@ export default {
   'deploy.error.jvmInvalid': '请先修正 JVM 参数错误',
 
   'deploy.action.noCore': '尚未选择核心',
+  'deploy.action.needVersion': '选择游戏版本',
+  'deploy.action.needEula': '勾选同意 Minecraft EULA 后才能部署',
   'deploy.action.running': '部署任务运行中…',
   'deploy.action.start': '开始部署',
 

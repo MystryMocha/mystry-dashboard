@@ -27,6 +27,7 @@ export default {
   'remoteAccess.adapter.all': '所有網路卡',
   'remoteAccess.adapter.option': '{name}（{address}）',
   'remoteAccess.adapter.allHelp': '面板會在所有網路卡上監聽（實例的多人連線網路除外），位址變了會自動跟上。',
+  'remoteAccess.adapter.missing': '現在找不到這張網路卡，換一張。',
 
   'remoteAccess.kind.lan': '同一個 Wi-Fi 或路由器下的裝置用這個。',
   'remoteAccess.kind.public': '公用位址。防火牆或安全群組開放連接埠後，任何地方都能開啟。',

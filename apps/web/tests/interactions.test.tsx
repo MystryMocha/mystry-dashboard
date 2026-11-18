@@ -1089,18 +1089,19 @@ test('联机页公网直连：填写公网地址后给出「地址:游戏端口�
   }));
   mount(<MultiplayerPage />);
   expect(await screen.findByText('172.16.0.8:25570')).toBeTruthy();
-  // 没有公网地址时沿用原标题，也不显示公网卡片；Linux 上不显示 Windows 弹窗提示。
-  expect(screen.getByText('加入地址')).toBeTruthy();
+  // 局域网地址的标题始终写明「同一网络」；没有公网地址时不显示公网卡片，Linux 上不显示 Windows 弹窗提示。
+  expect(screen.getByText('同一网络的加入地址')).toBeTruthy();
   expect(screen.queryByText('公网加入地址')).toBeNull();
   expect(screen.queryByText(/Windows 可能弹窗/)).toBeNull();
-  await user.click(screen.getByRole('button', { name: '这台电脑有公网 IP' }));
+  await user.click(screen.getByRole('button', { name: '填写公网地址' }));
   const input = screen.getByLabelText('公网 IP 或域名');
   await user.type(input, '192.168.1.5');
   expect(screen.getByText('这像是内网地址，其他网络的玩家连不上。')).toBeTruthy();
   await user.clear(input);
   await user.type(input, '203.0.113.10:25570');
-  await user.click(screen.getByRole('button', { name: '保存' }));
-  expect(await screen.findByText('端口不用填，会自动用服务器的游戏端口')).toBeTruthy();
+  // 带端口时不用等服务端报错：输入框下直接说明，保存按钮不可点。
+  expect(await screen.findByText(/端口不用填，会自动用服务器的游戏端口/)).toBeTruthy();
+  expect((screen.getByRole('button', { name: '保存' }) as HTMLButtonElement).disabled).toBe(true);
   await user.clear(input);
   await user.type(input, '203.0.113.10');
   await user.click(screen.getByRole('button', { name: '保存' }));

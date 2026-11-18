@@ -22,6 +22,7 @@ export default {
   'multiplayer.endpoint.tls': '使用 TLS',
   'multiplayer.endpoint.token': '令牌',
   'multiplayer.endpoint.save': '保存 frp 服务器',
+  'multiplayer.endpoint.needRequired': '填写名称、服务器地址和令牌。',
   'multiplayer.endpoint.delete': '删除 frp 服务器',
   'multiplayer.endpoint.deleteTitle': '删除这个 frp 服务器？',
   'multiplayer.endpoint.deleteBody': '正在使用它的实例要先关闭 frp 穿透。',

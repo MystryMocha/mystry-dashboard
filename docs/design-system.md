@@ -119,14 +119,14 @@ The class names to reach for. Each one is a plain CSS class in `styles.css`; the
 | Toolbar title | `toolbar-title` | Glass capsule, 42px tall like the button group; fades in once the content scrolls |
 | Sidebar | `sidebar`, `sidebar-brand`, `nav-section`, `nav-header`, `nav-item` (`active`), `sidebar-footer` | Drawer below 1024px |
 | Breadcrumbs | `breadcrumbs`, `breadcrumb-item`, `breadcrumb`, `breadcrumb-sep` | Current level has `aria-current="page"` |
-| Field | `field`, `field-help`, `field-warn`, `error`, `input`, `input-row`, `grid grid-2` | Borderless filled controls |
+| Field | `field`, `field-help`, `field-warn`, `error`, `input`, `input-row`, `grid grid-2` | Borderless filled controls; a filled-in value that fails a check gets `aria-invalid` (red outline) and an `error` line under it |
 | Switch / checkbox | `switch` (`role="switch"`), `checkbox-field` | Switch applies immediately; checkbox is submitted |
 | Card and sections | `card`, `form-card`, `page-section`, `section-header`, `section-title`, `count-badge`, `form-section-title`, `step-badge` | Keep writing `card form-card` for a form section: on a page it renders as a ruled section with no surface, in a dialog as a solid card. No glass, no colored side stripes |
 | Grouped list | `list-group`, `list-row`, `list-row-text`, `list-row-title`, `list-row-desc`, `list-row-control`, `list-row-value` | On a page: rows flush with the content edge between two `separator-strong` rules; in a dialog: iOS Settings style on `surface` |
 | Disclosure | `details.disclosure` | Advanced options only |
 | QR code | `qr-code` inside `remote-qr` | Always black on white with a quiet zone, in both appearances, so it scans; drawn as inline SVG by `QrCode.tsx` |
 | Copyable value | `direct-address`, `direct-command`, `remote-url`, `remote-join-value` | Monospace, `user-select: all`; copy with `copyText()` from `clipboard.ts`, which also works outside a secure context |
-| Action bar | `action-bar`, `action-bar-status` | One per page, sticky at the bottom |
+| Action bar | `action-bar`, `action-bar-status` | One per page, sticky at the bottom; while the button is disabled the status names the first thing still missing |
 | Callout | `callout` + `callout-info` / `callout-success` / `callout-warning` / `callout-danger`, `callout-icon` | Body stays `label`; only `<strong>` turns `danger` |
 | Ready strip | `ready-strip`, `ready-strip-icon`, `ready-strip-text` | One line above the console once the server is ready: green only on the icon and a 9% tint, a small tinted Invite Friends button and an icon-only dismiss [`ReadyHint`] |
 | Status pill | `status-pill` + `running` / `stopped` / `starting` / `stopping` / `crashed` / `warning`, `status-dot` | [`StatusPill`, `InstanceStatusPill`] |
@@ -152,6 +152,7 @@ The class names to reach for. Each one is a plain CSS class in `styles.css`; the
 2. Reuse the classes above before adding new ones; new values that repeat belong in the `:root` blocks of `styles.css`, with a dark-appearance value when they are colors.
 3. Write copy into the locale tables, then check the page in light and dark, every shipped language and at 375px, as [UI 与交互](ai/change-playbooks.md#ui-与交互) requires.
 4. Run the template check below on the screenshots, not only on the code.
+5. Primary buttons stay disabled until the form holds enough valid input, using the same rules as the server (shared helpers in `apps/web/src/validation.ts`; the server still checks again). Say what is missing: the action-bar status for page forms, an `error` line under a field that was filled in wrongly. Do not flag empty required fields before the user has typed. Set the busy state on the click itself, so a double click cannot submit twice.
 
 ## Template check
 
