@@ -959,6 +959,10 @@ select.input,
 .login-form > .error { padding: 0 6px; }
 
 /* -- 表单：内存与 JVM -- */
+/* 内存输入框下面的常用档位：窄栏里自动换行。 */
+.jvm-memory-tiers { display: flex; flex-wrap: wrap; gap: 6px; }
+.jvm-memory-tiers .chip.is-selected { background-color: var(--accent-soft-strong); color: var(--accent-text); }
+.jvm-memory-tiers .chip.is-selected .chip-desc { color: inherit; }
 
 /* -- 表单：参数配置与实例设置（含保存栏） -- */
 
