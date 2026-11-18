@@ -144,7 +144,7 @@ Java 状态响应准确结构为：
 | GET | `/api/instances` | 实例列表 `InstanceInfo[]` |
 | GET | `/api/instances/:id` | 单个实例 |
 | POST | `/api/instances` | 创建空实例，Body 见 `CreateInstanceInput` |
-| PATCH | `/api/instances/:id` | 更新 `UpdateInstanceInput` |
+| PATCH | `/api/instances/:id` | 更新 `UpdateInstanceInput`，只改提交的字段。`acceptEula` 从 `true` 改成 `false` 时把实例目录的 `eula.txt` 改写为 `eula=false`；实例在备份或还原中时这一改动返回 **409** |
 | POST | `/api/instances/:id/adopt-managed-directory` | 接管已复制到面板托管根目录的旧实例 |
 | DELETE | `/api/instances/:id` | 删除实例记录及面板托管的实例目录；旧版外部目录不会被访问或删除。默认同时删除该实例在 `BACKUP_DIR` 下的备份，`?keepBackups=1` 时保留（之后不再出现在面板中）；实例已删除但备份删除失败时返回 **500** |
 | POST | `/api/instances/:id/start` | 启动 |
@@ -186,13 +186,13 @@ Authorization: Bearer <token>
 | `name` | string | 显示名称 |
 | `coreType` | `vanilla \| paper \| fabric \| forge \| neoforge \| custom` | 核心类型 |
 | `mcVersion` | string \| null | MC 版本 |
-| `jarFile` | string | 相对实例根目录的 jar 名或启动参数文件 |
+| `jarFile` | string | 相对实例根目录的 jar 名；Forge / NeoForge 为 `@args:<参数文件相对路径>`，模组加载器没装好时为 `@modloader`。共享包的 `parseLaunchTarget` 负责拆开这两种标记 |
 | `jvmArgs` | string | JVM 参数字符串 |
 | `requiresMigration` | boolean | 是否需要按旧版外部实例流程完成接管 |
 | `nodeId` | string | 执行节点 ID；本机为 `local` |
 | `javaRuntimeId` | string \| null | 绑定的 Java 运行时 ID；`null` 使用 PATH 中的 `java` |
 | `status` | `InstanceStatus` | 运行状态 |
-| `acceptEula` | boolean | 是否写入 `eula=true` |
+| `acceptEula` | boolean | 为 `true` 时每次启动写入 `eula=true`；为 `false` 时启动不改 `eula.txt`（导入的服务端可以自带同意记录），只有从 `true` 改成 `false` 的那次保存会写入 `eula=false` |
 | `createdAt` / `updatedAt` | string | ISO 时间 |
 
 `jvmArgs` 保存与启动前都会经过 `@mystry/shared` 的同一套校验：必须各有一个 `Xms` / `Xmx`，拒绝未闭合引号、重复或冲突 GC、`Xms > Xmx`，也拒绝 `-jar`、classpath、模块启动、`@argfile` 和 `nogui` 等由面板负责的启动参数。请求省略 `jvmArgs` 时，创建、部署和导入仍使用兼容默认值 `-Xms1G -Xmx2G`。旧实例文本不会仅因读取而被改写，但非法旧值必须先修正才能保存或启动。

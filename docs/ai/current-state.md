@@ -66,7 +66,7 @@
 - 字体统一使用 `:root` 中的系统字体栈（`--font` / `--mono`，含中文系统字体回落），各主题不再单独指定字体；页面不加载任何外部字体或第三方样式，离线与国内网络下首屏不依赖外网。
 - 前端静态资源：`@mystry/web` 构建在 `vite build` 后运行 `scripts/precompress-dist.mjs`，为 dist 中 ≥1 KiB 的文本资源生成 `.br` / `.gz`；服务端 `@fastify/static` 开启 `preCompressed` 按 `Accept-Encoding` 发送并带 `Vary`，缺失时回落原文件。`/assets/*`（Vite 带 hash 产物）返回 `public, max-age=31536000, immutable`，`index.html` 与 SPA 回落页返回 `no-cache`（见 `frontend-assets.ts` 与 `test:static`）。
 - 文件列表 `listFiles` 只对目标目录调用一次 `resolveSafePath` 逐段校验，条目逐个 `lstat` 拒绝 symlink/junction，不再对每个条目重复 realpath 整条路径（大目录不会长时间阻塞事件循环）。实例根目录的所有权标记 `.mystry-instance.json` 不出现在列表中（子目录同名文件照常列出）；改写类接口仍由 `assertMutableTarget` 拒绝操作它。
-- 一键部署默认选中 Paper，选定核心后自动拉取版本列表并默认选中最新正式版；Paper Build、Fabric Loader/Installer、Forge/NeoForge 版本均为可选，留空时由服务端解析为最新（Paper 优先稳定构建）。部署、ZIP/目录导入、创建空实例三处的 EULA 同意默认不勾选；部署页必须勾选后才能提交，导入和空实例可不勾选（不勾选时启动不改写已有 `eula.txt`）。部署页右侧为新手指引（选核心与进服步骤），不再展示内部实现说明。
+- 一键部署默认选中 Paper，选定核心后自动拉取版本列表并默认选中最新正式版；Paper Build、Fabric Loader/Installer、Forge/NeoForge 版本均为可选，留空时由服务端解析为最新（Paper 优先稳定构建）。部署、ZIP/目录导入、创建空实例三处的 EULA 同意默认不勾选；部署页必须勾选后才能提交，导入和空实例可不勾选（不勾选时启动不改写已有 `eula.txt`；实例设置里从勾选改成不勾选并保存时，`instance-service.ts` 在实例锁内把 `eula.txt` 改写为 `eula=false`，备份或还原中返回 409）。部署页右侧为新手指引（选核心与进服步骤），不再展示内部实现说明。
 - 面向用户的文案避免内部术语（英文对应叫法见 `apps/web/src/i18n/en/common.ts` 与贡献指南）：侧栏「本机环境」（`/nodes`，页面不再展示远程集群锁定卡）、「从本机文件夹导入」（`DATA_DIR/imports`）、「系统默认 Java」（PATH 中的 `java`）、「最大内存」（`-Xmx`）；导入与部分启动、落地错误改为「导入文件夹」「部署临时文件」「Forge/NeoForge 启动参数文件」等说法。
 
 - `server.properties`：`config-service.ts` 把数字形式的 `difficulty`、`gamemode` 读成名称，文件原来是数字或实例版本为 1.13 及更早时写回数字；非 ASCII 值写成 `\uXXXX`。

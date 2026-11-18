@@ -167,6 +167,62 @@ test('未同意 EULA 退出记为已停止并给出原因；Java 不符记为崩
   assert.equal(manager.getStartIssue(info.id), null);
 });
 
+test('实例设置取消同意 EULA：eula.txt 改回 false 且之后启动不再写 true；从没同意过的实例不碰原有 eula.txt；还原期间拒绝', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager, processManager, InstanceOperationConflictError } = await import('./process-manager.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstance, getInstanceRow, updateInstanceSettings } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const agreed = createInstance({ name: 'eula-revoke', acceptEula: true });
+  const imported = createInstance({ name: 'eula-imported', acceptEula: false });
+  const agreedEula = path.join(defaultInstanceDir(agreed.id), 'eula.txt');
+  const importedEula = path.join(defaultInstanceDir(imported.id), 'eula.txt');
+  fs.writeFileSync(path.join(defaultInstanceDir(agreed.id), 'server.jar'), 'stub-jar');
+  fs.writeFileSync(path.join(defaultInstanceDir(imported.id), 'server.jar'), 'stub-jar');
+  // 导入的服务端自带同意记录，面板里没勾选。
+  fs.writeFileSync(importedEula, 'eula=true\n', 'utf8');
+
+  const children: ChildProcessWithoutNullStreams[] = [];
+  const manager = new ProcessManager(() => {
+    const child = fakeChild();
+    children.push(child);
+    return child;
+  }, async () => 'java');
+
+  await manager.start(getInstanceRow(agreed.id)! as InstanceRow);
+  assert.equal(fs.readFileSync(agreedEula, 'utf8'), 'eula=true\n');
+  children[0].emit('exit', 0, null);
+
+  await updateInstanceSettings(agreed.id, { acceptEula: false });
+  assert.equal(getInstance(agreed.id)?.acceptEula, false);
+  assert.equal(fs.readFileSync(agreedEula, 'utf8'), 'eula=false\n');
+  await manager.start(getInstanceRow(agreed.id)! as InstanceRow);
+  assert.equal(fs.readFileSync(agreedEula, 'utf8'), 'eula=false\n', '不同意时启动不写 eula.txt');
+  children[1].emit('exit', 0, null);
+
+  // 一直没勾选：保存（哪怕带着 acceptEula: false）不改原有文件，启动也不改。
+  await updateInstanceSettings(imported.id, { name: 'eula-imported-2', acceptEula: false });
+  assert.equal(fs.readFileSync(importedEula, 'utf8'), 'eula=true\n');
+  await manager.start(getInstanceRow(imported.id)! as InstanceRow);
+  assert.equal(fs.readFileSync(importedEula, 'utf8'), 'eula=true\n');
+  children[2].emit('exit', 0, null);
+
+  // 还原备份会整体替换目录，这时写进去的文件会丢：拒绝，数据库和文件都不变。
+  await updateInstanceSettings(agreed.id, { acceptEula: true });
+  fs.writeFileSync(agreedEula, 'eula=true\n', 'utf8');
+  const endMaintenance = processManager.beginMaintenance(agreed.id, 'server.backups.busyRestoring');
+  t.after(endMaintenance);
+  await assert.rejects(updateInstanceSettings(agreed.id, { acceptEula: false }), InstanceOperationConflictError);
+  assert.equal(getInstance(agreed.id)?.acceptEula, true);
+  assert.equal(fs.readFileSync(agreedEula, 'utf8'), 'eula=true\n');
+  // 改名之类不碰 eula.txt 的设置照常能存。
+  await updateInstanceSettings(agreed.id, { name: 'eula-revoke-renamed' });
+  assert.equal(getInstance(agreed.id)?.name, 'eula-revoke-renamed');
+  endMaintenance();
+});
+
 test('普通 stop 超时不得隐式 SIGKILL', async (t) => {
   prepareTempDataRoot(t);
   process.env.MYSTRY_TEST_STOP_GRACE_MS = '40';

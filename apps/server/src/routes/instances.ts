@@ -9,7 +9,7 @@ import {
   getInstance,
   getInstanceRow,
   listInstances,
-  updateInstance,
+  updateInstanceSettings,
 } from '../services/instance-service.js';
 import { deleteInstanceBackups } from '../services/backup-service.js';
 import { removeInstanceFrp } from '../services/frp-manager.js';
@@ -98,9 +98,10 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(404).send(panelErrorBody('server.instance.notFound'));
     }
     try {
-      return updateInstance(req.params.id, req.body);
+      return await updateInstanceSettings(req.params.id, req.body);
     } catch (err) {
-      return sendRouteError(reply, err);
+      // 还原备份期间取消同意 EULA 会得到 409 冲突，其余按通用错误返回。
+      return replyProcessManagerError(reply, err);
     }
   });
 

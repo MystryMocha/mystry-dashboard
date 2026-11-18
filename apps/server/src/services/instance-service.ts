@@ -15,6 +15,8 @@ import {
   hasValidOwnershipMarker,
   inspectOwnershipMarker,
   removeOwnershipMarker,
+  resolveDirFromRow,
+  resolveSafePath,
   writeOwnershipMarker,
   nowIso,
 } from '../utils/path.js';
@@ -228,6 +230,15 @@ export function updateInstance(id: string, input: UpdateInstanceInput): Instance
   // 未提交 JVM 参数时只做校验，不静默改写旧实例中的原始文本。
   const jvmArgs = input.jvmArgs === undefined ? existing.jvm_args : normalizedJvmArgs;
 
+  // 启动时只在同意时写 eula=true。从同意改成不同意时要把文件改回来，否则之前写进去的同意一直有效。
+  // 只看这一次变化：从没勾选过的实例（例如导入时自带同意记录）不碰原有的 eula.txt。
+  if (existing.accept_eula && input.acceptEula === false) {
+    // 还原备份会整体替换目录，这时写进去的文件会丢，数据库和文件对不上。
+    processManager.assertNotInMaintenance(id);
+    const dir = assertSafeInstanceRoot(resolveDirFromRow(existing));
+    fs.writeFileSync(resolveSafePath(dir, 'eula.txt'), 'eula=false\n', 'utf8');
+  }
+
   const now = nowIso();
   getDb()
     .prepare(
@@ -253,6 +264,14 @@ export function updateInstance(id: string, input: UpdateInstanceInput): Instance
     );
 
   return getInstance(id)!;
+}
+
+/**
+ * 实例设置的保存入口（PATCH）。取消同意 EULA 时会改实例目录里的 eula.txt，
+ * 所以和启动、还原替换目录用同一把实例锁，不会和它们交错。
+ */
+export async function updateInstanceSettings(id: string, input: UpdateInstanceInput): Promise<InstanceInfo> {
+  return processManager.runExclusive(id, async () => updateInstance(id, input));
 }
 
 /** 还原备份后同步面板记录的启动文件、核心类型与版本；调用方负责持有实例锁。 */

@@ -334,9 +334,9 @@ Backups are stored under `backups/` in the data directory by default. You can us
 | Field | Description |
 |------|------|
 | Name | Editable |
-| Jar File Name | Relative to the instance folder, such as `server.jar` |
+| Jar File Name | Relative to the instance folder, such as `server.jar`. Forge and NeoForge instances show a read-only Launch File here instead: the argument file the panel found when the server was deployed or imported |
 | JVM Settings | Use the shared configurator to change memory, the preset and advanced arguments. A restart is recommended after changes |
-| Minecraft EULA | When checked, `eula=true` is written to `eula.txt` on every start. When unchecked, the existing `eula.txt` in the instance folder is kept |
+| Minecraft EULA | When checked, `eula=true` is written to `eula.txt` on every start. When unchecked, the existing `eula.txt` in the instance folder is kept, so an imported server can bring its own agreement. If you uncheck it after it was checked and save, `eula.txt` is changed to `eula=false` |
 | Install Path | Read-only. Shows the full path of the instance folder. The panel assigns it, and it can't be changed after creation |
 | Java Runtime | Defaults to "System Default Java", or choose another Java that the panel has found. You can rescan |
 
