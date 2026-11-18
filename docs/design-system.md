@@ -67,7 +67,8 @@ The most important rule of the system:
 - **Every button, chip, segmented control, status pill and progress bar is a pill** (`radius-pill`).
 - Control heights: buttons 34px (`.btn-sm` 28px, `.btn-lg` 46px); inputs at least 38px.
 - **Touch targets (`pointer: coarse`) are at least 44×44px.** Buttons, icon buttons, toolbar buttons, segmented items, menu items, nav items, list options, chips, console tools, disclosure summaries and form fields grow to 44px; `.btn-sm`, `.link-button` and `.back-link` keep their look and extend an invisible `::after` hit area to 44px, and each overview server row is one large target: its name link stretches over the whole row. Inline links inside a sentence are exempt. Desktop density does not change.
-- Skeleton: 24px between page blocks (`.page`), 16px in grids, 14px under section titles, 18px card padding, 40px side margins (28px ≤1024px, 16px ≤768px), `content-max` 1240px, `sidebar-width` 256px, `toolbar-height` 60px.
+- Skeleton: 24px between page blocks (`--page-gap`), 20px on the instance page (`--instance-page-gap`), 10px inside a form section (`--form-section-gap`), 16px in grids, 14px under section titles, 18px card padding, 40px side margins (28px ≤1024px, 16px ≤768px), `content-max` 1240px, `sidebar-width` 256px, `toolbar-height` 60px.
+- Short desktop tier: when the viewport is under 820px tall and at least 1025px wide (laptops at high scaling), `:root` tightens those variables: toolbar 56px, page gap 18px, instance page gap 14px, form section gap 8px, no extra top gap. The large title stays 30px. Both conditions are needed, so landscape phones, tablets and an open on-screen keyboard never trigger it; a docked DevTools panel can, which is expected.
 - Dividers are 0.5px `separator` and start at the row's left padding, not the card edge.
 
 ### Shadows
