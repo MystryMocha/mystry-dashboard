@@ -174,23 +174,41 @@ export function DirectSection({
         <p className="callout callout-danger" role="alert">{t('multiplayer.direct.portInvalid')}</p>
       )}
 
+      {/* 局域网地址只对同一网络有效：标题始终写明范围，地址下第一句说限制，紧跟着给出其他网络的出路。 */}
       <section className="form-section">
-        <h3 className="form-section-title">
-          {t(hasPublic ? 'multiplayer.direct.sameNetworkTitle' : 'multiplayer.direct.addressTitle')}
-        </h3>
+        <h3 className="form-section-title">{t('multiplayer.direct.sameNetworkTitle')}</h3>
         <div className="card form-card direct-block">
           {network === null && !error ? (
             <p className="field-help" role="status">{t('common.loading')}</p>
           ) : addresses.length > 0 ? (
             <>
               {addressList(addresses)}
+              <p className="field-help direct-scope">{t('multiplayer.direct.scope')}</p>
               {addresses.length > 1 && !hasPublic && <p className="field-help">{t('multiplayer.direct.several')}</p>}
-              <p className="field-help">{t('multiplayer.direct.howTo')}</p>
             </>
           ) : network && !network.serverIpBlocked && port != null ? (
-            <p className="field-help">{t('multiplayer.direct.noAddress')}</p>
+            <>
+              <p className="field-help">{t('multiplayer.direct.noAddress')}</p>
+              {/* 没有局域网地址时，127.0.0.1 是服主在这台电脑上自测的唯一地址；有局域网地址时用它即可，不再多给一个。 */}
+              <p className="field-help">{t('multiplayer.direct.self', { address: `127.0.0.1:${port}` })}</p>
+            </>
           ) : null}
-          {port != null && <p className="field-help">{t('multiplayer.direct.self', { address: `127.0.0.1:${port}` })}</p>}
+          {/* server-ip 绑定、端口无效或读取失败时，上面的红色提示要先处理，这里不再单独放一行出路。 */}
+          {network && (addresses.length > 0 || (!network.serverIpBlocked && port != null)) && (
+            <div className="direct-elsewhere">
+              <p>{t(hasPublic ? 'multiplayer.direct.elsewherePublic' : 'multiplayer.direct.elsewhere')}</p>
+              <div className="instance-actions">
+                <button className="btn" type="button" onClick={onChooseVirtualLan}>
+                  {t('multiplayer.direct.useVirtualLan')}
+                </button>
+                {network && !showPublicCard && (
+                  <button className="btn" type="button" onClick={() => setHostOpen(true)}>
+                    {t('multiplayer.direct.public.open')}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
           {(windows || !network) && <p className="field-help">{t('multiplayer.direct.firewall')}</p>}
           {/* 状态区一直保留，读屏软件才会播报；空的时候隐藏，不占间距。 */}
           <p role="status" aria-live="polite" className={notice ? 'field-help' : 'visually-hidden'}>{notice}</p>
@@ -248,20 +266,6 @@ export function DirectSection({
           </div>
         </section>
       )}
-
-      <div className="direct-elsewhere">
-        <p>{t('multiplayer.direct.elsewhere')}</p>
-        <div className="instance-actions">
-          {network && !showPublicCard && (
-            <button className="btn" type="button" onClick={() => setHostOpen(true)}>
-              {t('multiplayer.direct.public.open')}
-            </button>
-          )}
-          <button className="btn" type="button" onClick={onChooseVirtualLan}>
-            {t('multiplayer.direct.useVirtualLan')}
-          </button>
-        </div>
-      </div>
     </MultiplayerLayout>
   );
 }

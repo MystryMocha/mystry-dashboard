@@ -2374,8 +2374,11 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .multiplayer-relay > .field-help { margin-top: 6px; }
 .multiplayer-settings > .multiplayer-add { margin-top: 22px; padding-top: 18px; border-top: 0.5px solid var(--separator); }
 .multiplayer-meta { margin-top: 0; }
+/* 局域网地址的适用范围：比其他帮助行重一级（正文色 + 中粗），不做成提示条，避免和顶部的状态提示抢注意力。 */
+.direct-scope { color: var(--label); font-weight: 500; }
+/* 出路紧跟在范围说明后面，和帮助行同一字号。 */
 .direct-elsewhere { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.direct-elsewhere p { margin: 0; font-size: var(--text-body); color: var(--label-2); }
+.direct-elsewhere p { margin: 0; font-size: var(--text-small); color: var(--label-2); }
 /* 客户端未安装：状态和下载按钮一行，下载来源和手动安装入口在下面，同在一个提示条里。 */
 .callout.runtime-install { flex-direction: column; align-items: stretch; gap: 6px; }
 .runtime-install-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
