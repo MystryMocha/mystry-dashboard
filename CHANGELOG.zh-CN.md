@@ -44,7 +44,6 @@
 - 「联机」页「同一网络」的说明改为同时适用于有公网 IP 的电脑；`server-ip` 填成公网 IP 时给出专门的提示；Windows 防火墙弹窗的提示只在面板运行在 Windows 上时显示。
 - 经 SSH 登录时，启动器不再尝试在服务器上打开浏览器。
 
-- 质量门禁改在本机运行：新增 `npm run ci:local`，对当前提交做干净安装并执行 `npm ci` 和 `npm run verify`。Windows 上依次检查 Windows 与 WSL 里的 Linux，Node 固定为便携包内置的 22.23.1（官方下载并校验，不动本机已装的 Node）。GitHub 上的 Quality Gate 不再随推送和 PR 自动运行，只保留手动触发；发布工作流不变。
 - 「从 imports 文件夹复制」改版：写出 imports 文件夹在面板电脑上的完整路径，可以一键复制；步骤缩成两步（停掉原服务端、复制到这个路径，一个服务端一个文件夹），并说明面板不会改动 imports 里的文件、大服务端可以用 SFTP 或 rsync 传进来续传。下拉框换成「imports 里的服务端」列表，每一行写识别出的核心和版本、启动 jar、有没有 `user_jvm_args.txt`，不能导入的行直接写原因；「刷新目录」改叫「刷新」。Forge / NeoForge 的参数文件路径不再出现在来源里。
 - 「导入服务端」简化：选好来源之前只显示来源区；上传检查完（或在 imports 里选中文件夹）后，右边「导入设置」只列实例名称、面板识别出的服务端、要用的 Java 和最大内存（来自 `user_jvm_args.txt` 时注明），以及 EULA 勾选。核心类型、Minecraft 版本、Java 运行时和 JVM 设置收进「修改设置」，Java 版本不符、没有可用的 Java、JVM 参数有错误或警告、`user_jvm_args.txt` 用不了时自动展开。不知道 Minecraft 版本时（如 ZIP 导入）摘要提醒无法确认 Java 是否合适。上传文件夹和 ZIP 的说明缩成一句。
 - Java 运行时下拉框的选项只写主版本（如「Java 21」），同一个主版本装了不止一个时才带路径；鼠标停在下拉框上可以看到所选 Java 的路径。

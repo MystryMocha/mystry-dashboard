@@ -1,9 +1,11 @@
 # Third-party Actions pinned by SHA: see .github/actions-pins.md (reviewed 2026-08-07)
 name: Quality Gate
 
-# The quality gate now runs locally: npm run ci:local (npm.cmd run ci:local on Windows).
-# It is no longer triggered automatically by pushes and PRs here; only manual runs are kept.
 on:
+  push:
+    branches:
+      - main
+  pull_request:
   workflow_dispatch:
 
 permissions:

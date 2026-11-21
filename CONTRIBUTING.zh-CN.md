@@ -86,7 +86,6 @@ Web 界面支持英文（默认）、简体中文和繁體中文，规则如下�
 提交 PR 前请自行确认：
 
 - [ ] `npm.cmd run verify` 通过（Linux/macOS 使用 `npm run verify`）
-- [ ] 提交后 `npm.cmd run ci:local` 通过（远程不再自动检查 PR，见 [验证矩阵](docs/ai/verification.md#本机-ci)）
 - [ ] 若改动 API，已更新 [docs/api.zh-CN.md](docs/api.zh-CN.md)
 - [ ] 若改动配置项，已更新 `.env.example` 与 [docs/configuration.zh-CN.md](docs/configuration.zh-CN.md)
 - [ ] 手动验证过相关流程（登录 / 部署 / 控制台 / 文件等）

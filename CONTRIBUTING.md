@@ -66,7 +66,6 @@ The unified Chinese terminology table and Chinese punctuation rules are in the [
 Before opening a PR, confirm for yourself:
 
 - [ ] `npm.cmd run verify` passes (use `npm run verify` on Linux/macOS)
-- [ ] After committing, `npm.cmd run ci:local` passes (PRs are no longer checked automatically on the remote; see the [verification matrix](docs/ai/verification.md))
 - [ ] If the API changed, [docs/api.md](docs/api.md) and its Chinese copy are updated
 - [ ] If configuration options changed, `.env.example` and [docs/configuration.md](docs/configuration.md) are updated
 - [ ] The related flows were verified manually (sign-in / deploy / console / files, etc.)

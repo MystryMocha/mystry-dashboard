@@ -94,11 +94,11 @@ npm run build -w @mystry/shared
 - 快速检查：`npm run knowledge:check`；检查器负向测试：`npm run knowledge:test`。
 - 锁文件只记录官方地址。本机 npm 配了镜像时，装完新依赖运行 `npm run lockfile:fix`。
 - 完整门禁：`npm run verify`。Windows PowerShell 从终端直接执行时使用 `npm.cmd run verify`。
-- 本机 CI：`npm run ci:local`，对当前提交做干净安装并跑 `verify`；只在 Windows 上运行，依次跑 Windows 与 WSL Linux，Node 固定为便携包内置版本。远程 Quality Gate 已不随推送和 PR 自动运行，推送前用它代替（见 [验证矩阵](ai/verification.md#本机-ci)）。
+- 远程 CI：Quality Gate（`.github/workflows/quality.yml`）在推送到 `main` 和每个 PR 时，于 `ubuntu-latest` 上执行 `npm ci` 与 `npm run verify`（见 [验证矩阵](ai/verification.md#远程-ci)）。
 
 ## 本地验证清单
 
-提交前运行和改动相关的检查；推送前运行 `npm.cmd run ci:local`，它在干净检出上跑完整 `npm run verify`。完整门禁不包含生产依赖审计；依赖变更与发布需另跑 `npm.cmd run audit:production`。下面的人工项目按改动范围选择，使用独立测试数据；数据库演练仅使用副本。自动检查通过不能替代真实交互验证。
+提交前运行和改动相关的检查；推送前运行完整的 `npm.cmd run verify`，PR 上的 Quality Gate 会再跑一遍。完整门禁不包含生产依赖审计；依赖变更与发布需另跑 `npm.cmd run audit:production`。下面的人工项目按改动范围选择，使用独立测试数据；数据库演练仅使用副本。自动检查通过不能替代真实交互验证。
 
 - [ ] `npm run knowledge:check` 与 `npm run knowledge:test` 无错误
 - [ ] `npm run build -w @mystry/shared` 后 `npm run test:smoke`（已包含在 `verify` 中；不启动 Minecraft，不使用仓库 `data/`）
