@@ -2,12 +2,12 @@
 
 **English** · [简体中文](portable-release.zh-CN.md)
 
-The repository is currently at version `v0.2.0-preview.4`. The release workflow is set up to build two portable targets for it. Each one bundles Node.js 22, production dependencies and the built frontend and backend:
+The repository is currently at version `v0.2.0-preview.5`. The release workflow is set up to build two portable targets for it. Each one bundles Node.js 22, production dependencies and the built frontend and backend:
 
 | System | File |
 |------|------|
-| Windows x64 | `mystry-v0.2.0-preview.4-windows-x64.zip` |
-| Linux x64 | `mystry-v0.2.0-preview.4-linux-x64.tar.gz` |
+| Windows x64 | `mystry-v0.2.0-preview.5-windows-x64.zip` |
+| Linux x64 | `mystry-v0.2.0-preview.5-linux-x64.tar.gz` |
 
 The packaging scripts for Linux ARM64 and macOS (Intel / Apple Silicon) still work locally, but those targets aren't in this preview's public release matrix. They're left for a later version.
 
@@ -44,7 +44,7 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 In Windows PowerShell, calculate the archive hash first, then compare it with the matching line in `SHA256SUMS`:
 
 ```powershell
-Get-FileHash .\mystry-v0.2.0-preview.4-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\mystry-v0.2.0-preview.5-windows-x64.zip -Algorithm SHA256
 ```
 
 You can also run the same `gpg --verify` as on Linux in WSL or Gpg4win.
@@ -72,7 +72,7 @@ You can also run this in a terminal:
 Linux:
 
 ```bash
-tar -xzf mystry-v0.2.0-preview.4-linux-x64.tar.gz
+tar -xzf mystry-v0.2.0-preview.5-linux-x64.tar.gz
 cd mystry-dashboard
 chmod +x mystryctl
 ./mystryctl start

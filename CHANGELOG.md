@@ -6,6 +6,8 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.2.0-preview.5] - 2026-11-21
+
 ### Added
 
 - "Open on other devices": a new "Other devices" button in the top bar (on the "Local" page at phone width) turns access from a phone or another computer on or off with one click inside the panel, without editing `.env` or restarting the panel. The dialog shows the URL and a QR code, which is generated locally in the browser.
@@ -52,6 +54,8 @@ This file records notable changes to the project. The format follows [Keep a Cha
 - The copy buttons also work when the panel is opened at `http://` plus a LAN address or virtual-network address (previously the browser provided no clipboard API in that case, so copying in the console and the multiplayer page failed or errored).
 - "Same network" on the "Multiplayer" page no longer treats the instance's own virtual LAN address (`10.126.x.1`) as a LAN address to send to friends.
 - Installing EasyTier on Windows now installs `Packet.dll` too. `easytier-core.exe` loads it as soon as it starts, and previously only core, cli and `wintun.dll` were installed, so on computers without Npcap the virtual LAN failed to start because the DLL could not be found (`0xC0000135`). Existing installs show as not installed yet; reinstall once (download or upload the official archive) under the virtual LAN on the "Multiplayer" page.
+- On a non-English Windows (such as Chinese), opening the virtual LAN without running the panel as administrator only said "The virtual LAN client stopped." It now says the virtual adapter needs an administrator, the same as on an English system.
+- The README screenshots were retaken from the current interface; the previous ones still showed the old card layout and accent colors.
 
 ## [0.2.0-preview.4] - 2026-11-16
 
