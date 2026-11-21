@@ -9,4 +9,4 @@ Third-party Actions are referenced by full commit SHA (not floating tags), to re
 | [actions/upload-artifact](https://github.com/actions/upload-artifact/releases/tag/v7.0.2) | v7.0.2 | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` | 2026-10-21 |
 | [actions/download-artifact](https://github.com/actions/download-artifact/releases/tag/v8.0.2) | v8.0.2 | `9000827ccba6bdab643e8b6fd33ac0654aef8333` | 2026-10-21 |
 
-The repository no longer uses Dependabot to check for Actions updates automatically (the private repository's Actions quota ran out and the config was removed). When an upgrade is needed, check the upstream release manually, review the changes, and write the new SHA into this table and the workflows.
+The repository does not use Dependabot to check for Actions updates automatically. When an upgrade is needed, check the upstream release manually, review the changes, and write the new SHA into this table and the workflows.

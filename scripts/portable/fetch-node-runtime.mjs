@@ -79,7 +79,6 @@ function assertEmptyOutput(outputDir) {
   if (entries.length > 0) throw new Error(`The runtime output directory is not empty: ${outputDir}`);
 }
 
-/** The Node version bundled in the portable package; local CI uses it too, so what is tested is the version users actually run. */
 export const nodeRuntimeVersion = runtimeConfig.nodeVersion;
 
 function resolveTarget(version, platform, arch) {
@@ -90,7 +89,6 @@ function resolveTarget(version, platform, arch) {
 
 /**
  * Downloads the official archive from nodejs.org into directory (which must be empty), and verifies it against the SHASUMS256.txt of the same version.
- * Portable package assembly and local CI share this download and verification logic.
  */
 export async function downloadVerifiedNodeArchive({
   version = runtimeConfig.nodeVersion,

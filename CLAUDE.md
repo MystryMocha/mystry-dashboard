@@ -96,20 +96,19 @@ npm.cmd run test:regression -w @mystry/server
 npm.cmd run test:smoke
 npm.cmd run knowledge:check
 npm.cmd run verify
-npm.cmd run ci:local
 ```
 
-Linux/macOS 使用相同脚本名，入口为 `npm run ...`。远程 CI 已关闭自动触发（D-032），`ci:local` 对当前提交做干净安装并跑 `verify`，只在 Windows 上运行，依次跑 Windows 与 WSL Linux，Node 固定为便携包内置版本（22.x），推送前运行。源码整合启动可用 `mdash.cmd` / `./mdash.sh`。
+Linux/macOS 使用相同脚本名，入口为 `npm run ...`。推送到 `main` 和每个 PR 都会由远程 Quality Gate 在 Linux 上跑 `verify`（D-032）。源码整合启动可用 `mdash.cmd` / `./mdash.sh`。
 
 ## 验证与交付
 
 按 [`verification.md`](docs/ai/verification.md) 选择与风险匹配的检查。提交前跑和改动相关的检查（如 web 类型检查、相关测试、改文档时的 `knowledge:check`），不必每次跑完整 `verify`；推送前运行：
 
 ```powershell
-npm.cmd run ci:local
+npm.cmd run verify
 ```
 
-它对当前提交做干净安装并跑完整 `verify`。最终报告里写明跑了哪些检查、没跑完整 `verify`。
+推送后远程 Quality Gate 会在 Linux 上再跑一遍。最终报告里写明跑了哪些检查、没跑完整 `verify`。
 
 若受限沙箱中的 Vite/esbuild 因父目录访问被拒绝而失败，应在获准的正常环境重跑，不得直接判定为代码错误。
 

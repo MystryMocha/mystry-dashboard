@@ -94,11 +94,11 @@ Output: `packages/shared/dist/`. Fields shared by the frontend and backend shoul
 - Quick check: `npm run knowledge:check`; negative tests for the checker: `npm run knowledge:test`.
 - The lockfile records only official URLs. When your local npm is configured with a mirror, run `npm run lockfile:fix` after installing a new dependency.
 - Full gate: `npm run verify`. When running directly from a Windows PowerShell terminal use `npm.cmd run verify`.
-- Local CI: `npm run ci:local` does a clean install of the current commit and runs `verify`; it runs only on Windows, covering Windows and then WSL Linux, with Node pinned to the version bundled in the portable package. The remote Quality Gate no longer runs automatically on pushes and PRs, so use this instead before pushing (see the [verification matrix](ai/verification.md)).
+- Remote CI: the Quality Gate (`.github/workflows/quality.yml`) runs `npm ci` and `npm run verify` on `ubuntu-latest` for every push to `main` and every pull request (see the [verification matrix](ai/verification.md)).
 
 ## Local Verification Checklist
 
-Before committing, run the checks related to your change; before pushing, run `npm.cmd run ci:local`, which runs the full `npm run verify` on a clean checkout. The full gate does not include the production dependency audit; dependency changes and releases also need `npm.cmd run audit:production`. Choose the manual items below by the scope of the change, and use separate test data; database drills use copies only. Passing automated checks is no substitute for verifying real interaction.
+Before committing, run the checks related to your change; before pushing, run the full `npm.cmd run verify`; the Quality Gate runs it again on your pull request. The full gate does not include the production dependency audit; dependency changes and releases also need `npm.cmd run audit:production`. Choose the manual items below by the scope of the change, and use separate test data; database drills use copies only. Passing automated checks is no substitute for verifying real interaction.
 
 - [ ] `npm run knowledge:check` and `npm run knowledge:test` report no errors
 - [ ] `npm run test:smoke` after `npm run build -w @mystry/shared` (already included in `verify`; it does not start Minecraft or use `data/` in the repository)

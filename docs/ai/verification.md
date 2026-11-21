@@ -24,7 +24,7 @@ npm.cmd run build
 npm.cmd run audit:production
 ```
 
-完整门禁（推送前由 `ci:local` 在干净检出上运行；提交前不必每次单独跑，只跑和改动相关的检查）：
+完整门禁（推送前运行，远程 Quality Gate 也会在推送和 PR 上运行；提交前不必每次单独跑，只跑和改动相关的检查）：
 
 ```powershell
 npm.cmd run verify
@@ -38,24 +38,9 @@ npm.cmd run test:regression -w @mystry/server
 
 Linux/macOS 使用相同脚本名，但命令入口为 `npm run ...`。
 
-## 本机 CI
+## 远程 CI
 
-远程 Quality Gate 已不随推送和 PR 自动运行（D-032）。推送前在本机运行：
-
-```powershell
-npm.cmd run ci:local
-```
-
-它对 HEAD 做干净检出，执行 `npm ci` 和 `npm run verify`，结束后删除临时目录。在 Windows 上依次跑两个平台：
-
-- **Windows**：系统临时目录里的 git worktree。
-- **Linux（WSL）**：在默认 WSL 发行版的 `/tmp` 里克隆仓库（不写进本仓库的 `.git`），接近原远程 CI 的 `ubuntu-latest`。
-
-两边的 Node 都固定为便携包内置的版本（`scripts/portable/runtime.json`，当前 22.23.1）：从 nodejs.org 下载官方发行包，按 `SHASUMS256.txt` 校验后缓存在仓库之外（Windows 在 `%LOCALAPPDATA%\mystry-dashboard\ci`，WSL 在 `~/.cache/mystry-dashboard/ci`）。Windows 一侧复用 `fetch-node-runtime.mjs` 的下载与校验；Linux 版由 WSL 自己用 `curl` 下载、`sha256sum` 校验，不经共享路径，因为从打包安装的应用里写到 `%LOCALAPPDATA%` 的文件会被重定向，WSL 看不到。不使用、也不改动本机已装的 Node。两个平台顺序执行，因为 WSL 镜像网络模式与 Windows 共用 localhost；某个平台失败也会继续跑下一个，最后分别列出结果。
-
-参数：`--ref <提交>` 检查别的提交，`--platform windows|linux` 只跑一个平台，`--keep` 保留临时目录排查失败。Linux 用 WSL 的默认发行版；没有 WSL 时 Linux 一项判为未通过，可用 `--platform windows` 只跑 Windows。脚本只在 Windows 上运行。
-
-只检查已提交的内容，工作树有未提交改动时会提示。子进程去掉 `MYSTRY_*`、`DATA_DIR`、密钥、`HOST`、`PORT`、`NODE_ENV`、`INIT_CWD` 和 npm 注入的小写 `npm_*`，并设 `CI=true`；代理变量经 `WSLENV` 带进 WSL。WSL 与 GitHub runner 的预装软件和内核不同，通过不等于发布工作流必然通过。
+`.github/workflows/quality.yml`（Quality Gate）在推送到 `main`、每个 PR 和手动触发时运行（D-032）：在 `ubuntu-latest` 上用 Node 22 执行 `npm ci` 和 `npm run verify`。它只覆盖 Linux；Windows 上的问题要靠本机 `verify` 或发布工作流 `portable-release.yml` 的 Windows 构建发现。
 
 ## 源码进程冒烟
 
@@ -72,7 +57,7 @@ npm.cmd run test:smoke
 
 | 变更 | 最低自动验证 | 额外人工验证 |
 |---|---|---|
-| 纯知识库或文档 | `knowledge:check`、`knowledge:test`；推送前 `ci:local` | 标题锚点、阅读路径和事实源可读 |
+| 纯知识库或文档 | `knowledge:check`、`knowledge:test`；推送前 `verify` | 标题锚点、阅读路径和事实源可读 |
 | npm 下载源或锁文件 | `lockfile:check`、`mirror:test`、`windows:test`、`linux:test` | 用小包实测所选下载源能完成 `npm ci` |
 | shared 类型/schema | shared build、typecheck、build | 请求与响应兼容 |
 | 服务端路由/认证 | typecheck、安全自检、`test:smoke`、build | health、setup/login、授权失败 |

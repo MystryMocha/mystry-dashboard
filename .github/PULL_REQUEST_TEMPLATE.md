@@ -15,7 +15,6 @@
 <!-- How did you verify these changes? -->
 
 - [ ] `npm run verify` passes
-- [ ] `npm run ci:local` passes (PRs are no longer checked automatically on the remote)
 - [ ] Related flows verified manually (please describe)
 
 <!-- State separately: implemented, verified, unverified, remaining risks or warnings -->

@@ -133,13 +133,11 @@
     "audit:production": "node scripts/check-production-audit.mjs",
     "test:interaction": "npm run test:interaction -w @mystry/web",
     "test:smoke": "node --test scripts/smoke/panel-smoke.test.mjs",
-    "verify": "npm run knowledge:check && npm run knowledge:test && npm run lockfile:check && npm run mirror:test && npm run ci:test && npm run portable:test && npm run windows:test && npm run linux:test && npm run build -w @mystry/shared && npm run typecheck && npm run test:interaction && npm run test:security -w @mystry/server && npm run test:smoke && npm run test:regression -w @mystry/server && npm run build && npm run test:static",
+    "verify": "npm run knowledge:check && npm run knowledge:test && npm run lockfile:check && npm run mirror:test && npm run portable:test && npm run windows:test && npm run linux:test && npm run build -w @mystry/shared && npm run typecheck && npm run test:interaction && npm run test:security -w @mystry/server && npm run test:smoke && npm run test:regression -w @mystry/server && npm run build && npm run test:static",
     "linux:test": "node --test scripts/linux/panel-manager.test.mjs",
     "lockfile:check": "node scripts/check-lockfile-registry.mjs",
     "lockfile:fix": "node scripts/check-lockfile-registry.mjs --fix",
-    "mirror:test": "node --test scripts/npm-mirror.test.mjs",
-    "ci:local": "node scripts/ci-local.mjs",
-    "ci:test": "node --test scripts/ci-local.test.mjs"
+    "mirror:test": "node --test scripts/npm-mirror.test.mjs"
   },
   "knowledgeDocuments": [
     "docs/ai/README.md",
@@ -187,7 +185,6 @@
     "scripts/portable/package-portable.mjs",
     "scripts/portable/smoke-portable.mjs",
     "scripts/smoke/panel-smoke.test.mjs",
-    "scripts/ci-local.mjs",
     ".github/workflows/portable-release.yml"
   ],
   "aiEntrypoints": {
@@ -258,22 +255,11 @@
       "path": ".github/workflows/quality.yml",
       "includes": [
         "workflow_dispatch:",
-        "npm run ci:local",
+        "pull_request:",
         "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
         "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1",
         "node-version: 22",
         "npm run verify"
-      ]
-    },
-    {
-      "path": "scripts/ci-local.mjs",
-      "includes": [
-        "'worktree', 'add', '--detach'",
-        "['run', 'verify']",
-        "MYSTRY_DATA_DIR",
-        "downloadVerifiedNodeArchive",
-        "nodeRuntimeVersion",
-        "git clone --quiet --no-checkout"
       ]
     },
     {
