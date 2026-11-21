@@ -69,7 +69,7 @@ function chooseFolder(files: File[]) {
   fireEvent.change(input, { target: { files } });
 }
 
-test('浏览器选不了文件夹时不显示「上传文件夹」，默认仍是 imports 交接区', async () => {
+test('"Upload Folder" is not shown when the browser cannot pick folders, and the default remains the imports handoff area', async () => {
   stubImportApis({});
   render(<MemoryRouter><ImportPage /></MemoryRouter>);
   const imports = await screen.findByRole('button', { name: '从 imports 文件夹复制' });
@@ -80,7 +80,7 @@ test('浏览器选不了文件夹时不显示「上传文件夹」，默认仍�
 
 const tabNames = () => within(screen.getByRole('group', { name: '导入方式' })).getAllByRole('button').map((button) => button.textContent);
 
-test('imports 里没有东西时只列上传文件夹和 ZIP，点链接后才出现「从 imports 文件夹复制」并一直保留', async () => {
+test('with nothing in imports only upload folder and ZIP are listed, and "Copy from the imports folder" appears and stays only after the link is clicked', async () => {
   enableFolderPicking();
   const user = userEvent.setup();
   stubImportApis({});
@@ -99,7 +99,7 @@ test('imports 里没有东西时只列上传文件夹和 ZIP，点链接后才�
   expect(screen.queryByRole('button', { name: '改为从 imports 文件夹复制' })).toBeNull();
 });
 
-test('imports 里已经放了服务端时直接列出「从 imports 文件夹复制」，不再显示链接', async () => {
+test('when imports already holds a server, "Copy from the imports folder" is listed directly and the link is no longer shown', async () => {
   enableFolderPicking();
   stubImportApis({
     'GET /api/import/sources': () => json({ sources: [{ id: 'old-paper', launchTarget: 'paper.jar', coreType: 'paper', modifiedAt: '2026-11-01T00:00:00.000Z', ready: true }] }),
@@ -111,7 +111,7 @@ test('imports 里已经放了服务端时直接列出「从 imports 文件夹复
   expect(screen.queryByRole('button', { name: '改为从 imports 文件夹复制' })).toBeNull();
 });
 
-test('选文件夹 → 分批上传并检查 → 带出核心和版本 → 确认导入', async () => {
+test('pick a folder → batched upload and check → core and version filled in → confirm import', async () => {
   enableFolderPicking();
   const user = userEvent.setup();
   const requests = stubImportApis({
@@ -160,7 +160,7 @@ test('选文件夹 → 分批上传并检查 → 带出核心和版本 → 确�
   expect(sessionStorage.getItem('mystry_folder_upload_id')).toBeNull();
 });
 
-test('上传中点「取消上传」会中止请求并删掉面板上的临时文件夹', async () => {
+test('clicking "Cancel Upload" while uploading aborts the request and deletes the temp folder on the panel', async () => {
   enableFolderPicking();
   const user = userEvent.setup();
   const requests = stubImportApis({
@@ -188,7 +188,7 @@ test('上传中点「取消上传」会中止请求并删掉面板上的临时�
   expect(screen.getByRole('button', { name: '上传并检查' })).toBeTruthy();
 });
 
-test('有文件读不出来时说出是哪个文件，并删掉这次上传', async () => {
+test('when a file cannot be read the file is named and this upload is deleted', async () => {
   enableFolderPicking();
   const user = userEvent.setup();
   const requests = stubImportApis({
@@ -213,7 +213,7 @@ test('有文件读不出来时说出是哪个文件，并删掉这次上传', as
   await waitFor(() => expect(requests.some((request) => request.method === 'DELETE')).toBe(true));
 });
 
-test('刷新页面后恢复已检查、待确认的文件夹', async () => {
+test('a checked folder awaiting confirmation is restored after a page refresh', async () => {
   enableFolderPicking();
   sessionStorage.setItem('mystry_folder_upload_id', 'up1');
   stubImportApis({ 'GET /api/import/folder-uploads/up1': () => json(readyUpload) });
@@ -222,7 +222,7 @@ test('刷新页面后恢复已检查、待确认的文件夹', async () => {
   expect(screen.getByRole('button', { name: '确认设置并导入' })).toBeTruthy();
 });
 
-test('没有启动文件的文件夹：显示原因，不出现导入设置，可以重新选择', async () => {
+test('a folder without a launch file: shows the reason, no import settings appear, and another can be chosen', async () => {
   enableFolderPicking();
   const user = userEvent.setup();
   sessionStorage.setItem('mystry_folder_upload_id', 'up1');
@@ -245,7 +245,7 @@ test('没有启动文件的文件夹：显示原因，不出现导入设置，�
   expect(sessionStorage.getItem('mystry_folder_upload_id')).toBeNull();
 });
 
-test('分批：按文件数和大小切，比上限还大的文件自己一批', () => {
+test('batching: split by file count and size, and a file larger than the limit gets a batch of its own', () => {
   const item = (size: number) => ({ file: { size } as File, relativePath: 'x' });
   expect(batchFolderFiles(Array.from({ length: 1001 }, () => item(1)), 500, 1000).map((batch) => batch.length)).toEqual([500, 500, 1]);
   expect(batchFolderFiles([item(300), item(800), item(5000), item(1)], 500, 1000).map((batch) => batch.length)).toEqual([1, 1, 1, 1]);
@@ -253,7 +253,7 @@ test('分批：按文件数和大小切，比上限还大的文件自己一批',
   expect(batchFolderFiles([item(300), item(600), item(50)], 500, 1000).map((batch) => batch.length)).toEqual([3]);
 });
 
-test('撞上面板请求频率限制时等一会儿重发同一批，不算失败', async () => {
+test('hitting the panel request rate limit waits a while and resends the same batch, without counting as a failure', async () => {
   vi.useFakeTimers();
   let attempts = 0;
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -284,7 +284,7 @@ function readableFile(name: string, content: string): File {
   return file;
 }
 
-test('请求体没发完面板就回 429、浏览器只报网络错误时，查到这批没被处理就重发', async () => {
+test('when the panel answers 429 before the request body is sent and the browser reports only a network error, the batch is resent once it is found to be unprocessed', async () => {
   vi.useFakeTimers();
   let attempts = 0;
   const statusChecks: string[] = [];
@@ -311,7 +311,7 @@ test('请求体没发完面板就回 429、浏览器只报网络错误时，查�
   expect(statusChecks).toHaveLength(1);
 });
 
-test('上传中途连接断开、面板上这次上传已作废时，提示上传中断并删掉这次上传', async () => {
+test('when the connection drops mid-upload and the upload is void on the panel, it reports the interruption and deletes this upload', async () => {
   enableFolderPicking();
   const user = userEvent.setup();
   const requests = stubImportApis({

@@ -95,7 +95,7 @@ async function waitFor(check: () => boolean, timeoutMs = 3000): Promise<void> {
   }
 }
 
-test('网卡分类先看网卡名再看地址，网址按局域网、公网、组网排序', async () => {
+test('interface classification looks at the interface name before the address, and URLs are ordered LAN, public, overlay', async () => {
   const { classifyNetworkInterface, listNetworkInterfaces, networkKindRank } = await import('./local-network-service.js');
   assert.equal(classifyNetworkInterface('FlClash', '198.18.0.1'), 'proxy');
   assert.equal(classifyNetworkInterface('Meta', '198.18.0.1'), 'proxy');
@@ -138,7 +138,7 @@ test('网卡分类先看网卡名再看地址，网址按局域网、公网、�
   assert.equal(new Set(order).size, order.length);
 });
 
-test('「只允许同一网段」的网段计算和来源判断', async () => {
+test('subnet calculation and source check for "same subnet only"', async () => {
   const { allowedRangeFor, isAllowedSource } = await import('./remote-access-service.js');
   const lan = allowedRangeFor({ address: '192.168.2.163', cidr: '192.168.2.163/24' });
   assert.equal(lan?.cidr, '192.168.2.0/24');
@@ -158,7 +158,7 @@ test('「只允许同一网段」的网段计算和来源判断', async () => {
   assert.equal(allowedRangeFor({ address: '10.8.0.2', cidr: null }), null);
 });
 
-test('公网地址校验：接受 IP 和域名，去掉协议头，拒绝端口和路径', async (t) => {
+test('public address validation: accepts IPs and domains, strips the scheme, rejects ports and paths', async (t) => {
   const { initDb, closeDb } = await import('../db.js');
   const { normalizePublicHost, getPublicHost, setPublicHost, hostForUrl } = await import('./public-host.js');
   const { PanelError } = await import('../utils/errors.js');
@@ -194,7 +194,7 @@ test('公网地址校验：接受 IP 和域名，去掉协议头，拒绝端口�
   assert.equal(hostForUrl('mc.example.com'), 'mc.example.com');
 });
 
-test('面板端口的防火墙规则：localip / remoteip 只在对应设置开启时出现，限定程序失败时退回', async (t) => {
+test('firewall rules for the panel port: localip / remoteip appear only when the matching setting is on, with a fallback when the program restriction fails', async (t) => {
   const { panelPortFirewallArgs, openPanelPortFirewall, openPanelNetworkFirewall, closePanelFirewall, setPanelFirewallForTests } =
     await import('./panel-firewall.js');
   t.after(() => setPanelFirewallForTests(null));
@@ -256,7 +256,7 @@ test('面板端口的防火墙规则：localip / remoteip 只在对应设置开�
   }
 });
 
-test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器接口隔离和关闭', async (t) => {
+test('extra listeners: toggling, HTTPS, plaintext redirect, source restriction, launcher endpoint isolation and shutdown', async (t) => {
   const { buildApp } = await import('../index.js');
   const { closeDb } = await import('../db.js');
   const remote = await import('./remote-access-service.js');
@@ -565,7 +565,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   assert.deepEqual(JSON.parse(cleared.body), { publicHost: null });
 });
 
-test('HOST 已是非回环地址时由配置文件决定，开关只读', async (t) => {
+test('when HOST is already a non-loopback address it is decided by the config file and the toggle is read-only', async (t) => {
   const { buildApp } = await import('../index.js');
   const { closeDb } = await import('../db.js');
   const remote = await import('./remote-access-service.js');
@@ -605,7 +605,7 @@ test('HOST 已是非回环地址时由配置文件决定，开关只读', async 
   assert.equal(netshCalls.length, 0);
 });
 
-test('面板自带网络：配置只放行组网专用端口，密钥不进命令行、日志和状态', async (t) => {
+test('built-in panel network: the config allows only the dedicated virtual-network port, and the secret does not go on the command line, into logs or the status', async (t) => {
   const { initDb, closeDb } = await import('../db.js');
   const network = await import('./panel-network.js');
   const { setPanelFirewallForTests } = await import('./panel-firewall.js');
@@ -829,7 +829,7 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   }
 });
 
-test('面板自带网络：经专用端口进来的请求按组网设备处理，不冒充本机', async (t) => {
+test('built-in panel network: requests arriving on the dedicated port are treated as virtual-network devices and do not pass as this machine', async (t) => {
   const { buildApp } = await import('../index.js');
   const { closeDb } = await import('../db.js');
   const remote = await import('./remote-access-service.js');
@@ -938,7 +938,7 @@ test('面板自带网络：经专用端口进来的请求按组网设备处理�
   await assert.rejects(request(`${via}/api/health`), /ECONNREFUSED/);
 });
 
-test('联机页本机网络：公网地址单独列出，server-ip 填成公网地址时给出专门标志', async (t) => {
+test('multiplayer page local network: public addresses are listed separately, with a dedicated flag when server-ip is set to the public address', async (t) => {
   const { describeLocalNetwork } = await import('./local-network-service.js');
   const { initDb, closeDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');

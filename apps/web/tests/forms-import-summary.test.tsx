@@ -70,7 +70,7 @@ const summaryValue = (label: string) => {
   return term.nextElementSibling!.textContent;
 };
 
-test('导入：没选好来源时只有来源区，不出现导入设置', async () => {
+test('import: before a source is chosen there is only the source area and no import settings', async () => {
   mountImport({ sources: [] });
   await screen.findByText(/imports 里还没有服务端/);
   expect(screen.queryByRole('heading', { name: '导入设置' })).toBeNull();
@@ -78,7 +78,7 @@ test('导入：没选好来源时只有来源区，不出现导入设置', async
   expect(screen.queryByLabelText('实例名称')).toBeNull();
 });
 
-test('导入：选好来源后摘要写出识别结果，「修改设置」默认收起；收起时提交的内容和识别结果一致', async () => {
+test('import: once a source is chosen the summary shows the detection result and "Edit Settings" is collapsed by default; what is submitted while collapsed matches the detection result', async () => {
   const user = userEvent.setup();
   const posted = mountImport({
     sources: [source('paper-server', 'paper', '1.21.1', { detectedJvmConfig: detected })],
@@ -110,7 +110,7 @@ test('导入：选好来源后摘要写出识别结果，「修改设置」默�
   });
 });
 
-test('导入：Java 版本不符时自动展开「修改设置」；用户收起后换来源会重新收起，新来源有问题再展开', async () => {
+test('import: "Edit Settings" expands automatically on a Java version mismatch; after the user collapses it, changing the source collapses it again and it expands again if the new source has a problem', async () => {
   const user = userEvent.setup();
   mountImport({
     // Forge 1.20.1 recommends Java 17 and there is only the system default Java 21: mismatch. Paper 1.21.1 recommends 21: just right.
@@ -140,7 +140,7 @@ test('导入：Java 版本不符时自动展开「修改设置」；用户收起
   await waitFor(() => expect(settingsDisclosure().open).toBe(true));
 });
 
-test('导入：没有可用的 Java 时摘要写明，并自动展开设置', async () => {
+test('import: with no usable Java the summary says so and the settings expand automatically', async () => {
   mountImport({
     sources: [source('unknown-version', 'custom', '')],
     defaultJava: { available: false },
@@ -151,7 +151,7 @@ test('导入：没有可用的 Java 时摘要写明，并自动展开设置', as
   await waitFor(() => expect(settingsDisclosure().open).toBe(true));
 });
 
-test('导入：Java 可用但不知道 Minecraft 版本时，摘要提醒无法确认，设置保持收起', async () => {
+test('import: when Java is usable but the Minecraft version is unknown, the summary notes it cannot be confirmed and the settings stay collapsed', async () => {
   mountImport({
     sources: [source('unknown-version', 'custom', '')],
     defaultJava: java8Default,
@@ -162,7 +162,7 @@ test('导入：Java 可用但不知道 Minecraft 版本时，摘要提醒无法�
   expect(settingsDisclosure().open).toBe(false);
 });
 
-test('Java 选择器：选了面板登记的 Java 时状态行说它，不说系统默认；选项只写主版本，同主版本有两个才带路径', async () => {
+test('Java picker: with a panel-registered Java selected the status line describes it, not the system default; options state only the major version, with the path added only when two share a major version', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).startsWith('/api/system/java-runtimes')) return json({ runtimes: [java21], installable: [] });
     if (url === '/api/system/java') return json(java8Default);
@@ -182,7 +182,7 @@ test('Java 选择器：选了面板登记的 Java 时状态行说它，不说系
   expect(select.title).toBe('');
 });
 
-test('Java 选择器：同一个主版本装了两个时选项带路径区分', async () => {
+test('Java picker: options include the path to tell them apart when two of the same major version are installed', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).startsWith('/api/system/java-runtimes')) return json({ runtimes: [java21, java21b], installable: [] });
     if (url === '/api/system/java') return json(java8Default);
@@ -198,7 +198,7 @@ test('Java 选择器：同一个主版本装了两个时选项带路径区分', 
   ]);
 });
 
-test('Java 选择器：安装中被卸载时告诉页面不再安装，页面的提交按钮不会一直灰着', async () => {
+test('Java picker: when unmounted mid-install it tells the page installing has stopped, so the page submit button does not stay grey forever', async () => {
   const user = userEvent.setup();
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
     if (url === '/api/system/java-runtimes/install' && init?.method === 'POST') {

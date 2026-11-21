@@ -63,7 +63,7 @@ function createZip(entries: readonly ZipTestEntry[]): Buffer {
   return Buffer.concat([...localEntries, ...centralEntries, endOfCentralDirectory]);
 }
 
-test('ZIP 单一外层目录在 staging marker 存在时仍应被扁平化并导入', async (t) => {
+test('a ZIP with a single outer directory should still be flattened and imported when the staging marker exists', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-import-service-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;
   t.after(async () => {
@@ -113,7 +113,7 @@ test('ZIP 单一外层目录在 staging marker 存在时仍应被扁平化并导
   assert.equal(fs.existsSync(zipPath), false);
 });
 
-test('ZIP 预览与解压保留条目读取、大小校验及取消边界', async (t) => {
+test('ZIP preview and extraction keep entry reading, size validation and cancel boundaries', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-zip-boundaries-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { inspectZipJvmConfig, safeExtract } = await import('./zip-service.js');
@@ -129,7 +129,7 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
   const centralOffset = (zip: Buffer) => zip.readUInt32LE(zip.length - 22 + 16);
 
   for (const compression of [0, 8] as const) {
-    await t.test(`压缩方式 ${compression} 正确跳过本地扩展字段并读取空文件`, async () => {
+    await t.test(`compression method ${compression} correctly skips the local extra field and reads an empty file`, async () => {
       const { zipPath, destDir } = fixture(createZip([
         { name: 'user_jvm_args.txt', contents: jvmArgs, compression, localExtra: Buffer.from([0xfe, 0xca, 0, 0]) },
         { name: 'empty.txt', contents: '', compression },
@@ -170,7 +170,7 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
     },
   ];
   for (const { name, mutate, preview: expectedPreview, extractKey } of corruptions) {
-    await t.test(`${name} 时预览返回诊断、解压清理半成品`, async () => {
+    await t.test(`on ${name} the preview returns a diagnostic and extraction cleans up the half-finished output`, async () => {
       const zip = createZip([{ name: 'user_jvm_args.txt', contents: jvmArgs }]);
       mutate(zip);
       const { zipPath, destDir } = fixture(zip);
@@ -184,7 +184,7 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
     });
   }
 
-  await t.test('JVM 预览对伪造的解压大小仍执行 64 KiB 流式限制', async () => {
+  await t.test('the JVM preview still enforces the 64 KiB streaming limit against a forged uncompressed size', async () => {
     const zip = createZip([{ name: 'user_jvm_args.txt', contents: 'x'.repeat(65_537), compression: 8 }]);
     zip.writeUInt32LE(1, centralOffset(zip) + 24);
     const { zipPath } = fixture(zip);
@@ -193,7 +193,7 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
     assert.equal(preview?.issues[0]?.message, renderPanelMessage({ key: 'server.files.zip.jvmArgsTooLarge' }));
   });
 
-  await t.test('开始前取消时保留超时原因并清理解压目录', async () => {
+  await t.test('a cancel before starting keeps the timeout reason and cleans up the extraction directory', async () => {
     const { zipPath, destDir } = fixture(createZip([{ name: 'server.jar', contents: 'jar' }]));
     const controller = new AbortController();
     controller.abort(new PanelError('server.tasks.timeout'));
@@ -202,7 +202,7 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
     assert.equal(fs.existsSync(zipPath), true);
   });
 
-  await t.test('读取途中取消时关闭流并删除已写入的半成品', async (t) => {
+  await t.test('a cancel while reading closes the stream and deletes the half-finished output already written', async (t) => {
     const { zipPath, destDir } = fixture(createZip([{ name: 'server.jar', contents: 'x'.repeat(256 * 1024) }]));
     const controller = new AbortController();
     const createReadStream = fs.createReadStream;
@@ -219,7 +219,7 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
   });
 });
 
-test('ZIP 外层目录内的伪造 staging marker 应被拒绝', async (t) => {
+test('a forged staging marker inside the ZIP outer directory should be rejected', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-import-service-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;
   t.after(async () => {

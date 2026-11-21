@@ -202,7 +202,7 @@ function assertUnauthorized(result, label) {
   );
 }
 
-test('隔离数据目录启动面板并拒绝未登录访问', { timeout: 90_000 }, async (t) => {
+test('starts the panel with an isolated data directory and rejects unauthenticated access', { timeout: 90_000 }, async (t) => {
   const sharedEntry = path.join(repoRoot, 'packages', 'shared', 'dist', 'index.js');
   try {
     await fs.access(sharedEntry);
@@ -340,7 +340,7 @@ test('隔离数据目录启动面板并拒绝未登录访问', { timeout: 90_000
 
 // When Ctrl+C is pressed in a terminal the panel receives SIGINT twice (once for the process group, once forwarded by the foreground controller).
 // On Windows kill('SIGINT') is a forced termination and cannot simulate a console Ctrl+C, so this is verified only on POSIX.
-test('关闭过程中重复收到 SIGINT 仍完成安全关闭并释放数据目录锁', {
+test('a repeated SIGINT during shutdown still completes the safe shutdown and releases the data directory lock', {
   timeout: 90_000,
   skip: process.platform === 'win32' ? 'Windows 无法用 kill 模拟控制台 Ctrl+C' : false,
 }, async (t) => {
@@ -431,7 +431,7 @@ test('关闭过程中重复收到 SIGINT 仍完成安全关闭并释放数据目
 
 // With a browser tab open, leftover connections may never close, and app.close() would wait forever with the lock never released.
 // A connection whose request body is never fully sent simulates it: after the grace period the panel should force the connection closed and complete the safe shutdown.
-test('关闭时残留连接一直不断开也能在宽限期后释放数据目录锁', { timeout: 90_000 }, async (t) => {
+test('a leftover connection that never closes at shutdown still lets the data directory lock be released after the grace period', { timeout: 90_000 }, async (t) => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-panel-linger-'));
   let child = null;
   let pending = null;

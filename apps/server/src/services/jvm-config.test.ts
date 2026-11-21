@@ -16,7 +16,7 @@ import {
   validateJvmArgs,
 } from '@mystry/shared';
 
-test('JVM 参数解析保留引号、Windows 路径和 UNC 路径', () => {
+test('JVM argument parsing keeps quotes, Windows paths and UNC paths', () => {
   const parsed = parseJvmArgs(
     String.raw`-Xms1G -Xmx2G "-Dpath=C:\Program Files\Java" '-Dunc=\\server\share folder'`,
   );
@@ -36,7 +36,7 @@ test('JVM 参数解析保留引号、Windows 路径和 UNC 路径', () => {
   );
 });
 
-test('user_jvm_args.txt 忽略空行和注释并可规范化', () => {
+test('user_jvm_args.txt ignores blank lines and comments and can be normalized', () => {
   const raw = [
     '# Forge 生成的说明',
     '',
@@ -57,7 +57,7 @@ test('user_jvm_args.txt 忽略空行和注释并可规范化', () => {
   assert.equal(detected.issues.length, 0);
 });
 
-test('推荐内存按四分之一、512 MiB、系统保留和上下限计算', () => {
+test('recommended memory is computed from a quarter, 512 MiB, the system reserve and the lower and upper bounds', () => {
   assert.equal(recommendedMaxMemoryMiB(null), 2048);
   assert.equal(recommendedMaxMemoryMiB(32 * 1024), 8192);
   assert.equal(recommendedMaxMemoryMiB(8 * 1024), 2048);
@@ -71,7 +71,7 @@ test('推荐内存按四分之一、512 MiB、系统保留和上下限计算', (
   assert.equal(automaticInitialMemoryMiB('paper-aikar', 8192), 8192);
 });
 
-test('三个 JVM 预设可生成并反向识别', () => {
+test('the three JVM presets can be generated and recognized in reverse', () => {
   assert.deepEqual(JVM_PRESETS.map((preset) => preset.id), [
     'compatibility',
     'g1-balanced',
@@ -89,7 +89,7 @@ test('三个 JVM 预设可生成并反向识别', () => {
   assert.equal(validateJvmArgs(paper, { coreType: 'paper', javaMajor: 25 }).length, 0);
 });
 
-test('冲突内存、GC 和面板负责的启动参数会阻止保存', () => {
+test('conflicting memory, GC and launch arguments owned by the panel block saving', () => {
   const issues = validateJvmArgs(
     '-Xms4G -Xms2G -Xmx1G -XX:+UseG1GC -XX:+UseG1GC -jar server.jar nogui @args.txt',
   );
@@ -113,7 +113,7 @@ test('冲突内存、GC 和面板负责的启动参数会阻止保存', () => {
   assert.equal(validateJvmArgs(advancedMemory).some((item) => item.code === 'XMX_COUNT'), true);
 });
 
-test('预设限制与旧参数错误均保留为结构化诊断', () => {
+test('preset restrictions and legacy argument errors are both kept as structured diagnostics', () => {
   const paper = buildJvmArgs({ xmsMiB: 4096, xmxMiB: 4096, presetId: 'paper-aikar' });
   const mismatch = validateJvmArgs(paper, { coreType: 'forge', javaMajor: 22 });
   assert.equal(mismatch.some((item) => item.code === 'PRESET_CORE_MISMATCH'), true);
@@ -138,7 +138,7 @@ test('预设限制与旧参数错误均保留为结构化诊断', () => {
   }
 });
 
-test('服务端在实例保存和任务入队前拒绝非法参数', async (t) => {
+test('the server rejects invalid arguments before saving an instance and before queuing a task', async (t) => {
   const fs = await import('node:fs');
   const os = await import('node:os');
   const path = await import('node:path');
@@ -188,7 +188,7 @@ test('服务端在实例保存和任务入队前拒绝非法参数', async (t) =
   assert.deepEqual(getTaskActivity(), activityBefore);
 });
 
-test('recommendedJavaMajor 按 MC 版本推荐 Java，年份版本号 26.x 需要 Java 25', () => {
+test('recommendedJavaMajor recommends Java by MC version, and year-based versions 26.x need Java 25', () => {
   // Year-based version numbers (from 26.1)
   assert.equal(recommendedJavaMajor('26.1'), 25);
   assert.equal(recommendedJavaMajor('26.1.2'), 25);

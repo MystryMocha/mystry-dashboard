@@ -27,7 +27,7 @@ const javaDefault = { available: true, version: '21.0.4', majorVersion: 21 };
 /** Text of the selected option; when the value is not among the options the browser selects the first item, and what needs checking here is the item actually displayed. */
 const shownOption = (select: HTMLSelectElement) => select.options[select.selectedIndex]?.textContent ?? '';
 
-test('Java 选择器：选中的 Java 不在列表里时照样显示它，读取中、没读到、确实没有三种说法不同', async () => {
+test('Java picker: a selected Java not in the list is still displayed, with different wording for loading, failed to read and really missing', async () => {
   const user = userEvent.setup();
   let respond: (() => void) | null = null;
   let fail = false;
@@ -57,7 +57,7 @@ test('Java 选择器：选中的 Java 不在列表里时照样显示它，读取
   expect(shownOption(select)).toBe('已不可用的 Java');
 });
 
-test('Java 选择器：列表一次都没读到时，选中的 Java 显示为「已选的 Java」，不说已不可用', async () => {
+test('Java picker: when the list has never been read, the selected Java shows as "the selected Java", not as no longer available', async () => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).startsWith('/api/system/java-runtimes')) return json({ error: '测试读取失败' }, 500);
     if (url === '/api/system/java') return json(javaDefault);
@@ -98,7 +98,7 @@ function mountSettings(instance: Record<string, unknown>) {
   return patches;
 }
 
-test('实例设置：Java 已失效时下拉框不显示成「系统默认」；只改名称时只提交名称，不被失效的 Java 拦住', async () => {
+test('instance settings: an invalid Java is not displayed as "System default" in the dropdown; changing only the name submits only the name and is not blocked by the invalid Java', async () => {
   const user = userEvent.setup();
   const patches = mountSettings({ javaRuntimeId: 'rt-gone' });
 
@@ -121,7 +121,7 @@ function remoteStatus(interfaces: RemoteAccessStatus['interfaces']): RemoteAcces
   };
 }
 
-test('组网网卡：打开时还没有网卡、之后才出现，下拉框写「选择网卡」而不是显示成第一块网卡', async () => {
+test('overlay interface: with no interface at open and one appearing later, the dropdown says "Choose an interface" instead of displaying the first interface', async () => {
   const user = userEvent.setup();
   const { rerender } = render(<RemoteAccessMode mode="overlay" status={remoteStatus([])} onStatus={() => {}} />);
   const select = screen.getByRole('combobox', { name: '网卡' }) as HTMLSelectElement;
@@ -168,7 +168,7 @@ function DetectedHost({ detected }: { detected: DetectedJvmConfig }) {
   );
 }
 
-test('JVM：检测到配置文件时只有一行说明加「取消」，取消后能「重新应用」；文件用不了时说明原因、不给按钮', async () => {
+test('JVM: a detected config file shows just one line plus "Cancel", and "Reapply" is available after cancelling; when the file is unusable the reason is given without buttons', async () => {
   const user = userEvent.setup();
   vi.stubGlobal('fetch', vi.fn(async () => json([])));
   render(<DetectedHost detected={detectedWithExtra} />);
@@ -194,7 +194,7 @@ test('JVM：检测到配置文件时只有一行说明加「取消」，取消�
   expect(screen.queryByRole('button', { name: /取消|重新应用/ })).toBeNull();
 });
 
-test('导入：检测到配置文件就自动沿用，可取消、可重新应用；换到别的文件夹后不再沿用，自己填的参数换来源后保留', async () => {
+test('import: a detected config file is adopted automatically and can be cancelled and reapplied; it is no longer adopted after switching folders, and arguments the user entered are kept across sources', async () => {
   const user = userEvent.setup();
   const source = (id: string, detected?: DetectedJvmConfig) => ({
     id, launchTarget: 'server.jar', coreType: 'forge', mcVersion: '1.20.1', modifiedAt: '2026-11-01T00:00:00.000Z', ready: true,
@@ -246,7 +246,7 @@ test('导入：检测到配置文件就自动沿用，可取消、可重新应�
   expect(maxMemory()).toBe('3');
 });
 
-test('实例设置：Forge / NeoForge 实例显示参数文件路径（只读），不显示内部标记；改名保存时不提交它', async () => {
+test('instance settings: Forge / NeoForge instances show the args file path (read-only) without the internal marker, and it is not submitted when saving a rename', async () => {
   const user = userEvent.setup();
   const argsPath = 'libraries/net/minecraftforge/forge/1.20.1-47.2.0/win_args.txt';
   const patches = mountSettings({ coreType: 'forge', jarFile: `@args:${argsPath}` });
@@ -265,7 +265,7 @@ test('实例设置：Forge / NeoForge 实例显示参数文件路径（只读）
   expect(patches[0]).toEqual({ name: '测试服2' });
 });
 
-test('实例设置：模组加载器还没装好的实例不显示「@modloader」', async () => {
+test('instance settings: an instance whose mod loader is not installed yet does not show "@modloader"', async () => {
   mountSettings({ coreType: 'neoforge', jarFile: '@modloader' });
   const launch = await screen.findByRole('textbox', { name: '启动文件' }) as HTMLInputElement;
   expect(launch.readOnly).toBe(true);
@@ -276,7 +276,7 @@ test('实例设置：模组加载器还没装好的实例不显示「@modloader�
   expect(screen.getByText(/还没有安装完成/)).toBeTruthy();
 });
 
-test('导入：Forge 文件夹的启动目标是参数文件时，来源列表只写核心和版本，不显示 @args: 标记和参数文件路径', async () => {
+test('import: when the launch target of a Forge folder is an args file, the source list shows only the core and version, not the @args: marker or the args file path', async () => {
   const argsPath = 'libraries/net/minecraftforge/forge/1.20.1-47.2.0/win_args.txt';
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).includes('/import/sources')) {

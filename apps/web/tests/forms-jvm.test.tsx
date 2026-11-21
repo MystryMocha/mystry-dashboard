@@ -55,7 +55,7 @@ async function open(initial: string) {
 
 const tierNames = (tiers: HTMLElement | null) => (tiers ? within(tiers).getAllByRole('button').map((button) => button.textContent) : []);
 
-test('内存：按 GB 填，发出的仍是 MiB 的 jvmArgs，小数也能填', async () => {
+test('memory: entered in GB, the emitted jvmArgs are still in MiB, and decimals are allowed', async () => {
   const user = userEvent.setup();
   const { max } = await open('-Xms1024M -Xmx2048M');
   // Neither memory box is type="number" anymore.
@@ -83,7 +83,7 @@ test('内存：按 GB 填，发出的仍是 MiB 的 jvmArgs，小数也能填', 
   expect(validity.at(-1)).toBe(true);
 });
 
-test('内存：能删空，不弹回原数字；失焦后才说原因，这期间不外发非法值', async () => {
+test('memory: can be cleared without snapping back to the original number; the reason shows only after blur, and no invalid value is emitted meanwhile', async () => {
   const user = userEvent.setup();
   const { max } = await open('-Xms1024M -Xmx4096M');
   expect(max.value).toBe('4');
@@ -119,7 +119,7 @@ test('内存：能删空，不弹回原数字；失焦后才说原因，这期�
   expect(validity.at(-1)).toBe(true);
 });
 
-test('内存：不是整数 GB 的旧值显示两位小数，不动它就原样保留', async () => {
+test('memory: an old value that is not a whole GB shows two decimals and is kept as is when untouched', async () => {
   const user = userEvent.setup();
   const { max } = await open('-Xms1024M -Xmx2500M');
   expect(max.value).toBe('2.44');
@@ -144,7 +144,7 @@ test('内存：不是整数 GB 的旧值显示两位小数，不动它就原样�
   expect(emitted.some((value) => value.includes('-Xmx2499M'))).toBe(false);
 });
 
-test('内存：框里的上下箭头和 ↑ ↓ 键按 1 GB 加减，走到相邻的整数 GB，不低于 0.5 GB', async () => {
+test('memory: the arrows in the box and the ↑ ↓ keys step by 1 GB to the adjacent whole GB, not below 0.5 GB', async () => {
   const user = userEvent.setup();
   const { max } = await open('-Xms1024M -Xmx2500M');
   const up = screen.getByRole('button', { name: '最大内存加 1 GB' });
@@ -190,7 +190,7 @@ test('内存：框里的上下箭头和 ↑ ↓ 键按 1 GB 加减，走到相�
   expect(validity.at(-1)).toBe(true);
 });
 
-test('内存：旧值离整数 GB 只差几 MiB（4100M 显示 4）时，箭头照样能加减', async () => {
+test('memory: the arrows still step when an old value is only a few MiB off a whole GB (4100M shows 4)', async () => {
   const user = userEvent.setup();
   const { max } = await open('-Xms1024M -Xmx4100M');
   expect(max.value).toBe('4');
@@ -205,7 +205,7 @@ test('内存：旧值离整数 GB 只差几 MiB（4100M 显示 4）时，箭头�
   expect(emitted.at(-1)).toBe('-Xms1024M -Xmx5120M');
 });
 
-test('初始内存：箭头加减算手动设置；Paper Aikar 锁定时箭头也点不了', async () => {
+test('initial memory: stepping with the arrows counts as setting it manually; the arrows cannot be clicked either while locked by Paper Aikar', async () => {
   const user = userEvent.setup();
   const { initial } = await open('-Xms1024M -Xmx8192M');
   await user.click(screen.getByRole('button', { name: '初始内存加 1 GB' }));
@@ -225,7 +225,7 @@ test('初始内存：箭头加减算手动设置；Paper Aikar 锁定时箭头�
   expect(emitted.at(-1)).toMatch(/^-Xms8192M -Xmx8192M /);
 });
 
-test('内存：最大内存只给 8 / 10 / 12 GB 三档，点档位直接填入', async () => {
+test('memory: max memory offers only the three presets 8 / 10 / 12 GB, and clicking a preset fills it in directly', async () => {
   const user = userEvent.setup();
   const { max, tiers } = await open('-Xms1024M -Xmx2048M');
   expect(tierNames(tiers)).toEqual(['8 GB', '10 GB', '12 GB']);
@@ -253,7 +253,7 @@ test('内存：最大内存只给 8 / 10 / 12 GB 三档，点档位直接填入'
   expect(validity.at(-1)).toBe(true);
 });
 
-test('内存：档位按主机内存过滤；读不到主机内存时三档都给', async () => {
+test('memory: presets are filtered by host memory; all three are offered when host memory cannot be read', async () => {
   const initialTiers = () => tierNames(screen.queryByRole('group', { name: '常用初始内存' }));
   totalMemMb = 8192;
   const small = await open('-Xms1024M -Xmx2048M');
@@ -274,7 +274,7 @@ test('内存：档位按主机内存过滤；读不到主机内存时三档都�
   expect(initialTiers()).toEqual(['2 GB', '4 GB', '6 GB']);
 });
 
-test('初始内存：下面有 2 / 4 / 6 GB 三档，点了算手动设置，之后改最大内存不跟着变', async () => {
+test('initial memory: the three presets 2 / 4 / 6 GB below count as setting it manually when clicked, and it no longer follows max memory afterwards', async () => {
   const user = userEvent.setup();
   const { initial } = await open('-Xms1024M -Xmx8192M');
   const initialGroup = screen.getByRole('group', { name: '常用初始内存' });
@@ -299,7 +299,7 @@ test('初始内存：下面有 2 / 4 / 6 GB 三档，点了算手动设置，之
   expect(validity.at(-1)).toBe(false);
 });
 
-test('初始内存：在基础区直接填，没改过时跟着最大内存走，改过就不再跟', async () => {
+test('initial memory: entered directly in the basic area, it follows max memory while untouched and stops following once changed', async () => {
   const user = userEvent.setup();
   const { max, initial } = await open('-Xms1024M -Xmx4096M');
   expect(initial.type).toBe('text');
@@ -330,7 +330,7 @@ test('初始内存：在基础区直接填，没改过时跟着最大内存走�
   expect(initial.value).toBe('2');
 });
 
-test('G1 均衡：切过去时初始内存自动等于最大内存，之后跟着最大内存走；切回兼容优先变回 1 GB', async () => {
+test('G1 Balanced: switching to it makes initial memory equal max memory automatically and follow it afterwards; switching back to Compatibility First returns to 1 GB', async () => {
   const user = userEvent.setup();
   const { max, initial } = await open('-Xms1024M -Xmx4096M');
   // Even after initial memory was changed manually, switching to G1 still sets it equal to max memory.
@@ -362,7 +362,7 @@ test('G1 均衡：切过去时初始内存自动等于最大内存，之后跟�
   expect(max.value).toBe('12');
 });
 
-test('Paper Aikar：初始内存锁定成和最大内存相同，并说明原因', async () => {
+test('Paper Aikar: initial memory is locked to equal max memory, with the reason explained', async () => {
   const user = userEvent.setup();
   const { initial } = await open('-Xms1024M -Xmx6144M');
   await user.selectOptions(screen.getByLabelText('优化方案'), 'paper-aikar');
@@ -378,7 +378,7 @@ test('Paper Aikar：初始内存锁定成和最大内存相同，并说明原因
     .toContain('Paper Aikar 要求和最大内存相同。');
 });
 
-test('已保存的 G1 实例初始内存和最大内存不同：打开时原样显示、不外发，改最大内存时也不动初始内存', async () => {
+test('a saved G1 instance with different initial and max memory: shown as is on open without emitting, and changing max memory does not touch initial memory', async () => {
   const user = userEvent.setup();
   const saved = '-Xms1024M -Xmx4096M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200';
   const { max, initial } = await open(saved);

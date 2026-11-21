@@ -34,7 +34,7 @@ function Sample() {
   );
 }
 
-test('字段：错误在失焦后才显示，改对了马上消失，并和输入框关联', async () => {
+test('field: the error shows only after blur, disappears once fixed, and is associated with the input', async () => {
   const user = userEvent.setup();
   render(<Sample />);
   const input = screen.getByLabelText('名称');
@@ -58,7 +58,7 @@ test('字段：错误在失焦后才显示，改对了马上消失，并和输�
   expect(input.getAttribute('aria-invalid')).toBeNull();
 });
 
-test('字段：要求全部显示时跳到第一个出错的字段，重置后回到没碰过', async () => {
+test('field: when asked to show everything it jumps to the first failing field, and returns to untouched after a reset', async () => {
   const user = userEvent.setup();
   render(<Sample />);
   const input = screen.getByLabelText('名称');
@@ -79,7 +79,7 @@ test('字段：要求全部显示时跳到第一个出错的字段，重置后�
   expect(screen.queryByText('至少 3 个字符')).toBeNull();
 });
 
-test('数字文本：整理全角、千分位和多余字符，保留没输完的中间状态', () => {
+test('number text: tidies full-width characters, thousands separators and stray characters, keeping unfinished intermediate states', () => {
   expect(cleanNumberText(' 1,024 ')).toBe('1024');
   expect(cleanNumberText('１２３４')).toBe('1234');
   expect(cleanNumberText('12e3+')).toBe('123');
@@ -93,7 +93,7 @@ test('数字文本：整理全角、千分位和多余字符，保留没输完�
   expect(cleanNumberText('')).toBe('');
 });
 
-test('数字框：是带数字键盘的文本框，能删空，传进来的脏值原样显示', async () => {
+test('number box: a text box with a numeric keyboard that can be cleared, and a dirty value passed in is shown as is', async () => {
   const user = userEvent.setup();
   const seen: string[] = [];
   function Host({ initial }: { initial: string }) {
@@ -122,7 +122,7 @@ test('数字框：是带数字键盘的文本框，能删空，传进来的脏�
   expect(input.value).toBe('12288');
 });
 
-test('密码框：默认隐藏，点按钮显示和隐藏，禁用时按钮也不可点', async () => {
+test('password box: hidden by default, the button shows and hides it, and the button is disabled too when the box is disabled', async () => {
   const user = userEvent.setup();
   const view = render(<label>密码<PasswordInput defaultValue="secret-value" /></label>);
   const input = view.container.querySelector('input')!;
@@ -139,7 +139,7 @@ test('密码框：默认隐藏，点按钮显示和隐藏，禁用时按钮也�
   expect((screen.getByRole('button', { name: '显示密码' }) as HTMLButtonElement).disabled).toBe(true);
 });
 
-test('改密码：只输一遍新密码，太短时失焦后说明原因，按 Enter 会跳回去', async () => {
+test('change password: the new password is entered only once, a too-short one is explained after blur, and Enter jumps back to it', async () => {
   const user = userEvent.setup();
   render(<ChangePasswordDialog onClose={() => {}} />);
   expect(screen.queryByLabelText('确认新密码')).toBeNull();

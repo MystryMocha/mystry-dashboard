@@ -18,7 +18,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
   return dataRoot;
 }
 
-test('第二个面板进程不得在进入 initDb 前写入数据库', async (t) => {
+test('a second panel process must not write to the database before entering initDb', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   const { acquirePanelDataLock } = await import('./data-lock-service.js');
   const first = acquirePanelDataLock(dataRoot);
@@ -32,7 +32,7 @@ test('第二个面板进程不得在进入 initDb 前写入数据库', async (t)
   second.release();
 });
 
-test('锁目录应为 0700、owner.json 应为 0600', { skip: process.platform === 'win32' }, async (t) => {
+test('the lock directory should be 0700 and owner.json 0600', { skip: process.platform === 'win32' }, async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   const { acquirePanelDataLock } = await import('./data-lock-service.js');
   const lock = acquirePanelDataLock(dataRoot);
@@ -42,7 +42,7 @@ test('锁目录应为 0700、owner.json 应为 0600', { skip: process.platform =
   assert.equal(fs.statSync(path.join(lockDir, 'owner.json')).mode & 0o777, 0o600);
 });
 
-test('陈旧锁仅在原 PID 不存在时可 quarantine 并接管', async (t) => {
+test('a stale lock can be quarantined and taken over only when the original PID no longer exists', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   const lockDir = path.join(dataRoot, '.mystry-panel-lock');
   fs.mkdirSync(lockDir, { recursive: true });

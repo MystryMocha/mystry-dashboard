@@ -32,7 +32,7 @@ function fakeChild(): EventEmitter & {
   return child;
 }
 
-test('frp 只转发游戏端口，且令牌不进入配置正文或子进程环境', async (t) => {
+test('frp forwards only the game port, and the token does not go into the config body or the child process environment', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-frp-'));
   process.env.MYSTRY_HOME = dataRoot;
   process.env.MYSTRY_DATA_DIR = dataRoot;

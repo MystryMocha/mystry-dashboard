@@ -55,7 +55,7 @@ function mockFetch(t: TestContext, routes: Record<string, () => Response | Promi
   return calls;
 }
 
-test('校验值未知时只保留官方地址，第三方镜像不会被使用', async () => {
+test('only the official URL is kept when the checksum is unknown, and third-party mirrors are not used', async () => {
   const { createDownloadPlan } = await import('./download-sources.js');
   const official = { label: 'Mojang', url: 'https://official.invalid/a.jar', mirror: false };
   const mirror = { label: 'BMCLAPI', url: 'https://mirror.invalid/a.jar', mirror: true };
@@ -64,7 +64,7 @@ test('校验值未知时只保留官方地址，第三方镜像不会被使用',
   assert.deepEqual(createDownloadPlan([mirror, official], expected).candidates, [mirror, official]);
 });
 
-test('镜像地址映射只认已知的官方仓库', async () => {
+test('mirror URL mapping recognizes only known official repositories', async () => {
   const { mavenMirrorUrl, mojangMirrorUrl } = await import('./download-sources.js');
   assert.equal(
     mavenMirrorUrl('https://libraries.minecraft.net/com/mojang/logging/1.1.1/logging-1.1.1.jar'),
@@ -83,7 +83,7 @@ test('镜像地址映射只认已知的官方仓库', async () => {
   assert.equal(mojangMirrorUrl('not a url'), null);
 });
 
-test('官方来源下 GitHub 文件只走 github.com，国内来源最后回到 github.com', async () => {
+test('under the official source GitHub files use only github.com, and the China source falls back to github.com last', async () => {
   const { githubReleaseCandidates } = await import('./download-sources.js');
   const official = githubReleaseCandidates('official', 'fatedier/frp', 'v1', 'a.zip');
   assert.deepEqual(official.map((c) => c.url), ['https://github.com/fatedier/frp/releases/download/v1/a.zip']);
@@ -96,7 +96,7 @@ test('官方来源下 GitHub 文件只走 github.com，国内来源最后回到 
   assert.ok(!lan.some((c) => c.label === 'NJU Mirror'), '南京大学镜像没有 EasyTier');
 });
 
-test('官方来源的 Forge 列表不访问 BMCLAPI，并能拼出旧版本的下载地址', async (t) => {
+test('the Forge list under the official source does not access BMCLAPI and can build download URLs for old versions', async (t) => {
   const { forgeInstallerUrl, listCoreVersions, listForgeLoaders } = await import('./core-metadata.js');
   const calls = mockFetch(t, {
     'https://files.minecraftforge.net/net/minecraftforge/forge/maven-metadata.json': () => Response.json({
@@ -115,7 +115,7 @@ test('官方来源的 Forge 列表不访问 BMCLAPI，并能拼出旧版本的�
   assert.ok(calls.every((url) => !url.includes('bmclapi')));
 });
 
-test('国内来源的 Forge 列表按构建号排序，带分支后缀的版本与官方写法一致', async (t) => {
+test('the Forge list under the China source is sorted by build number, and versions with a branch suffix match the official form', async (t) => {
   const { listForgeLoaders } = await import('./core-metadata.js');
   mockFetch(t, {
     'https://bmclapi2.bangbang93.com/forge/minecraft/1.20.1': () => Response.json([
@@ -131,7 +131,7 @@ test('国内来源的 Forge 列表按构建号排序，带分支后缀的版本�
   assert.deepEqual(await listForgeLoaders('1.7.10', undefined, 'china'), ['10.13.4.1614-1.7.10']);
 });
 
-test('国内来源的 NeoForge 列表过滤掉官方坐标之外的版本，空结果回到官方', async (t) => {
+test('the NeoForge list under the China source filters out versions outside the official coordinate, and an empty result falls back to official', async (t) => {
   const { listNeoForgeLoaders } = await import('./core-metadata.js');
   const calls = mockFetch(t, {
     'https://bmclapi2.bangbang93.com/neoforge/list/1.20.1': () => Response.json([{ version: '47.1.5' }]),
@@ -147,7 +147,7 @@ test('国内来源的 NeoForge 列表过滤掉官方坐标之外的版本，空�
   assert.ok(calls.some((url) => url.includes('maven.neoforged.net')));
 });
 
-test('NeoForge 版本号按段数区分新旧规则，映射到真实的 Minecraft 版本', async () => {
+test('NeoForge version numbers follow old or new rules by segment count and map to the real Minecraft version', async () => {
   const { neoForgeVersionToMc } = await import('./core-metadata.js');
   const cases: Array<[string, string]> = [
     ['20.2.3-beta', '1.20.2'],
@@ -174,7 +174,7 @@ test('NeoForge 版本号按段数区分新旧规则，映射到真实的 Minecra
   }
 });
 
-test('两种来源的 NeoForge 列表都显示真实版本号，只列正式版', async (t) => {
+test('the NeoForge lists of both sources show real version numbers and list only releases', async (t) => {
   const { listCoreVersions } = await import('./core-metadata.js');
   const versions = [
     '26.1.0.0-alpha.1+snapshot-1',
@@ -200,7 +200,7 @@ test('两种来源的 NeoForge 列表都显示真实版本号，只列正式版'
   assert.ok(calls.some((url) => url.includes('bmclapi2')));
 });
 
-test('两种来源的 NeoForge 构建列表按真实版本号匹配，快照构建不混入正式版', async (t) => {
+test('the NeoForge build lists of both sources match by real version number, and snapshot builds are not mixed into releases', async (t) => {
   const { listNeoForgeLoaders } = await import('./core-metadata.js');
   const metadata = [
     '26.1.0.0-alpha.1+snapshot-1',
@@ -250,7 +250,7 @@ test('两种来源的 NeoForge 构建列表按真实版本号匹配，快照构�
   assert.deepEqual(await listNeoForgeLoaders('1.26.3', undefined, 'official'), []);
 });
 
-test('NeoForge 构建按数字排序，BMCLAPI 乱序时默认项仍是最新构建', async (t) => {
+test('NeoForge builds are sorted numerically, and the default item is still the latest build when BMCLAPI is out of order', async (t) => {
   const { listNeoForgeLoaders } = await import('./core-metadata.js');
   // Taken from BMCLAPI's real response order for 1.21: the last item is an old beta, not the latest build.
   const order = ['21.0.150', '21.0.0-beta', '21.0.139-beta', '21.0.14-beta', '21.0.167', '21.0.98-beta'];
@@ -264,7 +264,7 @@ test('NeoForge 构建按数字排序，BMCLAPI 乱序时默认项仍是最新构
   assert.deepEqual(await listNeoForgeLoaders('1.21', undefined, 'official'), expected);
 });
 
-test('镜像失败时元数据回到官方，全部失败时错误列出每个来源的原因', async (t) => {
+test('metadata falls back to official when the mirror fails, and the error lists the reason for each source when all fail', async (t) => {
   const { listCoreVersions } = await import('./core-metadata.js');
   const routes: Record<string, () => Response> = {
     'https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json': () => new Response('bad', { status: 503 }),
@@ -284,7 +284,7 @@ test('镜像失败时元数据回到官方，全部失败时错误列出每个�
   });
 });
 
-test('官方来源失败时保留原有错误，不提第三方来源', async (t) => {
+test('the original error is kept when the official source fails, without mentioning third-party sources', async (t) => {
   const { listCoreVersions } = await import('./core-metadata.js');
   mockFetch(t, {
     'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json': () => new Response('bad', { status: 502 }),
@@ -295,7 +295,7 @@ test('官方来源失败时保留原有错误，不提第三方来源', async (t
   );
 });
 
-test('Vanilla 下载计划带上 SHA-1，国内来源优先镜像', async (t) => {
+test('the Vanilla download plan carries SHA-1, and the China source prefers the mirror', async (t) => {
   const { resolveVanillaDownload } = await import('./core-metadata.js');
   const detail = JSON.stringify({
     downloads: { server: { url: 'https://piston-data.mojang.com/v1/objects/abc/server.jar', sha1: 'a'.repeat(40) } },
@@ -332,7 +332,7 @@ test('Vanilla 下载计划带上 SHA-1，国内来源优先镜像', async (t) =>
   ]);
 });
 
-test('社区节点改动版本详情时不采信它的校验值，改用 Mojang 的详情', async (t) => {
+test('when a community node alters the version details its checksum is not trusted and the details from Mojang are used instead', async (t) => {
   const { resolveVanillaDownload } = await import('./core-metadata.js');
   const genuineUrl = 'https://piston-data.mojang.com/v1/objects/genuine/server.jar';
   const genuine = JSON.stringify({ downloads: { server: { url: genuineUrl, sha1: 'a'.repeat(40) } } });
@@ -356,7 +356,7 @@ test('社区节点改动版本详情时不采信它的校验值，改用 Mojang 
   assert.equal(plan.candidates.at(-1)!.url, genuineUrl);
 });
 
-test('国内来源连不上 Mojang 清单时说明清单必须走官方，不改用镜像清单', async (t) => {
+test('when the China source cannot reach the Mojang manifest it explains that the manifest must come from official, without switching to a mirrored manifest', async (t) => {
   const { resolveVanillaDownload } = await import('./core-metadata.js');
   const calls = mockFetch(t, {
     'https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json': () => Response.json({ versions: [] }),
@@ -369,7 +369,7 @@ test('国内来源连不上 Mojang 清单时说明清单必须走官方，不改
   assert.deepEqual(calls, ['https://launchermeta.mojang.com/mc/game/version_manifest_v2.json']);
 });
 
-test('清单没有详情 SHA-1 时拒绝，不读任何来源的版本详情', async (t) => {
+test('a manifest without a details SHA-1 is rejected, and no version details are read from any source', async (t) => {
   const { resolveVanillaDownload } = await import('./core-metadata.js');
   const calls = mockFetch(t, {
     'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json': () => Response.json({
@@ -407,7 +407,7 @@ function mojangMirror(url: string): string | null {
   return parsed.hostname.endsWith('.mojang.com') ? `https://bmclapi2.bangbang93.com${parsed.pathname}` : null;
 }
 
-test('清单里的版本详情地址不在 Mojang 时拒绝，也不去请求它', async (t) => {
+test('a version details URL in the manifest that is not on Mojang is rejected and never requested', async (t) => {
   const { resolveVanillaDownload } = await import('./core-metadata.js');
   const server = { url: 'https://piston-data.mojang.com/v1/objects/abc/server.jar', sha1: 'a'.repeat(40) };
   for (const detailUrl of [
@@ -426,7 +426,7 @@ test('清单里的版本详情地址不在 Mojang 时拒绝，也不去请求它
   }
 });
 
-test('版本详情里的服务端地址不在 Mojang 时拒绝，不生成下载计划', async (t) => {
+test('a server URL in the version details that is not on Mojang is rejected, and no download plan is produced', async (t) => {
   const { resolveVanillaDownload } = await import('./core-metadata.js');
   const detailUrl = 'https://piston-meta.mojang.com/v1/packages/abc/1.21.1.json';
   for (const source of ['official', 'china'] as const) {
@@ -443,7 +443,7 @@ test('版本详情里的服务端地址不在 Mojang 时拒绝，不生成下载
   }
 });
 
-test('版本详情缺少服务端 SHA-1 时拒绝，不退回到不校验的下载', async (t) => {
+test('version details missing the server SHA-1 are rejected, without falling back to an unverified download', async (t) => {
   const { resolveVanillaDownload } = await import('./core-metadata.js');
   const detailUrl = 'https://piston-meta.mojang.com/v1/packages/abc/1.21.1.json';
   const url = 'https://piston-data.mojang.com/v1/objects/abc/server.jar';
@@ -461,7 +461,7 @@ test('版本详情缺少服务端 SHA-1 时拒绝，不退回到不校验的下�
   }
 });
 
-test('官方地址返回的版本详情与清单 SHA-1 不符时同样拒绝', async (t) => {
+test('version details from the official URL that do not match the manifest SHA-1 are rejected as well', async (t) => {
   const { resolveVanillaDownload } = await import('./core-metadata.js');
   const detailUrl = 'https://piston-meta.mojang.com/v1/packages/abc/1.21.1.json';
   const genuine = JSON.stringify({
@@ -505,7 +505,7 @@ function redirectedResponse(body: string, finalUrl: string): Response {
   return response;
 }
 
-test('https 请求被跳转到 http 时拒绝，元数据和文件下载都一样', async (t) => {
+test('an https request redirected to http is rejected, for both metadata and file downloads', async (t) => {
   const { fetchText } = await import('./core-metadata.js');
   const { downloadToFile, downloadFromPlan } = await import('./core-download.js');
   const dir = tempDir(t);
@@ -562,7 +562,7 @@ test('https 请求被跳转到 http 时拒绝，元数据和文件下载都一�
   );
 });
 
-test('安装器校验值只取自官方 Maven，取不到时不使用镜像', async (t) => {
+test('the installer checksum comes only from the official Maven, and mirrors are not used when it cannot be fetched', async (t) => {
   const { resolveInstallerDownload } = await import('./core-metadata.js');
   const official = 'https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.1/neoforge-21.1.1-installer.jar';
   const hex = 'b'.repeat(64);
@@ -580,7 +580,7 @@ test('安装器校验值只取自官方 Maven，取不到时不使用镜像', as
   assert.deepEqual(fallback.candidates.map((c) => c.url), [official]);
 });
 
-test('校验值不符的镜像文件被丢弃，下一个来源成功后才落地', async (t) => {
+test('a mirror file with a mismatched checksum is discarded, and the file lands only after the next source succeeds', async (t) => {
   const { downloadFromPlan } = await import('./core-download.js');
   const dir = tempDir(t);
   const dest = path.join(dir, 'core.jar');
@@ -605,7 +605,7 @@ test('校验值不符的镜像文件被丢弃，下一个来源成功后才落�
   assert.deepEqual(fs.readdirSync(dir), ['core.jar'], '不留下临时文件');
 });
 
-test('所有来源校验都失败时不落地文件，错误说明原因并指向设置', async (t) => {
+test('when every source fails verification no file lands, and the error explains why and points to settings', async (t) => {
   const { downloadFromPlan } = await import('./core-download.js');
   const dir = tempDir(t);
   const dest = path.join(dir, 'core.jar');
@@ -639,7 +639,7 @@ test('所有来源校验都失败时不落地文件，错误说明原因并指�
   assert.deepEqual(fs.readdirSync(dir), []);
 });
 
-test('取消下载时不再尝试下一个来源', async (t) => {
+test('no further source is tried when the download is cancelled', async (t) => {
   const { downloadFromPlan } = await import('./core-download.js');
   const dir = tempDir(t);
   const controller = new AbortController();
@@ -666,7 +666,7 @@ test('取消下载时不再尝试下一个来源', async (t) => {
   assert.deepEqual(calls, ['https://mirror.invalid/core.jar']);
 });
 
-test('不响应的镜像按响应时限放弃，不耗尽整段下载超时', async (t) => {
+test('an unresponsive mirror is abandoned by the response time limit without using up the whole download timeout', async (t) => {
   const { downloadToFile } = await import('./core-download.js');
   const dir = tempDir(t);
   const server = createServer(() => {
@@ -687,7 +687,7 @@ test('不响应的镜像按响应时限放弃，不耗尽整段下载超时', as
   );
 });
 
-test('下载来源保存到数据库，未设置或值无效时用官方来源', async (t) => {
+test('the download source is saved to the database, and the official source is used when unset or invalid', async (t) => {
   const { getDb } = await tempDatabase(t);
   const { getDownloadSource, setDownloadSource } = await import('./download-sources.js');
   assert.equal(getDownloadSource(), 'official');
@@ -699,7 +699,7 @@ test('下载来源保存到数据库，未设置或值无效时用官方来源',
   assert.equal(getDownloadSource(), 'official');
 });
 
-test('旧数据库没有设置表时启动自动补上', async (t) => {
+test('an old database without the settings table gets it added automatically at startup', async (t) => {
   const { initDb, closeDb, getDb } = await tempDatabase(t);
   const { getDownloadSource } = await import('./download-sources.js');
   getDb().exec('DROP TABLE panel_settings');
@@ -708,7 +708,7 @@ test('旧数据库没有设置表时启动自动补上', async (t) => {
   assert.equal(getDownloadSource(), 'official');
 });
 
-test('预取清单只收已知仓库且带校验值的文件', async () => {
+test('the prefetch list includes only files from known repositories that carry a checksum', async () => {
   const { collectPrefetchTargets, resolveServerJarPath } = await import('./installer-prefetch.js');
   const artifact = (url: string, sha1: string | undefined, file = 'a/b.jar') => ({
     downloads: { artifact: { path: file, url, sha1 } },
@@ -781,7 +781,7 @@ function crc32(data: Buffer): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-test('预取把通过校验的依赖放到安装器要找的位置，失败的文件留给安装器', async (t) => {
+test('prefetch places verified dependencies where the installer looks for them, and failed files are left to the installer', async (t) => {
   const { dir } = await tempDatabase(t);
   const { setDownloadSource } = await import('./download-sources.js');
   const { prefetchInstallerFiles } = await import('./installer-prefetch.js');
@@ -839,7 +839,7 @@ test('预取把通过校验的依赖放到安装器要找的位置，失败的�
   assert.deepEqual(progress.at(-1), [3, 3]);
 });
 
-test('旧格式安装器或损坏的清单不影响部署', async (t) => {
+test('an old-format installer or a corrupted manifest does not affect the deploy', async (t) => {
   const { prefetchInstallerFiles } = await import('./installer-prefetch.js');
   const dir = tempDir(t);
   const legacy = path.join(dir, 'legacy.jar');

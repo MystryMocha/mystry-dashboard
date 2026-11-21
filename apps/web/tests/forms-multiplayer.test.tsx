@@ -68,7 +68,7 @@ function describedTexts(input: HTMLElement): string[] {
   return (input.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean).map((id) => document.getElementById(id)?.textContent ?? '');
 }
 
-test('frp 服务器表单：字段保留原来的 id，可选项标「（可选）」，端口是数字框，令牌可以点开看', async () => {
+test('frp server form: fields keep their original ids, optional items are marked "(optional)", the port is a number box and the token can be revealed', async () => {
   const user = userEvent.setup();
   mountTab();
   const name = await screen.findByLabelText('名称');
@@ -99,7 +99,7 @@ test('frp 服务器表单：字段保留原来的 id，可选项标「（可选�
   expect(token.value).toBe('secret-token');
 });
 
-test('frp 服务器表单：错误在失焦后才显示并关联到输入框，改对了马上消失；按钮旁说出先处理哪一项', async () => {
+test('frp server form: errors show only after blur and are associated with the input, and disappear once fixed; the text beside the button says which item to handle first', async () => {
   const user = userEvent.setup();
   mountTab();
   const address = await screen.findByLabelText('服务器地址');
@@ -142,7 +142,7 @@ test('frp 服务器表单：错误在失焦后才显示并关联到输入框，�
   expect(document.activeElement).toBe(port);
 });
 
-test('frp 服务器表单：按 Enter 不合法时显示原因并跳到出错字段，只缺必填项时跳到要填的，合法就提交', async () => {
+test('frp server form: Enter shows the reason and jumps to the failing field when invalid, jumps to the one to fill in when only required items are missing, and submits when valid', async () => {
   const user = userEvent.setup();
   const backend = mountTab();
   const name = await screen.findByLabelText('名称');
@@ -179,7 +179,7 @@ test('frp 服务器表单：按 Enter 不合法时显示原因并跳到出错字
   expect((await screen.findByLabelText('frp 服务器') as HTMLSelectElement).value).toBe('e1');
 });
 
-test('两张表单互不嵌套，各自只有一个提交按钮；取消后回到没碰过', async () => {
+test('the two forms are not nested and each has only one submit button; cancelling returns to untouched', async () => {
   const user = userEvent.setup();
   mountTab({ endpoints: [savedEndpoint], tunnel: savedTunnel });
   await user.click(await screen.findByRole('button', { name: '添加 frp 服务器' }));
@@ -210,7 +210,7 @@ test('两张表单互不嵌套，各自只有一个提交按钮；取消后回�
   expect(screen.queryByText(HOST_ERROR)).toBeNull();
 });
 
-test('穿透设置：端口是数字框，按 Enter 不合法时报错并留在字段上，合法就保存，保存后回到没碰过', async () => {
+test('tunnel settings: the port is a number box, Enter reports the error and stays on the field when invalid, saves when valid, and returns to untouched after saving', async () => {
   const user = userEvent.setup();
   const backend = mountTab({ endpoints: [savedEndpoint], tunnel: savedTunnel });
   const remote = await screen.findByLabelText('远程端口') as HTMLInputElement;
@@ -247,7 +247,7 @@ test('穿透设置：端口是数字框，按 Enter 不合法时报错并留在�
   expect(screen.queryByText(PORT_ERROR)).toBeNull();
 });
 
-test('穿透设置：切换模式后，被隐藏的端口既不挡住保存，也不会把没保存的草稿提交上去', async () => {
+test('tunnel settings: after switching modes the hidden port neither blocks saving nor submits an unsaved draft', async () => {
   const user = userEvent.setup();
   const backend = mountTab({ endpoints: [savedEndpoint], tunnel: savedTunnel });
   const mode = await screen.findByLabelText('穿透模式');
@@ -285,7 +285,7 @@ test('穿透设置：切换模式后，被隐藏的端口既不挡住保存，�
   expect(backend.writes[1]!.body).toEqual({ enabled: false, endpointId: 'e1', mode: 'xtcp', visitorBindPort: 25566 });
 });
 
-test('删除选中的 frp 服务器后改选剩下的第一个，不会停在「看着选了却保存不了」', async () => {
+test('after deleting the selected frp server the first remaining one is selected, without getting stuck at "looks selected but cannot be saved"', async () => {
   const user = userEvent.setup();
   const backend = mountTab({ endpoints: [savedEndpoint, { ...savedEndpoint, id: 'e2', name: 'Tokyo' }], tunnel: savedTunnel });
   const select = await screen.findByLabelText('frp 服务器') as HTMLSelectElement;

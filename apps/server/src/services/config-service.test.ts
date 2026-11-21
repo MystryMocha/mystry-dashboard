@@ -23,7 +23,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
   return dataRoot;
 }
 
-test('保留注释、空行、重复键与分隔符，引导补丁只改最后定义', async () => {
+test('comments, blank lines, duplicate keys and separators are preserved, and the guided patch changes only the last definition', async () => {
   const {
     applyPropertiesPatch,
     parsePropertiesDocument,
@@ -56,13 +56,13 @@ test('保留注释、空行、重复键与分隔符，引导补丁只改最后�
   assert.match(output, /gamemode:survival/);
 });
 
-test('parseProperties 对重复键取最后有效值', async () => {
+test('parseProperties takes the last effective value for duplicate keys', async () => {
   const { parseProperties } = await import('./config-service.js');
   const map = parseProperties('a=1\na=2\n# comment\nb=3\n');
   assert.deepEqual(map, { a: '2', b: '3' });
 });
 
-test('游戏端口：没写或留空按 25565，写了但不是端口号时为 null', async () => {
+test('game port: 25565 when absent or empty, null when written but not a port number', async () => {
   const { gamePortFromProperties } = await import('./config-service.js');
   assert.equal(gamePortFromProperties({}), 25565);
   assert.equal(gamePortFromProperties({ 'server-port': '' }), 25565);
@@ -73,7 +73,7 @@ test('游戏端口：没写或留空按 25565，写了但不是端口号时为 n
   }
 });
 
-test('缺少 server.properties 时默认难度为普通', async (t) => {
+test('the default difficulty is normal when server.properties is missing', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -85,7 +85,7 @@ test('缺少 server.properties 时默认难度为普通', async (t) => {
   assert.equal(readServerProperties(inst.id).difficulty, 'normal');
 });
 
-test('首次写入不存在的 server.properties：值含换行不产生额外属性', async (t) => {
+test('first write of a nonexistent server.properties: a value containing a line break creates no extra property', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -106,7 +106,7 @@ test('首次写入不存在的 server.properties：值含换行不产生额外�
   assert.equal(parsed.motd, 'line1\nmalicious=value');
 });
 
-test('首次写入不存在的 server.properties：值以反斜杠结尾不吞并下一行', async (t) => {
+test('first write of a nonexistent server.properties: a value ending in a backslash does not swallow the next line', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -124,7 +124,7 @@ test('首次写入不存在的 server.properties：值以反斜杠结尾不吞�
   assert.equal(readServerProperties(inst.id).motd, 'foo\\');
 });
 
-test('非 ASCII 字符写成 \\uXXXX，读回来还是原文', async (t) => {
+test('non-ASCII characters are written as \\uXXXX and read back as the original text', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -148,7 +148,7 @@ test('非 ASCII 字符写成 \\uXXXX，读回来还是原文', async (t) => {
   assert.equal(fs.readFileSync(file, 'utf8'), '# 中文注释\nmotd=\\u65B0\\u7B80\\u4ECB\n');
 });
 
-test('数字形式的难度和模式：读成单词，写回时保持数字', async (t) => {
+test('numeric difficulty and gamemode: read as words, kept numeric when written back', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -169,7 +169,7 @@ test('数字形式的难度和模式：读成单词，写回时保持数字', as
   assert.equal(readServerProperties(inst.id).difficulty, 'hard');
 });
 
-test('文件是单词时保持单词，超出范围的数字保持原样', async (t) => {
+test('words stay words when the file has words, and out-of-range numbers are kept as is', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -185,7 +185,7 @@ test('文件是单词时保持单词，超出范围的数字保持原样', async
   assert.equal(fs.readFileSync(file, 'utf8'), 'difficulty=hard\ngamemode=9\n');
 });
 
-test('1.13 及更早的实例：默认配置和保存都用数字', async (t) => {
+test('instances at 1.13 and earlier: both the default config and saves use numbers', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');

@@ -12,7 +12,7 @@ const projectRoot = path.resolve(scriptDirectory, '..', '..');
 const launcherPath = path.join(projectRoot, 'PanelManager.sh');
 const controllerPath = path.join(projectRoot, 'scripts', 'portable', 'mystryctl.mjs');
 
-test('Linux 源码启动器复用带指纹的跨平台控制器', async () => {
+test('the Linux source launcher reuses the cross-platform controller with a fingerprint', async () => {
   const source = await fs.readFile(launcherPath, 'utf8');
   const controller = await fs.readFile(controllerPath, 'utf8');
 
@@ -26,7 +26,7 @@ test('Linux 源码启动器复用带指纹的跨平台控制器', async () => {
   assert.match(controller, /const repositoryServerEntry = path\.join\(homeDir, 'apps', 'server', 'dist', 'index\.js'\);/);
 });
 
-test('Linux 上的启动器可直接转发帮助命令', { skip: process.platform !== 'linux' }, () => {
+test('the launcher on Linux can forward the help command directly', { skip: process.platform !== 'linux' }, () => {
   const result = spawnSync('bash', [launcherPath, 'help'], {
     cwd: projectRoot,
     encoding: 'utf8',
@@ -39,7 +39,7 @@ test('Linux 上的启动器可直接转发帮助命令', { skip: process.platfor
   assert.match(result.stdout, /start\s+后台启动面板/);
 });
 
-test('Linux 启动器的 reset-password 在输出不是终端时拒绝并返回非 0', { skip: process.platform !== 'linux' }, async (t) => {
+test('reset-password in the Linux launcher refuses and returns non-zero when output is not a terminal', { skip: process.platform !== 'linux' }, async (t) => {
   // Output goes through a pipe: mystryctl must refuse before contacting the server, and after exec the exit code is returned as is.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-reset-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -59,7 +59,7 @@ test('Linux 启动器的 reset-password 在输出不是终端时拒绝并返回�
   assert.doesNotMatch(result.stdout + result.stderr, /^[ \t]*密码：/m);
 });
 
-test('Linux 启动器把 remote 的子命令和参数交给控制器', { skip: process.platform !== 'linux' }, async (t) => {
+test('the Linux launcher passes the remote subcommand and arguments to the controller', { skip: process.platform !== 'linux' }, async (t) => {
   // Uses isolated config and data directories: the panel is not running, so the controller requests no endpoint.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-remote-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -86,7 +86,7 @@ test('Linux 启动器把 remote 的子命令和参数交给控制器', { skip: p
   assert.equal(run('status', 'extra').status, 1);
 });
 
-test('Linux 启动器按所选下载源安装依赖', { skip: process.platform !== 'linux' }, async (t) => {
+test('the Linux launcher installs dependencies from the chosen download source', { skip: process.platform !== 'linux' }, async (t) => {
   // Puts a copy of the launcher in a temp directory, with npm and the controller both stubbed, and looks only at the arguments actually passed to npm.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-mirror-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));

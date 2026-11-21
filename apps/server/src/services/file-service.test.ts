@@ -25,7 +25,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
   return dataRoot;
 }
 
-test('目标已存在时同目录重命名应拒绝且不覆盖内容', async (t) => {
+test('a rename within the same directory should be rejected without overwriting content when the target exists', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -47,7 +47,7 @@ test('目标已存在时同目录重命名应拒绝且不覆盖内容', async (t
   assert.equal(fs.readFileSync(path.join(root, 'a.txt'), 'utf8'), 'source-a');
 });
 
-test('重命名冲突应对外映射为 HTTP 409', async (t) => {
+test('a rename conflict should map to HTTP 409 externally', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -70,7 +70,7 @@ test('重命名冲突应对外映射为 HTTP 409', async (t) => {
   }
 });
 
-test('目录列表目录优先并按自然序排序，大目录不逐项重复校验整条路径', async (t) => {
+test('the directory listing puts directories first in natural order, and large directories are not re-validated along the whole path per item', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -97,7 +97,7 @@ test('目录列表目录优先并按自然序排序，大目录不逐项重复�
   assert.ok(realpath.mock.callCount() < 10, `realpathSync 调用 ${realpath.mock.callCount()} 次`);
 });
 
-test('目录列表不展示实例根目录的所有权标记，子目录同名文件照常列出', async (t) => {
+test('the directory listing does not show the ownership marker in the instance root, and files of the same name in subdirectories are listed as usual', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -116,7 +116,7 @@ test('目录列表不展示实例根目录的所有权标记，子目录同名�
   assert.deepEqual(listFiles(inst.id, 'backup').map((entry) => entry.path), [`backup/${OWNERSHIP_MARKER_FILE}`]);
 });
 
-test('目录列表遇到符号链接或目录联接时拒绝访问', async (t) => {
+test('the directory listing denies access on a symlink or directory junction', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -137,7 +137,7 @@ test('目录列表遇到符号链接或目录联接时拒绝访问', async (t) =
   );
 });
 
-test('上传覆盖重命名失败时应恢复旧文件且清理临时文件', async (t) => {
+test('a failed rename on upload overwrite should restore the old file and clean up the temp file', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { config } = await import('../config.js');
@@ -181,7 +181,7 @@ test('上传覆盖重命名失败时应恢复旧文件且清理临时文件', as
   );
 });
 
-test('上传覆盖成功时应替换内容且不遗留备份文件', async (t) => {
+test('a successful upload overwrite should replace the content and leave no backup file', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { config } = await import('../config.js');
@@ -209,7 +209,7 @@ test('上传覆盖成功时应替换内容且不遗留备份文件', async (t) =
   );
 });
 
-test('上传接收完后 beforeCommit 拒绝时不写入实例目录并清理临时文件', async (t) => {
+test('when beforeCommit rejects after the upload is received, nothing is written to the instance directory and the temp file is cleaned up', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { config } = await import('../config.js');
@@ -242,7 +242,7 @@ test('上传接收完后 beforeCommit 拒绝时不写入实例目录并清理临
   );
 });
 
-test('上传覆盖后备份清理失败仍应返回成功并保留可识别备份', async (t) => {
+test('an upload overwrite should still succeed when backup cleanup fails afterwards, keeping an identifiable backup', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');

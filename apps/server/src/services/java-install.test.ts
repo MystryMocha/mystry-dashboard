@@ -62,7 +62,7 @@ function fakeJre(top: string): Buffer {
 
 const TEST_PLATFORM = 'test:x64';
 
-test('一键安装 Java：接口、复用任务、登记与失败清理', async (t) => {
+test('one-click Java install: endpoints, task reuse, registration and cleanup on failure', async (t) => {
   const { buildApp } = await import('../index.js');
   const { getTask } = await import('./task-service.js');
   const { TEMURIN_RELEASES, setJavaInstallForTests } = await import('./java-install-service.js');

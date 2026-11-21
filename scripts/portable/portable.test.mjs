@@ -21,7 +21,7 @@ import {
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
-test('便携脚本均可由 Node 直接解析', async () => {
+test('all portable scripts can be parsed directly by Node', async () => {
   const scripts = (await fsp.readdir(scriptDir))
     .filter((name) => name.endsWith('.mjs'));
   for (const script of scripts) {
@@ -32,7 +32,7 @@ test('便携脚本均可由 Node 直接解析', async () => {
   }
 });
 
-test('便携包路径只收可打印 ASCII，Windows 自带 tar 才能在任何代码页下解压', () => {
+test('portable package paths use only printable ASCII, so the tar shipped with Windows can extract under any code page', () => {
   for (const name of ['index.js', 'snow man', '@fastify', 'a-b_c.d~', 'mystry-dashboard']) {
     assert.equal(isArchiveSafeName(name), true, name);
   }
@@ -42,7 +42,7 @@ test('便携包路径只收可打印 ASCII，Windows 自带 tar 才能在任何�
   }
 });
 
-test('便携入口只调用包内 Node 运行时', async () => {
+test('the portable entry calls only the Node runtime inside the package', async () => {
   const windows = await fsp.readFile(path.join(scriptDir, 'mystryctl.cmd'), 'utf8');
   const unix = await fsp.readFile(path.join(scriptDir, 'mystryctl.sh'), 'utf8');
   assert.match(windows, /runtime\\node\.exe/i);
@@ -84,7 +84,7 @@ function assertSameContent(english, chinese) {
   assert.deepEqual(documentShape(english), documentShape(chinese));
 }
 
-test('Release 正文英文在前，中英两段内容一致', async () => {
+test('the Release body has English first, and the English and Chinese sections match', async () => {
   const notes = await fsp.readFile(
     path.join(scriptDir, '..', '..', '.github', 'portable-preview-notes.md'),
     'utf8',
@@ -97,7 +97,7 @@ test('Release 正文英文在前，中英两段内容一致', async () => {
   assertSameContent(english, chinese);
 });
 
-test('便携说明文档中英两版内容一致', async () => {
+test('the English and Chinese versions of the portable release doc match', async () => {
   const docs = path.join(scriptDir, '..', '..', 'docs');
   const english = await fsp.readFile(path.join(docs, 'portable-release.md'), 'utf8');
   const chinese = await fsp.readFile(path.join(docs, 'portable-release.zh-CN.md'), 'utf8');
@@ -109,7 +109,7 @@ test('便携说明文档中英两版内容一致', async () => {
   assertSameContent(englishBody, chineseBody);
 });
 
-test('包内 README.txt 英文在前，中英两段内容一致', async () => {
+test('README.txt in the package has English first, and the English and Chinese sections match', async () => {
   const directory = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-readme-'));
   try {
     const destination = path.join(directory, 'README.txt');
@@ -176,7 +176,7 @@ async function startInteractiveController(t, args = ['menu']) {
   };
 }
 
-test('双击启动直接运行面板，不显示菜单，出错时等待回车', async (t) => {
+test('a double-click start runs the panel directly without the menu, and waits for Enter on an error', async (t) => {
   const controller = await startInteractiveController(t, []);
   // The temp directory has no server build output, so starting fails.
   await controller.waitForOutput('按回车键关闭窗口');
@@ -186,7 +186,7 @@ test('双击启动直接运行面板，不显示菜单，出错时等待回车',
   assert.equal(await controller.exited, 1);
 });
 
-test('菜单命令执行完后等待回车再关闭窗口', async (t) => {
+test('after a menu command finishes it waits for Enter before closing the window', async (t) => {
   const controller = await startInteractiveController(t);
   await controller.waitForOutput('请选择');
   controller.send('3');
@@ -198,7 +198,7 @@ test('菜单命令执行完后等待回车再关闭窗口', async (t) => {
   assert.equal(await controller.exited, 0);
 });
 
-test('菜单命令出错时也先显示错误并等待回车', async (t) => {
+test('a menu command that fails also shows the error first and waits for Enter', async (t) => {
   const controller = await startInteractiveController(t);
   await controller.waitForOutput('请选择');
   // The temp directory has no server build output, so starting fails.
@@ -226,7 +226,7 @@ function runController(command, env, nodeArgs = [], { input } = {}) {
   });
 }
 
-test('按配置文件中的 DATA_DIR 找运行状态；指纹不匹配时不发送 LAUNCHER_TOKEN', async (t) => {
+test('the runtime state is found by DATA_DIR in the config file; LAUNCHER_TOKEN is not sent when the fingerprint does not match', async (t) => {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-fingerprint-'));
   let fingerprint = 'expected-fingerprint';
   let shutdownRequested = false;
@@ -322,7 +322,7 @@ async function startFakeManagedPanel(t) {
   return { env, launcherToken, resetRequests, terminalArgs: ['--import', pathToFileURL(preload).href] };
 }
 
-test('reset-password：输出不是终端时先拒绝，不请求服务端', async (t) => {
+test('reset-password: refuses first when output is not a terminal, without contacting the server', async (t) => {
   const panel = await startFakeManagedPanel(t);
   for (const language of ['zh-CN', 'en-US']) {
     const result = await runController('reset-password', { ...panel.env, MYSTRY_LANG: language });
@@ -336,7 +336,7 @@ test('reset-password：输出不是终端时先拒绝，不请求服务端', asy
 });
 
 for (const language of ['zh-CN', 'en-US']) {
-  test(`reset-password：终端里重置并显示新密码（${language}）`, async (t) => {
+  test(`reset-password: resets and shows the new password in a terminal (${language})`, async (t) => {
     const panel = await startFakeManagedPanel(t);
     const result = await runController(
       'reset-password',
@@ -360,7 +360,7 @@ for (const language of ['zh-CN', 'en-US']) {
   });
 }
 
-test('界面语言跟随 MYSTRY_LANG 和 LANG，非中文一律用英文', () => {
+test('the UI language follows MYSTRY_LANG and LANG, and anything not Chinese uses English', () => {
   const help = (env) => {
     const result = spawnSync(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'help'], {
       env: { ...process.env, MYSTRY_LANG: '', LC_ALL: '', LC_MESSAGES: '', LANG: '', ...env },
@@ -380,13 +380,13 @@ test('界面语言跟随 MYSTRY_LANG 和 LANG，非中文一律用英文', () =>
   }
 });
 
-test('发布冒烟不按界面文案判断结果', async () => {
+test('the release smoke test does not judge results by UI text', async () => {
   const source = await fsp.readFile(path.join(scriptDir, 'smoke-portable.mjs'), 'utf8');
   assert.doesNotMatch(source, /MYSTRY_LANG/);
   assert.doesNotMatch(source, /\.includes\(\s*['"`][^'"`]*[一-鿿]/);
 });
 
-test('冒烟的日志检查在每种界面语言下都成立', async (t) => {
+test('the smoke log check holds in every UI language', async (t) => {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-smoke-logs-'));
   t.after(() => fsp.rm(home, { recursive: true, force: true }));
   const logPath = path.join(home, 'logs', 'panel.stdout.log');
@@ -411,7 +411,7 @@ test('冒烟的日志检查在每种界面语言下都成立', async (t) => {
   assert.throws(() => assertLogsShowLine('--- Recent stdout ---\n', expectedLine), /missing/);
 });
 
-test('冒烟的密码检查认得两种语言的密码行，不误报未显示密码的提示', () => {
+test('the smoke password check recognizes the password line in both languages and does not flag the notice that no password is shown', () => {
   assert.throws(() => assertNoCredentialsShown('  Password: abc\n', 'sample'), /password block/);
   assert.throws(() => assertNoCredentialsShown('  密码：abc\n', 'sample'), /password block/);
   assert.throws(() => assertNoCredentialsShown(`x\r\n${'='.repeat(64)}\r\n`, 'sample'), /password block/);
@@ -422,7 +422,7 @@ test('冒烟的密码检查认得两种语言的密码行，不误报未显示�
   ));
 });
 
-test('冒烟用请求日志证明接口未被调用；日志不记请求时判失败', () => {
+test('the smoke test proves an endpoint was not called from the request log, and fails when the log records no requests', () => {
   const request = (url) => JSON.stringify({ level: 30, time: 1, msg: 'incoming request', req: { method: 'GET', url } });
   const log = [request('/api/health'), request('/api/auth/status?probe=1'), 'plain line', ''].join('\n');
   const forbidden = '/api/launcher/reset-password';
@@ -438,7 +438,7 @@ test('冒烟用请求日志证明接口未被调用；日志不记请求时判�
   );
 });
 
-test('校验和脚本稳定排序并排除自身', async () => {
+test('the checksum script sorts stably and excludes itself', async () => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-checksums-test-'));
   try {
     await fsp.writeFile(path.join(root, 'b.txt'), 'b', 'utf8');
@@ -455,7 +455,7 @@ test('校验和脚本稳定排序并排除自身', async () => {
   }
 });
 
-test('发布元数据在每次覆盖 SBOM 后重新生成校验和', async () => {
+test('release metadata regenerates checksums after every SBOM overwrite', async () => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-release-metadata-test-'));
   try {
     await fsp.writeFile(path.join(root, 'mystry-v0.0.0-test.zip'), 'archive', 'utf8');
@@ -503,13 +503,13 @@ test('发布元数据在每次覆盖 SBOM 后重新生成校验和', async () =>
   }
 });
 
-test('运行时版本固定为 Node 22', async () => {
+test('the runtime version is pinned to Node 22', async () => {
   const runtime = JSON.parse(await fsp.readFile(path.join(scriptDir, 'runtime.json'), 'utf8'));
   assert.match(runtime.nodeVersion, /^22\.\d+\.\d+$/);
   assert.equal(fs.existsSync(path.join(scriptDir, 'fetch-node-runtime.mjs')), true);
 });
 
-test('SBOM 只包含生产依赖并使用 CycloneDX 1.6', async () => {
+test('the SBOM contains only production dependencies and uses CycloneDX 1.6', async () => {
   const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-sbom-test-'));
   try {
     const lock = {
@@ -648,7 +648,7 @@ async function startFakeRemotePanel(t, { publicUrl = false, failWith = null } = 
   };
 }
 
-test('remote 命令：开启、查看、切换 HTTPS、换证书和关闭都经启动器接口，令牌不进输出', async (t) => {
+test('remote command: enable, view, toggle HTTPS, renew the certificate and disable all go through the launcher endpoints, and the token does not go into output', async (t) => {
   const panel = await startFakeRemotePanel(t);
   const run = (args, env = panel.env) => runController(['remote', ...args], env);
 
@@ -722,7 +722,7 @@ test('remote 命令：开启、查看、切换 HTTPS、换证书和关闭都经�
   assert.match(english.output, /Access from other devices: off/);
 });
 
-test('remote 命令：填过公网地址时直接打印公网网址；失败时说明原因', async (t) => {
+test('remote command: prints the public URL directly when a public address was entered; explains why on failure', async (t) => {
   const panel = await startFakeRemotePanel(t, { publicUrl: true });
   const on = await runController(['remote', 'on'], { ...panel.env, SSH_TTY: '/dev/pts/0' });
   assert.equal(on.code, 0, on.output);
@@ -740,7 +740,7 @@ test('remote 命令：填过公网地址时直接打印公网网址；失败时�
   assert.match((await runController(['remote', 'on'], unknown.env)).output, /English text from the server/);
 });
 
-test('remote 命令：面板未运行时除 status 外都提示先启动；无子命令在终端里可直接开关', async (t) => {
+test('remote command: with the panel not running everything except status asks to start it first; with no subcommand it can toggle directly in a terminal', async (t) => {
   const panel = await startFakeRemotePanel(t);
   // No subcommand and output is not a terminal: only the status is shown, with no question asked and no setting changed.
   const piped = await runController(['remote'], panel.env);
@@ -849,7 +849,7 @@ function reservePort() {
 }
 
 // Ctrl+C in a terminal sends SIGINT to the whole foreground process group, and when pressed twice the controller must not be killed first,
-test('前台模式只显示可读日志，完整日志写入文件', { timeout: 60_000 }, async (t) => {
+test('foreground mode shows only readable logs, and the full log is written to a file', { timeout: 60_000 }, async (t) => {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-foreground-log-'));
   // On Windows the directory handle may not be released yet right after the process exits, so cleanup has to retry.
   t.after(() => fsp.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
@@ -905,7 +905,7 @@ test('前台模式只显示可读日志，完整日志写入文件', { timeout: 
 });
 
 for (const [name, terminal] of [['终端里显示账号和密码', true], ['输出重定向时不写出密码', false]]) {
-  test(`首次启动自动创建管理员：${name}`, { timeout: 60_000 }, async (t) => {
+  test(`the first start creates the admin automatically: ${name}`, { timeout: 60_000 }, async (t) => {
     const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-admin-'));
     t.after(() => fsp.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
     const fakeBin = path.join(home, 'bin');
@@ -979,7 +979,7 @@ for (const scenario of [
   { name: '创建管理员失败：不提问、不开启', ssh: true, terminal: true, input: '\n', setupFails: true, expectPut: false },
   { name: '开启失败：打印原因和重试命令', ssh: true, terminal: true, input: '\n', remoteFails: true, expectPut: true },
 ]) {
-  test(`首次启动询问是否允许其他设备访问：${scenario.name}`, { timeout: 60_000 }, async (t) => {
+  test(`the first start asks whether to allow access from other devices: ${scenario.name}`, { timeout: 60_000 }, async (t) => {
     const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-first-remote-'));
     t.after(() => fsp.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
     const fakeBin = path.join(home, 'bin');
@@ -1065,7 +1065,7 @@ for (const scenario of [
   });
 }
 
-test('双击后关闭窗口不影响后台面板，重新打开后 Ctrl+C 安全停止', { timeout: 60_000 }, async (t) => {
+test('closing the window after a double-click start does not affect the background panel, and Ctrl+C stops it safely after reopening', { timeout: 60_000 }, async (t) => {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-watch-'));
   t.after(() => fsp.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
   const fakeBin = path.join(home, 'bin');
@@ -1139,7 +1139,7 @@ test('双击后关闭窗口不影响后台面板，重新打开后 Ctrl+C 安全
 });
 
 // It must wait for the panel to finish closing on its own and then exit with the panel's exit code. Windows cannot simulate a console Ctrl+C with kill.
-test('前台模式下连按两次 Ctrl+C 仍等待面板安全关闭', {
+test('pressing Ctrl+C twice in foreground mode still waits for the panel to shut down safely', {
   timeout: 60_000,
   skip: process.platform === 'win32' ? 'Windows 无法用 kill 模拟控制台 Ctrl+C' : false,
 }, async (t) => {

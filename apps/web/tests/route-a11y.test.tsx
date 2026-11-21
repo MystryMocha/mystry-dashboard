@@ -61,7 +61,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-test('浏览器标签标题随路由变化，切换语言后同步更新', async () => {
+test('the browser tab title changes with the route and updates after a language switch', async () => {
   const user = userEvent.setup();
   mountApp('/');
   await screen.findByRole('heading', { level: 1, name: 'Instances' });
@@ -86,7 +86,7 @@ test('浏览器标签标题随路由变化，切换语言后同步更新', async
   await waitFor(() => expect(document.title).toBe('Panel Settings · Mystry Dashboard'));
 });
 
-test('实例页标题带标签名和实例名，切换标签和语言后更新', async () => {
+test('the instance page title carries the tab name and instance name, and updates after switching tabs and languages', async () => {
   const user = userEvent.setup();
   mountApp('/instances/test');
   await screen.findByRole('heading', { level: 1, name: 'Survival' });
@@ -105,7 +105,7 @@ test('实例页标题带标签名和实例名，切换标签和语言后更新',
   await waitFor(() => expect(document.title).toBe('Instances · Mystry Dashboard'));
 });
 
-test('未登录时显示登录页标题', async () => {
+test('the login page title is shown when not signed in', async () => {
   signedIn = false;
   localStorage.clear();
   mountApp('/deploy');
@@ -114,7 +114,7 @@ test('未登录时显示登录页标题', async () => {
   await waitFor(() => expect(document.title).toBe('Sign In · Mystry Dashboard'));
 });
 
-test('首屏加载不抢焦点；导航后焦点落到新页面 h1；实例内切换标签焦点留在标签上', async () => {
+test('the initial load does not take focus; after navigation focus lands on the new page h1; switching tabs within an instance keeps focus on the tab', async () => {
   const user = userEvent.setup();
   mountApp('/');
   await screen.findByRole('heading', { level: 1, name: 'Instances' });
@@ -141,7 +141,7 @@ test('首屏加载不抢焦点；导航后焦点落到新页面 h1；实例内�
   expect(document.activeElement).toBe(backupsTab);
 });
 
-test('未知实例子路由重定向到控制台，而不是空白', async () => {
+test('an unknown instance sub-route redirects to the console instead of a blank page', async () => {
   mountApp('/instances/test/console');
   await screen.findByRole('heading', { level: 1, name: 'Survival' });
   await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/instances/test'));
@@ -149,7 +149,7 @@ test('未知实例子路由重定向到控制台，而不是空白', async () =>
   await waitFor(() => expect(document.title).toBe('Console · Survival · Mystry Dashboard'));
 });
 
-test('未知顶层路由重定向到总览', async () => {
+test('an unknown top-level route redirects to the overview', async () => {
   mountApp('/no-such-page');
   await screen.findByRole('heading', { level: 1, name: 'Instances' });
   expect(screen.getByTestId('location').textContent).toBe('/');

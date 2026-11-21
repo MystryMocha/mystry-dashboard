@@ -7,7 +7,7 @@ import {
   flushConsoleColorize,
 } from '../apps/web/src/console-colorize.ts';
 
-test('INFO/WARN/ERROR 使用 ECMA-48 亮绿/亮黄/亮红', () => {
+test('INFO/WARN/ERROR use ECMA-48 bright green/bright yellow/bright red', () => {
   const info = colorizeConsoleLine('[01:00:00] [Server thread/INFO]: started');
   const warn = colorizeConsoleLine('[01:00:00] [Server thread/WARN]: missing');
   const error = colorizeConsoleLine('[01:00:00] [Server thread/ERROR]: boom');
@@ -17,12 +17,12 @@ test('INFO/WARN/ERROR 使用 ECMA-48 亮绿/亮黄/亮红', () => {
   assert.match(error, /^\x1b\[91m.*\x1b\[0m$/);
 });
 
-test('已含 ANSI 的行不再二次着色', () => {
+test('a line that already contains ANSI is not colored a second time', () => {
   const raw = '\x1b[31mred\x1b[0m';
   assert.equal(colorizeConsoleLine(raw), raw);
 });
 
-test('流式残片在换行后才着色', () => {
+test('a streaming fragment is colored only after the line break', () => {
   const state = createConsoleColorizeState();
   assert.equal(colorizeConsoleStream('[main/INF', state), '');
   const colored = colorizeConsoleStream('O]: ok\n', state);

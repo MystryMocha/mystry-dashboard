@@ -24,7 +24,7 @@ function multipart(filename: string, contents: Buffer) {
   };
 }
 
-test('备份接口完整流程', async (t) => {
+test('backup endpoints end to end', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-backup-routes-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;
   const { buildApp } = await import('../index.js');

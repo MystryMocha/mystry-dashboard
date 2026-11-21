@@ -28,12 +28,12 @@ function prepareLinkedRoot(t: test.TestContext): { real: string; link: string } 
   return { real, link };
 }
 
-test('没有链接的路径原样返回，不改写盘符或短文件名', () => {
+test('a path without links is returned as is, without rewriting drive letters or short names', () => {
   const tmp = os.tmpdir();
   assert.equal(resolveRealPath(tmp), path.resolve(tmp));
 });
 
-test('经过目录链接的路径解析到真实位置，不存在的尾部原样接上', (t) => {
+test('a path through a directory link resolves to the real location, with the nonexistent tail appended as is', (t) => {
   const { real, link } = prepareLinkedRoot(t);
   fs.mkdirSync(path.join(real, 'sub'));
   assert.equal(resolveRealPath(path.join(link, 'sub')), path.join(real, 'sub'));
@@ -43,7 +43,7 @@ test('经过目录链接的路径解析到真实位置，不存在的尾部原�
   );
 });
 
-test('argv[1] 经过链接时仍识别为入口模块', (t) => {
+test('still recognized as the entry module when argv[1] goes through a link', (t) => {
   const { real, link } = prepareLinkedRoot(t);
   fs.writeFileSync(path.join(real, 'entry.js'), '');
   fs.writeFileSync(path.join(real, 'other.js'), '');
@@ -54,7 +54,7 @@ test('argv[1] 经过链接时仍识别为入口模块', (t) => {
   assert.equal(isMainModule(moduleUrl, undefined), false);
 });
 
-test('经链接路径启动的进程会执行入口逻辑，而不是静默退出', (t) => {
+test('a process started through a linked path runs the entry logic instead of exiting silently', (t) => {
   const { real, link } = prepareLinkedRoot(t);
   const helperUrl = pathToFileURL(path.join(serverRoot, 'src', 'utils', 'real-path.ts')).href;
   fs.writeFileSync(
@@ -70,7 +70,7 @@ test('经链接路径启动的进程会执行入口逻辑，而不是静默退�
   assert.equal(result.stdout.trim(), 'main');
 });
 
-test('数据目录只解析上级路径中的链接，目录本身和内部的链接仍被拒绝', async (t) => {
+test('the data directory resolves links only in the parent path, and links at or inside the directory itself are still rejected', async (t) => {
   const { real, link } = prepareLinkedRoot(t);
   process.env.JWT_SECRET = 'a'.repeat(64);
   const { config } = await import('../config.js');

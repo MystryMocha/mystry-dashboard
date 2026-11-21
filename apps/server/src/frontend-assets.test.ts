@@ -23,7 +23,7 @@ async function createAssetsApp(t: test.TestContext) {
   return { app, webDist };
 }
 
-test('带 hash 的资源长期缓存，并按 Accept-Encoding 发送预压缩副本', async (t) => {
+test('hashed assets are cached long-term and precompressed copies are sent by Accept-Encoding', async (t) => {
   const { app, webDist } = await createAssetsApp(t);
   const source = 'export const value = "预压缩";'.repeat(20);
   await writeFile(path.join(webDist, 'assets', 'entry-abc123.js'), source);
@@ -48,7 +48,7 @@ test('带 hash 的资源长期缓存，并按 Accept-Encoding 发送预压缩副
   assert.equal(plain.headers['cache-control'], 'public, max-age=31536000, immutable');
 });
 
-test('入口页与 SPA 回落页每次重新校验，避免升级后引用旧资源', async (t) => {
+test('the entry page and SPA fallback are revalidated every time so upgrades do not reference old assets', async (t) => {
   const { app } = await createAssetsApp(t);
   for (const url of ['/', '/index.html', '/instances/demo/console']) {
     const response = await app.inject({ method: 'GET', url });
@@ -58,7 +58,7 @@ test('入口页与 SPA 回落页每次重新校验，避免升级后引用旧资
   }
 });
 
-test('构建产物更新后仍以 JavaScript MIME 提供新增模块资源', async (t) => {
+test('new module assets are still served with a JavaScript MIME type after the build output updates', async (t) => {
   const webDist = await mkdtemp(path.join(os.tmpdir(), 'mystry-static-assets-'));
   t.after(async () => {
     await rm(webDist, { recursive: true, force: true });

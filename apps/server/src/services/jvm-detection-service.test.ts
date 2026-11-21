@@ -58,7 +58,7 @@ function createStoredZip(entries: readonly StoredZipEntry[]): Buffer {
   return Buffer.concat([...localEntries, ...centralEntries, end]);
 }
 
-test('目录检测只读取根目录普通 user_jvm_args.txt', async (t) => {
+test('directory detection reads only a regular user_jvm_args.txt in the root', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-jvm-detect-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { detectJvmConfigFile } = await import('./jvm-detection-service.js');
@@ -79,7 +79,7 @@ test('目录检测只读取根目录普通 user_jvm_args.txt', async (t) => {
   assert.equal(oversized?.issues[0]?.message, renderPanelMessage({ key: 'server.imports.jvmFile.tooLarge' }));
 });
 
-test('ZIP 检测支持单一顶层目录并拒绝危险中央目录', async (t) => {
+test('ZIP detection supports a single top-level directory and rejects a dangerous central directory', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-jvm-zip-detect-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { inspectZipJvmConfig } = await import('./zip-service.js');

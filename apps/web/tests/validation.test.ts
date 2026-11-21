@@ -11,8 +11,8 @@ import {
 } from '../src/validation';
 
 // Local form validation must match the server rules: a value blocked here is rejected by the server too, and a common form allowed here is accepted by the server too.
-describe('表单本地校验', () => {
-  it('实例名称：去掉空格后不能为空，最多 128 个字符', () => {
+describe('local form validation', () => {
+  it('instance name: not empty after trimming, at most 128 characters', () => {
     expect(instanceNameIssue('')?.key).toBe('validation.instanceName.required');
     expect(instanceNameIssue('   ')?.key).toBe('validation.instanceName.required');
     expect(instanceNameIssue('a'.repeat(128))).toBeNull();
@@ -20,7 +20,7 @@ describe('表单本地校验', () => {
     expect(instanceNameIssue('我的服务器')).toBeNull();
   });
 
-  it('端口与整数范围', () => {
+  it('ports and integer ranges', () => {
     for (const bad of ['', '0', '-5', '70000', '1.5', 'abc']) expect(portIssue(bad)).not.toBeNull();
     for (const good of ['1', '25565', '65535', ' 7000 ']) expect(portIssue(good)).toBeNull();
     expect(portIssue('', true)).toBeNull();
@@ -29,7 +29,7 @@ describe('表单本地校验', () => {
     expect(integerIssue('33', 3, 32)?.key).toBe('validation.number.range');
   });
 
-  it('新密码：12–128 个字符且不超过 72 字节', () => {
+  it('new password: 12–128 characters and no more than 72 bytes', () => {
     expect(newPasswordIssue('')).toBeNull();
     expect(newPasswordIssue('short')?.key).toBe('server.auth.passwordTooShort');
     expect(newPasswordIssue('a'.repeat(72))).toBeNull();
@@ -38,7 +38,7 @@ describe('表单本地校验', () => {
     expect(newPasswordIssue('密'.repeat(30))?.key).toBe('server.auth.passwordTooManyBytes');
   });
 
-  it('frp 服务器地址和令牌', () => {
+  it('frp server address and token', () => {
     expect(frpHostIssue('')).toBeNull();
     expect(frpHostIssue('frp.example.com')).toBeNull();
     expect(frpHostIssue('203.0.113.10')).toBeNull();
@@ -50,7 +50,7 @@ describe('表单本地校验', () => {
     expect(frpTokenIssue('{{x}}')?.key).toBe('server.frp.tokenInvalid');
   });
 
-  it('中继节点', () => {
+  it('relay peers', () => {
     expect(lanPeersIssue(['tcp://relay.example.com:11010', 'wss://relay.example.com:443/', 'udp://[2001:db8::1]:11010'])).toBeNull();
     expect(lanPeersIssue(['relay.example.com:11010'])?.params).toEqual({ peer: 'relay.example.com:11010' });
     expect(lanPeersIssue(['tcp://x:99999'])).not.toBeNull();
@@ -58,7 +58,7 @@ describe('表单本地校验', () => {
     expect(lanPeersIssue(['tcp://relay.example.com:11010/'])).not.toBeNull();
   });
 
-  it('公网地址', () => {
+  it('public address', () => {
     expect(publicHostIssue('')).toBeNull();
     for (const good of ['203.0.113.10', 'mc.example.com', 'https://mc.example.com/', '2001:db8::1', '[2001:db8::1]']) {
       expect(publicHostIssue(good)).toBeNull();

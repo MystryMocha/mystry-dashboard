@@ -49,7 +49,7 @@ function fakeChild(options?: { onKill?: (signal?: NodeJS.Signals) => void }): Ch
   return child;
 }
 
-test('并发 start 只应 spawn 一个受管 Minecraft 进程', async (t) => {
+test('concurrent start should spawn only one managed Minecraft process', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -79,7 +79,7 @@ test('并发 start 只应 spawn 一个受管 Minecraft 进程', async (t) => {
   assert.equal(spawnCount, 1);
 });
 
-test('首次启动写入普通难度，已有 server.properties 不覆盖', async (t) => {
+test('the first start writes normal difficulty, and an existing server.properties is not overwritten', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -113,7 +113,7 @@ test('首次启动写入普通难度，已有 server.properties 不覆盖', asyn
   );
 });
 
-test('未同意 EULA 退出记为已停止并给出原因；Java 不符记为崩溃；再次启动清空原因', async (t) => {
+test('an exit with the EULA not accepted is recorded as stopped with a reason; a Java mismatch is recorded as crashed; starting again clears the reason', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -167,7 +167,7 @@ test('未同意 EULA 退出记为已停止并给出原因；Java 不符记为崩
   assert.equal(manager.getStartIssue(info.id), null);
 });
 
-test('实例设置取消同意 EULA：eula.txt 改回 false 且之后启动不再写 true；从没同意过的实例不碰原有 eula.txt；还原期间拒绝', async (t) => {
+test('withdrawing EULA acceptance in instance settings: eula.txt goes back to false and later starts no longer write true; an instance that never accepted keeps its eula.txt untouched; refused during a restore', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager, processManager, InstanceOperationConflictError } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -223,7 +223,7 @@ test('实例设置取消同意 EULA：eula.txt 改回 false 且之后启动不�
   endMaintenance();
 });
 
-test('普通 stop 超时不得隐式 SIGKILL', async (t) => {
+test('a normal stop timing out must not implicitly SIGKILL', async (t) => {
   prepareTempDataRoot(t);
   process.env.MYSTRY_TEST_STOP_GRACE_MS = '40';
   t.after(() => {
@@ -255,7 +255,7 @@ test('普通 stop 超时不得隐式 SIGKILL', async (t) => {
   assert.equal(manager.getStatus(row.id), 'stopping');
 });
 
-test('Forge 启动按规范参数重写 user_jvm_args.txt', async (t) => {
+test('a Forge start rewrites user_jvm_args.txt with the normalized arguments', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -297,7 +297,7 @@ test('Forge 启动按规范参数重写 user_jvm_args.txt', async (t) => {
   );
 });
 
-test('删除须等待未完成的 start，启动中不得拆掉目录', async (t) => {
+test('delete must wait for an unfinished start, and a directory being started must not be torn down', async (t) => {
   prepareTempDataRoot(t);
   const { processManager } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -367,7 +367,7 @@ async function waitForStatus(
   assert.equal(manager.getStatus(instanceId), expected);
 }
 
-test('关闭时取消尚未 spawn 的启动，不留下无主进程', async (t) => {
+test('a start that has not spawned yet is cancelled on shutdown, leaving no orphan process', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -408,7 +408,7 @@ test('关闭时取消尚未 spawn 的启动，不留下无主进程', async (t) 
   assert.equal(result.attempted, 0);
 });
 
-test('关闭后拒绝新的 start', async (t) => {
+test('new starts are refused after shutdown', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -435,7 +435,7 @@ test('关闭后拒绝新的 start', async (t) => {
   assert.equal(manager.getRunningCount(), 0);
 });
 
-test('发出的命令写进 stdin，并以「> 命令」回显到控制台历史', async (t) => {
+test('a sent command is written to stdin and echoed to the console history as "> command"', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -473,7 +473,7 @@ test('发出的命令写进 stdin，并以「> 命令」回显到控制台历史
   assert.match(manager.getHistory(info.id), /help"\n> list\n> \n> save-all\n$/);
 });
 
-test('打印过完成启动的标志行后标记为可以进服；停止或退出后清除', async (t) => {
+test('marked as joinable after the finished-startup marker line is printed; cleared after stop or exit', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
   const { initDb } = await import('../db.js');
@@ -519,7 +519,7 @@ test('打印过完成启动的标志行后标记为可以进服；停止或退�
   assert.equal(manager.isReady(info.id), false);
 });
 
-test('绑定的 Java 已不可用或已不在登记表里时，实例信息不等启动就给出 java-unavailable', async (t) => {
+test('when the bound Java is unavailable or no longer in the registry, the instance info reports java-unavailable without waiting for a start', async (t) => {
   prepareTempDataRoot(t);
   const { initDb, getDb } = await import('../db.js');
   const { createInstance, getInstance, listInstances } = await import('./instance-service.js');

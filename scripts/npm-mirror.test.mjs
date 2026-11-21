@@ -29,14 +29,14 @@ function createSandbox(t) {
   return { root, run };
 }
 
-test('默认跟随 npm 自身配置，不输出地址', (t) => {
+test('follows the npm config by default and outputs no URL', (t) => {
   const { run } = createSandbox(t);
   const result = run(['registry']);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout.trim(), '');
 });
 
-test('选择按名称或编号保存，下次读取生效', (t) => {
+test('a choice is saved by name or number and takes effect on the next read', (t) => {
   const { root, run } = createSandbox(t);
 
   assert.equal(run(['set', 'npmmirror']).status, 0);
@@ -53,7 +53,7 @@ test('选择按名称或编号保存，下次读取生效', (t) => {
   assert.equal(run(['registry']).stdout.trim(), '');
 });
 
-test('环境变量优先于保存的选择，设置时会提醒', (t) => {
+test('the environment variable takes precedence over the saved choice, with a reminder when setting', (t) => {
   const { run } = createSandbox(t);
   run(['set', 'official']);
 
@@ -62,7 +62,7 @@ test('环境变量优先于保存的选择，设置时会提醒', (t) => {
   assert.match(run(['set', 'official'], env).stderr, /优先级更高/);
 });
 
-test('无效的选择报错并列出可选项，不写入文件', (t) => {
+test('an invalid choice errors and lists the options, without writing the file', (t) => {
   const { root, run } = createSandbox(t);
 
   for (const value of ['nope', '0', '99']) {
@@ -78,7 +78,7 @@ test('无效的选择报错并列出可选项，不写入文件', (t) => {
   assert.equal(invalid.stdout, '');
 });
 
-test('列表标出当前选择，并跟随界面语言', (t) => {
+test('the list marks the current choice and follows the UI language', (t) => {
   const { run } = createSandbox(t);
   run(['set', 'npmmirror']);
 
@@ -90,14 +90,14 @@ test('列表标出当前选择，并跟随界面语言', (t) => {
   assert.match(run(['show'], { MYSTRY_LANG: 'en-US' }).stdout, /\[2\] official\s+npm official \(international\)/);
 });
 
-test('所有镜像地址都是 https 并以斜杠结尾', () => {
+test('all mirror URLs are https and end with a slash', () => {
   assert.equal(findMirror('default').url, '');
   for (const mirror of NPM_MIRRORS.filter((candidate) => candidate.url)) {
     assert.match(mirror.url, /^https:\/\/.+\/$/);
   }
 });
 
-test('锁文件检查找出镜像地址，修复时只改 resolved', () => {
+test('the lockfile check finds mirror URLs, and the fix changes only resolved', () => {
   const lock = [
     '"resolved": "https://registry.npmjs.org/a/-/a-1.0.0.tgz",',
     '"resolved": "https://registry.npmmirror.com/@scope/b/-/b-1.0.0.tgz",',
@@ -116,7 +116,7 @@ test('锁文件检查找出镜像地址，修复时只改 resolved', () => {
   assert.deepEqual(findForeignResolved(fixed), ['https://packages.example.com/d/-/d-1.0.0.tgz']);
 });
 
-test('仓库的 package-lock.json 只包含官方地址', () => {
+test('the repo package-lock.json contains only official URLs', () => {
   const lock = fs.readFileSync(path.join(scriptDirectory, '..', 'package-lock.json'), 'utf8');
   assert.deepEqual(findForeignResolved(lock), []);
 });
