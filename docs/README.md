@@ -2,7 +2,7 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-Mystry Dashboard is a standalone web panel for Minecraft Java servers. It manages multiple server instances on your own machine.
+Mystry Dashboard is a self-hosted game server panel, now supporting Minecraft: Java Edition. It manages multiple server instances on the machine it runs on.
 
 ## Read by Goal
 
@@ -16,17 +16,17 @@ Mystry Dashboard is a standalone web panel for Minecraft Java servers. It manage
 | Change the listen address, secrets or resource limits | [Configuration](configuration.md) | [Security policy](../SECURITY.md) |
 | Change the code or open a PR | [Development guide](development.md) | [Contributing guide](../CONTRIBUTING.md), [Verification matrix](ai/verification.md) (Chinese) |
 | Integrate with the API or understand the implementation | [API reference](api.md) | [Architecture](architecture.md) |
-| Design the interface or write interface copy | [Design system](design-system.md) | [Localization guide](localization.md) |
+| Design the UI or write UI copy | [Design system](design-system.md) | [Localization guide](localization.md) |
 | Develop with AI assistance | [Project development rules](../CLAUDE.md) (Chinese) | [AI project knowledge base](ai/README.md) (Chinese) |
 
-If this is your first time, read in this order: Getting Started → Step-by-Step Tutorials → User Guide.
+New users should read in this order: Getting Started → Step-by-Step Tutorials → User Guide.
 
 ## How the Docs Are Organized
 
-- Root [README](../README.md): what the project is, what it can and can't do, and how to run it.
+- Root [README](../README.md): what the project is, its scope and limits, and how to run it.
 - Topic docs in this folder: the source of truth for user operations, configuration, the API and the development workflow.
-- [AI knowledge base](ai/README.md) (Chinese): traceable implementation facts, architecture decisions, off-limits areas and how to check things.
-- Historical records: they keep the conclusions and evidence from their time. They are not a list of current defects or release status.
+- [AI knowledge base](ai/README.md) (Chinese): traceable implementation facts, architecture decisions, off-limits areas and verification methods.
+- Historical records: conclusions and evidence as of their date, not a list of current defects or release status.
 
 ## History and Community
 
@@ -35,18 +35,18 @@ If this is your first time, read in this order: Getting Started → Step-by-Step
 | [Changelog](../CHANGELOG.md) | Version history |
 | [Contributing guide](../CONTRIBUTING.md) | Conventions for issues, PRs and doc maintenance |
 | [Security policy](../SECURITY.md) | Private vulnerability disclosure |
-| [Code of conduct](../CODE_OF_CONDUCT.md) | Rules for taking part in the community |
+| [Code of conduct](../CODE_OF_CONDUCT.md) | Community participation rules |
 | [License](../LICENSE) | MIT |
 
 ## Maintenance and Checks
 
-Before you change a feature description, check the related source code, shared contracts, frontend entry points and tests. When configuration, routes, scripts or AI entry points change, update the [machine facts](ai/project-facts.json) too. For the doc change workflow, see the [change playbooks](ai/change-playbooks.md#文档与知识库) (Chinese).
+Before changing a feature description, check the related source code, shared contracts, frontend entry points and tests. When configuration, routes, scripts or AI entry points change, update the [machine facts](ai/project-facts.json) as well. The doc change workflow is in the [change playbooks](ai/change-playbooks.md#文档与知识库) (Chinese).
 
-Run these in the repository root:
+From the repository root:
 
 ```powershell
 npm.cmd run knowledge:check
 npm.cmd run knowledge:test
 ```
 
-On Linux/macOS the script names are the same; replace `npm.cmd` with `npm`. The checker verifies the machine facts and that local Markdown link targets exist. It does not verify heading anchors, whether external links work, or real user flows. Before you commit, you must also run `npm.cmd run verify` as described in the [verification matrix](ai/verification.md) (Chinese).
+On Linux/macOS the script names are the same; use `npm` instead of `npm.cmd`. The checker verifies the machine facts and that local Markdown link targets exist, but not heading anchors, external links or real user flows. Before committing, you must also run `npm.cmd run verify` as described in the [verification matrix](ai/verification.md) (Chinese).

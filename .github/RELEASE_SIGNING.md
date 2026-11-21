@@ -2,7 +2,7 @@
 
 **English** · [简体中文](RELEASE_SIGNING.zh-CN.md)
 
-`SHA256SUMS` of public Preview assets is signed with a GPG key held by the maintainer. The files in the repository and the GitHub Environment must agree, and the pipeline verifies the signature in a standalone keyring before creating a Release.
+The `SHA256SUMS` of public Preview assets is signed with a GPG key held by the maintainer. The repository files and the GitHub Environment must agree, and before creating a Release the pipeline verifies the signature in a standalone keyring.
 
 ## First-Time Maintainer Setup
 
@@ -35,13 +35,13 @@ sha256sum -c SHA256SUMS --ignore-missing
 gpg --verify SHA256SUMS.asc SHA256SUMS
 ```
 
-On Windows, [Gpg4win](https://gpg4win.org/) or `gpg` inside WSL can be used, with the same steps.
+On Windows, use [Gpg4win](https://gpg4win.org/) or `gpg` inside WSL; the steps are the same.
 
 ## Pipeline Verification Order (Summary)
 
 1. After importing the CI private key, assert that the secret key fingerprint equals `RELEASE_GPG_FINGERPRINT`.
 2. Assert that `.github/release-signing-key.fingerprint` in the repository matches the Environment fingerprint.
 3. Create a detached signature of `SHA256SUMS` with `--local-user <fingerprint>`.
-4. In a temporary keyring with only the repository public key imported, verify `SHA256SUMS.asc`, and only then run `gh release create`.
+4. Verify `SHA256SUMS.asc` in a temporary keyring that holds only the repository public key, and only then run `gh release create`.
 
 The pinned SHAs of third-party Actions are in [actions-pins.md](actions-pins.md).
