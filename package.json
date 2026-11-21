@@ -1,7 +1,7 @@
 {
   "name": "mystry-dashboard",
   "private": true,
-  "version": "0.2.0-preview.4",
+  "version": "0.2.0-preview.5",
   "description": "单机一体的 Minecraft 服务端 Web 管理面板（支持一键部署、热备份与免公网 IP 好友联机）",
   "license": "MIT",
   "homepage": "https://github.com/MystryMocha/mystry-dashboard#readme",

@@ -2,7 +2,7 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-![Version](https://img.shields.io/badge/version-0.2.0--preview.4-007AFF)
+![Version](https://img.shields.io/badge/version-0.2.0--preview.5-007AFF)
 ![License](https://img.shields.io/badge/license-MIT-34C759)
 ![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-5856D6)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522%20%28bundled%20in%20portable%29-FF2D55)
@@ -15,7 +15,7 @@ Mystry Dashboard is a standalone web application, not a Minecraft mod — it run
 
 [Quick Start](#quick-start) · [Why Mystry?](#why-mystry-dashboard) · [Features](#features) · [Documentation](docs/README.md) · [Tutorials](docs/tutorials.md) · [Contributing](CONTRIBUTING.md)
 
-> **Preview software.** The current version is `0.2.0-preview.4`. Read [Scope and limitations](#scope-and-limitations) before relying on it in production.
+> **Preview software.** The current version is `0.2.0-preview.5`. Read [Scope and limitations](#scope-and-limitations) before relying on it in production.
 
 ---
 

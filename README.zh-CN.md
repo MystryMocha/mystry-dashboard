@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-![Version](https://img.shields.io/badge/version-0.2.0--preview.4-007AFF)
+![Version](https://img.shields.io/badge/version-0.2.0--preview.5-007AFF)
 ![License](https://img.shields.io/badge/license-MIT-34C759)
 ![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-5856D6)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522%20%28%E4%BE%BF%E6%90%BA%E7%89%88%E5%B7%B2%E5%86%85%E7%BD%AE%29-FF2D55)
@@ -15,7 +15,7 @@
 
 [快速开始](#快速开始) · [为什么选择 Mystry？](#为什么选择-mystry-dashboard) · [功能一览](#功能) · [文档中心](docs/README.zh-CN.md) · [分步教程](docs/tutorials.zh-CN.md) · [贡献指南](CONTRIBUTING.zh-CN.md)
 
-> **预览版提示**：当前版本为 `0.2.0-preview.4`。正式投入长期服使用前，请先阅读 [使用边界](#使用边界)。
+> **预览版提示**：当前版本为 `0.2.0-preview.5`。正式投入长期服使用前，请先阅读 [使用边界](#使用边界)。
 
 ---
 
