@@ -200,7 +200,10 @@ export function renderFriendInstructions(input: LanRenderInput): string {
 
 export function lanFailureDetail(line: string, secret: string): PanelMessage | null {
   if (secret.length > 0 && line.includes(secret)) return null;
-  if (/administrator|access is denied|requires elevation|operation not permitted|wintun/i.test(line)) {
+  // "Failed to create adapter" is EasyTier's own wording, so it matches whatever language Windows uses; the OS text
+  // next to it is localized (a Chinese system prints 拒绝访问 instead of "Access is denied"). The localized text and
+  // 0x80070005 are not matched on purpose: EasyTier also prints them in a non-fatal firewall warning.
+  if (/administrator|access is denied|requires elevation|operation not permitted|wintun|failed to create adapter/i.test(line)) {
     return { key: 'server.lan.needsAdmin' };
   }
   if (/address already in use|addrinuse|os error 10048|os error 98\b/i.test(line)) {
