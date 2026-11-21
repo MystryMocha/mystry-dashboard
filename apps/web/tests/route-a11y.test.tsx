@@ -80,6 +80,10 @@ test('浏览器标签标题随路由变化，切换语言后同步更新', async
   act(() => setLocalePreference('en'));
   await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/import"]')!);
   await waitFor(() => expect(document.title).toBe('Import Server · Mystry Dashboard'));
+
+  // 面板设置的入口在侧栏底部用户区，不在导航分组里。
+  await user.click(document.querySelector<HTMLAnchorElement>('.sidebar-footer a[href="/settings"]')!);
+  await waitFor(() => expect(document.title).toBe('Panel Settings · Mystry Dashboard'));
 });
 
 test('实例页标题带标签名和实例名，切换标签和语言后更新', async () => {

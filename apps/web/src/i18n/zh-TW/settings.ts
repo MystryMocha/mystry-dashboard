@@ -1,0 +1,45 @@
+import type en from '../en/settings';
+
+/** 面板设置页文案（繁體中文）。 */
+export default {
+  'settings.device.title': '這台裝置',
+  'settings.device.lead': '儲存在這個瀏覽器裡，其他裝置各自設定。',
+  'settings.panel.title': '面板',
+  'settings.panel.lead': '所有登入的裝置共用，改完立即生效。',
+
+  'settings.session.lead': '登入後多久需要重新輸入密碼。',
+  'settings.session.label': '登入有效期限',
+  'settings.session.option.2h': '2 小時',
+  'settings.session.option.12h': '12 小時（預設）',
+  'settings.session.option.1d': '1 天',
+  'settings.session.option.7d': '7 天',
+  'settings.session.option.30d': '30 天',
+  'settings.session.option.never': '不過期',
+  'settings.session.help': '改短後，登入已超過新時長的裝置需要重新登入；改長後，這台裝置立即按新時長計算，其他裝置下次登入後生效。',
+  'settings.session.never.desc': '選「不過期」後，登入過的裝置會一直保持登入，直到修改密碼。開啟了「在其他裝置上開啟」時請謹慎使用。',
+  'settings.session.saved': '已儲存，這台裝置的登入已按新時長計算。',
+
+  'settings.downloadSource.title': '下載來源',
+  'settings.downloadSource.lead': '伺服器檔案和連線用戶端從哪裡下載。',
+  'settings.downloadSource.official': '官方來源',
+  'settings.downloadSource.china': '中國大陸鏡像',
+  'settings.downloadSource.official.desc': '檔案直接來自 Mojang、PaperMC、FabricMC、Forge、NeoForge 和 GitHub，面板不會連線至第三方鏡像。',
+  'settings.downloadSource.china.desc': 'Vanilla、Forge、NeoForge 和版本清單使用 BMCLAPI，frp 和 EasyTier 使用公共 GitHub 鏡像。鏡像下載的檔案都會先核對校驗值再使用，因此部署 Vanilla 時仍會從 Mojang 讀取提供校驗值的版本清單；鏡像失敗時自動改用官方來源。',
+  'settings.downloadSource.china.limits': 'Paper 和 Fabric 的伺服器檔案沒有可靠的鏡像，仍從官方網站下載。Forge 和 NeoForge 安裝程式的部分檔案仍要連線至 Mojang，伺服器第一次啟動時也可能再下載檔案。',
+  'settings.downloadSource.saved': '已儲存，之後的下載使用這個來源。',
+  'settings.downloadSource.hint': '下載來源：{source}。',
+  'settings.downloadSource.hint.change': '變更',
+  'settings.downloadSource.hint.done': '完成',
+
+  'settings.account.title': '帳號',
+  'settings.account.password': '密碼',
+  'settings.account.password.desc': '修改後，其他瀏覽器和裝置需要重新登入。',
+  'settings.info.title': '執行資訊',
+  'settings.info.version': '版本',
+  'settings.info.address': '監聽位址',
+  'settings.info.dataDir': '資料目錄',
+  'settings.info.backupDir': '備份目錄',
+  'settings.info.configFile': '設定檔',
+  'settings.info.note': '監聽位址和目錄在設定檔裡設定，改完要重新啟動面板才生效。',
+  'settings.info.loadFailed': '讀不到執行資訊。',
+} satisfies Record<keyof typeof en, string>;

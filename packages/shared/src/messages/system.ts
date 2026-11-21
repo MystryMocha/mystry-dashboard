@@ -12,8 +12,8 @@ export const SYSTEM_MESSAGES = {
 
   // 下载来源
   'server.system.downloadSourceInvalid': 'Choose a supported download source.',
-  'server.system.downloadAllSourcesFailed': "{name} couldn't be downloaded from any source. {attempts}Try again later, or change the download source on the This Machine page.",
-  'server.system.metadataAllSourcesFailed': "Version information couldn't be loaded from any source. {attempts}Try again later, or change the download source on the This Machine page.",
+  'server.system.downloadAllSourcesFailed': "{name} couldn't be downloaded from any source. {attempts}Try again later, or change the download source on the Panel Settings page.",
+  'server.system.metadataAllSourcesFailed': "Version information couldn't be loaded from any source. {attempts}Try again later, or change the download source on the Panel Settings page.",
   'server.system.downloadAttempt': '{source}: {reason}. {next}',
   'server.system.downloadReasonHttp': 'the server returned HTTP {status}',
   'server.system.downloadReasonTimeout': 'the request timed out',

@@ -1,9 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { FolderDown, Globe, KeyRound, LayoutGrid, LogOut, Menu, MonitorSmartphone, Rocket, Server, Terminal, X } from 'lucide-react';
+import { FolderDown, Globe, LayoutGrid, LogOut, Menu, MonitorSmartphone, Rocket, Server, Settings, Terminal, X } from 'lucide-react';
 import { useAuth } from './auth';
 import { useI18n, type MessageKey } from './i18n';
-import { ChangePasswordDialog } from './components/ChangePasswordDialog';
 import { BrandMark } from './components/BrandMark';
 import { LanguageToggle } from './components/LanguageToggle';
 import { TaskCenter } from './components/TaskCenter';
@@ -35,6 +34,9 @@ const NodesPage = lazy(() =>
 const MultiplayerPage = lazy(() =>
   import('./pages/MultiplayerPage').then(({ MultiplayerPage }) => ({ default: MultiplayerPage })),
 );
+const SettingsPage = lazy(() =>
+  import('./pages/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })),
+);
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
@@ -49,6 +51,7 @@ function pageTitleKeyFor(pathname: string): MessageKey {
   if (pathname.startsWith('/import')) return 'nav.import';
   if (pathname.startsWith('/nodes')) return 'nav.machine';
   if (pathname.startsWith('/multiplayer')) return 'nav.multiplayer';
+  if (pathname.startsWith('/settings')) return 'nav.settings';
   return 'shell.pageTitle.fallback';
 }
 
@@ -66,6 +69,7 @@ function documentTitleKeyFor(pathname: string, needsSetup: boolean): MessageKey 
   if (pathname === '/import') return 'nav.import';
   if (pathname === '/nodes') return 'nav.machine';
   if (pathname === '/multiplayer') return 'nav.multiplayer';
+  if (pathname === '/settings') return 'nav.settings';
   return null;
 }
 
@@ -119,7 +123,6 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [remoteAccessOpen, setRemoteAccessOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   /** 页面给出的顶栏标题（如实例名）；没有时用路由对应的固定文案。 */
@@ -252,15 +255,20 @@ function Shell({ children }: { children: React.ReactNode }) {
               <span className="user-role">{t('shell.user.role')}</span>
             </div>
           </div>
-          <button className="btn btn-icon btn-plain" type="button" title={t('shell.user.changePassword')} aria-label={t('shell.user.changePassword')} onClick={() => setPasswordDialogOpen(true)}>
-            <KeyRound size={16} aria-hidden="true" />
-          </button>
+          {/* 面板设置（语言、外观、登录有效期、下载来源、修改密码）都在这一页；当前就在设置页时按钮保持选中。 */}
+          <NavLink
+            to="/settings"
+            className={({ isActive }) => `btn btn-icon btn-plain sidebar-settings${isActive ? ' active' : ''}`}
+            title={t('nav.settings')}
+            aria-label={t('nav.settings')}
+          >
+            <Settings size={16} aria-hidden="true" />
+          </NavLink>
           <button className="btn btn-icon btn-plain" type="button" title={t('shell.user.signOut')} aria-label={t('shell.user.signOut')} onClick={logout}>
             <LogOut size={16} aria-hidden="true" />
           </button>
         </div>
       </aside>
-      {passwordDialogOpen && <ChangePasswordDialog onClose={() => setPasswordDialogOpen(false)} />}
       {remoteAccessOpen && (
         <Suspense fallback={null}>
           <RemoteAccessDialog onClose={() => setRemoteAccessOpen(false)} />
@@ -418,6 +426,14 @@ export function App() {
           element={
             <RequireAuth>
               <NodesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <RequireAuth>
+              <SettingsPage />
             </RequireAuth>
           }
         />

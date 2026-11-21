@@ -14,8 +14,8 @@ export default {
 
   // 下载来源
   'server.system.downloadSourceInvalid': '请选择支持的下载来源',
-  'server.system.downloadAllSourcesFailed': '{name} 在所有下载来源都下载失败。{attempts}请稍后重试，或到「本机环境」页更换下载来源。',
-  'server.system.metadataAllSourcesFailed': '所有来源都无法读取版本信息。{attempts}请稍后重试，或到「本机环境」页更换下载来源。',
+  'server.system.downloadAllSourcesFailed': '{name} 在所有下载来源都下载失败。{attempts}请稍后重试，或到「面板设置」页更换下载来源。',
+  'server.system.metadataAllSourcesFailed': '所有来源都无法读取版本信息。{attempts}请稍后重试，或到「面板设置」页更换下载来源。',
   'server.system.downloadAttempt': '{source}：{reason}。{next}',
   'server.system.downloadReasonHttp': '服务器返回 HTTP {status}',
   'server.system.downloadReasonTimeout': '请求超时',

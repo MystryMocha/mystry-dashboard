@@ -273,6 +273,22 @@ export interface DownloadSourceSetting {
   source: DownloadSource;
 }
 
+/**
+ * GET /api/system/panel-info 响应：面板启动时从配置文件读到的监听地址和目录，界面上只展示、不能改。
+ * 不含任何密钥。
+ */
+export interface PanelInfo {
+  /** 主监听器的地址（HOST）；「在其他设备上打开」另挂的监听器不在这里 */
+  host: string;
+  port: number;
+  /** 数据根目录的绝对路径 */
+  dataDir: string;
+  /** 备份目录的绝对路径；没有单独配置时在数据根目录下 */
+  backupDir: string;
+  /** 面板读取的配置文件路径；改完这个文件要重启面板才生效 */
+  configPath: string;
+}
+
 export interface DeployCoreInput {
   name: string;
   coreType: Exclude<CoreType, 'custom'>;

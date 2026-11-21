@@ -50,7 +50,7 @@ Where a limit is measured in bytes or milliseconds, the tables say so. `MiB` is 
 | `CONSOLE_TICKET_TTL_SECONDS` | `60` | Console ticket lifetime. Each ticket can open only one WebSocket connection |
 | `FILE_DOWNLOAD_TICKET_TTL_SECONDS` | `60` | File download ticket lifetime. Each ticket can be used for only one download |
 
-The sign-in duration is no longer set with `JWT_EXPIRES_IN`. If it's still in the file, it has no effect and the panel mentions it at startup. Choose the duration on the panel's **This Machine** page instead. The default is 12 hours. See [Sign-In Duration](user-guide.md#sign-in-duration).
+The sign-in duration is no longer set with `JWT_EXPIRES_IN`. If it's still in the file, it has no effect and the panel mentions it at startup. Choose the duration on the panel's **Panel Settings** page instead. The default is 12 hours. See [Sign-In Duration](user-guide.md#sign-in-duration).
 
 ### HTTP, File and Upload Lifecycle
 

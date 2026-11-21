@@ -9,6 +9,7 @@ import { JavaRuntimeSelect } from '../src/components/JavaRuntimeSelect';
 import { DeployPage } from '../src/pages/DeployPage';
 import { ImportPage } from '../src/pages/ImportPage';
 import { NodesPage } from '../src/pages/NodesPage';
+import { SettingsPage } from '../src/pages/SettingsPage';
 import { InstancePage } from '../src/pages/InstancePage';
 import { MultiplayerPage } from '../src/pages/MultiplayerPage';
 import { TaskCenter } from '../src/components/TaskCenter';
@@ -76,6 +77,7 @@ beforeEach(() => {
       : url === '/api/nodes' ? nodes
       : url === '/api/system/download-source' ? { source: 'official' }
       : url === '/api/auth/session-duration' ? { duration: '12h' }
+      : url === '/api/system/panel-info' ? { host: '127.0.0.1', port: 3000, dataDir: '/srv/mystry/data', backupDir: '/srv/mystry/data/backups', configPath: '/srv/mystry/config/panel.env' }
       : String(url).includes('/import/sources') ? { sources: [] }
       : String(url).includes('java-runtimes') ? { runtimes: [], defaultRuntime: null }
       : {};
@@ -381,7 +383,7 @@ test('节点页展示空态，失败后可主动重试恢复真实离线状态',
   expect(screen.queryByText(/健康运转中/)).toBeNull();
 });
 
-test('本机环境页切换下载来源：失败时保留原选择，成功后显示说明', async () => {
+test('面板设置页切换下载来源：失败时保留原选择，成功后显示说明', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   const saved: string[] = [];
@@ -395,7 +397,7 @@ test('本机环境页切换下载来源：失败时保留原选择，成功后�
     }
     return baseFetch(url, options);
   }));
-  mount(<NodesPage />);
+  mount(<AuthProvider><SettingsPage /></AuthProvider>);
   const official = await screen.findByRole('button', { name: '官方来源', pressed: true });
   const china = screen.getByRole('button', { name: '国内镜像', pressed: false });
   await user.click(china);
@@ -410,7 +412,7 @@ test('本机环境页切换下载来源：失败时保留原选择，成功后�
   expect(saved.at(-1)).toBe('{"source":"china"}');
 });
 
-test('本机环境页改登录有效期：保存后换上新令牌，选「不过期」时提示风险，失败时保留原选择', async () => {
+test('面板设置页改登录有效期：保存后换上新令牌，选「不过期」时提示风险，失败时保留原选择', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   const saved: string[] = [];
@@ -425,7 +427,7 @@ test('本机环境页改登录有效期：保存后换上新令牌，选「不�
     }
     return baseFetch(url, options);
   }));
-  mount(<NodesPage />);
+  mount(<AuthProvider><SettingsPage /></AuthProvider>);
   const select = await screen.findByRole('combobox', { name: '登录有效期' }) as HTMLSelectElement;
   await waitFor(() => expect(select.value).toBe('12h'));
   expect(screen.getByRole('option', { name: '12 小时（默认）' })).toBeTruthy();
@@ -444,6 +446,86 @@ test('本机环境页改登录有效期：保存后换上新令牌，选「不�
   expect(screen.queryByRole('alert')).toBeNull();
   expect(localStorage.getItem('mystry_token')).toBe('new-token');
   expect(saved.at(-1)).toBe('{"duration":"never"}');
+});
+
+test('侧栏齿轮进入面板设置：语言和外观就地生效，显示运行信息，可改密码和退出登录', async () => {
+  const user = userEvent.setup();
+  localStorage.setItem('mystry_token', 'test-only');
+  mount(<AuthProvider><App /></AuthProvider>);
+  const gear = await screen.findByRole('link', { name: '面板设置' });
+  expect(gear.closest('.sidebar-footer')).toBeTruthy();
+  // 修改密码不再占用户区的一个图标，只在设置页里。
+  expect(screen.queryByRole('button', { name: '修改密码' })).toBeNull();
+  await user.click(gear);
+  expect(await screen.findByRole('heading', { level: 1, name: '面板设置' })).toBeTruthy();
+  expect(screen.getByTestId('location').textContent).toBe('/settings');
+  expect(gear.getAttribute('aria-current')).toBe('page');
+  expect(gear.className).toContain('active');
+
+  // 运行信息只读：监听地址、目录和配置文件来自接口。
+  expect(await screen.findByText('127.0.0.1:3000')).toBeTruthy();
+  expect(screen.getByText('/srv/mystry/data')).toBeTruthy();
+  expect(screen.getByText('/srv/mystry/data/backups')).toBeTruthy();
+  expect(screen.getByText('/srv/mystry/config/panel.env')).toBeTruthy();
+  expect(screen.getByText('监听地址和目录在配置文件里设置，改完要重启面板才生效。')).toBeTruthy();
+
+  // 登录有效期和下载来源搬到了这一页。
+  expect(await screen.findByRole('combobox', { name: '登录有效期' })).toBeTruthy();
+  expect(await screen.findByRole('button', { name: '官方来源', pressed: true })).toBeTruthy();
+
+  // 语言：选了马上换，和顶栏的语言按钮是同一个设置。
+  await user.selectOptions(screen.getByRole('combobox', { name: '语言' }), 'en');
+  expect(await screen.findByRole('heading', { level: 1, name: 'Panel Settings' })).toBeTruthy();
+  expect(localStorage.getItem('mystry_locale')).toBe('en');
+  await user.selectOptions(screen.getByRole('combobox', { name: 'Language' }), 'zh-CN');
+  expect(await screen.findByRole('heading', { level: 1, name: '面板设置' })).toBeTruthy();
+
+  // 外观：分段按钮，选中项带 aria-pressed。
+  const dark = screen.getByRole('button', { name: '深色' });
+  await user.click(dark);
+  expect(dark.getAttribute('aria-pressed')).toBe('true');
+  expect(document.documentElement.dataset.appearance).toBe('dark');
+  await user.click(screen.getByRole('button', { name: '自动' }));
+  expect(document.documentElement.dataset.appearancePreference).toBe('auto');
+
+  // 修改密码从这里打开；取消后回到设置页。
+  await user.click(screen.getByRole('button', { name: '修改密码' }));
+  expect(await screen.findByLabelText('当前密码')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '取消' }));
+  await waitFor(() => expect(screen.queryByLabelText('当前密码')).toBeNull());
+
+  // 退出登录：设置页里的按钮和侧栏的图标各一个。
+  const account = screen.getByRole('region', { name: '账号' });
+  expect(within(account).getByText('测试员')).toBeTruthy();
+  await user.click(within(account).getByRole('button', { name: '退出登录' }));
+  await waitFor(() => expect(screen.getByTestId('location').textContent).toBe('/login'));
+  expect(localStorage.getItem('mystry_token')).toBeNull();
+});
+
+test('本机环境页不再放登录有效期和下载来源，仍保留「在其他设备上打开」', async () => {
+  nodes = [{ id: 'local', isLocal: true, name: '本机', status: 'online', instanceCount: 1 }];
+  mount(<NodesPage />);
+  expect(await screen.findByText('在线')).toBeTruthy();
+  expect(screen.getByRole('button', { name: /在其他设备上打开/ })).toBeTruthy();
+  expect(screen.queryByRole('combobox', { name: '登录有效期' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '官方来源' })).toBeNull();
+  expect(requests).not.toContain('/api/auth/session-duration');
+  expect(requests).not.toContain('/api/system/download-source');
+});
+
+test('面板设置页读不到运行信息时说明原因，其余设置照常可用', async () => {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/panel-info') return new Response(JSON.stringify({ error: '测试网络失败' }), { status: 503 });
+    return baseFetch(url, options);
+  }));
+  mount(<AuthProvider><SettingsPage /></AuthProvider>);
+  expect((await screen.findByRole('alert')).textContent).toContain('测试网络失败');
+  expect(screen.queryByText('监听地址')).toBeNull();
+  // 版本号来自前端构建，不依赖接口。
+  expect(screen.getByText('版本')).toBeTruthy();
+  const select = await screen.findByRole('combobox', { name: '登录有效期' }) as HTMLSelectElement;
+  await waitFor(() => expect(select.value).toBe('12h'));
 });
 
 test('复制日志提供空日志、权限拒绝、API 缺失与成功反馈', async () => {

@@ -67,7 +67,7 @@ X-Setup-Token: <SETUP_TOKEN>
 
 ### 登录有效期
 
-登录有效期（D-040）保存在 `panel_settings`，在「本机环境」页设置，默认 12 小时，可选 2 小时、12 小时、1 天、7 天、30 天或不过期。`.env` 里的 `JWT_EXPIRES_IN` 已不再生效，启动时如果还写着，终端会提示一句。
+登录有效期（D-040）保存在 `panel_settings`，在「面板设置」页设置，默认 12 小时，可选 2 小时、12 小时、1 天、7 天、30 天或不过期。`.env` 里的 `JWT_EXPIRES_IN` 已不再生效，启动时如果还写着，终端会提示一句。
 
 - setup、登录、修改密码和保存有效期时按当前设置签发令牌；选「不过期」时令牌不带 `exp`。
 - 每次请求再用令牌的签发时间 `iat` 对照当前设置：改短后，登录时间已超过新时长的令牌（包括按「不过期」签发的）下一次请求即返回 **401**。
@@ -94,6 +94,7 @@ X-Setup-Token: <SETUP_TOKEN>
 | GET | `/api/system/java-runtimes` | 是 | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
 | POST | `/api/system/java-runtimes/install` | 是 | 请求体 `{ major }`（8、17、21、25），返回后台任务 `TaskInfo`；完成后 `result.javaRuntimeId` 是新运行时 |
 | POST | `/api/system/java-runtimes/install/:taskId/cancel` | 是 | 取消还在排队或运行的一键安装 Java 任务，返回任务当前状态；不是进行中的 Java 安装任务时 409（`server.jvm.javaInstall.notCancellable`） |
+| GET | `/api/system/panel-info` | 是 | `PanelInfo`：`{ host, port, dataDir, backupDir, configPath }`，面板启动时从配置文件读到的监听地址和目录（绝对路径）。只读，不含密钥，给「面板设置」页的「运行信息」展示（D-042） |
 | GET | `/api/system/download-source` | 是 | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | 是 | 请求体 `{ source }`，返回保存后的值；其他取值返回 400 |
 | GET | `/api/system/remote-access` | 是 | `RemoteAccessStatus`；每次读取都重新枚举网卡 |

@@ -4,6 +4,7 @@ import shellMessages from './shell';
 import loginMessages from './login';
 import dashboardMessages from './dashboard';
 import nodesMessages from './nodes';
+import settingsMessages from './settings';
 import deployMessages from './deploy';
 import importMessages from './import';
 import jvmMessages from './jvm';
@@ -23,6 +24,7 @@ export default {
   ...loginMessages,
   ...dashboardMessages,
   ...nodesMessages,
+  ...settingsMessages,
   ...deployMessages,
   ...importMessages,
   ...jvmMessages,

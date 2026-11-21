@@ -24,6 +24,7 @@ import type {
   SessionDuration,
   SessionDurationSetting,
   UpdateSessionDurationResult,
+  PanelInfo,
   PanelNetworkJoinInfo,
   PanelNetworkStatus,
   PublicHostSetting,
@@ -357,6 +358,11 @@ export async function cancelJavaInstall(taskId: string) {
 /** PATH 中默认 Java 的探测结果。 */
 export async function detectDefaultJava() {
   return api<JavaDetectResult>('/api/system/java');
+}
+
+/** 面板运行信息：监听地址、数据目录、备份目录和配置文件路径，只读。 */
+export async function getPanelInfo() {
+  return api<PanelInfo>('/api/system/panel-info');
 }
 
 /** 面板当前的下载来源设置。 */
