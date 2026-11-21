@@ -2,54 +2,44 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-![Version](https://img.shields.io/badge/version-0.2.0--preview.5-007AFF)
-![License](https://img.shields.io/badge/license-MIT-34C759)
-![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-5856D6)
-![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522%20%28bundled%20in%20portable%29-FF2D55)
+![Version](https://img.shields.io/badge/version-0.2.0--preview.5-6439e0)
+![License](https://img.shields.io/badge/license-MIT-6439e0)
+![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-6439e0)
+![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522%20%28bundled%20in%20portable%29-6439e0)
 
-**The zero-setup web panel for hosting Minecraft: Java Edition servers on your own machine and playing with friends.**
+**Host Minecraft: Java Edition servers on your own computer and let friends join, all from your browser.**
 
-Deploy a server in a few clicks, watch the live colored console, back up running worlds without stopping play, and let friends outside your home network join through a built-in Virtual LAN — no Docker, no external database, and no public IP required.
+![The Instances page with three Minecraft servers, two of them running and ready for players](docs/assets/overview-light.en.png)
 
-Mystry Dashboard is a standalone web application, not a Minecraft mod — it runs on Node.js and does not require Fabric or Forge.
+Deploy a server in a few clicks, watch the live console, back up worlds while people are playing, and let friends outside your home network join through the built-in Virtual LAN. No Docker, no external database, and no public IP needed.
 
-[Quick Start](#quick-start) · [Why Mystry?](#why-mystry-dashboard) · [Features](#features) · [Documentation](docs/README.md) · [Tutorials](docs/tutorials.md) · [Contributing](CONTRIBUTING.md)
+Mystry Dashboard is a standalone web application, not a Minecraft mod. It runs on Node.js and doesn't need Fabric or Forge.
 
-> **Preview software.** The current version is `0.2.0-preview.5`. Read [Scope and limitations](#scope-and-limitations) before relying on it in production.
+[Quick Start](#quick-start) · [Features](#features) · [Documentation](docs/README.md) · [Tutorials](docs/tutorials.md) · [Contributing](CONTRIBUTING.md)
 
----
-
-## Interface Preview
-
-| Light Appearance · Instances & Live Metrics | Dark Appearance · Live Console & Ready Banner |
-|---|---|
-| ![Instances Overview in Light Mode](docs/assets/overview-light.en.png) | ![Instance Console in Dark Mode](docs/assets/console-dark.en.png) |
-| **Quick Deploy · Core Selection & JVM Presets** | **Multiplayer · Built-in Virtual LAN & frp** |
-| ![Quick Deploy in Light Mode](docs/assets/deploy-light.en.png) | ![Multiplayer in Dark Mode](docs/assets/multiplayer-dark.en.png) |
+> **Preview software.** Read [Scope and limitations](#scope-and-limitations) before running a long-term server on it.
 
 ---
 
-## Why Mystry Dashboard?
+## Who It's For
 
-Most server panels are either heavyweight data-center suites (requiring Linux, Docker, MySQL, Redis and separate daemon agents) or barebones terminal wrappers. Mystry Dashboard is built for **personal, home-lab and friend-group servers**:
+Personal, home and friend-group servers, run on the computer in front of you:
 
-- **Unpack and Double-Click to Run** — Portable builds for Windows x64 and Linux x64 bundle Node.js 22 and all production dependencies. Double-clicking `mystryctl.cmd` starts the panel in the background, creates the `admin` account with a random 16-character password shown once in the window, and keeps your servers running even if you close the log window.
-- **Play with Friends Without a Public IP** — Built-in **Virtual LAN** (powered by official EasyTier, verified against a pinned SHA-256) puts your server and your friends on an encrypted private network with no port forwarding or account sign-up. It manages scoped Windows Firewall rules automatically and also supports public IPv6 direct connections, custom relay nodes, or your own **frp** server — exposing only the Minecraft game port, never the panel.
-- **Automatic Crash Diagnosis & Guided Setup** — Detects common startup failures from the log (unaccepted EULA with a one-click **Accept and Start** button, or Java version mismatches with direct Temurin download links). Includes a structured JVM configurator with G1GC and Paper Aikar presets, plus a grouped `server.properties` form editor that preserves comments and formatting.
-- **Live World Backups & Verified Restore** — Create streaming `tar.gz` backups with per-file SHA-256 manifests while a server is running (`save-off` → `save-all flush` → `save-on`). Restores verify every file in a staging folder first and take a `pre-restore` backup by default.
-- **Mirror Fallback & Checksum Verification** — Switch between `Official` and `Mainland China Mirror` in **This Machine**. Vanilla version manifests always come from Mojang; mirrored files are used only when their checksum can be verified, and mismatched files are discarded. Multiplayer tools (frp and EasyTier) are checked against pinned SHA-256 hashes and can also be installed from an uploaded archive when GitHub is unreachable.
-- **Clean UI & Three Languages** — Built with translucent navigation chrome and card-free content separated by rules and type, supporting `auto` / `light` / `dark` appearances with a fixed ink-purple accent, phone/tablet bottom navigation, and a screen-reader console mode. Loads no external web fonts and is localized in **English**, **Simplified Chinese**, and **Traditional Chinese**.
+- **Unzip and Double-Click** — The portable builds for Windows x64 and Linux x64 include Node.js 22 and everything else the panel needs. Double-clicking `mystryctl.cmd` starts the panel in the background and shows the `admin` password once. Closing the window leaves the panel and your servers running.
+- **Friends Join Without a Public IP** — Turn on **Virtual LAN** and send friends the join instructions. There's no port forwarding or sign-up, and the panel adds the Windows Firewall rules for you. Public IPv6, your own relay nodes and your own **frp** server work too. Only the game port is shared, never the panel.
+- **Startup Failures Come With a Fix** — If the EULA hasn't been accepted, click **Agree and Start**. If the server needs a different Java, the panel names the version and can install it. Memory and JVM flags are set in a form with G1GC presets, plus Aikar's flags for Paper.
+- **Back Up While People Are Playing** — A backup turns off world saving, flushes the world to disk, packs the folder and turns saving back on, so you never copy a half-written world. A restore checks every file first and backs up the current server before replacing it.
+- **Works on Slow or Blocked Networks** — Switch the download source to **China Mirrors** in **Panel Settings**. Mirrored files are used only when their checksum can be verified. frp and EasyTier can also be installed from an archive you upload.
+- **Phones, Dark Mode and Three Languages** — Light and dark appearance, bottom navigation on phones and tablets, and a screen-reader mode for the console. The panel loads no web fonts, so it opens offline, and it's available in English, Simplified Chinese and Traditional Chinese.
 
 ### How It Compares
 
-| Capability | Raw `.bat` / `.sh` Scripts | Data-Center Panels (e.g. Pterodactyl) | **Mystry Dashboard** |
+| | Startup scripts (`.bat` / `.sh`) | Data-center panels (e.g. Pterodactyl) | Mystry Dashboard |
 |---|---|---|---|
-| **Setup complexity** | Manual flags, `eula.txt` & port setup | Linux + Docker + MySQL + Redis + Wings | **Single portable folder** (Node.js 22 bundled) |
-| **No-public-IP multiplayer** | External tools & manual firewall rules | Not included | **Built-in Virtual LAN (EasyTier) & managed frpc** |
-| **Startup error diagnosis** | Raw Java stack traces | Raw console output | **Auto-detects EULA & Java version issues with 1-click actions** |
-| **JVM tuning** | Copy-pasting flags by hand | Manual startup string | **Recommended max memory + G1 / Aikar (Paper) presets + argument preview & Java version checks** |
-| **Running-server backup** | Manual folder copy (risks corruption) | Varies by storage driver | **Coordinated `save-all flush` + SHA-256 verified `tar.gz`** |
-| **Unreliable network fallback** | Manual downloads | Fails on blocked registries | **Official / China mirror switch + SHA-256 verified offline upload** |
+| **Setup** | Edit flags, `eula.txt` and ports by hand | Linux, Docker, MySQL, Redis and the Wings daemon | One portable folder, Node.js 22 included |
+| **Friends without a public IP** | Set up a tunnel and firewall rules yourself | Not built in | Virtual LAN (EasyTier) and frp built in |
+| **Backing up a running world** | Copy the folder while the server writes to it | Built in | Saving is paused and the world flushed before every backup |
+| **Slow or blocked downloads** | Download files by hand | No built-in mirror switch | China mirrors with checksum checks, or upload the file yourself |
 
 ---
 
@@ -57,17 +47,24 @@ Most server panels are either heavyweight data-center suites (requiring Linux, D
 
 | Area | What you can do |
 |---|---|
-| **Instances** | Create, start, stop, restart, force stop and delete multiple servers on one machine. Dangerous actions require confirmation. |
-| **Console** | Live server output with ECMA-48 log-level coloring (`INFO`, `WARN`, `ERROR`), command input, screen-reader mode, and exponential-backoff reconnect. |
-| **Files & Properties** | Browse, upload, stream downloads via one-time tickets, edit text files, rename, and edit `server.properties` through a grouped form. |
-| **Quick Deploy** | Deploy **Paper**, **Fabric**, **Forge**, **NeoForge** or **Vanilla** (including Minecraft 26.x and legacy versions). Paper and the latest stable release are preselected. |
-| **Import Server** | Two-stage ZIP preview & import (inspects `user_jvm_args.txt` before queuing) or safe copy-in from `DATA_DIR/imports` without modifying your original folder. |
-| **Backups** | One-click backup of a whole server folder (even while running), download, upload, delete, and atomic staged restore with automatic `pre-restore` backup. |
-| **Multiplayer** | Switch between **Direct Connection** (LAN IPv4, public IPv6 and public server addresses), **Virtual LAN** (EasyTier, no public IP needed), and **frp Tunnel**. Only the game port is shared. |
-| **Java & JVM** | Scan `JAVA_HOME` and common install paths for verified Java runtimes, pick the right Java for new servers automatically, install a checksum-pinned Eclipse Temurin JRE in one click when it's missing, and configure JVM memory & presets. |
-| **Download sources** | Switch between `Official` (default) and `Mainland China Mirror` (BMCLAPI & GitHub mirrors with automatic fallback) in **This Machine**. Vanilla manifests always come from Mojang; mirrored files are used only when their checksum can be verified; frp and EasyTier are checked against pinned SHA-256 values. |
-| **Tasks & monitoring** | Global Task Center tracks deploys, imports and backups. **Instances** shows host CPU, memory, free disk space, and per-instance CPU & resident memory. |
-| **Appearance & i18n** | Auto / Light / Dark appearance with a fixed ink-purple accent; English (default), Simplified Chinese and Traditional Chinese across UI, server errors and task progress. |
+| **Instances** | Create, start, stop, restart, force stop and delete servers on one machine. Destructive actions ask you to confirm, and the panel tells you when players can join. |
+| **Console** | Live server output colored by log level, a command box, a screen-reader mode, and automatic reconnects. |
+| **Files & Properties** | Browse, upload and download files of any size, edit text files, rename, and edit `server.properties` in a grouped form that keeps your comments. |
+| **Quick Deploy** | Deploy **Paper**, **Fabric**, **Forge**, **NeoForge** or **Vanilla**, from legacy versions up to Minecraft 26.x. Paper and the latest stable release are preselected. |
+| **Import Server** | See what's inside a ZIP before importing it, or copy in an existing server folder. Your original folder is never changed. |
+| **Backups** | Back up a whole server folder, even while it's running. Download, upload and delete backups, and restore after every file is checked. |
+| **Multiplayer** | Choose **Direct Connection** (LAN IPv4, public IPv6 or a public server address), **Virtual LAN** (EasyTier, no public IP needed) or **frp Tunnel**. Only the game port is shared. |
+| **Java & JVM** | Find the Java already installed, pick the right version for each new server, install Eclipse Temurin in one click when it's missing, and set memory with JVM presets. |
+| **Download sources** | **Official** (default) or **China Mirrors** (BMCLAPI and GitHub mirrors, falling back to official). frp, EasyTier and Java downloads are checked against pinned SHA-256 hashes. |
+| **Tasks & monitoring** | **Task Center** follows deploys, imports and backups. **Instances** shows CPU, memory and free disk space for this computer, and CPU and memory for each server. |
+| **Account** | One `admin` account. Changing the password signs out every other browser and device. |
+| **Appearance & languages** | Light, dark or follow the system. English, Simplified Chinese and Traditional Chinese, including server errors and task progress. |
+
+### Screenshots
+
+| Server Console | Quick Deploy | Multiplayer: Virtual LAN |
+|---|---|---|
+| ![The Survival SMP console with the live log, a banner saying players can join, and common commands](docs/assets/console-dark.en.png) | ![Quick Deploy with Paper selected, game version 1.21.4 and Java 21](docs/assets/deploy-light.en.png) | ![Virtual LAN turned on for Survival SMP, with join instructions and the address players connect to](docs/assets/multiplayer-dark.en.png) |
 
 ### Supported Games
 
@@ -90,7 +87,7 @@ Pick how you want to run Mystry Dashboard, then [sign in for the first time](doc
 | **3. Linux / WSL, from source** | Node.js 22 or later | Run `./PanelManager.sh start` |
 | **4. Manual development** | Node.js 22 or later, two terminals | [Development guide](docs/development.md) |
 
-### Start in 3 Steps (Source Launcher)
+### Start from Source in 3 Steps
 
 Windows PowerShell:
 
@@ -105,17 +102,17 @@ chmod +x PanelManager.sh
 ./PanelManager.sh start
 ```
 
-1. **Launch**: The launcher checks your environment, installs dependencies, generates `config/panel.env` (or `.env` on Windows source) with random secrets, creates the `admin` user with a random 16-character password shown once in the terminal, and starts the panel in the background.
-2. **Sign in**: Open `http://127.0.0.1:3000` in your browser and sign in with the credentials shown in the launcher window (you can change the password anytime from the key icon in the bottom-left corner, or reset it locally with `reset-password`).
-3. **Deploy & Play**: Open **Quick Deploy**, pick a core and version, check the EULA box, and click **Start Deploy**.
+1. **Launch**: The launcher checks your environment, installs dependencies, generates `config/panel.env` (or `.env` on Windows) with random secrets, creates the `admin` account with a random 16-character password shown once in the window, and starts the panel in the background.
+2. **Sign in**: Open `http://127.0.0.1:3000` and sign in with the account shown in the launcher window. To set your own password, open **Panel Settings** (the gear at the bottom left) and click **Change Password**. If you forget it, run `reset-password` on this computer.
+3. **Deploy**: Open **Quick Deploy**, pick a core and version, check the EULA box, and click **Start Deploy**.
 
 To open the panel on a phone or another computer, click **Other Devices** in the top bar. On a server you reach over SSH, run `./PanelManager.sh remote on`. See [Open the Panel on Another Device](docs/user-guide.md#open-the-panel-on-another-device).
 
-Source launcher commands (`PanelManager.cmd` / `PanelManager.sh`): `start`, `foreground`, `stop`, `restart`, `rebuild`, `status`, `logs`, `open`, `reset-password`, `remote`, `mirror` and `help`. Double-clicking `PanelManager.cmd` without a command opens a menu; `./PanelManager.sh` without a command runs `start`. The portable `mystryctl` has the same commands except `rebuild` and `mirror`, plus two portable-only ones: `watch` (what double-clicking `mystryctl.cmd` does) and `menu`. The source launchers reject `watch` and `menu` as unknown commands.
+Double-clicking `PanelManager.cmd` opens a menu, and `help` lists every launcher command. [Getting Started](docs/getting-started.md) and the [portable release guide](docs/portable-release.md) explain what each one does.
 
-### Java Requirements for Minecraft
+### Java for Minecraft
 
-**Java is not bundled.** Install the Java version your Minecraft server needs. By default a server uses the `java` on the panel's `PATH`, or you can select any verified runtime detected by the panel.
+**Java isn't bundled.** A server uses the `java` on the panel's `PATH` by default, or any Java the panel finds and verifies. When the recommended version is missing, the Java picker offers **Install Java N**, which installs Eclipse Temurin into the panel's data folder.
 
 | Minecraft version | Recommended Java |
 |---|---|
@@ -163,14 +160,14 @@ The launchers create the file and generate its secrets automatically. For manual
 | `BACKUP_DIR` | `DATA_DIR/backups` | Where server backups are stored |
 | `JWT_SECRET`, `SETUP_TOKEN`, `LAUNCHER_TOKEN` | generated by the launcher | Three distinct 64-character hex secrets |
 
-Upload sizes, timeouts, concurrency and console limits are all configurable. See [`.env.example`](.env.example) and the [configuration guide](docs/configuration.md) for the full list.
+In the docs, `DATA_DIR/...` means the resolved data root; see [Data Directory](docs/configuration.md#data-directory) for its layout. Upload sizes, timeouts, concurrency and console limits are all configurable. See [`.env.example`](.env.example) and the [configuration guide](docs/configuration.md) for the full list.
 
 ---
 
 ## Scope and Limitations
 
 - **Local node only**: Only the built-in local node (`local`) is enabled. Remote agents and multi-node clusters are not enabled yet.
-- **Managed instance root**: Every server lives in `instances/<id>` under the data root. The panel never browses arbitrary system paths or binds directly to external directories.
+- **Managed instance root**: Every server lives in `instances/<id>` under the data root. The panel never browses arbitrary system paths or binds directly to external directories. Instances that older panel versions kept in an external folder can be moved in; see [Adopting a Legacy External Instance](docs/user-guide.md#adopting-a-legacy-external-instance).
 - **Folder import**: To import an existing server, stop it first, then choose its folder in the browser. The panel receives a copy and the original folder is kept untouched. Very large servers can be copied into `DATA_DIR/imports/` instead. See [Upload a Folder](docs/user-guide.md#upload-a-folder).
 - **In-memory task queue**: Task metadata is stored in SQLite, while workers run in memory. If the panel restarts, unfinished tasks are marked as failed and their staging folders are cleaned up.
 - **Per-instance backups**: Backups cover one server folder at a time. Scheduled backups, retention rules and full-panel database (`panel.db`) backups are not included yet. See [backup and migration](docs/tutorials.md#tutorial-8-backup-and-migration).
