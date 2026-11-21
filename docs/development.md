@@ -15,11 +15,11 @@ npm install
 npm run build -w @mystry/shared
 ```
 
-When the source needs to run as an integrated panel on Linux / WSL, use `PanelManager.sh` in the root. It checks for Node.js 22, installs missing dependencies from the lockfile, builds, and reuses the cross-platform safe lifecycle controller:
+When the source needs to run as an integrated panel on Linux / WSL, use `mdash.sh` in the root. It checks for Node.js 22, installs missing dependencies from the lockfile, builds, and reuses the cross-platform safe lifecycle controller:
 
 ```bash
-chmod +x PanelManager.sh
-./PanelManager.sh start
+chmod +x mdash.sh
+./mdash.sh start
 ```
 
 The default config is `config/panel.env` and the data root is `data/` in the repository; neither should be committed. To isolate test data, set the same `MYSTRY_CONFIG_PATH` and `MYSTRY_DATA_DIR` before every start/stop/status command.

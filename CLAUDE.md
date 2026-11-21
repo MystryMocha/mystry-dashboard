@@ -32,7 +32,7 @@ Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.5`）是
 
 前端路由：`/login`、`/`（总览）、`/deploy`、`/import`、`/multiplayer`、`/nodes`、`/settings`（面板设置）、`/instances/:id/*`。页面入口在 `apps/web/src/pages/`，HTTP 封装在 `apps/web/src/api.ts`。Vite 别名 `@` → `src/`。
 
-源码启动器：Windows `PanelManager.cmd`，Linux/WSL `PanelManager.sh`。便携控制器：`scripts/portable/mystryctl.mjs`。
+源码启动器：Windows `mdash.cmd`，Linux/WSL `mdash.sh`。便携控制器：`scripts/portable/mdash.mjs`。
 
 默认监听 `127.0.0.1:3000`；Vite 开发端口 `127.0.0.1:5173`。Node.js 必须为 22 或更高。Windows PowerShell 使用 `npm.cmd`，避免执行策略拦截 `npm.ps1`。
 
@@ -99,7 +99,7 @@ npm.cmd run verify
 npm.cmd run ci:local
 ```
 
-Linux/macOS 使用相同脚本名，入口为 `npm run ...`。远程 CI 已关闭自动触发（D-032），`ci:local` 对当前提交做干净安装并跑 `verify`，只在 Windows 上运行，依次跑 Windows 与 WSL Linux，Node 固定为便携包内置版本（22.x），推送前运行。源码整合启动可用 `PanelManager.cmd` / `./PanelManager.sh`。
+Linux/macOS 使用相同脚本名，入口为 `npm run ...`。远程 CI 已关闭自动触发（D-032），`ci:local` 对当前提交做干净安装并跑 `verify`，只在 Windows 上运行，依次跑 Windows 与 WSL Linux，Node 固定为便携包内置版本（22.x），推送前运行。源码整合启动可用 `mdash.cmd` / `./mdash.sh`。
 
 ## 验证与交付
 

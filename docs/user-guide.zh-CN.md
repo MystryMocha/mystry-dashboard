@@ -442,7 +442,7 @@ Mystry Dashboard 运行在你**本机**上：用网页管理多个 Minecraft **�
 
 ### 忘记管理员密码
 
-在面板运行期间，在运行面板的这台电脑上执行 `reset-password` 命令：便携版 Windows 为 `.\mystryctl.cmd reset-password`，便携版 Linux 为 `./mystryctl reset-password`，源码版为 `.\PanelManager.cmd reset-password` 或 `./PanelManager.sh reset-password`。窗口会显示一个新的随机密码，只显示一次。请直接在终端窗口里运行：输出被重定向到文件或通过管道传出时，命令会拒绝执行，旧密码继续有效。登录后点左下角的齿轮进入「面板设置」，点「修改密码」改成自己的密码。
+在面板运行期间，在运行面板的这台电脑上执行 `reset-password` 命令：Windows 为 `.\mdash.cmd reset-password`；Linux 便携版为 `./mdash reset-password`，源码版为 `./mdash.sh reset-password`。窗口会显示一个新的随机密码，只显示一次。请直接在终端窗口里运行：输出被重定向到文件或通过管道传出时，命令会拒绝执行，旧密码继续有效。登录后点左下角的齿轮进入「面板设置」，点「修改密码」改成自己的密码。
 
 重置密码会让所有浏览器和设备上的登录失效，包括你正在用的；重新打开面板，用新密码登录即可。
 

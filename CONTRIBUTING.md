@@ -26,7 +26,7 @@ Before large architectural changes, new dependencies or breaking changes, open a
 
 First follow [Getting Started: Manual Install and First-Time Setup](docs/getting-started.md) to install dependencies and configure random secrets, then follow the [Development Guide](docs/development.md) to start the two development terminals. Copying `.env.example` without filling in the secrets is not enough to complete the first start.
 
-On Windows PowerShell use `npm.cmd`, and run the in-repo manager with `.\PanelManager.cmd`; on Linux/macOS use `npm`.
+On Windows PowerShell use `npm.cmd`, and run the in-repo manager with `.\mdash.cmd`; on Linux/macOS use `npm`.
 
 For more detail see [docs/development.md](docs/development.md) and [docs/getting-started.md](docs/getting-started.md).
 

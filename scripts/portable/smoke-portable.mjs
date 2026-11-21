@@ -85,7 +85,7 @@ function controlInvocation(root, command, env) {
     : path.join(root, 'runtime', 'bin', 'node');
   return [
     nodeExecutable,
-    ['--experimental-sqlite', path.join(root, 'app', 'mystryctl.mjs'), command],
+    ['--experimental-sqlite', path.join(root, 'app', 'mdash.mjs'), command],
     { cwd: root, env },
   ];
 }
@@ -114,12 +114,12 @@ function verifyWrapper(root, env) {
     ? run(
         process.env.ComSpec || 'cmd.exe',
         // The current directory is spelled out: with NoDefaultCurrentDirectoryInExePath set, cmd does not look for commands in the current directory.
-        ['/d', '/s', '/c', '.\\mystryctl.cmd help'],
+        ['/d', '/s', '/c', '.\\mdash.cmd help'],
         { cwd: root, env },
       )
-    : run(path.join(root, 'mystryctl'), ['help'], { cwd: root, env });
-  // The command name in the usage line does not change with the UI language, and in source mode it is PanelManager here.
-  if (!output.includes('mystryctl <command>')) {
+    : run(path.join(root, 'mdash'), ['help'], { cwd: root, env });
+  // The command name in the usage line does not change with the UI language, and in source mode it is mdash.cmd / mdash.sh instead.
+  if (!output.includes('mdash <command>')) {
     throw new Error('The platform entry script failed to call the portable controller in the package');
   }
 }

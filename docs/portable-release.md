@@ -56,17 +56,17 @@ If `RELEASE_GPG_PRIVATE_KEY` is missing from the pipeline, or `RELEASE_GPG_FINGE
 Windows:
 
 ```text
-Extract → double-click mystryctl.cmd → the panel runs in the background and opens your browser → sign in with the account shown in the window → press Ctrl+C in the window to stop it
+Extract → double-click mdash.cmd → the panel runs in the background and opens your browser → sign in with the account shown in the window → press Ctrl+C in the window to stop it
 ```
 
-When you double-click it, the panel and your servers run in the background as a daemon, with no window of their own. The window you see only shows the account and important logs. The full log is in `logs/panel.stdout.log`. Closing the window doesn't affect the panel or your servers. To see the logs again or stop the panel, double-click `mystryctl.cmd` again. Ctrl+C safely stops the panel and all servers. Do this before you shut down or restart too. If startup fails, the window stays on the error until you press Enter.
+When you double-click it, the panel and your servers run in the background as a daemon, with no window of their own. The window you see only shows the account and important logs. The full log is in `logs/panel.stdout.log`. Closing the window doesn't affect the panel or your servers. To see the logs again or stop the panel, double-click `mdash.cmd` again. Ctrl+C safely stops the panel and all servers. Do this before you shut down or restart too. If startup fails, the window stays on the error until you press Enter.
 
-To use the menu, run `.\mystryctl.cmd menu`. Command-line calls with arguments don't pause, so they're safe to use in scripts.
+To use the menu, run `.\mdash.cmd menu`. Command-line calls with arguments don't pause, so they're safe to use in scripts.
 
 You can also run this in a terminal:
 
 ```powershell
-.\mystryctl.cmd start
+.\mdash.cmd start
 ```
 
 Linux:
@@ -74,8 +74,8 @@ Linux:
 ```bash
 tar -xzf mystry-v0.2.0-preview.5-linux-x64.tar.gz
 cd mystry-dashboard
-chmod +x mystryctl
-./mystryctl start
+chmod +x mdash
+./mdash start
 ```
 
 Commands:
@@ -94,7 +94,7 @@ Commands:
 | `remote` | While the panel is running, control access from other devices: `remote on`, `remote off`, `remote status`, `remote https off`, `remote renew-cert` |
 | `menu` | Opens the interactive command menu |
 
-The first start creates `config/panel.env`, generates distinct random secrets, and creates the `admin` account with a random 16-character password. The password is shown once in the window and isn't written to the log files. After signing in, open **Panel Settings** (the gear at the bottom left) and click **Change Password** to change it. If you forget it, run `.\mystryctl.cmd reset-password` in a terminal window while the panel is running; it refuses when its output is redirected or piped, so the new password never lands in a file. The config file contains secrets, so don't upload or share it.
+The first start creates `config/panel.env`, generates distinct random secrets, and creates the `admin` account with a random 16-character password. The password is shown once in the window and isn't written to the log files. After signing in, open **Panel Settings** (the gear at the bottom left) and click **Change Password** to change it. If you forget it, run `.\mdash.cmd reset-password` in a terminal window while the panel is running; it refuses when its output is redirected or piped, so the new password never lands in a file. The config file contains secrets, so don't upload or share it.
 
 ## Folders and Data
 
@@ -105,8 +105,8 @@ mystry-dashboard/
 ├── config/               # First-start config and config backups
 ├── data/                 # Database, instances, caches and temporary uploads
 ├── logs/                 # Panel standard output and error logs
-├── mystryctl.cmd
-├── mystryctl
+├── mdash.cmd
+├── mdash
 ├── manifest.json
 ├── VERSION
 ├── README.txt
@@ -119,11 +119,11 @@ Instances always stay in `data/instances/<id>`. `manifest.json` records the prod
 
 Don't overwrite a portable folder that's running:
 
-1. Run `mystryctl stop` in the old folder, then confirm with `mystryctl status` that it has stopped.
+1. Run `mdash stop` in the old folder, then confirm with `mdash status` that it has stopped. Versions up to 0.2.0-preview.5 name the command `mystryctl` instead of `mdash`.
 2. Extract the new version into a new folder next to the old one.
 3. Confirm that `config/`, `data/` and `logs/` in the new folder are empty.
 4. Move those three folders from the old folder into the new one, and keep the old application folder as a rollback copy.
-5. Run `mystryctl start` from the new folder, then check sign-in, the instance list and your worlds.
+5. Run `mdash start` from the new folder, then check sign-in, the instance list and your worlds.
 6. Once everything looks right, archive the old application folder yourself. Don't delete your only copy of the data.
 
 To roll back, stop the new version first, move `config/`, `data/` and `logs/` back to the old application folder, then start it. There's currently no database migration framework, so back up these three folders separately before you upgrade. Don't rely on the old application folder alone.

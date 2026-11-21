@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Linux / WSL source management entry: once dependencies and the build are done, the safe lifecycle is handed to mystryctl.
+# Linux / WSL source management entry: once dependencies and the build are done, the safe lifecycle is handed to the controller (scripts/portable/mdash.mjs).
 set -euo pipefail
 
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-CONTROLLER="$PROJECT_ROOT/scripts/portable/mystryctl.mjs"
+CONTROLLER="$PROJECT_ROOT/scripts/portable/mdash.mjs"
 NPM_MIRROR_SCRIPT="$PROJECT_ROOT/scripts/npm-mirror.mjs"
 
 # UI language: MYSTRY_LANG first, then LC_ALL / LC_MESSAGES / LANG; Chinese in a Chinese environment, English for everything else.
-# C / POSIX means no language is set, so move on to the next item. The result is written back to MYSTRY_LANG, so mystryctl uses the same language.
+# C / POSIX means no language is set, so move on to the next item. The result is written back to MYSTRY_LANG, so the controller uses the same language.
 detect_chinese() {
   for value in "${MYSTRY_LANG:-}" "${LC_ALL:-}" "${LC_MESSAGES:-}" "${LANG:-}"; do
     case "$value" in
@@ -40,7 +40,7 @@ fail() {
 commands_hint="$(text '可用命令：start、foreground、stop、restart、rebuild、status、logs、open、reset-password、remote、mirror、help。' 'Available commands: start, foreground, stop, restart, rebuild, status, logs, open, reset-password, remote, mirror, help.')"
 
 if [ "$(uname -s)" != 'Linux' ]; then
-  fail "$(text 'PanelManager.sh 仅支持 Linux / WSL；Windows 请使用 PanelManager.cmd。' 'PanelManager.sh supports Linux / WSL only. On Windows, use PanelManager.cmd.')"
+  fail "$(text 'mdash.sh 仅支持 Linux / WSL；Windows 请使用 mdash.cmd。' 'mdash.sh supports Linux / WSL only. On Windows, use mdash.cmd.')"
 fi
 
 # WSL may inherit the Windows temp directory; prefer /tmp, which has Unix permission semantics.
@@ -97,7 +97,7 @@ ensure_dependencies() {
       else
         npm ci
       fi
-    ) || fail "$(text '依赖安装失败。下载慢或失败时，可以运行 ./PanelManager.sh mirror 换一个 npm 下载源。' 'Installing dependencies failed. If downloads are slow or failing, run ./PanelManager.sh mirror to choose another npm download source.')"
+    ) || fail "$(text '依赖安装失败。下载慢或失败时，可以运行 ./mdash.sh mirror 换一个 npm 下载源。' 'Installing dependencies failed. If downloads are slow or failing, run ./mdash.sh mirror to choose another npm download source.')"
   fi
 }
 

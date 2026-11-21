@@ -63,6 +63,7 @@ const dataDir = resolveFromHome(configValue('MYSTRY_DATA_DIR') || configValue('D
 const logDir = path.join(homeDir, 'logs');
 const launcherDir = path.join(dataDir, 'launcher');
 const statePath = path.join(launcherDir, 'state.json');
+// Keeps the name from before the controller became mdash, so an older mystryctl and mdash on the same data directory still exclude each other.
 const lockPath = path.join(launcherDir, 'mystryctl.lock');
 const stdoutLog = path.join(logDir, 'panel.stdout.log');
 const stderrLog = path.join(logDir, 'panel.stderr.log');
@@ -71,8 +72,8 @@ const repositoryServerEntry = path.join(homeDir, 'apps', 'server', 'dist', 'inde
 const portableMode = fs.existsSync(portableServerEntry);
 const serverEntry = portableMode ? portableServerEntry : repositoryServerEntry;
 const managerLabel = portableMode ? text('便携版', 'Portable') : text('源码版', 'Source');
-const sourceManagerCommand = process.platform === 'win32' ? 'PanelManager.cmd' : 'PanelManager.sh';
-const managerCommand = portableMode ? 'mystryctl' : sourceManagerCommand;
+const sourceManagerCommand = process.platform === 'win32' ? 'mdash.cmd' : 'mdash.sh';
+const managerCommand = portableMode ? 'mdash' : sourceManagerCommand;
 const bundledNode = process.platform === 'win32'
   ? path.join(homeDir, 'runtime', 'node.exe')
   : path.join(homeDir, 'runtime', 'bin', 'node');
@@ -396,7 +397,7 @@ async function acquireManagerLock() {
       await fsp.unlink(lockPath).catch(() => {});
     }
   }
-  throw new Error(text('无法获取 mystryctl 运行锁。', 'Could not acquire the mystryctl lock.'));
+  throw new Error(text('无法获取 mdash 运行锁。', 'Could not acquire the mdash lock.'));
 }
 
 async function releaseCurrentManagerLock() {
@@ -593,8 +594,8 @@ async function prepareStart() {
       return null;
     }
     throw new Error(text(
-      '端口上已有无法由当前 mystryctl 指纹确认的面板，拒绝接管。',
-      'A panel on this port does not match the fingerprint recorded by mystryctl; refusing to take it over.',
+      '端口上已有无法由当前 mdash 指纹确认的面板，拒绝接管。',
+      'A panel on this port does not match the fingerprint recorded by mdash; refusing to take it over.',
     ));
   }
   const connection = getConnection(configuration.values);

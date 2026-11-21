@@ -23,7 +23,7 @@ export function assertLogsShowLine(logsOutput, expectedLine) {
   }
 }
 
-// The separator and password line mystryctl shows with the account and password (both UI languages count).
+// The separator and password line mdash shows with the account and password (both UI languages count).
 // Unit tests verify with the controller's real terminal output that it is recognized here, so a format change fails there first.
 const CREDENTIAL_DIVIDER = /^={64}\r?$/m;
 const PASSWORD_LINE = /^[ \t]*(?:Password:|密码：)/m;

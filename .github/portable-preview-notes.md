@@ -22,13 +22,13 @@ The full list of changes and fixes is in `CHANGELOG.md`. The Chinese version is 
 
 ### Quick Start in 3 Steps
 
-1. **Extract and launch**: On Windows, extract the archive and double-click `mystryctl.cmd` (or run `mystryctl.cmd start`). On Linux, extract the archive, run `chmod +x mystryctl`, then run `./mystryctl start`.
-2. **Sign in at `http://127.0.0.1:3000`**: Use the `admin` username and the one-time password printed in the launcher window. Closing the Windows log window leaves the panel and your servers running in the background; reopen `mystryctl.cmd` and press `Ctrl+C` (or run `mystryctl stop`) for a safe shutdown.
+1. **Extract and launch**: On Windows, extract the archive and double-click `mdash.cmd` (or run `mdash.cmd start`). On Linux, extract the archive, run `chmod +x mdash`, then run `./mdash start`.
+2. **Sign in at `http://127.0.0.1:3000`**: Use the `admin` username and the one-time password printed in the launcher window. Closing the Windows log window leaves the panel and your servers running in the background; reopen `mdash.cmd` and press `Ctrl+C` (or run `mdash stop`) for a safe shutdown.
 3. **Prepare Java for Minecraft**: The package does not bundle a Minecraft Java runtime. The panel uses a Java already on your computer, and when the version a server needs is missing it can install a checksum-pinned Eclipse Temurin JRE for you.
 
 ### Upgrading and Keeping Your Data
 
-Run `mystryctl stop` in the old folder first. Extract the new version into a new folder next to it, then move your existing `config/`, `data/` and `logs/` into the new folder. Don't overwrite a folder that's running, and back up these three folders separately before you upgrade.
+Run `mdash stop` in the old folder first (`mystryctl stop` in 0.2.0-preview.5 and earlier). Extract the new version into a new folder next to it, then move your existing `config/`, `data/` and `logs/` into the new folder. Don't overwrite a folder that's running, and back up these three folders separately before you upgrade.
 
 ### Verification, Security and Known Limitations
 
@@ -61,13 +61,13 @@ Full details are in `docs/portable-release.md` in the repository. The Chinese ve
 
 ### 3 步快速启动
 
-1. **解压并启动**：Windows 解压后直接双击 `mystryctl.cmd`（或运行 `mystryctl.cmd start`）；Linux 解压后先执行 `chmod +x mystryctl`，再运行 `./mystryctl start`。
-2. **访问 `http://127.0.0.1:3000` 登录**：使用窗口里显示的 `admin` 账号和一次性密码登录。Windows 下关闭日志窗口不会影响后台运行的面板和服务端；需要停止时重新双击 `mystryctl.cmd` 按 `Ctrl+C`（或运行 `mystryctl stop`）安全停止。
+1. **解压并启动**：Windows 解压后直接双击 `mdash.cmd`（或运行 `mdash.cmd start`）；Linux 解压后先执行 `chmod +x mdash`，再运行 `./mdash start`。
+2. **访问 `http://127.0.0.1:3000` 登录**：使用窗口里显示的 `admin` 账号和一次性密码登录。Windows 下关闭日志窗口不会影响后台运行的面板和服务端；需要停止时重新双击 `mdash.cmd` 按 `Ctrl+C`（或运行 `mdash stop`）安全停止。
 3. **准备 Minecraft 所需的 Java**：包内不包含 Minecraft Java 运行时；面板使用电脑上已有的 Java，服务端需要的版本没装时可以由面板安装固定校验值的 Eclipse Temurin JRE。
 
 ### 升级与数据保留
 
-先在旧目录运行 `mystryctl stop`，将新版本解压到新的同级目录，再把原有 `config/`、`data/` 与 `logs/` 移入新目录。不要覆盖正在运行的目录，升级前请另外备份这三个目录。
+先在旧目录运行 `mdash stop`（0.2.0-preview.5 及更早版本为 `mystryctl stop`），将新版本解压到新的同级目录，再把原有 `config/`、`data/` 与 `logs/` 移入新目录。不要覆盖正在运行的目录，升级前请另外备份这三个目录。
 
 ### 签名校验、安全与已知限制
 

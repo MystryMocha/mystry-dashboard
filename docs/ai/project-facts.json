@@ -9,9 +9,9 @@
     "shared": "packages/shared/src/index.ts",
     "server": "apps/server/src/index.ts",
     "web": "apps/web/src/App.tsx",
-    "panelManager": "PanelManager.cmd",
-    "portableManager": "scripts/portable/mystryctl.mjs",
-    "linuxPanelManager": "PanelManager.sh"
+    "panelManager": "mdash.cmd",
+    "portableManager": "scripts/portable/mdash.mjs",
+    "linuxPanelManager": "mdash.sh"
   },
   "routeModules": [
     {
@@ -180,10 +180,10 @@
     "packages/shared/src/messages/index.ts",
     "apps/server/src/utils/errors.ts",
     "apps/web/src/i18n/zh-CN/server.ts",
-    "PanelManager.sh",
+    "mdash.sh",
     "scripts/linux/panel-manager.test.mjs",
     "scripts/windows/panel-manager.ps1",
-    "scripts/portable/mystryctl.mjs",
+    "scripts/portable/mdash.mjs",
     "scripts/portable/package-portable.mjs",
     "scripts/portable/smoke-portable.mjs",
     "scripts/smoke/panel-smoke.test.mjs",

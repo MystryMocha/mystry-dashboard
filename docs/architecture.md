@@ -65,20 +65,20 @@ mystry-dashboard/
 │   ├── server/dist/
 │   ├── web/dist/
 │   ├── shared/dist/
-│   ├── mystryctl.mjs
+│   ├── mdash.mjs
 │   └── node_modules/        # Production dependencies only
 ├── config/
 ├── data/
 ├── logs/
-├── mystryctl.cmd
-├── mystryctl
+├── mdash.cmd
+├── mdash
 ├── manifest.json
 └── VERSION
 ```
 
 The workspace package `@mystry/shared` is physically copied to `app/node_modules/@mystry/shared`, and the release package rejects symlinks, so a Windows ZIP does not keep a junction pointing back at the build repository. `config/`, `data/` and `logs/` are empty in the release artifact.
 
-`mystryctl.cmd` and `mystryctl` in the portable package only call the Node inside the package; the Linux / WSL source entry `PanelManager.sh` first completes the Node version, dependency and build prechecks, then calls the same cross-platform lifecycle controller `scripts/portable/mystryctl.mjs`. A background start records the PID, a random process fingerprint, the start time and the health URL, and calls the loopback shutdown endpoint with `LAUNCHER_TOKEN`. If the PID was reused or the health check does not match, the controller does not force-kill an unknown process.
+`mdash.cmd` and `mdash` in the portable package only call the Node inside the package; the Linux / WSL source entry `mdash.sh` first completes the Node version, dependency and build prechecks, then calls the same cross-platform lifecycle controller `scripts/portable/mdash.mjs`. A background start records the PID, a random process fingerprint, the start time and the health URL, and calls the loopback shutdown endpoint with `LAUNCHER_TOKEN`. If the PID was reused or the health check does not match, the controller does not force-kill an unknown process.
 
 The runtime directory is located by `MYSTRY_HOME`; config and data can be decoupled through `MYSTRY_CONFIG_PATH` and `MYSTRY_DATA_DIR`. The default instance boundary is still `data/instances/<id>` in the portable root.
 
@@ -103,7 +103,7 @@ The runtime directory is located by `MYSTRY_HOME`; config and data can be decoup
 | `nodes.ts` | `/api/nodes/*` | Local/remote node list and management (phase one) |
 | `frp.ts` | `/api/frp/*`, `/api/instances/:id/tunnel` | Multiplayer through the official frpc. Executable paths and raw config are not accepted |
 | `lan.ts` | `/api/lan/*`, `/api/instances/:id/lan` | Virtual LAN through the official EasyTier. Executable paths and raw config are not accepted |
-| `launcher.ts` | `/api/launcher/shutdown` | Shutdown channel for PanelManager with a local token |
+| `launcher.ts` | `/api/launcher/shutdown` | Shutdown channel for the local launcher (`mdash`), using a local token |
 
 Route error responses all go through `sendRouteError` in `src/http-errors.ts`: known service-layer errors (too many queued tasks, panel shutting down, upload too large, preview expired, rename conflict) map to their status codes, and the rest use the default status code given by the route.
 

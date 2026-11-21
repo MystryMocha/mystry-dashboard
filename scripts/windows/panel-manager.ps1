@@ -2,9 +2,9 @@
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
-# Windows source management entry: checks Node.js, installs dependencies and builds as needed, and hands the lifecycle to mystryctl.
-# Differences from PanelManager.sh: config defaults to the .env in the repo root, and the build result is cached by source fingerprint.
-# PanelManager.cmd clears PSModulePath before calling this script: when run from pwsh 7 the 7.x module path is inherited,
+# Windows source management entry: checks Node.js, installs dependencies and builds as needed, and hands the lifecycle to the controller (scripts/portable/mdash.mjs).
+# Differences from mdash.sh: config defaults to the .env in the repo root, and the build result is cached by source fingerprint.
+# mdash.cmd clears PSModulePath before calling this script: when run from pwsh 7 the 7.x module path is inherited,
 # and after 5.1 loads incompatible modules Get-FileHash cannot be found. Only ASCII can be written in the .cmd, so the explanation lives here.
 
 function Normalize-ProcessPath {
@@ -34,7 +34,7 @@ function Normalize-ProcessPath {
 Normalize-ProcessPath
 
 # UI language: MYSTRY_LANG first, then the Windows display language; Chinese on a Chinese system, English for everything else.
-# The result is written back to MYSTRY_LANG, so mystryctl and the live log window use the same language.
+# The result is written back to MYSTRY_LANG, so the controller and the live log window use the same language.
 $script:Chinese = if ($env:MYSTRY_LANG) {
   $env:MYSTRY_LANG -match '^zh'
 } else {
@@ -49,7 +49,7 @@ function T {
 }
 
 $script:ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-# When MYSTRY_CONFIG_PATH is already set it is kept (a relative path is resolved against the repo root), same as mystryctl.
+# When MYSTRY_CONFIG_PATH is already set it is kept (a relative path is resolved against the repo root), same as the controller.
 $script:EnvPath = if ([IO.Path]::IsPathRooted([string]$env:MYSTRY_CONFIG_PATH)) {
   [IO.Path]::GetFullPath($env:MYSTRY_CONFIG_PATH)
 } elseif ($env:MYSTRY_CONFIG_PATH) {
@@ -58,10 +58,10 @@ $script:EnvPath = if ([IO.Path]::IsPathRooted([string]$env:MYSTRY_CONFIG_PATH)) 
   Join-Path $script:ProjectRoot '.env'
 }
 $script:EnvExamplePath = Join-Path $script:ProjectRoot '.env.example'
-$script:Controller = Join-Path $script:ProjectRoot 'scripts\portable\mystryctl.mjs'
+$script:Controller = Join-Path $script:ProjectRoot 'scripts\portable\mdash.mjs'
 $script:NpmMirrorScript = Join-Path $script:ProjectRoot 'scripts\npm-mirror.mjs'
 $script:ServerEntry = Join-Path $script:ProjectRoot 'apps\server\dist\index.js'
-# Same as mystryctl's log directory.
+# Same as the controller's log directory.
 $script:StdoutLog = Join-Path $script:ProjectRoot 'logs\panel.stdout.log'
 $script:StderrLog = Join-Path $script:ProjectRoot 'logs\panel.stderr.log'
 # Kept inside node_modules: when npm ci reinstalls dependencies it is wiped along with them, so the next run is certain to rebuild.
@@ -183,7 +183,7 @@ function Update-Project {
   $dependencyChanged = -not $state.ContainsKey('dependencyHash') -or [string]$state.dependencyHash -ne $dependencyHash
   if ($Force -or $dependencyChanged -or -not (Test-Path -LiteralPath (Join-Path $script:ProjectRoot 'node_modules'))) {
     Write-Host (T '正在根据 package-lock.json 安装依赖，可能需要几分钟…' 'Installing dependencies from package-lock.json. This may take a few minutes…')
-    Invoke-Npm -Arguments (Get-NpmInstallArguments) -FailureMessage (T '依赖安装失败，请检查上方 npm 输出和网络连接。下载慢或失败时，可以运行 .\PanelManager.cmd mirror 换一个 npm 下载源。' 'Installing dependencies failed. Check the npm output above and your network connection. If downloads are slow or failing, run .\PanelManager.cmd mirror to choose another npm download source.')
+    Invoke-Npm -Arguments (Get-NpmInstallArguments) -FailureMessage (T '依赖安装失败，请检查上方 npm 输出和网络连接。下载慢或失败时，可以运行 .\mdash.cmd mirror 换一个 npm 下载源。' 'Installing dependencies failed. Check the npm output above and your network connection. If downloads are slow or failing, run .\mdash.cmd mirror to choose another npm download source.')
     $state = @{ dependencyHash = $dependencyHash }
   }
 
@@ -201,13 +201,14 @@ function Update-Project {
 
 function Prepare-Project {
   param([switch]$Force)
-  # Mutual exclusion only during install and build; the lifecycle is protected by mystryctl's own run lock.
+  # Mutual exclusion only during install and build; the lifecycle is protected by the controller's own run lock.
+  # The mutex keeps its name from before the launcher became mdash.cmd, so an older checkout's launcher still excludes this one.
   $mutexName = 'Local\MystryPanelManager_' + (Get-StringHash $script:ProjectRoot).Substring(0, 16)
   $mutex = New-Object Threading.Mutex($false, $mutexName)
   $acquired = $false
   try {
     $acquired = $mutex.WaitOne(0)
-    if (-not $acquired) { throw (T '另一个 PanelManager 正在安装或构建，请稍后再试。' 'Another PanelManager is installing or building. Try again later.') }
+    if (-not $acquired) { throw (T '另一个 mdash.cmd 正在安装或构建，请稍后再试。' 'Another mdash.cmd is installing or building. Try again later.') }
     if (-not (Test-Path -LiteralPath $script:EnvPath)) {
       [IO.Directory]::CreateDirectory((Split-Path -Parent $script:EnvPath)) | Out-Null
       Copy-Item -LiteralPath $script:EnvExamplePath -Destination $script:EnvPath

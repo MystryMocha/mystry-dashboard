@@ -24,7 +24,7 @@ const configPath = configuredConfigPath
   ? resolveFromHome(configuredConfigPath, homeDir)
   : path.join(homeDir, configuredHome ? 'config' : '', configuredHome ? 'panel.env' : '.env');
 
-// Development mode reads the repo's .env by default; the portable package has mystryctl point this at config/panel.env.
+// Development mode reads the repo's .env by default; the portable package's mdash wrapper points this at config/panel.env.
 dotenv.config({ path: configPath });
 
 const realParentCache = new Map<string, string>();

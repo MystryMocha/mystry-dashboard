@@ -65,20 +65,20 @@ mystry-dashboard/
 │   ├── server/dist/
 │   ├── web/dist/
 │   ├── shared/dist/
-│   ├── mystryctl.mjs
+│   ├── mdash.mjs
 │   └── node_modules/        # 仅生产依赖
 ├── config/
 ├── data/
 ├── logs/
-├── mystryctl.cmd
-├── mystryctl
+├── mdash.cmd
+├── mdash
 ├── manifest.json
 └── VERSION
 ```
 
 工作区 `@mystry/shared` 会被物理复制到 `app/node_modules/@mystry/shared`，发布包拒绝符号链接，避免 Windows ZIP 保留指向构建仓库的 junction。`config/`、`data/` 和 `logs/` 在发布产物中为空。
 
-便携包的 `mystryctl.cmd` 和 `mystryctl` 只负责调用包内 Node；Linux / WSL 源码入口 `PanelManager.sh` 先完成 Node 版本、依赖和构建预检，再调用同一跨平台生命周期控制器 `scripts/portable/mystryctl.mjs`。后台启动会记录 PID、随机进程指纹、启动时间和健康地址，并通过 `LAUNCHER_TOKEN` 调用回环关闭接口。若 PID 被复用或健康检查不匹配，控制器不会直接强杀未知进程。
+便携包的 `mdash.cmd` 和 `mdash` 只负责调用包内 Node；Linux / WSL 源码入口 `mdash.sh` 先完成 Node 版本、依赖和构建预检，再调用同一跨平台生命周期控制器 `scripts/portable/mdash.mjs`。后台启动会记录 PID、随机进程指纹、启动时间和健康地址，并通过 `LAUNCHER_TOKEN` 调用回环关闭接口。若 PID 被复用或健康检查不匹配，控制器不会直接强杀未知进程。
 
 运行目录由 `MYSTRY_HOME` 定位；配置和数据可分别通过 `MYSTRY_CONFIG_PATH`、`MYSTRY_DATA_DIR` 解耦。默认实例边界仍为便携根目录的 `data/instances/<id>`。
 
@@ -103,7 +103,7 @@ mystry-dashboard/
 | `nodes.ts` | `/api/nodes/*` | 本机/远程节点列表与管理（阶段一） |
 | `frp.ts` | `/api/frp/*`、`/api/instances/:id/tunnel` | 官方 frpc 联机。不接受可执行路径或原始配置 |
 | `lan.ts` | `/api/lan/*`、`/api/instances/:id/lan` | 官方 EasyTier 虚拟局域网。不接受可执行路径或原始配置 |
-| `launcher.ts` | `/api/launcher/shutdown` | PanelManager 本机令牌关闭通道 |
+| `launcher.ts` | `/api/launcher/shutdown` | 本机启动器（`mdash`）的本机令牌关闭通道 |
 
 路由的错误响应统一经 `src/http-errors.ts` 的 `sendRouteError`：服务层已知错误（排队任务过多、面板正在关闭、上传超限、预览失效、重命名冲突）映射为对应状态码，其余用路由给定的默认状态码。
 

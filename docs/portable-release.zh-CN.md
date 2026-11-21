@@ -56,17 +56,17 @@ Get-FileHash .\mystry-v0.2.0-preview.5-windows-x64.zip -Algorithm SHA256
 Windows：
 
 ```text
-解压 → 双击 mystryctl.cmd → 面板在后台运行并打开浏览器 → 用窗口里的账号密码登录 → 要停止时在窗口里按 Ctrl+C
+解压 → 双击 mdash.cmd → 面板在后台运行并打开浏览器 → 用窗口里的账号密码登录 → 要停止时在窗口里按 Ctrl+C
 ```
 
-双击后面板和服务端作为 daemon 在后台运行，没有单独的窗口，看到的窗口只负责显示账号和重要日志，完整日志在 `logs/panel.stdout.log`。关掉窗口不影响面板和服务端；想再看日志或停止面板时，重新双击 `mystryctl.cmd`。按 Ctrl+C 会安全停止面板和所有服务端，关机或重启前也请先这样停止。启动失败时窗口会停在错误信息上，按回车才关闭。
+双击后面板和服务端作为 daemon 在后台运行，没有单独的窗口，看到的窗口只负责显示账号和重要日志，完整日志在 `logs/panel.stdout.log`。关掉窗口不影响面板和服务端；想再看日志或停止面板时，重新双击 `mdash.cmd`。按 Ctrl+C 会安全停止面板和所有服务端，关机或重启前也请先这样停止。启动失败时窗口会停在错误信息上，按回车才关闭。
 
-想用菜单时运行 `.\mystryctl.cmd menu`。带参数的命令行调用不会暂停，可放心用于脚本。
+想用菜单时运行 `.\mdash.cmd menu`。带参数的命令行调用不会暂停，可放心用于脚本。
 
 也可以在终端运行：
 
 ```powershell
-.\mystryctl.cmd start
+.\mdash.cmd start
 ```
 
 Linux：
@@ -74,8 +74,8 @@ Linux：
 ```bash
 tar -xzf mystry-v0.2.0-preview.5-linux-x64.tar.gz
 cd mystry-dashboard
-chmod +x mystryctl
-./mystryctl start
+chmod +x mdash
+./mdash start
 ```
 
 统一命令：
@@ -94,7 +94,7 @@ chmod +x mystryctl
 | `remote` | 面板运行期间开关「从其他设备访问」：`remote on`、`remote off`、`remote status`、`remote https off`、`remote renew-cert` |
 | `menu` | 打开交互式命令菜单 |
 
-首次启动会创建 `config/panel.env`，生成彼此不同的随机密钥，并创建管理员 `admin` 和随机 16 位密码。密码只在窗口里显示一次，不写入日志文件；登录后点左下角的齿轮进入「面板设置」，点「修改密码」修改。忘记密码时，在面板运行期间于终端窗口里执行 `.\mystryctl.cmd reset-password` 生成新密码；输出被重定向或通过管道传出时命令会拒绝执行，新密码不会写进文件。配置文件包含密钥，不要上传或分享。
+首次启动会创建 `config/panel.env`，生成彼此不同的随机密钥，并创建管理员 `admin` 和随机 16 位密码。密码只在窗口里显示一次，不写入日志文件；登录后点左下角的齿轮进入「面板设置」，点「修改密码」修改。忘记密码时，在面板运行期间于终端窗口里执行 `.\mdash.cmd reset-password` 生成新密码；输出被重定向或通过管道传出时命令会拒绝执行，新密码不会写进文件。配置文件包含密钥，不要上传或分享。
 
 ## 目录与数据
 
@@ -105,8 +105,8 @@ mystry-dashboard/
 ├── config/               # 首启配置和配置备份
 ├── data/                 # 数据库、实例、缓存和上传临时文件
 ├── logs/                 # 面板标准输出和错误日志
-├── mystryctl.cmd
-├── mystryctl
+├── mdash.cmd
+├── mdash
 ├── manifest.json
 ├── VERSION
 ├── README.txt
@@ -119,11 +119,11 @@ mystry-dashboard/
 
 不要覆盖正在运行的便携目录：
 
-1. 在旧目录运行 `mystryctl stop`，再用 `mystryctl status` 确认已停止。
+1. 在旧目录运行 `mdash stop`，再用 `mdash status` 确认已停止。0.2.0-preview.5 及更早的版本里这个命令叫 `mystryctl`，不是 `mdash`。
 2. 将新版本解压到一个新的同级目录。
 3. 确认新目录的 `config/`、`data/`、`logs/` 为空。
 4. 将旧目录中的这三个目录移动到新目录，保留旧应用目录作为回滚副本。
-5. 从新目录运行 `mystryctl start`，检查登录、实例列表和存档。
+5. 从新目录运行 `mdash start`，检查登录、实例列表和存档。
 6. 确认无误后再自行归档旧应用目录；不要删除唯一的数据副本。
 
 需要回滚时，先停止新版本，将 `config/`、`data/`、`logs/` 移回旧应用目录后再启动。当前没有数据库版本迁移框架，因此升级前应另外备份这三个目录，不能只依赖旧应用目录。

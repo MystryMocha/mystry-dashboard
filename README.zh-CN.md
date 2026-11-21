@@ -25,7 +25,7 @@
 
 在自己面前这台电脑上，给自己、家人或朋友开服：
 
-- **解压即用，双击启动** — Windows x64 与 Linux x64 便携包已内置 Node.js 22 和面板需要的全部依赖。Windows 下双击 `mystryctl.cmd` 即可在后台启动面板，窗口里只显示一次管理员 `admin` 的密码；关闭窗口不影响面板和服务端运行，重新打开窗口按 `Ctrl+C` 即可安全停止。
+- **解压即用，双击启动** — Windows x64 与 Linux x64 便携包已内置 Node.js 22 和面板需要的全部依赖。Windows 下双击 `mdash.cmd` 即可在后台启动面板，窗口里只显示一次管理员 `admin` 的密码；关闭窗口不影响面板和服务端运行，重新打开窗口按 `Ctrl+C` 即可安全停止。
 - **没有公网 IP 也能异地联机** — 打开「虚拟局域网」，把加入说明发给朋友即可。不用端口转发、不用注册账号，Windows 防火墙规则由面板自动添加；也支持公网 IPv6 直连、自建中继节点和自己的 **frp** 服务器。只开放游戏端口，不暴露面板。
 - **启动失败直接给出办法** — 没同意 EULA 时点「同意并启动」；Java 版本不对时告诉你需要哪个版本，并可一键安装。内存和 JVM 参数用表单配置，带 G1GC 预设，Paper 另有 Aikar 预设。
 - **有人在玩也能备份** — 备份时先关闭自动保存、把存档写入磁盘、打包，再恢复保存，不会复制到写了一半的存档。还原前先校验全部文件，并自动备份当前服务端。
@@ -83,8 +83,8 @@
 | 运行方式 | 环境要求 | 入口 |
 |---|---|---|
 | **1. 便携预览版（推荐）** | Windows x64 / Linux x64；**包内自带 Node.js 22** | [下载、校验与启动](docs/portable-release.zh-CN.md) |
-| **2. Windows 源码管理器** | Node.js ≥ 22 | 双击仓库根目录 `PanelManager.cmd` |
-| **3. Linux / WSL 源码管理器** | Node.js ≥ 22 | 运行 `./PanelManager.sh start` |
+| **2. Windows 源码管理器** | Node.js ≥ 22 | 双击仓库根目录 `mdash.cmd` |
+| **3. Linux / WSL 源码管理器** | Node.js ≥ 22 | 运行 `./mdash.sh start` |
 | **4. 手动开发** | Node.js ≥ 22，两个开发终端 | [安装与配置](docs/getting-started.zh-CN.md#手动安装与首次配置)、[开发指南](docs/development.zh-CN.md) |
 
 ### 3 步从源码启动
@@ -92,23 +92,23 @@
 Windows PowerShell：
 
 ```powershell
-.\PanelManager.cmd start
+.\mdash.cmd start
 ```
 
 Linux / WSL：
 
 ```bash
-chmod +x PanelManager.sh
-./PanelManager.sh start
+chmod +x mdash.sh
+./mdash.sh start
 ```
 
 1. **启动面板**：管理器会自动检查环境、安装依赖、生成带随机密钥的配置文件，并创建管理员 `admin` 和随机 16 位密码（只在窗口里显示一次），随后在后台启动面板。
 2. **登录面板**：浏览器打开 `http://127.0.0.1:3000`，用窗口显示的账号密码登录。想换成自己的密码，点左下角的齿轮进入「面板设置」，再点「修改密码」；忘记密码时，在本机执行 `reset-password` 命令重置。
 3. **部署开服**：进入「一键部署」，选择服务端核心与版本，勾选同意 EULA，点击「开始部署」。
 
-想用手机或另一台电脑打开面板，点顶栏的「其他设备」；面板在经 SSH 登录的服务器上时运行 `./PanelManager.sh remote on`。详见 [在其他设备上打开面板](docs/user-guide.zh-CN.md#在其他设备上打开面板)。
+想用手机或另一台电脑打开面板，点顶栏的「其他设备」；面板在经 SSH 登录的服务器上时运行 `./mdash.sh remote on`。详见 [在其他设备上打开面板](docs/user-guide.zh-CN.md#在其他设备上打开面板)。
 
-不带命令双击 `PanelManager.cmd` 会打开菜单，`help` 列出全部管理器命令；各命令的作用见 [快速开始](docs/getting-started.zh-CN.md) 与 [便携预览版说明](docs/portable-release.zh-CN.md)。
+不带命令双击 `mdash.cmd` 会打开菜单，`help` 列出全部管理器命令；各命令的作用见 [快速开始](docs/getting-started.zh-CN.md) 与 [便携预览版说明](docs/portable-release.zh-CN.md)。
 
 ### Minecraft 所需的 Java 版本
 
@@ -121,7 +121,7 @@ chmod +x PanelManager.sh
 | 1.17 – 1.20.4 | **Java 17** |
 | 1.16.5 及更早 | **Java 8** |
 
-**依赖下载慢？** 源码管理器用 npm 安装依赖。运行 `.\PanelManager.cmd mirror` 或 `./PanelManager.sh mirror` 可选择下载源：跟随 npm 自身配置（默认）、npm 官方，或国内镜像（npmmirror、腾讯云、华为云），见 [npm 下载源](docs/configuration.zh-CN.md#npm-下载源)。便携版已自带生产依赖，无需设置。
+**依赖下载慢？** 源码管理器用 npm 安装依赖。运行 `.\mdash.cmd mirror` 或 `./mdash.sh mirror` 可选择下载源：跟随 npm 自身配置（默认）、npm 官方，或国内镜像（npmmirror、腾讯云、华为云），见 [npm 下载源](docs/configuration.zh-CN.md#npm-下载源)。便携版已自带生产依赖，无需设置。
 
 ### 便携预览版
 
@@ -146,9 +146,9 @@ Linux/macOS 将 `npm.cmd` 换成 `npm`。后端直接托管预压缩（`.br` / `
 
 | 运行方式 | 配置文件 |
 |---|---|
-| 便携包（`mystryctl`） | 便携包目录下的 `config/panel.env` |
-| Linux / WSL 源码管理器（`PanelManager.sh`） | 仓库里的 `config/panel.env` |
-| Windows 源码管理器（`PanelManager.cmd`） | 仓库根目录的 `.env` |
+| 便携包（`mdash`） | 便携包目录下的 `config/panel.env` |
+| Linux / WSL 源码管理器（`mdash.sh`） | 仓库里的 `config/panel.env` |
+| Windows 源码管理器（`mdash.cmd`） | 仓库根目录的 `.env` |
 | 手动运行（`npm run dev:server`、`npm start`） | 仓库根目录的 `.env` |
 
 管理器会自动创建这个文件并生成密钥；手动配置时复制 [`.env.example`](.env.example)。
@@ -185,7 +185,7 @@ Linux/macOS 将 `npm.cmd` 换成 `npm`。后端直接托管预压缩（`.br` / `
 | `apps/server/` | Fastify 5 API、`node:sqlite`、进程、文件、备份、联机与任务服务 |
 | `apps/web/` | React 19、Vite 6、React Router 6 与 xterm.js |
 | `packages/shared/` | 前后端共享类型、JSON Schema、JVM 预设与多语言消息键 |
-| `scripts/` | 启动器（`PanelManager`、`mystryctl`）、验证与便携打包工具 |
+| `scripts/` | 启动器（`mdash`）、验证与便携打包工具 |
 | `docs/` | 中英双语用户文档、开发参考与 AI 知识库 |
 
 用户文档（[文档中心](docs/README.zh-CN.md)、[快速开始](docs/getting-started.zh-CN.md)、[分步教程](docs/tutorials.zh-CN.md)、[使用指南](docs/user-guide.zh-CN.md)、[配置说明](docs/configuration.zh-CN.md)、[便携预览版](docs/portable-release.zh-CN.md)）均提供 **简体中文** 与 **English** 双语版本。开发参考（[开发指南](docs/development.zh-CN.md)、[API 参考](docs/api.zh-CN.md)、[架构设计](docs/architecture.zh-CN.md)）、[贡献指南](CONTRIBUTING.zh-CN.md) 与 [变更日志](CHANGELOG.zh-CN.md) 也有中英两版。[CLAUDE.md](CLAUDE.md) 与 `docs/ai/` 下的 AI 知识库用中文维护。完整验证套件可运行 `npm.cmd run verify`（Linux/macOS 为 `npm run verify`）。

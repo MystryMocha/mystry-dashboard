@@ -42,11 +42,11 @@
 4. 视觉改动至少验证桌面和移动宽度、键盘焦点及可读性。
 5. 构建通过后仍需在整合页面验证实际交互。
 
-## 配置与 PanelManager
+## 配置与源码启动器
 
 1. 新环境变量同时更新 `config.ts`、`.env.example`、配置文档和机器事实。
 2. 密钥变量使用现有 64 位十六进制校验，不写固定生产值。
-3. PanelManager 的 `.env` 修复必须先备份，日志不得打印密钥。
+3. 源码启动器的 `.env` 修复必须先备份，日志不得打印密钥。
 4. 关闭接口只能接受有效 `X-Launcher-Token` 且限制为回环来源。
 5. Windows PowerShell 脚本保持中英文用户提示一致。
 
@@ -56,7 +56,7 @@
 2. 操作步骤和默认值只在一处正文维护，其他文档放链接，不复制第二份说明。
 3. 面向用户的文档有英文和简体中文两份：`docs/README.md`、`getting-started.md`、`user-guide.md`、`tutorials.md`、`configuration.md`、`portable-release.md` 是英文，同名的 `*.zh-CN.md` 是中文。改其中一份必须同步另一份；英文里的界面名称以 `apps/web/src/i18n/en/*.ts` 的实际文案为准，中文文档之间互相链接 `*.zh-CN.md`，英文文档之间链接英文版。`api.md`、`architecture.md`、`development.md` 目前只有中文。
 4. 历史审查、计划和验证结果保留日期与适用范围；不把分支提交数、远程发布状态或旧审计结果写成长期有效事实。
-5. Windows 示例使用 `npm.cmd` 与 `.\PanelManager.cmd`；配置模板复制仅用于首次配置，不引导覆盖已有文件。
+5. Windows 示例使用 `npm.cmd` 与 `.\mdash.cmd`；配置模板复制仅用于首次配置，不引导覆盖已有文件。
 6. 运行 `knowledge:check` 与 `knowledge:test`，额外核对标题锚点和阅读路径；推送前运行 `ci:local`（含完整 `verify`）。配置、路由、脚本或 AI 入口变化时同步机器事实。
 
 ## 完成声明

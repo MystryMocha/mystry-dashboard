@@ -29,7 +29,7 @@ export type LauncherRouteOptions = {
   startShutdown?: () => void;
 };
 
-/** Channel for the local PanelManager only: safe shutdown, resetting the admin password, and toggling "access from other devices". */
+/** Channel for the local launcher (mdash) only: safe shutdown, resetting the admin password, and toggling "access from other devices". */
 export async function launcherRoutes(
   app: FastifyInstance,
   options: LauncherRouteOptions,

@@ -81,7 +81,7 @@ npm.cmd run test:smoke
 | UI/样式 | typecheck、build | 按下方「界面截图」三档看改动页、加载/错误态、键盘焦点 |
 | 数据库 schema | typecheck、安全自检、build | 旧数据库副本升级和失败恢复 |
 | Java 运行时扫描/绑定 | shared build、typecheck、安全自检、build | 合法/非法候选、未知或失效 ID、`null` 回退、启动前复验、Forge/NeoForge Installer |
-| PanelManager | typecheck、安全自检、build | start/status/stop/restart/logs |
+| 启动器（`mdash`） | typecheck、安全自检、build | start/status/stop/restart/logs |
 | 便携控制器/打包 | portable:test、build、audit:production、目标平台 package + smoke | 最终压缩包解压、首启、setup、stop、升级数据复用 |
 | 依赖升级 | verify、当前 `npm audit --omit=dev` | 登录、部署、控制台和文件回归 |
 

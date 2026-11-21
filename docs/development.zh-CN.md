@@ -15,11 +15,11 @@ npm install
 npm run build -w @mystry/shared
 ```
 
-Linux / WSL 中需要以整合面板方式运行源码时，可使用根目录 `PanelManager.sh`。它会检查 Node.js 22、按锁文件补装依赖、构建并复用跨平台安全生命周期控制器：
+Linux / WSL 中需要以整合面板方式运行源码时，可使用根目录 `mdash.sh`。它会检查 Node.js 22、按锁文件补装依赖、构建并复用跨平台安全生命周期控制器：
 
 ```bash
-chmod +x PanelManager.sh
-./PanelManager.sh start
+chmod +x mdash.sh
+./mdash.sh start
 ```
 
 默认配置为 `config/panel.env`、数据根为仓库 `data/`；两者均不应提交。需要隔离测试数据时，在每次启动/停止/状态命令前设置相同的 `MYSTRY_CONFIG_PATH` 与 `MYSTRY_DATA_DIR`。

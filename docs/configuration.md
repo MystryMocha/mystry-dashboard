@@ -7,9 +7,9 @@ Which config file is used depends on how you start the panel. Don't mix the two 
 | Launch entry | Default config file | First-time configuration |
 |---|---|---|
 | Running `npm run dev:server` / `npm start` by hand | `.env` in the repository root | Copy `.env.example` and fill in random secrets |
-| Windows source `PanelManager.cmd` | `.env` in the repository root (change it with `MYSTRY_CONFIG_PATH`) | The manager creates it from `.env.example`; mystryctl generates or repairs the secrets |
-| Linux / WSL source `PanelManager.sh` | `config/panel.env` in the repository root | Generated automatically by the cross-platform controller |
-| Portable `mystryctl` | `config/panel.env` in the package root | Generated automatically by the cross-platform controller |
+| Windows source `mdash.cmd` | `.env` in the repository root (change it with `MYSTRY_CONFIG_PATH`) | The manager creates it from `.env.example`; mdash generates or repairs the secrets |
+| Linux / WSL source `mdash.sh` | `config/panel.env` in the repository root | Generated automatically by the cross-platform controller |
+| Portable `mdash` | `config/panel.env` in the package root | Generated automatically by the cross-platform controller |
 
 The table lists the defaults. For the variables that override these paths, see the environment variable tables below. Keep any configuration you already have. Don't overwrite it with the template again. In Windows PowerShell, use `npm.cmd`.
 
@@ -19,7 +19,7 @@ Before the first start you must configure:
 
 - `JWT_SECRET`: a 64-character hexadecimal string used to sign JWTs.
 - `SETUP_TOKEN`: a 64-character hexadecimal string used in the `X-Setup-Token` header of the first setup request. The launcher generates it automatically and removes it after creating the administrator. You only need to set it yourself when you run the panel by hand.
-- `LAUNCHER_TOKEN`: a separate local shutdown token generated automatically by PanelManager / mystryctl. You can leave it out if you run the panel by hand without a manager.
+- `LAUNCHER_TOKEN`: a separate local shutdown token generated automatically by `mdash`. You can leave it out if you run the panel by hand without a manager.
 
 Each configured secret must use a different random value. The Node.js command below generates one. The docs and the template don't provide any usable fixed secret:
 
@@ -41,7 +41,7 @@ Where a limit is measured in bytes or milliseconds, the tables say so. `MiB` is 
 | `PORT` | `3000` | Listen port |
 | `JWT_SECRET` | None; required before the first start | 64-character hexadecimal JWT signing secret. Don't use a fixed example value |
 | `SETUP_TOKEN` | None; required before the first setup | 64-character hexadecimal setup token. You can remove it after setup is complete |
-| `LAUNCHER_TOKEN` | None; generated automatically when you use PanelManager / mystryctl | 64-character hexadecimal local shutdown token. Usable only from a loopback address |
+| `LAUNCHER_TOKEN` | None; generated automatically when you use `mdash` | 64-character hexadecimal local shutdown token. Usable only from a loopback address |
 | `CORS_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` | Exact CORS origin allowlist, comma-separated. Don't use `*` |
 | `RATE_LIMIT_MAX` | `120` | Maximum number of regular requests per rate limit window |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate limit window for regular requests, in milliseconds |
@@ -139,7 +139,7 @@ The check result of a ZIP import is held temporarily in `uploads/.tmp-import-pre
 
 ### Launcher Language
 
-The menus and messages of `PanelManager.cmd`, `PanelManager.sh` and `mystryctl` follow the system language: Chinese when the system language is Chinese, and English for every other language. On Windows it looks at the display language. On Linux / macOS it looks at `LC_ALL`, `LC_MESSAGES` and `LANG`, in that order. This only affects the launcher, not the web interface or the panel logs.
+The menus and messages of `mdash.cmd`, `mdash.sh` and `mdash` follow the system language: Chinese when the system language is Chinese, and English for every other language. On Windows it looks at the display language. On Linux / macOS it looks at `LC_ALL`, `LC_MESSAGES` and `LANG`, in that order. This only affects the launcher, not the web interface or the panel logs.
 
 | Variable | Default | Description |
 |------|--------|------|
@@ -161,20 +161,20 @@ Whether the final data directory comes from `MYSTRY_DATA_DIR` or `DATA_DIR`, an 
 
 **Symbolic links**: if a folder above the data directory or the backup directory is a symbolic link or junction (for example, a Linux distribution where `/home` is itself a link), the panel uses its real location when it reads the configuration. The data directory itself, and everything inside it, must not be a link. Otherwise the panel refuses to work with instances.
 
-**Permissions**: on Linux/macOS, the panel creates the data root and directories such as `instances`, `imports`, `uploads`, `.mystry-staging` and `.mystry-panel-lock` at startup and verifies that they are `0700`, and that `panel.db` and its WAL/SHM files are `0600`. If an existing directory is accessible to group/other, the panel refuses to start by default. Set `MYSTRY_REPAIR_DATA_PERMISSIONS=1` to tighten the permissions automatically at startup. On Windows, Node can't reliably verify ACLs, so the first start prints a blocking-level warning. Make sure `DATA_DIR` can be read and written only by the user who runs the panel (in the portable build, `mystryctl`/PanelManager creates a user-only directory).
+**Permissions**: on Linux/macOS, the panel creates the data root and directories such as `instances`, `imports`, `uploads`, `.mystry-staging` and `.mystry-panel-lock` at startup and verifies that they are `0700`, and that `panel.db` and its WAL/SHM files are `0600`. If an existing directory is accessible to group/other, the panel refuses to start by default. Set `MYSTRY_REPAIR_DATA_PERMISSIONS=1` to tighten the permissions automatically at startup. On Windows, Node can't reliably verify ACLs, so the first start prints a blocking-level warning. Make sure `DATA_DIR` can be read and written only by the user who runs the panel (in the portable build, `mdash` creates a user-only directory).
 
-`MYSTRY_HOME` and `MYSTRY_CONFIG_PATH` decide where the config file is, so you can't rely on that config file to change where it is loaded from. Set them before startup through `mystryctl`, the shell, or the process environment. Portable users usually don't need to set these variables by hand.
+`MYSTRY_HOME` and `MYSTRY_CONFIG_PATH` decide where the config file is, so you can't rely on that config file to change where it is loaded from. Set them before startup through `mdash`, the shell, or the process environment. Portable users usually don't need to set these variables by hand.
 
 ## npm Registry
 
 This is the download address the source launcher uses when it installs dependencies. The portable build ships with its dependencies, so you don't need to set it.
 
 ```powershell
-.\PanelManager.cmd mirror
-.\PanelManager.cmd mirror npmmirror
+.\mdash.cmd mirror
+.\mdash.cmd mirror npmmirror
 ```
 
-The first command shows the current choice and the available options. The second one switches. On Linux / WSL, use `./PanelManager.sh mirror`. On Windows, you can also choose it in the menu after double-clicking `PanelManager.cmd`.
+The first command shows the current choice and the available options. The second one switches. On Linux / WSL, use `./mdash.sh mirror`. On Windows, you can also choose it in the menu after double-clicking `mdash.cmd`.
 
 | Name | Download address | Description |
 |------|----------|------|

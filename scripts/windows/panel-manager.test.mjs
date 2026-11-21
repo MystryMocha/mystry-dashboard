@@ -41,13 +41,13 @@ test('Invoke-Npm does not mix npm output into the function return value', { skip
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
-test('PanelManager hands .env to mystryctl, and the data directory follows DATA_DIR in it', { skip: process.platform !== 'win32' }, () => {
+test('mdash.cmd hands .env to the controller, and the data directory follows DATA_DIR in it', { skip: process.platform !== 'win32' }, () => {
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-test-'));
   try {
     const envPath = path.join(testRoot, '.env');
     const launcherDirectory = path.join(testRoot, 'data', 'launcher');
     fs.mkdirSync(launcherDirectory, { recursive: true });
-    // A port that is certain to be unreachable is used: the PID in the state is still alive but the health check fails, and mystryctl reports that PID.
+    // A port that is certain to be unreachable is used: the PID in the state is still alive but the health check fails, and the controller reports that PID.
     fs.writeFileSync(envPath, `PORT=1\r\nDATA_DIR=${path.join(testRoot, 'data')}\r\n`, 'utf8');
     fs.writeFileSync(
       path.join(launcherDirectory, 'state.json'),
@@ -60,7 +60,7 @@ test('PanelManager hands .env to mystryctl, and the data directory follows DATA_
       . ${quotePowerShell(managerPath)}
       $script:EnvPath = ${quotePowerShell(envPath)}
       Invoke-Controller 'status'
-      if ($script:ControllerExitCode -ne 0) { throw "mystryctl 退出码 $script:ControllerExitCode" }
+      if ($script:ControllerExitCode -ne 0) { throw "mdash 退出码 $script:ControllerExitCode" }
       if (Test-PanelRunning) { throw '不应判定为运行中' }
     `);
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
@@ -71,7 +71,7 @@ test('PanelManager hands .env to mystryctl, and the data directory follows DATA_
   }
 });
 
-test('PanelManager rejects unknown commands and extra arguments', { skip: process.platform !== 'win32' }, () => {
+test('mdash.cmd rejects unknown commands and extra arguments', { skip: process.platform !== 'win32' }, () => {
   const unknown = spawnSync(
     'powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, 'bogus'],
@@ -88,8 +88,8 @@ test('PanelManager rejects unknown commands and extra arguments', { skip: proces
   assert.equal(extra.status, 2, `${extra.stdout}\n${extra.stderr}`);
 });
 
-test('PanelManager reset-password refuses and returns non-zero when output is not a terminal', { skip: process.platform !== 'win32' }, () => {
-  // Output goes through a pipe: mystryctl must refuse before contacting the server, and the exit code is returned as is through PowerShell.
+test('mdash.cmd reset-password refuses and returns non-zero when output is not a terminal', { skip: process.platform !== 'win32' }, () => {
+  // Output goes through a pipe: the controller must refuse before contacting the server, and the exit code is returned as is through PowerShell.
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-reset-'));
   try {
     const result = spawnSync(
@@ -112,28 +112,28 @@ test('PanelManager reset-password refuses and returns non-zero when output is no
   }
 });
 
-test('PanelManager.cmd clears PSModulePath before calling Windows PowerShell', () => {
+test('mdash.cmd clears PSModulePath before calling Windows PowerShell', () => {
   // When run from pwsh 7 the 7.x module path is inherited, and after 5.1 loads incompatible modules Get-FileHash cannot be found.
-  const launcher = fs.readFileSync(path.resolve(scriptDirectory, '../../PanelManager.cmd'), 'utf8');
+  const launcher = fs.readFileSync(path.resolve(scriptDirectory, '../../mdash.cmd'), 'utf8');
   const clearIndex = launcher.indexOf('set "PSModulePath="');
-  assert.ok(clearIndex >= 0, 'PanelManager.cmd 应清空 PSModulePath');
+  assert.ok(clearIndex >= 0, 'mdash.cmd 应清空 PSModulePath');
   assert.ok(clearIndex < launcher.indexOf('powershell.exe'), '应在调用 powershell.exe 之前清空');
   // After chcp 65001, cmd keeps reading an LF-ending batch file at misaligned bytes, and non-ASCII characters get executed as commands.
-  assert.match(launcher, /^[\x00-\x7f]*$/, 'PanelManager.cmd 只能包含 ASCII 字符');
+  assert.match(launcher, /^[\x00-\x7f]*$/, 'mdash.cmd 只能包含 ASCII 字符');
 });
 
-test('PanelManager switches language by MYSTRY_LANG and passes it to mystryctl', { skip: process.platform !== 'win32' }, () => {
+test('mdash.cmd switches language by MYSTRY_LANG and passes it to the controller', { skip: process.platform !== 'win32' }, () => {
   const run = (language, ...args) => spawnSync(
     'powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, ...args],
     { env: { ...cleanEnvironment(), MYSTRY_LANG: language }, encoding: 'utf8' },
   );
   assert.match(run('en-US', 'bogus').stdout, /Unknown command: bogus/);
-  assert.match(run('en-US', 'help').stdout, /Usage: PanelManager\.cmd/);
-  assert.match(run('zh-CN', 'help').stdout, /用法：PanelManager\.cmd/);
+  assert.match(run('en-US', 'help').stdout, /Usage: mdash\.cmd/);
+  assert.match(run('zh-CN', 'help').stdout, /用法：mdash\.cmd/);
 });
 
-test('PanelManager installs dependencies from the chosen download source and specifies no registry by default', { skip: process.platform !== 'win32' }, () => {
+test('mdash.cmd installs dependencies from the chosen download source and specifies no registry by default', { skip: process.platform !== 'win32' }, () => {
   const installArguments = (mirror) => runPowerShell(`
     $env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY = '1'
     $env:MYSTRY_NPM_MIRROR = ${quotePowerShell(mirror)}
@@ -170,7 +170,7 @@ test('only mirror and remote can take arguments, and an invalid download source 
   assert.equal(run('remote', 'https', 'off', 'extra').status, 2);
 });
 
-test('PanelManager passes the remote subcommand and arguments to the controller', { skip: process.platform !== 'win32' }, () => {
+test('mdash.cmd passes the remote subcommand and arguments to the controller', { skip: process.platform !== 'win32' }, () => {
   // Uses isolated config and data directories: the panel is not running, so the controller requests no endpoint.
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-remote-'));
   try {

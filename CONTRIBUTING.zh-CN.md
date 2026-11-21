@@ -26,7 +26,7 @@
 
 先按 [快速开始：手动安装与首次配置](docs/getting-started.zh-CN.md#手动安装与首次配置) 安装依赖并配置随机密钥，再按 [开发指南](docs/development.zh-CN.md) 启动两个开发终端。只复制 `.env.example` 而不填写密钥无法完成首启。
 
-Windows PowerShell 使用 `npm.cmd`，执行仓库内管理器使用 `.\PanelManager.cmd`；Linux/macOS 使用 `npm`。
+Windows PowerShell 使用 `npm.cmd`，执行仓库内管理器使用 `.\mdash.cmd`；Linux/macOS 使用 `npm`。
 
 更多细节见 [开发指南](docs/development.zh-CN.md) 与 [docs/getting-started.zh-CN.md](docs/getting-started.zh-CN.md)。
 
