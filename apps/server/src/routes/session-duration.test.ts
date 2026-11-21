@@ -17,7 +17,7 @@ process.env.JWT_EXPIRES_IN = '1m';
 
 const HOUR = 60 * 60;
 
-test('登录有效期：默认 12 小时，可改为不过期或改短，改短后超时的旧令牌立即失效', async (t) => {
+test('session duration: 12 hours by default, can be changed to never expire or shortened, and old tokens that timed out after shortening are invalidated immediately', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-session-duration-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;
   const { buildApp } = await import('../index.js');

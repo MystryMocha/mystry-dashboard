@@ -86,7 +86,7 @@ beforeEach(() => {
   vi.stubGlobal('WebSocket', class { close() {} });
 });
 
-test('总览监测保留过期数据，重试恢复，异常筛选可清除', async () => {
+test('overview monitoring keeps stale data, recovers on retry, and the abnormal filter can be cleared', async () => {
   const baseFetch = globalThis.fetch;
   let fail = false;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
@@ -115,7 +115,7 @@ test('总览监测保留过期数据，重试恢复，异常筛选可清除', as
   expect(screen.getByRole('link', { name: instance.name })).toBeTruthy();
 });
 
-test('总览每行给出状态说明和下一步，没有实例时只保留三种添加方式', async () => {
+test('each overview row gives a status note and next step, and only the three ways to add remain when there are no instances', async () => {
   const baseFetch = globalThis.fetch;
   let list: unknown[] = [
     { ...instance, id: 'ready', name: '生存服', status: 'running', ready: true },
@@ -152,7 +152,7 @@ test('总览每行给出状态说明和下一步，没有实例时只保留三�
   expect(screen.getByRole('dialog', { name: '创建空实例' })).toBeTruthy();
 });
 
-test('监测在隐藏页暂停，回到前台刷新，卸载后停止请求', async () => {
+test('monitoring pauses on a hidden page, refreshes on returning to the foreground, and stops requesting after unmount', async () => {
   vi.useFakeTimers();
   let hidden = false;
   vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
@@ -172,7 +172,7 @@ test('监测在隐藏页暂停，回到前台刷新，卸载后停止请求', as
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
-test('导航菜单禁用主内容和顶栏右侧，Escape 后解除并恢复入口焦点', async () => {
+test('the navigation menu disables the main content and the right side of the top bar, and Escape releases them and restores focus to the entry', async () => {
   const user = userEvent.setup();
   localStorage.setItem('mystry_token', 'test-only');
   mount(<AuthProvider><App /></AuthProvider>);
@@ -190,7 +190,7 @@ test('导航菜单禁用主内容和顶栏右侧，Escape 后解除并恢复入�
   expect(document.activeElement).toBe(trigger);
 });
 
-test('导航菜单关闭按钮可点，点击后关菜单并恢复入口焦点', async () => {
+test('the navigation menu close button is clickable, and clicking it closes the menu and restores focus to the entry', async () => {
   const user = userEvent.setup();
   localStorage.setItem('mystry_token', 'test-only');
   mount(<AuthProvider><App /></AuthProvider>);
@@ -204,7 +204,7 @@ test('导航菜单关闭按钮可点，点击后关菜单并恢复入口焦点',
   expect(document.activeElement).toBe(trigger);
 });
 
-test('打开导航菜单后点击导航会跳转并关闭菜单', async () => {
+test('clicking a navigation item with the menu open navigates and closes the menu', async () => {
   const user = userEvent.setup();
   localStorage.setItem('mystry_token', 'test-only');
   mount(<AuthProvider><App /></AuthProvider>);
@@ -218,7 +218,7 @@ test('打开导航菜单后点击导航会跳转并关闭菜单', async () => {
   expect(document.querySelector('main')?.hasAttribute('inert')).toBe(false);
 });
 
-test('实例操作按钮按 Enter 只执行操作，名称链接仍可导航', async () => {
+test('Enter on an instance action button only performs the action, and the name link can still navigate', async () => {
   const user = userEvent.setup();
   mount(<DashboardPage />);
   const start = await screen.findByRole('button', { name: '启动', exact: true });
@@ -229,7 +229,7 @@ test('实例操作按钮按 Enter 只执行操作，名称链接仍可导航', a
   expect(screen.getByTestId('location').textContent).toBe('/instances/test');
 });
 
-test('更多操作菜单挂到 body，方向键移动，Escape 恢复焦点，选择后打开确认弹窗', async () => {
+test('the more-actions menu is attached to body, arrow keys move, Escape restores focus, and selecting opens the confirmation dialog', async () => {
   const user = userEvent.setup();
   mount(<DashboardPage />);
   const trigger = await screen.findByRole('button', { name: '更多操作' });
@@ -259,7 +259,7 @@ test('更多操作菜单挂到 body，方向键移动，Escape 恢复焦点，�
   expect(screen.getByRole('dialog', { name: /^删除实例「/ })).toBeTruthy();
 });
 
-test('任务抽屉关闭时不可访问，按钮、Escape 和遮罩关闭均恢复入口焦点', async () => {
+test('the task drawer is inaccessible while closed, and closing by button, Escape or backdrop all restore focus to the entry', async () => {
   const user = userEvent.setup();
   mount(<TaskCenter />);
   const trigger = screen.getByRole('button', { name: /打开任务中心/ });
@@ -278,7 +278,7 @@ test('任务抽屉关闭时不可访问，按钮、Escape 和遮罩关闭均恢�
   }
 });
 
-test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build 留空交给服务端取最新', async () => {
+test('the deploy page defaults to Paper and the latest release, the EULA has to be checked by the user, and an empty Build lets the server take the latest', async () => {
   const baseFetch = globalThis.fetch;
   const deployBodies: Array<Record<string, unknown>> = [];
   const java25 = { id: 'rt25', path: 'C:/Java/jdk-25/bin/java.exe', version: '25.0.1', majorVersion: 25, source: 'scan', verifiedAt: '', available: true };
@@ -328,7 +328,7 @@ test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build �
   expect(deployBodies[0]?.loaderVersion).toBeUndefined();
 });
 
-test('ZIP 按钮可用键盘触发，选择与拖放拒绝非 ZIP 并允许重新选择', async () => {
+test('the ZIP button can be triggered by keyboard, and choosing and dropping reject non-ZIP files and allow choosing again', async () => {
   const user = userEvent.setup();
   mount(<ImportPage />);
   await user.click(screen.getByRole('button', { name: /ZIP/ }));
@@ -346,7 +346,7 @@ test('ZIP 按钮可用键盘触发，选择与拖放拒绝非 ZIP 并允许重�
   expect(screen.getByText('server.ZIP')).toBeTruthy();
 });
 
-test('恢复预览和上传期间锁定 ZIP 选择与拖放', async () => {
+test('ZIP choosing and dropping are locked while a preview is restored and during upload', async () => {
   const user = userEvent.setup();
   sessionStorage.setItem('mystry_import_preview_id', 'restoring');
   const fetchDefault = globalThis.fetch;
@@ -369,7 +369,7 @@ test('恢复预览和上传期间锁定 ZIP 选择与拖放', async () => {
   expect(screen.queryByText('locked.zip')).toBeNull();
 });
 
-test('节点页展示空态，失败后可主动重试恢复真实离线状态', async () => {
+test('the nodes page shows the empty state, and after a failure a manual retry recovers the real offline state', async () => {
   const user = userEvent.setup();
   mount(<NodesPage />);
   expect(await screen.findByText('读不到本机信息。')).toBeTruthy();
@@ -383,7 +383,7 @@ test('节点页展示空态，失败后可主动重试恢复真实离线状态',
   expect(screen.queryByText(/健康运转中/)).toBeNull();
 });
 
-test('面板设置页切换下载来源：失败时保留原选择，成功后显示说明', async () => {
+test('panel settings page switching the download source: the original choice is kept on failure, and the description is shown on success', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   const saved: string[] = [];
@@ -412,7 +412,7 @@ test('面板设置页切换下载来源：失败时保留原选择，成功后�
   expect(saved.at(-1)).toBe('{"source":"china"}');
 });
 
-test('面板设置页改登录有效期：保存后换上新令牌，选「不过期」时提示风险，失败时保留原选择', async () => {
+test('panel settings page changing the session duration: the new token is swapped in after saving, "never expire" shows a risk note, and the original choice is kept on failure', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   const saved: string[] = [];
@@ -448,7 +448,7 @@ test('面板设置页改登录有效期：保存后换上新令牌，选「不�
   expect(saved.at(-1)).toBe('{"duration":"never"}');
 });
 
-test('侧栏齿轮进入面板设置：语言和外观就地生效，显示运行信息，可改密码和退出登录', async () => {
+test('the sidebar gear opens panel settings: language and appearance apply in place, runtime info is shown, and password change and sign-out are available', async () => {
   const user = userEvent.setup();
   localStorage.setItem('mystry_token', 'test-only');
   mount(<AuthProvider><App /></AuthProvider>);
@@ -502,7 +502,7 @@ test('侧栏齿轮进入面板设置：语言和外观就地生效，显示运�
   expect(localStorage.getItem('mystry_token')).toBeNull();
 });
 
-test('本机环境页不再放登录有效期和下载来源，仍保留「在其他设备上打开」', async () => {
+test('the local environment page no longer holds session duration and download source, and keeps "Open on other devices"', async () => {
   nodes = [{ id: 'local', isLocal: true, name: '本机', status: 'online', instanceCount: 1 }];
   mount(<NodesPage />);
   expect(await screen.findByText('在线')).toBeTruthy();
@@ -513,7 +513,7 @@ test('本机环境页不再放登录有效期和下载来源，仍保留「在�
   expect(requests).not.toContain('/api/system/download-source');
 });
 
-test('面板设置页读不到运行信息时说明原因，其余设置照常可用', async () => {
+test('the panel settings page explains why when runtime info cannot be read, and the other settings stay usable', async () => {
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     if (url === '/api/system/panel-info') return new Response(JSON.stringify({ error: '测试网络失败' }), { status: 503 });
@@ -528,7 +528,7 @@ test('面板设置页读不到运行信息时说明原因，其余设置照常�
   await waitFor(() => expect(select.value).toBe('12h'));
 });
 
-test('复制日志提供空日志、权限拒绝、API 缺失与成功反馈', async () => {
+test('copy log gives feedback for an empty log, denied permission, a missing API and success', async () => {
   const user = userEvent.setup();
   mount(<ConsolePanel instanceId="test" />);
   await user.click(screen.getByRole('button', { name: '复制日志' }));
@@ -547,7 +547,7 @@ test('复制日志提供空日志、权限拒绝、API 缺失与成功反馈', a
   expect(writeText).toHaveBeenCalledWith('测试日志');
 });
 
-test('控制台断线重连后用历史快照替换旧日志，不重复输出', async () => {
+test('after a console reconnect the history snapshot replaces the old log, without duplicated output', async () => {
   const sockets: Array<{ onopen?: () => void; onmessage?: (ev: { data: string }) => void; onclose?: () => void }> = [];
   vi.stubGlobal('WebSocket', class { constructor() { sockets.push(this); } close() {} });
   vi.useFakeTimers();
@@ -563,7 +563,7 @@ test('控制台断线重连后用历史快照替换旧日志，不重复输出',
   expect(terminal.written).toContain('已重新连接');
 });
 
-test('节点轮询失败保留旧数据并标记可能过期', async () => {
+test('a node polling failure keeps the old data and marks it as possibly stale', async () => {
   nodes = [{ id: 'local', isLocal: true, name: '本机', status: 'online', instanceCount: 3 }];
   vi.useFakeTimers();
   mount(<NodesPage />);
@@ -577,7 +577,7 @@ test('节点轮询失败保留旧数据并标记可能过期', async () => {
   expect(screen.getByRole('button', { name: '重试加载' })).toBeTruthy();
 });
 
-test('复制提示计时器在控制台卸载时清理', async () => {
+test('the copy notice timer is cleared when the console unmounts', async () => {
   vi.useFakeTimers();
   const view = mount(<ConsolePanel instanceId="test" />);
   await act(async () => fireEvent.click(screen.getByRole('button', { name: '复制日志' })));
@@ -586,7 +586,7 @@ test('复制提示计时器在控制台卸载时清理', async () => {
   expect(vi.getTimerCount()).toBe(0);
 });
 
-test('备份页：运行中禁用还原；还原弹窗默认先备份当前文件，取消勾选时提示无法撤销', async () => {
+test('backups page: restore is disabled while running; the restore dialog backs up the current files first by default, and unchecking it warns that it cannot be undone', async () => {
   const backup = { id: '20261026-010203-abcdef', instanceId: 'test', instanceName: '测试', source: 'manual', createdAt: '2026-10-26T01:02:03.000Z', sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' };
   const posted: Array<{ url: string; body: unknown }> = [];
   const baseFetch = globalThis.fetch;
@@ -620,7 +620,7 @@ test('备份页：运行中禁用还原；还原弹窗默认先备份当前文�
   expect(await screen.findByText('备份已还原')).toBeTruthy();
 });
 
-test('备份页：还原后实例记录按备份更新时给出说明', async () => {
+test('backups page: a note is shown when the instance record was updated to match the backup after a restore', async () => {
   const backup = { id: '20261026-010203-abcdef', instanceId: 'test', instanceName: '测试', source: 'manual', createdAt: '2026-10-26T01:02:03.000Z', sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' };
   const task = { id: 'restore-task', type: 'restore', status: 'completed', progress: 100, createdAt: backup.createdAt, result: { instanceId: 'test', backupId: backup.id, instanceRecordUpdated: true } };
   const baseFetch = globalThis.fetch;
@@ -639,7 +639,7 @@ test('备份页：还原后实例记录按备份更新时给出说明', async ()
   expect(onRestored).toHaveBeenCalledTimes(1);
 });
 
-test('删除实例默认连同备份删除，取消勾选时带 keepBackups=1 并提示备份去向', async () => {
+test('deleting an instance deletes its backups by default, and unchecking sends keepBackups=1 and says where the backups go', async () => {
   const deletes: string[] = [];
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
@@ -670,7 +670,7 @@ test('删除实例默认连同备份删除，取消勾选时带 keepBackups=1 �
   await waitFor(() => expect(deletes).toEqual(['/api/instances/test', '/api/instances/test?keepBackups=1']));
 });
 
-test('部署页版本下拉：名称由可见标签加当前值组成，键盘可选择并回到触发按钮', async () => {
+test('deploy page version dropdown: the name is the visible label plus the current value, and the keyboard can select and return to the trigger button', async () => {
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     if (url === '/api/cores/paper/versions') return new Response(JSON.stringify({ versions: ['26.3', '26.2', '1.21.11'] }));
@@ -716,7 +716,7 @@ function mockLazySelectLayout() {
   });
 }
 
-test('部署页版本下拉：首屏填不满面板时继续加载，滚动后能用鼠标选到靠后的版本', async () => {
+test('deploy page version dropdown: loading continues when the first screen does not fill the panel, and later versions can be picked with the mouse after scrolling', async () => {
   const versions = Array.from({ length: 45 }, (_, index) => `1.${index}`);
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
@@ -742,7 +742,7 @@ test('部署页版本下拉：首屏填不满面板时继续加载，滚动后�
   expect(screen.getByRole('button', { name: '游戏版本 1.25' })).toBeTruthy();
 });
 
-test('部署页 Paper 构建下拉：展开后才到达的选项同样填满面板', async () => {
+test('deploy page Paper build dropdown: options arriving only after opening fill the panel as well', async () => {
   const builds = Array.from({ length: 45 }, (_, index) => 500 - index);
   let resolveBuilds: (response: Response) => void = () => {};
   const baseFetch = globalThis.fetch;
@@ -765,7 +765,7 @@ test('部署页 Paper 构建下拉：展开后才到达的选项同样填满面�
   await waitFor(() => expect(within(listbox).getAllByRole('option')).toHaveLength(20));
 });
 
-test('总览例行刷新不进 live region，只播报出错与恢复', async () => {
+test('routine overview refreshes stay out of the live region, which announces only errors and recovery', async () => {
   vi.useFakeTimers();
   const baseFetch = globalThis.fetch;
   let fail = false;
@@ -806,7 +806,7 @@ test('总览例行刷新不进 live region，只播报出错与恢复', async ()
   expect(liveText()).toBe(announced);
 });
 
-test('确认弹窗的操作错误显示在弹窗内，以 alert 播报并关联为描述', async () => {
+test('action errors of the confirmation dialog are shown inside the dialog, announced as an alert and associated as the description', async () => {
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     if (url === '/api/instances' && options?.method === 'POST') return new Response(JSON.stringify({ error: '实例名称已存在' }), { status: 409 });
@@ -826,7 +826,7 @@ test('确认弹窗的操作错误显示在弹窗内，以 alert 播报并关联�
   expect(within(screen.getByRole('dialog', { name: '创建空实例' })).queryByRole('alert')).toBeNull();
 });
 
-test('控制台读屏模式可开关并记住，历史写完和发送命令前重置朗读区', async () => {
+test('console screen reader mode can be toggled and is remembered, and the live region is reset after the history is written and before a command is sent', async () => {
   const sockets: Array<{ onopen?: () => void; onmessage?: (ev: { data: string }) => void; send: ReturnType<typeof vi.fn> }> = [];
   vi.stubGlobal('WebSocket', class {
     static OPEN = 1;
@@ -872,7 +872,7 @@ test('控制台读屏模式可开关并记住，历史写完和发送命令前�
   expect(localStorage.getItem('mystry_console_screen_reader')).toBeNull();
 });
 
-test('参数配置遇到选项之外的值时原样显示，不误显示成第一项', async () => {
+test('the config editor shows a value outside the options as is, without wrongly displaying the first item', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response(
     JSON.stringify({ difficulty: '9', gamemode: 'creative' }),
     { status: 200, headers: { 'content-type': 'application/json' } },
@@ -901,7 +901,7 @@ function mountConfigTab(fileProps: Record<string, string>, mcVersion?: string) {
   return saves;
 }
 
-test('参数配置：文件里没写的键显示游戏默认值，拨回默认值不算修改，保存时只写改过的键', async () => {
+test('config editor: keys not written in the file show the game default, toggling back to the default is not a change, and only changed keys are written on save', async () => {
   const user = userEvent.setup();
   const saves = mountConfigTab({ motd: 'Imported', 'server-port': '25565' });
 
@@ -945,7 +945,7 @@ test('参数配置：文件里没写的键显示游戏默认值，拨回默认�
   await waitFor(() => expect(saves).toEqual([{ motd: 'Imported', 'server-port': '25565', difficulty: 'hard' }]));
 });
 
-test('参数配置：文件里值留空的键按服务端实际生效的情况显示', async () => {
+test('config editor: keys with an empty value in the file are shown as the server actually applies them', async () => {
   mountConfigTab({ difficulty: '', 'online-mode': '', 'max-players': '', motd: '', 'level-seed': '' });
 
   const difficulty = await screen.findByRole('combobox', { name: '难度' }) as HTMLSelectElement;
@@ -959,7 +959,7 @@ test('参数配置：文件里值留空的键按服务端实际生效的情况�
   expect(screen.queryByRole('button', { name: '保存配置' })).toBeNull();
 });
 
-test('参数配置：已有的数字项可以清空保存，填了超范围的值仍然拦住', async () => {
+test('config editor: an existing number item can be cleared and saved, and an out-of-range value is still blocked', async () => {
   const user = userEvent.setup();
   const saves = mountConfigTab({ 'view-distance': '12', 'server-port': '25570' });
 
@@ -989,7 +989,7 @@ test('参数配置：已有的数字项可以清空保存，填了超范围的�
   await waitFor(() => expect(saves).toEqual([{ 'view-distance': '', 'server-port': '' }]));
 });
 
-test('参数配置：文件读取失败时不把游戏默认值当成文件内容显示', async () => {
+test('config editor: when the file cannot be read, game defaults are not displayed as file content', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: '测试读取失败' }), { status: 500 })));
   const router = createMemoryRouter([{ path: '/', element: <ConfigTab instanceId="test" /> }]);
   render(<RouterProvider router={router} />);
@@ -1005,7 +1005,7 @@ test('参数配置：文件读取失败时不把游戏默认值当成文件内�
   expect((screen.getByRole('textbox', { name: '世界种子' }) as HTMLInputElement).placeholder).toBe('');
 });
 
-test('参数配置：按实例游戏版本隐藏已改成游戏规则的项，文件里的旧值保存时原样带回', async () => {
+test('config editor: items that became game rules are hidden by the instance game version, and old values in the file are sent back as is on save', async () => {
   const user = userEvent.setup();
   const saves = mountConfigTab({ motd: 'Old', pvp: 'false', 'spawn-animals': 'false' }, '26.3');
 
@@ -1026,7 +1026,7 @@ test('参数配置：按实例游戏版本隐藏已改成游戏规则的项，�
   await waitFor(() => expect(saves).toEqual([{ motd: 'New', pvp: 'false', 'spawn-animals': 'false' }]));
 });
 
-test('参数配置：旧版本和版本未知时不隐藏仍在用的项', async () => {
+test('config editor: items still in use are not hidden on old versions or when the version is unknown', async () => {
   mountConfigTab({ motd: 'Old' }, '1.21.8');
   // 1.21.8: spawn animals was already removed in 1.21.2, and the other three were removed only in 1.21.9.
   const pvp = await screen.findByRole('switch', { name: '玩家对战（PVP）' }) as HTMLInputElement;
@@ -1048,7 +1048,7 @@ test('参数配置：旧版本和版本未知时不隐藏仍在用的项', async
   }
 });
 
-test('未同意 EULA 的启动失败给出提示，「同意并启动」先保存同意再启动', async () => {
+test('a start failure with the EULA not accepted shows a notice, and "Accept and Start" saves acceptance before starting', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   const calls: string[] = [];
@@ -1078,7 +1078,7 @@ test('未同意 EULA 的启动失败给出提示，「同意并启动」先保�
   ]));
 });
 
-test('Java 版本不符的启动失败给出需要的版本、下载链接和实例设置入口', async () => {
+test('a start failure from a Java version mismatch gives the needed version, a download link and the instance settings entry', async () => {
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
     url === '/api/instances/test'
@@ -1097,7 +1097,7 @@ test('Java 版本不符的启动失败给出需要的版本、下载链接和实
   expect(within(banner).getByRole('link', { name: '打开实例设置' }).getAttribute('href')).toBe('/instances/test/settings');
 });
 
-test('服务器完成启动后提示可以进服并指向联机；点「不再提示」后不再出现', async () => {
+test('after the server finishes starting a hint says it can be joined and points to multiplayer; it no longer appears after "Do not show again"', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   let ready = false;
@@ -1131,7 +1131,7 @@ test('服务器完成启动后提示可以进服并指向联机；点「不再�
   expect(screen.queryByText('服务器已启动，现在可以进服了。')).toBeNull();
 });
 
-test('从本机文件夹导入时带出识别到的核心类型和 Minecraft 版本', async () => {
+test('importing from a local folder fills in the recognized core type and Minecraft version', async () => {
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
     String(url).includes('/import/sources')
@@ -1153,7 +1153,7 @@ test('从本机文件夹导入时带出识别到的核心类型和 Minecraft 版
   expect(screen.getByRole('button', { name: '复制并导入' })).toBeTruthy();
 });
 
-test('联机页默认「直接连接」：列出可复制的地址，并能转到虚拟局域网', async () => {
+test('the multiplayer page defaults to "Direct Connection": copyable addresses are listed, with a way over to the virtual LAN', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
@@ -1184,7 +1184,7 @@ test('联机页默认「直接连接」：列出可复制的地址，并能转�
   expect(await screen.findByRole('button', { name: '虚拟局域网', pressed: true })).toBeTruthy();
 });
 
-test('联机页指引栏可以关闭并记住；客户端未安装时手动安装默认收起', async () => {
+test('the multiplayer guide column can be closed and is remembered; manual install is collapsed by default when the client is not installed', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
@@ -1217,7 +1217,7 @@ test('联机页指引栏可以关闭并记住；客户端未安装时手动安�
   expect(screen.getByRole('button', { name: '上传压缩包' })).toBeTruthy();
 });
 
-test('虚拟局域网开关立即保存，只带服务端已保存的中继节点；失败时开关回到原位', async () => {
+test('the virtual LAN switch saves immediately with only the relay peers saved on the server; on failure the switch returns to its place', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   const lanState = { instanceId: 'test', enabled: false, status: 'disabled', localPort: 25565, virtualIp: null as string | null, joinAddress: null as string | null, serverIpBlocked: false, runtimeInstalled: true, peers: ['tcp://relay.example.com:11010'], useSharedPeers: true, sharedPeers: ['tcp://public.example:11010'], listenPort: null, detail: null, warning: null };
@@ -1268,7 +1268,7 @@ test('虚拟局域网开关立即保存，只带服务端已保存的中继节�
   expect(JSON.parse(bodies[2])).toEqual({ enabled: true, peers: ['tcp://relay.example.com:11010', 'tcp://draft.example.com:11010'], useSharedPeers: true });
 });
 
-test('frp 第一次保存穿透设置就是「保存并开放」，之后穿透设置收进折叠区', async () => {
+test('the first save of frp tunnel settings is "Save and Open", and afterwards the tunnel settings are tucked into the collapsible section', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   const tunnelState = { instanceId: 'test', enabled: false, endpointId: null as string | null, mode: 'public', remotePort: null as number | null, visitorBindPort: 25566, localPort: 25565, status: 'disabled', joinAddress: null as string | null, serverIpBlocked: false, runtimeInstalled: true, detail: null };
@@ -1304,7 +1304,7 @@ test('frp 第一次保存穿透设置就是「保存并开放」，之后穿透�
   expect(JSON.parse(bodies[1])).toEqual({ enabled: false, endpointId: 'e1', mode: 'public', remotePort: 25565, visitorBindPort: 25566 });
 });
 
-test('修改密码成功后换上新令牌并说明其他设备需重新登录', async () => {
+test('after a successful password change the new token is swapped in and it says other devices have to sign in again', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   const bodies: string[] = [];
@@ -1325,7 +1325,7 @@ test('修改密码成功后换上新令牌并说明其他设备需重新登录',
   expect(bodies).toEqual(['{"currentPassword":"password1234","newPassword":"changed-password"}']);
 });
 
-test('令牌已换发时，旧令牌请求返回的 401 不会清掉新令牌', async () => {
+test('once the token has been reissued, a 401 for a request with the old token does not clear the new token', async () => {
   let respond!: (response: Response) => void;
   vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { respond = resolve; })));
   const onUnauthorized = vi.fn();
@@ -1350,7 +1350,7 @@ test('令牌已换发时，旧令牌请求返回的 401 不会清掉新令牌', 
   }
 });
 
-test('联机页公网直连：填写公网地址后给出「地址:游戏端口」和检查清单', async () => {
+test('multiplayer page public direct connection: after a public address is entered it gives "address:game port" and a checklist', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   let publicHost: string | null = null;
@@ -1397,7 +1397,7 @@ test('联机页公网直连：填写公网地址后给出「地址:游戏端口�
   expect(saved.at(-1)).toBe('{"host":null}');
 });
 
-test('server-ip 填成公网 IP 时给出专门提示', async () => {
+test('a dedicated notice is given when server-ip is set to a public IP', async () => {
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     const data = url === '/api/instances/test/local-network'
@@ -1427,7 +1427,7 @@ const remoteStatus = (direct: Record<string, unknown> = {}, extra: Record<string
   ...extra,
 });
 
-test('在其他设备上打开：默认 HTTPS 开启直接访问，显示二维码、网址和防火墙结果，可关闭', async () => {
+test('open on other devices: direct access is enabled with HTTPS by default, shows the QR code, URLs and firewall result, and can be disabled', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   let current = remoteStatus();
@@ -1485,7 +1485,7 @@ test('在其他设备上打开：默认 HTTPS 开启直接访问，显示二维�
   expect(onClose).toHaveBeenCalled();
 });
 
-test('在其他设备上打开：HOST 由配置文件决定时只显示网址；证书失败时可不加密开启', async () => {
+test('open on other devices: only URLs are shown when HOST is decided by the config file; it can be enabled without encryption when the certificate fails', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   let managed = true;
@@ -1520,7 +1520,7 @@ test('在其他设备上打开：HOST 由配置文件决定时只显示网址；
   expect(await screen.findByText(/sudo ufw allow 3000\/tcp/)).toBeTruthy();
 });
 
-test('在其他设备上打开：面板自带网络开启后给出加入信息，密钥只在点开时请求', async () => {
+test('open on other devices: after the built-in panel network is enabled the join info is given, and the secret is requested only when opened', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   let network = remoteStatus().panelNetwork as Record<string, unknown>;
@@ -1566,7 +1566,7 @@ test('在其他设备上打开：面板自带网络开启后给出加入信息�
   expect(screen.getByText(/easytier-core --dhcp --network-name "mystry-panel-abc"/)).toBeTruthy();
 });
 
-test('二维码矩阵尺寸、三个定位角和结果稳定；中文内容不被截断', () => {
+test('QR code matrix size, the three finder corners and the result are stable; Chinese content is not truncated', () => {
   const matrix = qrMatrix('https://192.168.2.163:3000/')!;
   // 27 bytes at error correction level M: version 2 fits only 26 bytes, so it is version 3, 29×29.
   expect(matrix.length).toBe(29);
@@ -1591,7 +1591,7 @@ test('二维码矩阵尺寸、三个定位角和结果稳定；中文内容不�
   expect(qrMatrix('x'.repeat(5000))).toBeNull();
 });
 
-test('复制：没有 navigator.clipboard（非安全上下文）时退回 execCommand，都不行时返回 false', async () => {
+test('copy: without navigator.clipboard (insecure context) it falls back to execCommand, and returns false when neither works', async () => {
   const writeText = vi.fn(async () => {});
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
   expect(await copyText('a')).toBe(true);
@@ -1650,7 +1650,7 @@ function stubJava(state: { runtimes: unknown[]; installable: number[] }, extra?:
   }));
 }
 
-test('Java 选择器：新建实例自动选推荐版本，手动改过后不再自动改', async () => {
+test('Java picker: a new instance auto-selects the recommended version, and no longer changes automatically after a manual change', async () => {
   stubJava({ runtimes: [java21, java8], installable: [8, 17, 21, 25] });
   const values: Array<string | null> = [];
   const user = userEvent.setup();
@@ -1676,7 +1676,7 @@ test('Java 选择器：新建实例自动选推荐版本，手动改过后不再
   expect(screen.queryByRole('link', { name: /下载 Java/ })).toBeNull();
 });
 
-test('Java 选择器：实例设置页不自动改已保存的选择', async () => {
+test('Java picker: the instance settings page does not automatically change a saved choice', async () => {
   stubJava({ runtimes: [java21, java8], installable: [21] });
   const values: Array<string | null> = [];
   render(<JavaSelectHarness onValue={(value) => values.push(value)} />);
@@ -1686,7 +1686,7 @@ test('Java 选择器：实例设置页不自动改已保存的选择', async () 
   expect(values).toEqual([]);
 });
 
-test('Java 选择器：推荐版本没装时一键安装，装好后自动选中', async () => {
+test('Java picker: one-click install when the recommended version is missing, and it is selected automatically once installed', async () => {
   const state = { runtimes: [java8] as unknown[], installable: [8, 17, 21, 25] };
   const installed = { ...java21, id: 'panel21', path: 'D:/data/runtimes/java/temurin-jdk-21.0.13_9/bin/java.exe', version: '21.0.13', source: 'panel' };
   const posted: unknown[] = [];
@@ -1733,7 +1733,7 @@ test('Java 选择器：推荐版本没装时一键安装，装好后自动选中
   expect(screen.queryByRole('button', { name: /安装 Java/ })).toBeNull();
 });
 
-test('Java 选择器：没装 Java 时没有橙色警告，推荐版本照样跟在状态点后面', async () => {
+test('Java picker: with no Java installed there is no orange warning, and the recommended version still follows the status dot', async () => {
   stubJava({ runtimes: [], installable: [] }, (url) => (
     url === '/api/system/java' ? new Response(JSON.stringify({ available: false })) : null
   ));
@@ -1746,7 +1746,7 @@ test('Java 选择器：没装 Java 时没有橙色警告，推荐版本照样跟
   expect(screen.getByRole('link', { name: '下载 Java 21' })).toBeTruthy();
 });
 
-test('Java 选择器：下载中可以取消，取消后不报错，按钮回到「安装 Java 21」', async () => {
+test('Java picker: a download can be cancelled, no error is shown after cancelling, and the button returns to "Install Java 21"', async () => {
   let cancelRequested = false;
   const running = { id: 'install21', type: 'download', status: 'running', progress: 30, message: '', messageI18n: { key: 'server.jvm.javaInstall.downloading', params: { major: 21 } }, createdAt: '', updatedAt: '' };
   stubJava({ runtimes: [java8], installable: [21] }, (url, options) => {
@@ -1785,7 +1785,7 @@ test('Java 选择器：下载中可以取消，取消后不报错，按钮回到
   expect(installingStates.at(-1)).toBe(false);
 });
 
-test('Java 选择器：安装失败显示原因，保留手动下载入口', async () => {
+test('Java picker: an install failure shows the reason and keeps the manual download entry', async () => {
   stubJava({ runtimes: [java8], installable: [21] }, (url, options) => {
     if (url === '/api/system/java-runtimes/install' && options?.method === 'POST') {
       return new Response(JSON.stringify({ id: 'install21', type: 'download', status: 'pending', progress: 0, message: '', createdAt: '', updatedAt: '' }));
@@ -1804,7 +1804,7 @@ test('Java 选择器：安装失败显示原因，保留手动下载入口', asy
   expect(screen.getByRole('link', { name: '自己下载安装' })).toBeTruthy();
 });
 
-test('总览：选的 Java 已不可用的实例算异常，行里写明原因并带去实例设置', async () => {
+test('overview: an instance whose chosen Java is no longer available counts as abnormal, with the reason in the row and a link to instance settings', async () => {
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
     url === '/api/instances'
@@ -1817,7 +1817,7 @@ test('总览：选的 Java 已不可用的实例算异常，行里写明原因�
   expect(screen.getByRole('button', { name: '异常 1' })).toBeTruthy();
 });
 
-test('实例页：选的 Java 已不可用时控制台上方提示重新选择，不给 Java 下载链接', async () => {
+test('instance page: when the chosen Java is no longer available a notice above the console asks to choose again, without a Java download link', async () => {
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
     url === '/api/instances/test'
@@ -1835,7 +1835,7 @@ test('实例页：选的 Java 已不可用时控制台上方提示重新选择�
   expect(within(banner).queryByRole('link', { name: /下载/ })).toBeNull();
 });
 
-test('实例页头按钮跟着状态走：停着只有「启动」，运行中是停止、重启和「⋯」里的强制停止', async () => {
+test('instance page header buttons follow the status: only "Start" while stopped, and stop, restart and force stop inside "⋯" while running', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   let status = 'stopped';
@@ -1881,7 +1881,7 @@ test('实例页头按钮跟着状态走：停着只有「启动」，运行中�
   expect(screen.queryByRole('button', { name: '停止' })).toBeNull();
 });
 
-test('实例设置：页面底部可以删除实例，没停时不能删；有没保存的修改也能删，删完回到总览', async () => {
+test('instance settings: the instance can be deleted at the bottom of the page, not while it is not stopped; it can be deleted with unsaved changes too, returning to the overview afterwards', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   let status = 'running';
@@ -1939,7 +1939,7 @@ test('实例设置：页面底部可以删除实例，没停时不能删；有�
   expect(deletes).toEqual(['/api/instances/test', '/api/instances/test']);
 });
 
-test('联机页：实例没在运行时可以直接启动；有要先处理的问题时带去实例页', async () => {
+test('multiplayer page: an instance that is not running can be started directly; with a problem to handle first it leads to the instance page', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   let current: Record<string, unknown> = { ...instance, name: '测试服' };
@@ -1973,7 +1973,7 @@ test('联机页：实例没在运行时可以直接启动；有要先处理的�
   expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
 });
 
-test('任务中心：没有任务在跑时入口不显示数字；被取消的任务写「已取消」，不写「失败」', async () => {
+test('task center: the entry shows no number when no task is running; a cancelled task says "Cancelled", not "Failed"', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   const createdAt = new Date().toISOString();

@@ -82,7 +82,7 @@ async function writeFixture(root: string) {
 const hasKey = (key: string) => (error: unknown) =>
   typeof error === 'object' && error !== null && (error as { messageKey?: string }).messageKey === key;
 
-test('备份归档往返后文件内容、空文件与超长路径保持一致', async (t) => {
+test('file contents, empty files and overlong paths survive a backup archive round trip', async (t) => {
   const root = tempRoot(t);
   const { readBackupArchive } = await import('./backup-archive.js');
   const { archive, written, longDir } = await writeFixture(root);
@@ -104,7 +104,7 @@ test('备份归档往返后文件内容、空文件与超长路径保持一致',
   assert.equal(fs.existsSync(path.join(destination, '.mystry-backup')), false);
 });
 
-test('文件内容被篡改时按校验值拒绝', async (t) => {
+test('tampered file content is rejected by checksum', async (t) => {
   const root = tempRoot(t);
   const { readBackupArchive } = await import('./backup-archive.js');
   const { archive } = await writeFixture(root);
@@ -120,7 +120,7 @@ test('文件内容被篡改时按校验值拒绝', async (t) => {
   );
 });
 
-test('截断或非 gzip 文件视为损坏', async (t) => {
+test('a truncated or non-gzip file is treated as corrupted', async (t) => {
   const root = tempRoot(t);
   const { readBackupArchive } = await import('./backup-archive.js');
   const { archive } = await writeFixture(root);
@@ -139,7 +139,7 @@ test('截断或非 gzip 文件视为损坏', async (t) => {
   );
 });
 
-test('拒绝路径穿越、链接条目、面板保留文件与缺少清单的归档', async (t) => {
+test('archives with path traversal, link entries, panel-reserved files or a missing manifest are rejected', async (t) => {
   const root = tempRoot(t);
   const { readBackupArchive } = await import('./backup-archive.js');
   const end = Buffer.alloc(1024);
@@ -164,7 +164,7 @@ test('拒绝路径穿越、链接条目、面板保留文件与缺少清单的�
   }
 });
 
-test('超过条目数上限时拒绝', async (t) => {
+test('exceeding the entry count limit is rejected', async (t) => {
   const root = tempRoot(t);
   const { readBackupArchive } = await import('./backup-archive.js');
   const { archive } = await writeFixture(root);

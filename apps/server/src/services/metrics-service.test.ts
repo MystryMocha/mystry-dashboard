@@ -8,14 +8,14 @@ import Fastify from 'fastify';
 import jwt from '@fastify/jwt';
 import { MetricsService, cpuUsage, readProcesses } from './metrics-service.js';
 
-test('CPU 按整机容量归一且拒绝计数回退', () => {
+test('CPU is normalized by whole-machine capacity and a counter going backwards is rejected', () => {
   assert.equal(cpuUsage(1000, 1000, 8), 12.5);
   assert.equal(cpuUsage(16000, 1000, 8), 100);
   assert.equal(cpuUsage(-1, 1000, 8), null);
   assert.equal(cpuUsage(0, 0, 8), null);
 });
 
-test('并发请求共享采样，短期缓存不重复查询且缺失磁盘不伪装零空间', async () => {
+test('concurrent requests share a sample, the short-term cache does not query again, and a missing disk is not disguised as zero space', async () => {
   const service = new MetricsService(`${os.tmpdir()}/mystry-nonexistent-metrics-${process.pid}`, () => []);
   const first = service.get();
   assert.equal(first, service.get());
@@ -27,7 +27,7 @@ test('并发请求共享采样，短期缓存不重复查询且缺失磁盘不�
   assert.deepEqual(result.instances, {});
 });
 
-test('本平台真实采集仅查询目标进程并返回累计 CPU 和驻留内存', { skip: !['win32', 'linux'].includes(process.platform) }, async () => {
+test('real collection on this platform queries only the target process and returns cumulative CPU and resident memory', { skip: !['win32', 'linux'].includes(process.platform) }, async () => {
   const rows = await readProcesses([{ id: 'test-only', pid: process.pid }]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.pid, process.pid);
@@ -36,7 +36,7 @@ test('本平台真实采集仅查询目标进程并返回累计 CPU 和驻留内
   assert.ok(rows[0]!.identity);
 });
 
-test('真实监测路由拒绝未认证请求，认证后返回资源快照', async () => {
+test('the real monitoring route rejects unauthenticated requests and returns a resource snapshot after authentication', async () => {
   // Authentication checks the token version, so the route tests use an empty database in a temp data directory, never reading or writing user instances or using real secrets.
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-metrics-route-test-'));
   process.env.JWT_SECRET = randomBytes(32).toString('hex');

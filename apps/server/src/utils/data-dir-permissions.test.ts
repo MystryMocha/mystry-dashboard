@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-test('新建目录在 Unix 上应为 0700', { skip: process.platform === 'win32' }, async (t) => {
+test('a new directory should be 0700 on Unix', { skip: process.platform === 'win32' }, async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-data-perm-new-'));
   t.after(() => {
     fs.rmSync(root, { recursive: true, force: true });
@@ -19,7 +19,7 @@ test('新建目录在 Unix 上应为 0700', { skip: process.platform === 'win32'
   assert.equal(mode, 0o700);
 });
 
-test('forceSecureSensitiveFile 应立即把新文件收紧为 0600', { skip: process.platform === 'win32' }, async (t) => {
+test('forceSecureSensitiveFile should tighten a new file to 0600 immediately', { skip: process.platform === 'win32' }, async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-data-perm-force-'));
   t.after(() => {
     fs.rmSync(root, { recursive: true, force: true });
@@ -31,7 +31,7 @@ test('forceSecureSensitiveFile 应立即把新文件收紧为 0600', { skip: pro
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 });
 
-test('过宽权限应拒绝启动', { skip: process.platform === 'win32' }, async (t) => {
+test('overly permissive permissions should refuse startup', { skip: process.platform === 'win32' }, async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-data-perm-bad-'));
   t.after(() => {
     delete process.env.MYSTRY_REPAIR_DATA_PERMISSIONS;

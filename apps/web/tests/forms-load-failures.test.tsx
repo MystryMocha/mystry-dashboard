@@ -13,7 +13,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status });
 
-test('Java 选择器：列表读取失败时状态是「不知道」，不说没检测到 Java，重新扫描成功后恢复', async () => {
+test('Java picker: on a list read failure the status is "unknown", it does not say no Java was detected, and it recovers after a successful rescan', async () => {
   const user = userEvent.setup();
   let fail = true;
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -37,7 +37,7 @@ test('Java 选择器：列表读取失败时状态是「不知道」，不说没
   expect(screen.queryByRole('alert')).toBeNull();
 });
 
-test('frp：第一次读取就失败时不显示「添加服务器」表单，只报错并给重试；重试成功后照常显示', async () => {
+test('frp: when the very first read fails the "Add Server" form is not shown, only the error with a retry; after a successful retry it shows as usual', async () => {
   const user = userEvent.setup();
   let fail = true;
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -61,7 +61,7 @@ test('frp：第一次读取就失败时不显示「添加服务器」表单，�
   expect(screen.queryByRole('button', { name: '重试' })).toBeNull();
 });
 
-test('导入：切到 ZIP 后不带着文件夹来源识别出的核心和版本，切回文件夹时再填上', async () => {
+test('import: switching to ZIP does not carry the core and version recognized from the folder source, and they are filled in again on switching back', async () => {
   const user = userEvent.setup();
   // A ZIP precheck already exists, so the config area shows when switching to ZIP.
   sessionStorage.setItem('mystry_import_preview_id', 'p1');

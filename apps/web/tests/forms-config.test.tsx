@@ -62,7 +62,7 @@ function mountInstancePage(tab: 'config' | 'settings', status: 'running' | 'stop
 
 const saveButton = () => screen.queryByRole('button', { name: '保存配置' }) as HTMLButtonElement | null;
 
-test('参数配置：数字项是带数字键盘的文本框，文件里的脏值原样显示、不算修改、不拦保存', async () => {
+test('config editor: number items are text boxes with a numeric keyboard, and a dirty value in the file is shown as is, is not a change and does not block saving', async () => {
   const user = userEvent.setup();
   const saves = mountConfigTab({ 'view-distance': 'abc', motd: 'Old' });
 
@@ -89,7 +89,7 @@ test('参数配置：数字项是带数字键盘的文本框，文件里的脏�
   expect(maxPlayers.value).toBe('125');
 });
 
-test('参数配置：只输了「-」算没输完，不会被当成清空保存；失焦后才显示原因', async () => {
+test('config editor: a lone "-" counts as unfinished and is not saved as a clear; the reason shows only after blur', async () => {
   const user = userEvent.setup();
   const saves = mountConfigTab({ 'network-compression-threshold': '256' });
 
@@ -120,7 +120,7 @@ test('参数配置：只输了「-」算没输完，不会被当成清空保存�
   await waitFor(() => expect(saves).toEqual([{ 'network-compression-threshold': '-1' }]));
 });
 
-test('参数配置保存栏：有修改才出现并写明几项，状态文字可点着跳到要改的字段，放弃修改回到加载时的值', async () => {
+test('config editor save bar: appears only with changes and states how many, the status text jumps to the field to fix, and discarding returns to the loaded values', async () => {
   const user = userEvent.setup();
   const saves = mountConfigTab({ motd: 'Old', 'view-distance': '12', 'online-mode': 'true' });
 
@@ -170,7 +170,7 @@ test('参数配置保存栏：有修改才出现并写明几项，状态文字�
   expect(saves).toEqual([]);
 });
 
-test('参数配置：在输入框里按 Enter，合法就保存，不合法跳到第一个出错的字段，没改动什么都不做', async () => {
+test('config editor: Enter in an input saves when valid, jumps to the first failing field when invalid, and does nothing without changes', async () => {
   const user = userEvent.setup();
   const saves = mountConfigTab({ motd: 'Old', 'view-distance': '12', 'server-port': '25565' });
 
@@ -203,7 +203,7 @@ test('参数配置：在输入框里按 Enter，合法就保存，不合法跳�
   expect(saveButton()).toBeNull();
 });
 
-test('参数配置：实例在运行时保存后给出「重启实例」，走实例页原有的重启确认；再次修改或关闭就收起', async () => {
+test('config editor: saving while the instance is running offers "Restart Instance" through the instance page restart confirmation; it collapses on the next edit or on close', async () => {
   const user = userEvent.setup();
   const calls = mountInstancePage('config', 'running', { motd: 'Old' });
 
@@ -238,7 +238,7 @@ test('参数配置：实例在运行时保存后给出「重启实例」，走�
   expect(screen.queryByText('已保存，重启实例后生效')).toBeNull();
 });
 
-test('参数配置：1.18 之前的版本不显示模拟距离，旧值保存时原样带回；版本未知照常显示', async () => {
+test('config editor: versions before 1.18 do not show simulation distance, and the old value is sent back as is on save; shown as usual when the version is unknown', async () => {
   const user = userEvent.setup();
   const saves = mountConfigTab({ motd: 'Old', 'simulation-distance': '8' }, '1.17.1');
 
@@ -260,7 +260,7 @@ test('参数配置：1.18 之前的版本不显示模拟距离，旧值保存时
   }
 });
 
-test('参数配置：「生成动物」被隐藏的版本在世界分组末尾说明原因，不提游戏规则', async () => {
+test('config editor: on versions where "spawn animals" is hidden the end of the world group explains why, without mentioning game rules', async () => {
   mountConfigTab({ motd: 'Old' }, '1.21.8');
   const note = await screen.findByText('Minecraft 从 1.21.2 起去掉了「生成动物」这项设置，这个版本不再显示。');
   expect(note.closest('.form-section')!.querySelector('.form-section-title')!.textContent).toBe('世界');
@@ -277,7 +277,7 @@ test('参数配置：「生成动物」被隐藏的版本在世界分组末尾�
   }
 });
 
-test('实例设置：保存栏有修改才出现，清空名称时点名并可跳过去，放弃修改恢复，Enter 保存而多行文本框里不提交', async () => {
+test('instance settings: the save bar appears only with changes, a cleared name is named and can be jumped to, discarding restores, and Enter saves but does not submit in multi-line text boxes', async () => {
   const user = userEvent.setup();
   const calls = mountInstancePage('settings', 'stopped');
 
@@ -324,7 +324,7 @@ test('实例设置：保存栏有修改才出现，清空名称时点名并可�
   expect(screen.queryByRole('button', { name: '重启实例' })).toBeNull();
 });
 
-test('实例设置：实例在运行时，改了启动才读取的设置保存后给出「重启实例」；只改名称不提示重启', async () => {
+test('instance settings: with the instance running, saving settings read only at start offers "Restart Instance"; changing only the name does not prompt a restart', async () => {
   const user = userEvent.setup();
   const calls = mountInstancePage('settings', 'running');
 
@@ -351,7 +351,7 @@ test('实例设置：实例在运行时，改了启动才读取的设置保存�
   expect(document.querySelector('.save-bar')).toBeNull();
 });
 
-test('参数配置：下拉和开关上的 Enter 带出来的隐式提交不保存，点保存按钮照常保存', async () => {
+test('config editor: an implicit submit caused by Enter on a dropdown or switch does not save, and clicking the save button saves as usual', async () => {
   const user = userEvent.setup();
   const saves = mountConfigTab({ motd: 'Old', difficulty: 'easy' });
 
@@ -372,7 +372,7 @@ test('参数配置：下拉和开关上的 Enter 带出来的隐式提交不保�
   await waitFor(() => expect(saves).toEqual([{ motd: 'Old', difficulty: 'hard' }]));
 });
 
-test('参数配置：保存后实例停止再启动，「重启实例后生效」的提示不会重新出现', async () => {
+test('config editor: after saving, stopping and starting the instance does not bring back the "takes effect after restarting the instance" notice', async () => {
   const user = userEvent.setup();
   vi.stubGlobal('fetch', vi.fn(async () => json({ motd: 'Old' })));
   let setRunning: (running: boolean) => void = () => {};

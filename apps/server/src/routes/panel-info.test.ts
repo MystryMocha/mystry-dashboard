@@ -15,7 +15,7 @@ process.env.JWT_SECRET = JWT_SECRET;
 process.env.SETUP_TOKEN = SETUP_TOKEN;
 process.env.LAUNCHER_TOKEN = LAUNCHER_TOKEN;
 
-test('面板运行信息：未登录 401；登录后返回监听地址和目录，响应里没有密钥', async (t) => {
+test('panel runtime info: 401 when not signed in; after sign-in it returns the listen address and directories with no secrets in the response', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-info-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;
   delete process.env.BACKUP_DIR;

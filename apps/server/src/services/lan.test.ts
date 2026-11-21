@@ -89,7 +89,7 @@ function fakeChild(): EventEmitter & {
   return child;
 }
 
-test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程环境', async (t) => {
+test('the virtual LAN opens only the game port, and the secret does not go on the command line or into the child process environment', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-lan-'));
   process.env.MYSTRY_HOME = dataRoot;
   process.env.MYSTRY_DATA_DIR = dataRoot;
@@ -285,7 +285,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   assert.equal(JSON.stringify(running).includes(idle.networkSecret), false);
   assert.equal(getInstanceLanRow(first.id)?.networkSecret, idle.networkSecret);
 
-  await t.test('地址迟迟拿不到时持续探测，拿到后变为运行中；被替换的旧探测循环退出', async () => {
+  await t.test('probing continues while no address arrives and it becomes running once one does; a replaced old probe loop exits', async () => {
     // The slow interval is clearly longer than a restart takes, so the new generation is in place when the old loop wakes up, which is what exposes a broken generation guard.
     setLanProbeIntervalsForTests({ fastMs: 5, slowMs: 40, fastAttempts: 3 });
     writeServerProperties(second.id, { 'server-ip': '', 'server-port': '25566' });
@@ -331,7 +331,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     assert.equal(calls.length, settled, '拿到地址后探测循环应退出');
   });
 
-  await t.test('停止时删掉防火墙规则；规则加不上时给出提示但照常运行', async () => {
+  await t.test('firewall rules are deleted on stop; when rules cannot be added a notice is shown but it runs as usual', async () => {
     setLanCliRunnerForTests(async () => JSON.stringify({ ipv4_addr: `${describeReadyIp()}/24` }));
     setLanSpawnerForTests(() => fakeChild() as unknown as ChildProcess);
     const ruleName = `name=MystryDashboard-LAN-${first.id}`;
@@ -366,7 +366,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     });
   });
 
-  await t.test('自定义中继节点：规范化、去重，可关掉社区共享节点，且朋友命令用同一份', async () => {
+  await t.test('custom relay peers: normalized, deduplicated, community shared peers can be turned off, and the friend command uses the same list', async () => {
     const custom = saveInstanceLan(first.id, {
       enabled: true,
       peers: ['  TCP://Relay.Example.com:11010 ', 'tcp://relay.example.com:11010', 'wss://[2001:DB8::1]:443/', ''],
@@ -427,7 +427,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     setLanGameStatusForTests(() => 'running');
   };
 
-  await t.test('面板重启后没有运行状态，停服或关闭虚拟局域网仍按名字删规则', async () => {
+  await t.test('with no runtime state after a panel restart, stopping the server or disabling the virtual LAN still deletes rules by name', async () => {
     simulateRestart();
     setLanFirewallForTests(recordingRunner());
     // Add the rules in the "previous panel process" first, then simulate the panel being killed.
@@ -471,7 +471,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     setLanFirewallForTests(recordingRunner());
   });
 
-  await t.test('启动清扫只删归本面板的实例（有记录或工作目录），跳过已重新启动的，不按前缀删', async () => {
+  await t.test('the startup sweep deletes only for instances owned by this panel (with a record or work directory), skips ones already restarted, and does not delete by prefix', async () => {
     simulateRestart();
     setLanFirewallForTests(recordingRunner());
     // second has the virtual LAN disabled but the record is still there: rules left by older versions must be cleaned too.
@@ -506,7 +506,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     saveInstanceLan(second.id, { enabled: true });
   });
 
-  await t.test('删除实例时即使没有运行状态、记录已随实例级联删除也删规则；任意 ID 不触发 netsh', async () => {
+  await t.test('deleting an instance deletes rules even with no runtime state and the record already cascade-deleted; arbitrary IDs do not trigger netsh', async () => {
     const { deleteInstance } = await import('./instance-service.js');
     simulateRestart();
     setLanFirewallForTests(recordingRunner());
@@ -573,7 +573,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     setLanFirewallForTests(recordingRunner());
   });
 
-  await t.test('监听规则只限 easytier-core；带程序的规则加不上就退回不限程序，路径不合适不收窄', async () => {
+  await t.test('listen rules are restricted to easytier-core; when a rule with a program cannot be added it falls back to no program restriction, and an unsuitable path is not narrowed', async () => {
     // An absolute path on the host, with spaces: equally valid on Linux CI.
     const corePath = path.join(dataRoot, 'First Last', 'easytier-core.exe');
     const input = { instanceId: 'probe-1', virtualIp: '10.126.12.1', gamePort: 25565, listenPort: 41234, corePath };
@@ -629,7 +629,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     assert.equal(firewallCalls.length, 0);
   });
 
-  await t.test('手动上传的压缩包只认钉死的摘要，不对就不装', async () => {
+  await t.test('a manually uploaded archive is accepted only by the pinned digest, and is not installed otherwise', async () => {
     const { installLanFromArchive, lanArchiveInfo, lanInstalled } = await import('./lan-runtime.js');
     const info = lanArchiveInfo();
     assert.ok(info);
@@ -656,7 +656,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   }
 });
 
-test('frpc 的 Windows 压缩包不依赖系统 tar，缺少条目时报解压失败', async (t) => {
+test('the Windows frpc archive does not depend on the system tar, and a missing entry reports an extraction failure', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-frp-zip-'));
   // When this test runs alone the config is not loaded yet, so it is filled in here; when the whole group runs, the module is already cached and unaffected.
   process.env.MYSTRY_DATA_DIR ??= dir;
@@ -685,7 +685,7 @@ test('frpc 的 Windows 压缩包不依赖系统 tar，缺少条目时报解压�
   );
 });
 
-test('EasyTier 压缩包用面板自带的 ZIP 解析列出并读出条目，超限拒绝', async () => {
+test('the EasyTier archive is listed and read with the panel ZIP parser, and exceeding the limit is rejected', async () => {
   const { listZipEntryNames, readZipEntryBuffer } = await import('./zip-service.js');
   const { PanelError } = await import('../utils/errors.js');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-lan-zip-'));
@@ -729,7 +729,7 @@ test('EasyTier 压缩包用面板自带的 ZIP 解析列出并读出条目，超
   }
 });
 
-test('Windows 版 EasyTier 一起装上启动必需的 Packet.dll', async () => {
+test('the Windows build of EasyTier also installs Packet.dll, which is required to start', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-lan-asset-'));
   // When this test runs alone the config is not loaded yet, so it is filled in here; when the whole group runs, the module is already cached and unaffected.
   process.env.MYSTRY_DATA_DIR ??= dir;

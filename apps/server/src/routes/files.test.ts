@@ -9,7 +9,7 @@ process.env.JWT_SECRET = 'a'.repeat(64);
 process.env.SETUP_TOKEN = 'b'.repeat(64);
 process.env.LAUNCHER_TOKEN = 'c'.repeat(64);
 
-test('ticket 一次性消费与重放拒绝（内存服务）', async () => {
+test('a ticket is consumed once and replays are rejected (in-memory service)', async () => {
   const {
     resetDownloadTicketsForTests,
     reserveDownloadTicket,
@@ -31,7 +31,7 @@ test('ticket 一次性消费与重放拒绝（内存服务）', async () => {
   assert.equal(getDownloadTicketStatus(issued.ticket, 'user-2'), null);
 });
 
-test('POST 签发时应预占并发下载槽', async () => {
+test('POST issuing should pre-claim a concurrent download slot', async () => {
   const { resetDownloadTicketsForTests, reserveDownloadTicket } = await import('../services/download-ticket-service.js');
   const { config } = await import('../config.js');
   const {
@@ -48,7 +48,7 @@ test('POST 签发时应预占并发下载槽', async () => {
   for (const release of releases) release();
 });
 
-test('GET 开流失败应通过 ticket 状态查询反馈 SPA', async () => {
+test('a failure to open the stream on GET should be reported to the SPA through the ticket status query', async () => {
   const {
     resetDownloadTicketsForTests,
     reserveDownloadTicket,
@@ -76,7 +76,7 @@ test('GET 开流失败应通过 ticket 状态查询反馈 SPA', async () => {
   });
 });
 
-test('下载完成后状态查询返回 consumed 而非 404（短时 tombstone）', async () => {
+test('after a download completes the status query returns consumed rather than 404 (short-lived tombstone)', async () => {
   const {
     resetDownloadTicketsForTests,
     reserveDownloadTicket,
@@ -93,7 +93,7 @@ test('下载完成后状态查询返回 consumed 而非 404（短时 tombstone�
   assert.equal(getDownloadTicketStatus(issued.ticket, 'user-2'), null);
 });
 
-test('consumed tombstone 过期后状态查询回落 null', async () => {
+test('after the consumed tombstone expires the status query falls back to null', async () => {
   const { mock } = test;
   mock.timers.enable({ now: 1_000_000, apis: ['Date'] });
   try {
@@ -114,7 +114,7 @@ test('consumed tombstone 过期后状态查询回落 null', async () => {
   }
 });
 
-test('reserved ticket 到期时自动释放并保留 expired 状态', async () => {
+test('a reserved ticket is released automatically on expiry and keeps the expired status', async () => {
   const { mock } = test;
   mock.timers.enable({ now: 1_000_000, apis: ['Date', 'setTimeout'] });
   try {
@@ -141,7 +141,7 @@ test('reserved ticket 到期时自动释放并保留 expired 状态', async () =
   }
 });
 
-test('streaming ticket 不受签发 TTL 回收，结束时只释放一次', async () => {
+test('a streaming ticket is not reclaimed by the issue TTL and is released only once when it ends', async () => {
   const { mock } = test;
   mock.timers.enable({ now: 2_000_000, apis: ['Date', 'setTimeout'] });
   try {
@@ -175,7 +175,7 @@ test('streaming ticket 不受签发 TTL 回收，结束时只释放一次', asyn
   }
 });
 
-test('streaming 失败在签发 TTL 后仍可查询失败原因', async () => {
+test('a streaming failure can still be queried for its reason after the issue TTL', async () => {
   const { mock } = test;
   mock.timers.enable({ now: 3_000_000, apis: ['Date', 'setTimeout'] });
   try {
@@ -204,7 +204,7 @@ test('streaming 失败在签发 TTL 后仍可查询失败原因', async () => {
   }
 });
 
-test('开流前 close 应结束等待并移除监听', async () => {
+test('a close before the stream opens should end the wait and remove the listener', async () => {
   const { waitForDownloadStreamOpen } = await import('./files.js');
   const stream = new EventEmitter();
   const opening = waitForDownloadStreamOpen(stream);
@@ -219,7 +219,7 @@ test('开流前 close 应结束等待并移除监听', async () => {
   assert.equal(stream.listenerCount('close'), 0);
 });
 
-test('所属用户取消 reserved ticket 应立即释放槽位并进入取消终态', async () => {
+test('the owning user cancelling a reserved ticket should release the slot immediately and enter the cancelled final state', async () => {
   const {
     resetDownloadTicketsForTests,
     reserveDownloadTicket,
@@ -238,7 +238,7 @@ test('所属用户取消 reserved ticket 应立即释放槽位并进入取消终
   assert.equal(getDownloadTicketStatus(issued.ticket, 'user-1')?.errorI18n?.key, 'server.files.download.cancelled');
 });
 
-test('跨用户或跨实例取消 ticket 应拒绝且不释放', async () => {
+test('cancelling a ticket across users or instances should be rejected without releasing it', async () => {
   const {
     resetDownloadTicketsForTests,
     reserveDownloadTicket,
@@ -257,7 +257,7 @@ test('跨用户或跨实例取消 ticket 应拒绝且不释放', async () => {
   assert.equal(getDownloadTicketStatus(issued.ticket, 'user-1')?.status, 'reserved');
 });
 
-test('streaming ticket 取消应为 no-op，仍由流终态释放', async () => {
+test('cancelling a streaming ticket should be a no-op, still released by the stream final state', async () => {
   const {
     resetDownloadTicketsForTests,
     reserveDownloadTicket,
@@ -280,7 +280,7 @@ test('streaming ticket 取消应为 no-op，仍由流终态释放', async () => 
   assert.equal(released, 1);
 });
 
-test('取消路由映射不依赖实例记录，已删除实例仍可释放所属 reserved ticket', async () => {
+test('the cancel route mapping does not depend on the instance record, so a deleted instance can still release its reserved ticket', async () => {
   const {
     resetDownloadTicketsForTests,
     reserveDownloadTicket,

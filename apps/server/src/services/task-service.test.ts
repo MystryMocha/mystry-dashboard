@@ -24,7 +24,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
   return dataRoot;
 }
 
-test('recoverInterruptedTasks 不得因 result.instanceId 删除最终实例', async (t) => {
+test('recoverInterruptedTasks must not delete the final instance because of result.instanceId', async (t) => {
   prepareTempDataRoot(t);
   const { initDb, getDb } = await import('../db.js');
   const { createInstance, getInstanceRow } = await import('./instance-service.js');
@@ -47,7 +47,7 @@ test('recoverInterruptedTasks 不得因 result.instanceId 删除最终实例', a
   );
 });
 
-test('仅清理 .mystry-staging 内 marker 匹配且任务未完成的半成品', async (t) => {
+test('only half-finished items inside .mystry-staging with a matching marker and an unfinished task are cleaned up', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createTask, recordTaskStaging, recoverInterruptedTasks } = await import('./task-service.js');
@@ -75,7 +75,7 @@ test('仅清理 .mystry-staging 内 marker 匹配且任务未完成的半成品'
   assert.ok(fs.existsSync(finalDir), '与任务无关的最终目录必须保留');
 });
 
-test('worker 正常返回后即使任务已中止也保持成功', async (t) => {
+test('the task stays successful once the worker returned normally, even if it was aborted', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance, getInstanceRow } = await import('./instance-service.js');
@@ -112,7 +112,7 @@ test('worker 正常返回后即使任务已中止也保持成功', async (t) => 
   assert.ok(getInstanceRow(inst.id));
 });
 
-test('runBackgroundTask 的 timeoutMs 覆盖全局 TASK_TIMEOUT_MS', async (t) => {
+test('timeoutMs of runBackgroundTask overrides the global TASK_TIMEOUT_MS', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { config } = await import('../config.js');
@@ -138,7 +138,7 @@ test('runBackgroundTask 的 timeoutMs 覆盖全局 TASK_TIMEOUT_MS', async (t) =
   assert.equal(current?.errorI18n?.key, 'server.tasks.timeout');
 });
 
-test('cancelTask：排队的直接取消，运行中的等 worker 收尾后记成用户取消，已结束的不认', async (t) => {
+test('cancelTask: a queued one is cancelled directly, a running one is recorded as cancelled by the user after the worker finishes up, and a finished one is not accepted', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { config } = await import('../config.js');
@@ -187,7 +187,7 @@ test('cancelTask：排队的直接取消，运行中的等 worker 收尾后记�
   assert.equal(cancelTask('missing-task'), false);
 });
 
-test('任务消息以键和参数存库，旧库自动补列且旧任务原文照常读取', async (t) => {
+test('task messages are stored as key and params, old databases get the columns added, and old task text is still read as is', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   // Simulates a pre-upgrade panel.db: the tasks table has no message_i18n / error_i18n, and already holds one old task in Chinese.
   const { DatabaseSync } = await import('node:sqlite');

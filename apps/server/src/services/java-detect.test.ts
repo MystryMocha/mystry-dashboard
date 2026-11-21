@@ -20,7 +20,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
   return dataRoot;
 }
 
-test('getMinecraftChildEnv 不得暴露面板密钥', async (t) => {
+test('getMinecraftChildEnv must not expose panel secrets', async (t) => {
   prepareTempDataRoot(t);
   const { getMinecraftChildEnv } = await import('../utils/child-env.js');
   const env = getMinecraftChildEnv();
@@ -31,7 +31,7 @@ test('getMinecraftChildEnv 不得暴露面板密钥', async (t) => {
   assert.equal(env.MYSTRY_HOME, undefined);
 });
 
-test('detectJava 应对 java -version 使用脱敏环境', async (t) => {
+test('detectJava should use a sanitized environment for java -version', async (t) => {
   prepareTempDataRoot(t);
   const { detectJava } = await import('./java-detect.js');
   let capturedEnv: NodeJS.ProcessEnv | undefined;

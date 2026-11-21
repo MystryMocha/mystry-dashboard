@@ -46,7 +46,7 @@ function descriptions(input: HTMLElement): string[] {
     .map((id) => document.getElementById(id)?.textContent ?? '');
 }
 
-test('初始化令牌：看得见的等宽文本框，实时计数，粘贴去掉首尾空白', async () => {
+test('setup token: a visible monospace text box with a live count, and surrounding whitespace is trimmed on paste', async () => {
   const user = userEvent.setup();
   const { token } = await mountSetup();
   expect(token.type).toBe('text');
@@ -87,7 +87,7 @@ test('初始化令牌：看得见的等宽文本框，实时计数，粘贴去�
   expect(screen.getByText(TOKEN_ERROR(65))).toBeTruthy();
 });
 
-test('初始化：密码和用户名不在输入途中报错，失焦后才报，改对马上消失', async () => {
+test('setup: the password and username do not report errors while typing, only after blur, and the error disappears as soon as it is fixed', async () => {
   const user = userEvent.setup();
   const { username, password, submit } = await mountSetup();
   expect(password.type).toBe('password');
@@ -131,7 +131,7 @@ test('初始化：密码和用户名不在输入途中报错，失焦后才报�
   expect(username.getAttribute('aria-invalid')).toBeNull();
 });
 
-test('初始化：按钮禁用时按 Enter 显示全部原因并跳到第一个出错的字段', async () => {
+test('setup: pressing Enter while the button is disabled shows all reasons and jumps to the first failing field', async () => {
   const user = userEvent.setup();
   const { username, token, password, submit } = await mountSetup();
   // Change the values directly without blur: none of the three fields is "touched".
@@ -157,7 +157,7 @@ test('初始化：按钮禁用时按 Enter 显示全部原因并跳到第一个�
   expect(posts).toEqual([]);
 });
 
-test('初始化：只是还空着时按 Enter 不标红，焦点到第一个没填的字段', async () => {
+test('setup: when fields are merely empty, Enter marks nothing red and focus goes to the first unfilled field', async () => {
   const user = userEvent.setup();
   const { username, token, password } = await mountSetup();
   username.focus();
@@ -167,7 +167,7 @@ test('初始化：只是还空着时按 Enter 不标红，焦点到第一个没�
   expect(document.querySelector('.error')).toBeNull();
 });
 
-test('初始化：粘贴带空白的完整令牌后可以提交，Enter 只提交一次', async () => {
+test('setup: after pasting a full token with whitespace it can be submitted, and Enter submits only once', async () => {
   const user = userEvent.setup();
   const { token, password, submit } = await mountSetup();
   await user.click(token);
@@ -190,7 +190,7 @@ test('初始化：粘贴带空白的完整令牌后可以提交，Enter 只提�
   expect(document.querySelector('.error')).toBeNull();
 });
 
-test('登录：按钮不预先禁用，失焦和 Enter 都不出字段错误，密码可以点开看', async () => {
+test('sign-in: the button is not disabled in advance, neither blur nor Enter produces field errors, and the password can be revealed', async () => {
   needsSetup = false;
   const user = userEvent.setup();
   render(<AuthProvider><LoginPage /></AuthProvider>);

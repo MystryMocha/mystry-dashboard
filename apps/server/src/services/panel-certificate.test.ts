@@ -38,7 +38,7 @@ async function handshake(certPem: string, keyPem: string, servername: string | u
   }
 }
 
-test('生成的证书能被解析，内容符合设计', async () => {
+test('the generated certificate can be parsed and its content matches the design', async () => {
   const { generatePanelCertificate, describeCertificate, CERTIFICATE_VALID_DAYS } = await import('./panel-certificate.js');
   const now = new Date('2026-11-17T08:00:00Z');
   const { certPem, keyPem } = generatePanelCertificate(
@@ -72,12 +72,12 @@ test('生成的证书能被解析，内容符合设计', async () => {
   assert.ok(info.addresses.includes('mc.example.com'));
 });
 
-test('没有可用地址时 SAN 写入 localhost', async () => {
+test('localhost is written into the SAN when no address is available', async () => {
   const { generatePanelCertificate, describeCertificate } = await import('./panel-certificate.js');
   assert.deepEqual(describeCertificate(generatePanelCertificate([]).certPem).addresses, ['localhost']);
 });
 
-test('真实 TLS 握手：信任这张证书的客户端按 IP 和域名都能校验通过', async () => {
+test('real TLS handshake: a client that trusts this certificate verifies by both IP and domain name', async () => {
   const { generatePanelCertificate } = await import('./panel-certificate.js');
   const { certPem, keyPem } = generatePanelCertificate(['127.0.0.1', '192.168.2.163', 'panel.example.com']);
   assert.match(await handshake(certPem, keyPem, undefined, '127.0.0.1'), /^TLSv1\.[23]$/);
@@ -87,7 +87,7 @@ test('真实 TLS 握手：信任这张证书的客户端按 IP 和域名都能�
   await assert.rejects(handshake(certPem, keyPem, undefined, '10.0.0.1'), /altnames|IP: 10\.0\.0\.1/i);
 });
 
-test('不信任这张证书的客户端拒绝连接', async () => {
+test('a client that does not trust this certificate refuses to connect', async () => {
   const { generatePanelCertificate } = await import('./panel-certificate.js');
   const { certPem, keyPem } = generatePanelCertificate(['127.0.0.1']);
   const server = https.createServer({ cert: certPem, key: keyPem }, (_req, res) => res.end('ok'));
@@ -106,7 +106,7 @@ test('不信任这张证书的客户端拒绝连接', async () => {
   }
 });
 
-test('已有证书复用；快过期、损坏、私钥不配对或要求重新生成时换新', async () => {
+test('an existing certificate is reused; it is replaced when about to expire, corrupted, mismatched with the private key, or regeneration is requested', async () => {
   const { loadOrCreatePanelCertificate, panelCertificatePaths, readPanelCertificateInfo, generatePanelCertificate } =
     await import('./panel-certificate.js');
   const dataDir = fs.mkdtempSync(path.join(dataRoot, 'store-'));

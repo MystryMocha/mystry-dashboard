@@ -59,7 +59,7 @@ function writePreviewZip(suffix: string): string {
   return target;
 }
 
-test('ZIP 导入预览执行所有者、容量、过期、重启和确认生命周期', async (t) => {
+test('ZIP import preview enforces the owner, capacity, expiry, restart and confirm lifecycle', async (t) => {
   const { initDb, closeDb } = await import('../db.js');
   const previewService = await import('./import-preview-service.js');
   const taskService = await import('./task-service.js');
@@ -72,7 +72,7 @@ test('ZIP 导入预览执行所有者、容量、过期、重启和确认生命�
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 
-  await t.test('非所有者不可见，取消会删除临时 ZIP', async () => {
+  await t.test('invisible to non-owners, and cancel deletes the temp ZIP', async () => {
     const zipPath = writePreviewZip('owner.zip');
     const preview = await previewService.createImportPreview({ userId: 'owner', fileName: 'owner.zip', zipPath });
     assert.equal(previewService.getImportPreview(preview.id, 'owner').id, preview.id);
@@ -84,7 +84,7 @@ test('ZIP 导入预览执行所有者、容量、过期、重启和确认生命�
     assert.equal(fs.existsSync(zipPath), false);
   });
 
-  await t.test('同一用户的新预览成功后才替换旧预览', async () => {
+  await t.test('a new preview from the same user replaces the old one only after it succeeds', async () => {
     const oldPath = writePreviewZip('old.zip');
     const oldPreview = await previewService.createImportPreview({ userId: 'replace', fileName: 'old.zip', zipPath: oldPath });
     const newPath = writePreviewZip('new.zip');
@@ -99,7 +99,7 @@ test('ZIP 导入预览执行所有者、容量、过期、重启和确认生命�
     previewService.cancelImportPreview(newPreview.id, 'replace');
   });
 
-  await t.test('超过全局容量时保留新上传给路由负责清理', async () => {
+  await t.test('beyond the global capacity the new upload is kept for the route to clean up', async () => {
     const first = await previewService.createImportPreview({ userId: 'cap-a', fileName: 'a.zip', zipPath: writePreviewZip('cap-a.zip') });
     const second = await previewService.createImportPreview({ userId: 'cap-b', fileName: 'b.zip', zipPath: writePreviewZip('cap-b.zip') });
     const rejectedPath = writePreviewZip('cap-c.zip');
@@ -113,7 +113,7 @@ test('ZIP 导入预览执行所有者、容量、过期、重启和确认生命�
     previewService.cancelImportPreview(second.id, 'cap-b');
   });
 
-  await t.test('过期返回 410 并删除 ZIP', async () => {
+  await t.test('expiry returns 410 and deletes the ZIP', async () => {
     const zipPath = writePreviewZip('expired.zip');
     const preview = await previewService.createImportPreview({
       userId: 'expired',
@@ -128,14 +128,14 @@ test('ZIP 导入预览执行所有者、容量、过期、重启和确认生命�
     assert.equal(fs.existsSync(zipPath), false);
   });
 
-  await t.test('重启初始化清理专用前缀的孤儿文件', () => {
+  await t.test('restart initialization cleans up orphan files with the dedicated prefix', () => {
     const orphan = writePreviewZip('orphan.zip');
     const result = previewService.initializeImportPreviews();
     assert.equal(result.purged, 1);
     assert.equal(fs.existsSync(orphan), false);
   });
 
-  await t.test('确认后只入队一次，重复确认返回 409', async () => {
+  await t.test('queued only once after confirming, and a repeated confirm returns 409', async () => {
     const preview = await previewService.createImportPreview({
       userId: 'confirm',
       fileName: 'confirm.zip',
@@ -160,7 +160,7 @@ test('ZIP 导入预览执行所有者、容量、过期、重启和确认生命�
     assert.equal(completed?.status, 'completed', completed?.error);
   });
 
-  await t.test('任务队列满时不消费预览', async () => {
+  await t.test('the preview is not consumed when the task queue is full', async () => {
     const preview = await previewService.createImportPreview({
       userId: 'queue-full',
       fileName: 'queue-full.zip',

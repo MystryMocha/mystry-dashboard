@@ -50,7 +50,7 @@ function mountImport(listings: Array<{ status?: number; body: unknown }>) {
 const radio = (id: string) => screen.getByRole('radio', { name: id }) as HTMLInputElement;
 const detail = (id: string) => document.getElementById(radio(id).getAttribute('aria-describedby')!)!.textContent;
 
-test('imports：写出真实路径，「复制路径」复制的就是它并提示已复制', async () => {
+test('imports: shows the real path, and "Copy Path" copies exactly that and reports it copied', async () => {
   const user = userEvent.setup();
   const writeText = vi.fn(async () => {});
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
@@ -63,7 +63,7 @@ test('imports：写出真实路径，「复制路径」复制的就是它并提�
   expect(await screen.findByText('已复制 imports 文件夹的路径。')).toBeTruthy();
 });
 
-test('imports：复制失败时提示手动选中路径', async () => {
+test('imports: on a copy failure it asks to select the path manually', async () => {
   const user = userEvent.setup();
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } });
   // jsdom's execCommand does not really copy; make it return false to take the "everything failed" branch.
@@ -75,7 +75,7 @@ test('imports：复制失败时提示手动选中路径', async () => {
   expect(await screen.findByText('复制失败，请手动选中路径后复制。')).toBeTruthy();
 });
 
-test('imports：每一行写识别结果；不能导入的行写原因且不能选；默认选中第一个能导入的', async () => {
+test('imports: each row shows the detection result; rows that cannot be imported show the reason and cannot be selected; the first importable one is selected by default', async () => {
   const user = userEvent.setup();
   mountImport([{
     body: {
@@ -105,7 +105,7 @@ test('imports：每一行写识别结果；不能导入的行写原因且不能�
   expect(radio('big-world').checked).toBe(false);
 });
 
-test('imports：空的时候说下一步；点「刷新」重新读取，复制进去的服务端出现并被选中', async () => {
+test('imports: when empty it says what to do next; "Refresh" reads again, and a server copied in appears and is selected', async () => {
   const user = userEvent.setup();
   const mounted = mountImport([
     { body: { importDir: IMPORT_DIR, sources: [] } },
@@ -121,7 +121,7 @@ test('imports：空的时候说下一步；点「刷新」重新读取，复制�
   expect(screen.queryByText(/imports 里还没有服务端/)).toBeNull();
 });
 
-test('imports：读取失败时写原因，不显示「还没有服务端」', async () => {
+test('imports: on a read failure the reason is shown, not "no servers yet"', async () => {
   mountImport([{ status: 500, body: { error: 'Instance directory not found', messageI18n: { key: 'server.files.instanceDirNotFound' } } }]);
   expect(await screen.findByText(/无法读取导入文件夹/)).toBeTruthy();
   expect(screen.queryByText(/imports 里还没有服务端/)).toBeNull();

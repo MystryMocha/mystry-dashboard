@@ -49,7 +49,7 @@ async function waitUntilOnlyEulaMissing() {
   expect(await screen.findByRole('button', { name: '勾选同意 Minecraft EULA 后才能部署' })).toBeTruthy();
 }
 
-test('部署页 Java 不符：操作栏状态可点并跳到 Java 选择框，第 4 节不再重复这句话', async () => {
+test('deploy page Java mismatch: the action bar status is clickable and jumps to the Java picker, and section 4 no longer repeats the sentence', async () => {
   javaRuntimes = [];
   const user = userEvent.setup();
   mountDeploy();
@@ -68,7 +68,7 @@ test('部署页 Java 不符：操作栏状态可点并跳到 Java 选择框，�
   expect(deployBodies).toHaveLength(0);
 });
 
-test('部署页只是在等数据时，操作栏状态是普通文字', async () => {
+test('deploy page: the action bar status is plain text when only waiting for data', async () => {
   javaPending = true;
   mountDeploy();
   const waiting = await screen.findByText('正在检查 Java…');
@@ -77,7 +77,7 @@ test('部署页只是在等数据时，操作栏状态是普通文字', async ()
   expect(document.querySelector('.action-bar-status button')).toBeNull();
 });
 
-test('部署页实例名称：错误在失焦后才显示并关联输入框，空着不标红，状态文字跳回名称', async () => {
+test('deploy page instance name: the error shows only after blur and is associated with the input, empty is not marked red, and the status text jumps back to the name', async () => {
   const user = userEvent.setup();
   mountDeploy();
   await waitUntilOnlyEulaMissing();
@@ -110,7 +110,7 @@ test('部署页实例名称：错误在失焦后才显示并关联输入框，�
   expect(document.activeElement).toBe(name);
 });
 
-test('部署页按 Enter：不能部署时显示原因并跳到要改的字段，能部署时只提交一次，多行文本框不提交', async () => {
+test('deploy page Enter: shows the reason and jumps to the field to fix when it cannot deploy, submits only once when it can, and does not submit in multi-line text boxes', async () => {
   const user = userEvent.setup();
   mountDeploy();
   await waitUntilOnlyEulaMissing();
@@ -161,7 +161,7 @@ test('部署页按 Enter：不能部署时显示原因并跳到要改的字段�
   expect(deployBodies).toHaveLength(1);
 });
 
-test('部署页点主按钮走表单提交，表单里只有它是 submit，可选项统一标「（可选）」', async () => {
+test('deploy page: the primary button goes through form submission, it is the only submit in the form, and optional items are uniformly marked "(optional)"', async () => {
   const user = userEvent.setup();
   mountDeploy();
   await waitUntilOnlyEulaMissing();

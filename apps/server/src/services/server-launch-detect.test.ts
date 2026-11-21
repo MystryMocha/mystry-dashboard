@@ -20,7 +20,7 @@ test.after(async () => {
   }
 });
 
-test('从启动文件名认出核心类型和 Minecraft 版本', async () => {
+test('the core type and Minecraft version are recognized from the launch file name', async () => {
   const { describeJarLaunchTarget, inferMcVersionFromLaunchTarget } = await import('./server-launch-detect.js');
 
   assert.deepEqual(describeJarLaunchTarget('forge-1.12.2-14.23.5.2860.jar'), {
@@ -56,7 +56,7 @@ test('从启动文件名认出核心类型和 Minecraft 版本', async () => {
   assert.equal(inferMcVersionFromLaunchTarget('paper-1.5.2.jar', 'paper'), null);
 });
 
-test('导入表单提交的 custom 表示自动识别，明确选的核心类型优先', async () => {
+test('custom submitted by the import form means auto-detect, and an explicitly chosen core type takes precedence', async () => {
   const { resolveImportedCoreType } = await import('./server-launch-detect.js');
   assert.equal(resolveImportedCoreType('custom', 'forge'), 'forge');
   assert.equal(resolveImportedCoreType(undefined, 'paper'), 'paper');
@@ -64,7 +64,7 @@ test('导入表单提交的 custom 表示自动识别，明确选的核心类型
   assert.equal(resolveImportedCoreType('custom', 'custom'), 'custom');
 });
 
-test('从本机文件夹导入旧版 Forge：预检和导入结果都认出 Forge 与版本', async () => {
+test('importing an old Forge from a local folder: both the precheck and the import result recognize Forge and the version', async () => {
   const { initDb } = await import('../db.js');
   const { importExistingServerDirectory, listExistingServerSources } = await import('./existing-server-import-service.js');
   const { getInstance } = await import('./instance-service.js');

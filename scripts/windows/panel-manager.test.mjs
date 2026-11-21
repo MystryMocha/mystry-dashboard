@@ -31,7 +31,7 @@ function runPowerShell(command) {
   );
 }
 
-test('Invoke-Npm 不会把 npm 输出混入函数返回值', { skip: process.platform !== 'win32' }, () => {
+test('Invoke-Npm does not mix npm output into the function return value', { skip: process.platform !== 'win32' }, () => {
   const result = runPowerShell(`
     $env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY = '1'
     . ${quotePowerShell(managerPath)}
@@ -41,7 +41,7 @@ test('Invoke-Npm 不会把 npm 输出混入函数返回值', { skip: process.pla
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
-test('PanelManager 把 .env 交给 mystryctl，数据目录按其中的 DATA_DIR', { skip: process.platform !== 'win32' }, () => {
+test('PanelManager hands .env to mystryctl, and the data directory follows DATA_DIR in it', { skip: process.platform !== 'win32' }, () => {
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-test-'));
   try {
     const envPath = path.join(testRoot, '.env');
@@ -71,7 +71,7 @@ test('PanelManager 把 .env 交给 mystryctl，数据目录按其中的 DATA_DIR
   }
 });
 
-test('PanelManager 拒绝未知命令和多余参数', { skip: process.platform !== 'win32' }, () => {
+test('PanelManager rejects unknown commands and extra arguments', { skip: process.platform !== 'win32' }, () => {
   const unknown = spawnSync(
     'powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, 'bogus'],
@@ -88,7 +88,7 @@ test('PanelManager 拒绝未知命令和多余参数', { skip: process.platform 
   assert.equal(extra.status, 2, `${extra.stdout}\n${extra.stderr}`);
 });
 
-test('PanelManager reset-password 在输出不是终端时拒绝并返回非 0', { skip: process.platform !== 'win32' }, () => {
+test('PanelManager reset-password refuses and returns non-zero when output is not a terminal', { skip: process.platform !== 'win32' }, () => {
   // Output goes through a pipe: mystryctl must refuse before contacting the server, and the exit code is returned as is through PowerShell.
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-reset-'));
   try {
@@ -112,7 +112,7 @@ test('PanelManager reset-password 在输出不是终端时拒绝并返回非 0',
   }
 });
 
-test('PanelManager.cmd 调用 Windows PowerShell 前清空 PSModulePath', () => {
+test('PanelManager.cmd clears PSModulePath before calling Windows PowerShell', () => {
   // When run from pwsh 7 the 7.x module path is inherited, and after 5.1 loads incompatible modules Get-FileHash cannot be found.
   const launcher = fs.readFileSync(path.resolve(scriptDirectory, '../../PanelManager.cmd'), 'utf8');
   const clearIndex = launcher.indexOf('set "PSModulePath="');
@@ -122,7 +122,7 @@ test('PanelManager.cmd 调用 Windows PowerShell 前清空 PSModulePath', () => 
   assert.match(launcher, /^[\x00-\x7f]*$/, 'PanelManager.cmd 只能包含 ASCII 字符');
 });
 
-test('PanelManager 按 MYSTRY_LANG 切换语言，并传给 mystryctl', { skip: process.platform !== 'win32' }, () => {
+test('PanelManager switches language by MYSTRY_LANG and passes it to mystryctl', { skip: process.platform !== 'win32' }, () => {
   const run = (language, ...args) => spawnSync(
     'powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, ...args],
@@ -133,7 +133,7 @@ test('PanelManager 按 MYSTRY_LANG 切换语言，并传给 mystryctl', { skip: 
   assert.match(run('zh-CN', 'help').stdout, /用法：PanelManager\.cmd/);
 });
 
-test('PanelManager 按所选下载源安装依赖，默认不指定 registry', { skip: process.platform !== 'win32' }, () => {
+test('PanelManager installs dependencies from the chosen download source and specifies no registry by default', { skip: process.platform !== 'win32' }, () => {
   const installArguments = (mirror) => runPowerShell(`
     $env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY = '1'
     $env:MYSTRY_NPM_MIRROR = ${quotePowerShell(mirror)}
@@ -150,7 +150,7 @@ test('PanelManager 按所选下载源安装依赖，默认不指定 registry', {
   assert.match(invalid.stderr, /未知的 npm 下载源/);
 });
 
-test('只有 mirror 和 remote 可以带参数，无效的下载源名称不写入选择', { skip: process.platform !== 'win32' }, () => {
+test('only mirror and remote can take arguments, and an invalid download source name is not written to the choice', { skip: process.platform !== 'win32' }, () => {
   const run = (...args) => spawnSync(
     'powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', managerPath, ...args],
@@ -170,7 +170,7 @@ test('只有 mirror 和 remote 可以带参数，无效的下载源名称不写�
   assert.equal(run('remote', 'https', 'off', 'extra').status, 2);
 });
 
-test('PanelManager 把 remote 的子命令和参数交给控制器', { skip: process.platform !== 'win32' }, () => {
+test('PanelManager passes the remote subcommand and arguments to the controller', { skip: process.platform !== 'win32' }, () => {
   // Uses isolated config and data directories: the panel is not running, so the controller requests no endpoint.
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-remote-'));
   try {

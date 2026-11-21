@@ -36,7 +36,7 @@ function ipv4(address: string, internal = false): os.NetworkInterfaceInfo {
   };
 }
 
-test('只列出局域网 IPv4，并把常见家用网段排在前面', async () => {
+test('only LAN IPv4 addresses are listed, with common home subnets first', async () => {
   const { listLanAddresses } = await import('./local-network-service.js');
   const addresses = listLanAddresses({
     lo: [ipv4('127.0.0.1', true)],
@@ -52,7 +52,7 @@ test('只列出局域网 IPv4，并把常见家用网段排在前面', async () 
   assert.deepEqual(addresses, ['192.168.1.23', '10.126.126.5']);
 });
 
-test('认得出的虚拟网卡不列出；只剩虚拟网卡时照常列出', async () => {
+test('recognizable virtual interfaces are not listed; when only virtual interfaces remain they are listed as usual', async () => {
   const { listLanAddresses } = await import('./local-network-service.js');
   assert.deepEqual(
     listLanAddresses({
@@ -67,7 +67,7 @@ test('认得出的虚拟网卡不列出；只剩虚拟网卡时照常列出', as
   assert.deepEqual(listLanAddresses({ 'unnamed-overlay': [ipv4('100.64.0.9')] }), ['100.64.0.9']);
 });
 
-test('地址很多时只保留前几个', async () => {
+test('only the first few are kept when there are many addresses', async () => {
   const { listLanAddresses } = await import('./local-network-service.js');
   const many = Object.fromEntries(
     Array.from({ length: 12 }, (_unused, index) => [`eth${index}`, [ipv4(`192.168.${index}.2`)]]),
@@ -77,7 +77,7 @@ test('地址很多时只保留前几个', async () => {
   assert.equal(addresses[0], '192.168.0.2');
 });
 
-test('只列出实体网卡上的公网 IPv6 地址', async () => {
+test('only public IPv6 addresses on physical interfaces are listed', async () => {
   const { listPublicIpv6Addresses } = await import('./local-network-service.js');
   assert.deepEqual(
     listPublicIpv6Addresses({
@@ -101,7 +101,7 @@ test('只列出实体网卡上的公网 IPv6 地址', async () => {
   assert.equal(listPublicIpv6Addresses(many).length, 3);
 });
 
-test('server-ip 决定是否给出公网 IPv6：留空给出，0.0.0.0 或具体地址不给', async (t) => {
+test('server-ip decides whether a public IPv6 is given: given when empty, not for 0.0.0.0 or a specific address', async (t) => {
   const { describeLocalNetwork } = await import('./local-network-service.js');
   const { initDb, closeDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');

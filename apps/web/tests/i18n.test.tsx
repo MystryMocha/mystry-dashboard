@@ -36,7 +36,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-test('浏览器语言检测：繁体用 zh-TW，其他 zh* 用 zh-CN，en* 或无法匹配用英文，按列表顺序取第一个命中', () => {
+test('browser language detection: Traditional uses zh-TW, other zh* use zh-CN, en* or no match uses English, taking the first hit in list order', () => {
   expect(detectLocale(['zh-TW'])).toBe('zh-TW');
   expect(detectLocale(['zh-HK'])).toBe('zh-TW');
   expect(detectLocale(['zh-Hant'])).toBe('zh-TW');
@@ -50,7 +50,7 @@ test('浏览器语言检测：繁体用 zh-TW，其他 zh* 用 zh-CN，en* 或�
   expect(detectLocale([])).toBe('en');
 });
 
-test('文案表：每个区域 en 与 zh-CN、zh-TW 键一致，区域之间不重名', () => {
+test('string tables: en, zh-CN and zh-TW keys match in every area, with no duplicate names across areas', () => {
   const seen = new Map<string, string>();
   for (const [path, mod] of Object.entries(enFiles)) {
     if (area(path) === 'index.ts') continue;
@@ -67,14 +67,14 @@ test('文案表：每个区域 en 与 zh-CN、zh-TW 键一致，区域之间不�
   }
 });
 
-test('插值、缺参保留占位、富文本标签', () => {
+test('interpolation, placeholders kept for missing params, and rich text tags', () => {
   expect(translate('en', 'language.button', { language: 'English' })).toBe('Language settings, currently English');
   expect(translate('zh-CN', 'language.button', {})).toBe('语言设置，当前为{language}');
   const { container } = render(<p>{translateRich('en', 'language.auto.hint', { b: (chunk) => <b>{chunk}</b> }, { language: '<b>English</b>' })}</p>);
   expect(container.querySelector('b')?.textContent).toBe('English');
 });
 
-test('Intl 格式化随语言变化，数字与单位之间留空格', () => {
+test('Intl formatting changes with the language, with a space between number and unit', () => {
   expect(formatters('en').fileSize(1536)).toBe('1.5 KB');
   expect(formatters('en').fileSize(512)).toBe('512 B');
   expect(formatters('en').number(12345)).toBe('12,345');
@@ -83,7 +83,7 @@ test('Intl 格式化随语言变化，数字与单位之间留空格', () => {
   expect(formatters('en').dateTime('2026-09-08T10:00:00Z', { year: 'numeric', timeZone: 'UTC' })).toBe('2026');
 });
 
-test('Intl 格式化器按语言与选项缓存，useI18n().fmt 引用稳定，切换语言后换新', () => {
+test('Intl formatters are cached by language and options, the useI18n().fmt reference is stable, and it is replaced after a language switch', () => {
   // A new options object with the same content hits the same instance too; different options or language give another instance.
   expect(numberFormat('en', { maximumFractionDigits: 1 })).toBe(numberFormat('en', { maximumFractionDigits: 1 }));
   expect(numberFormat('en', { maximumFractionDigits: 2 })).not.toBe(numberFormat('en', { maximumFractionDigits: 1 }));
@@ -115,7 +115,7 @@ test('Intl 格式化器按语言与选项缓存，useI18n().fmt 引用稳定，�
   expect(screen.getByText('September 8 | 1,234,567.5')).toBeTruthy();
 });
 
-test('切换语言写入 <html lang> 与本机存储，模块级 t() 与组件同时更新', async () => {
+test('switching the language writes <html lang> and local storage, and the module-level t() updates together with components', async () => {
   function Title() {
     const { t: tr } = useI18n();
     return <h1>{tr('nav.overview')}</h1>;
@@ -141,7 +141,7 @@ test('切换语言写入 <html lang> 与本机存储，模块级 t() 与组件�
   expect(screen.getByRole('heading').textContent).toBe('Instances');
 });
 
-test('服务端消息：按键翻译、嵌套参数、无键时显示服务端原文', () => {
+test('server messages: translated by key, nested params, and the server text is shown when there is no key', () => {
   const nested = {
     key: 'server.tasks.restartCleanupFailed' as const,
     params: { reason: { key: 'server.tasks.stagingMarkerMismatch' as const } },

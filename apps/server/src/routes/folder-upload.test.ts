@@ -41,7 +41,7 @@ function multipart(parts: Part[]) {
   return { contentType: `multipart/form-data; boundary=${boundary}`, payload: Buffer.concat(chunks) };
 }
 
-test('浏览器上传文件夹接口', async (t) => {
+test('browser folder upload endpoints', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-folder-upload-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;
   // An upload temp directory left by the previous process: it should be cleaned up at startup.
@@ -88,14 +88,14 @@ test('浏览器上传文件夹接口', async (t) => {
   };
   const get = (id: string) => app.inject({ method: 'GET', url: `/api/import/folder-uploads/${id}`, headers: authorization });
 
-  await t.test('未登录不能开始上传', async () => {
+  await t.test('an upload cannot start without signing in', async () => {
     const response = await app.inject({
       method: 'POST', url: '/api/import/folder-uploads', payload: { folderName: 'x', fileCount: 1, totalBytes: 1 },
     });
     assert.equal(response.statusCode, 401);
   });
 
-  await t.test('开始上传时检查参数和配额', async () => {
+  await t.test('parameters and quotas are checked when an upload starts', async () => {
     assert.equal((await create({ folderName: 'x', fileCount: 0, totalBytes: 1 })).statusCode, 400);
     assert.equal((await create({ folderName: 'a/b', fileCount: 1, totalBytes: 1 })).statusCode, 400);
     assert.equal((await create({ folderName: 'x', fileCount: 1, totalBytes: 1, path: 'C:/' })).statusCode, 400);
@@ -108,7 +108,7 @@ test('浏览器上传文件夹接口', async (t) => {
     assert.deepEqual(uploadDirs(), []);
   });
 
-  await t.test('相对路径只接受普通写法', () => {
+  await t.test('relative paths are accepted only in the ordinary form', () => {
     assert.equal(normalizeUploadRelativePath('world/region/r.0.0.mca'), 'world/region/r.0.0.mca');
     for (const bad of ['', '/etc/passwd', '../evil.txt', 'a/../b', 'a//b', 'a/./b', 'a\\b', 'a\u0000b', 'x/'.repeat(70) + 'y']) {
       assert.throws(() => normalizeUploadRelativePath(bad), (error: { messageKey?: string }) => error.messageKey === 'server.imports.folder.invalidPath', bad);
@@ -125,7 +125,7 @@ test('浏览器上传文件夹接口', async (t) => {
     }
   });
 
-  await t.test('分批上传、预检、确认后整个文件夹成为实例', async () => {
+  await t.test('batched upload, precheck, and after confirming the whole folder becomes an instance', async () => {
     const files = {
       'server.jar': 'fake jar',
       'user_jvm_args.txt': '-Xms2G -Xmx4G\n',
@@ -193,7 +193,7 @@ test('浏览器上传文件夹接口', async (t) => {
     assert.equal((await get(upload.id)).statusCode, 404);
   });
 
-  await t.test('路径不合格、重复、缺路径或超出声明时整次上传作废', async () => {
+  await t.test('the whole upload is voided on a bad path, a duplicate, a missing path or exceeding what was declared', async () => {
     const cases: Array<{ parts: Part[]; code: string }> = [
       { parts: [{ path: '../evil.txt', content: 'x' }], code: 'server.imports.folder.invalidPath' },
       { parts: [{ path: '.mystry-instance.json', content: 'x' }], code: 'server.imports.folder.reservedName' },
@@ -218,7 +218,7 @@ test('浏览器上传文件夹接口', async (t) => {
     assert.equal(fs.existsSync(path.join(dataRoot, 'uploads', 'evil.txt')), false);
   });
 
-  await t.test('没有启动文件的文件夹能预检但不能确认', async () => {
+  await t.test('a folder without a launch file can be prechecked but not confirmed', async () => {
     const created = await create({ folderName: 'no-jar', fileCount: 1, totalBytes: 5 });
     const { id } = created.json<FolderUploadInfo>();
     assert.equal((await sendBatch(id, [{ path: 'world/level.dat', content: 'level' }])).statusCode, 200);
@@ -233,7 +233,7 @@ test('浏览器上传文件夹接口', async (t) => {
     assert.equal(confirmed.json<{ code: string }>().code, 'server.imports.folder.notReady');
   });
 
-  await t.test('取消会删掉临时目录；新开始的上传替换旧的', async () => {
+  await t.test('cancel deletes the temp directory; a newly started upload replaces the old one', async () => {
     const first = (await create({ folderName: 'one', fileCount: 1, totalBytes: 1 })).json<FolderUploadInfo>();
     assert.equal(uploadDirs().length, 1);
     const second = (await create({ folderName: 'two', fileCount: 1, totalBytes: 1 })).json<FolderUploadInfo>();

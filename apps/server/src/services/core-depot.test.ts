@@ -30,7 +30,7 @@ function hasMessageKey(error: unknown, key: ServerMessageKey): boolean {
   return error instanceof PanelError && error.messageKey === key;
 }
 
-test('Paper 缓存键使用解析后的 build，旧 latest 键不会命中', async () => {
+test('the Paper cache key uses the resolved build, and the old latest key does not hit', async () => {
   const { buildResolvedCoreCacheBasename } = await import('./core-metadata.js');
   const resolved = buildResolvedCoreCacheBasename('paper', '1.21.1', { build: 42 });
   const legacy = 'paper-1.21.1-latest-.jar'.replace(/[^\w.-]+/g, '_');
@@ -39,7 +39,7 @@ test('Paper 缓存键使用解析后的 build，旧 latest 键不会命中', asy
   assert.match(current, /paper-1\.21\.1-build-42\.jar/);
 });
 
-test('Fabric 缓存键包含解析后的 loader 与 installer', async () => {
+test('the Fabric cache key includes the resolved loader and installer', async () => {
   const { buildResolvedCoreCacheBasename } = await import('./core-metadata.js');
   const resolved = buildResolvedCoreCacheBasename('fabric', '1.21.1', {
     loader: '0.16.9',
@@ -48,7 +48,7 @@ test('Fabric 缓存键包含解析后的 loader 与 installer', async () => {
   assert.match(resolved, /loader-0\.16\.9-installer-1\.0\.1/);
 });
 
-test('Paper 未指定构建时取最新稳定版，指定的构建不存在时报错', async (t) => {
+test('Paper takes the latest stable build when none is specified, and errors when the specified build does not exist', async (t) => {
   const { resolvePaperDownload } = await import('./core-metadata.js');
   const download = (id: number) => ({ 'server:default': { url: `https://fixture.invalid/paper-${id}.jar`, name: `paper-${id}.jar` } });
   t.mock.method(globalThis, 'fetch', async () => Response.json([
@@ -65,7 +65,7 @@ test('Paper 未指定构建时取最新稳定版，指定的构建不存在时�
   });
 });
 
-test('Forge 和 NeoForge JVM 参数文件可由 Java argfile 规则往返解析', async (t) => {
+test('Forge and NeoForge JVM args files round-trip through the Java argfile rules', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-user-jvm-args-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const { writeUserJvmArgs } = await import('./core-installer.js');
@@ -109,7 +109,7 @@ async function downloadFixture(t: import('node:test').TestContext) {
   return { url: `http://127.0.0.1:${address.port}/core.jar`, responses };
 }
 
-test('下载开始前取消：保留超时原因，不发请求、不创建临时文件', async (t) => {
+test('cancel before the download starts: keeps the timeout reason, sends no request and creates no temp file', async (t) => {
   const dir = tempDir(t);
   const { downloadToFile } = await import('./core-download.js');
   const fetchMock = t.mock.method(globalThis, 'fetch', async () => { throw new Error('不应请求'); });
@@ -121,7 +121,7 @@ test('下载开始前取消：保留超时原因，不发请求、不创建临�
   assert.deepEqual(fs.readdirSync(dir), []);
 });
 
-test('流式下载中取消：关闭响应、删除 part，保留已有完整缓存', async (t) => {
+test('cancel during a streaming download: closes the response, deletes the part and keeps an existing complete cache', async (t) => {
   const dir = tempDir(t);
   const { url, responses } = await downloadFixture(t);
   const { downloadToFile } = await import('./core-download.js');
@@ -137,7 +137,7 @@ test('流式下载中取消：关闭响应、删除 part，保留已有完整缓
   assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
 });
 
-test('缓存并发：仅下载一次，单个等待者取消不会中断其他任务', async (t) => {
+test('cache concurrency: downloaded only once, and one waiter cancelling does not interrupt the others', async (t) => {
   const dir = tempDir(t);
   const { url, responses } = await downloadFixture(t);
   const { ensureCoreCache } = await import('./core-download.js');
@@ -167,7 +167,7 @@ test('缓存并发：仅下载一次，单个等待者取消不会中断其他�
   assert.equal(getEventListeners(second.signal, 'abort').length, 0);
 });
 
-test('缓存所有等待者取消：终止下载、清理 part，后续可重新下载', async (t) => {
+test('all cache waiters cancel: the download is aborted, the part cleaned up, and it can be downloaded again later', async (t) => {
   const dir = tempDir(t);
   const { url, responses } = await downloadFixture(t);
   const { ensureCoreCache } = await import('./core-download.js');
@@ -189,7 +189,7 @@ test('缓存所有等待者取消：终止下载、清理 part，后续可重新
   assert.deepEqual(fs.readdirSync(dir), ['core.jar']);
 });
 
-test('所有等待者取消后立刻重试：发起新下载，不继承别人的取消原因', async (t) => {
+test('retry right after all waiters cancel: a new download starts without inheriting someone elses cancel reason', async (t) => {
   const dir = tempDir(t);
   const { url, responses } = await downloadFixture(t);
   const { ensureCoreCache } = await import('./core-download.js');
@@ -212,7 +212,7 @@ test('所有等待者取消后立刻重试：发起新下载，不继承别人�
   assert.deepEqual(fs.readdirSync(dir), ['core.jar']);
 });
 
-test('缓存校验值不符时删掉重新下载，相符时直接复用', async (t) => {
+test('a cache with a mismatched checksum is deleted and downloaded again, and a matching one is reused directly', async (t) => {
   const dir = tempDir(t);
   const { ensureCoreCache, verifyCoreCache } = await import('./core-download.js');
   const dest = path.join(dir, 'core.jar');
@@ -240,7 +240,7 @@ test('缓存校验值不符时删掉重新下载，相符时直接复用', async
   assert.equal(await verifyCoreCache(dest, undefined), true);
 });
 
-test('带校验值下载时，核对过的新文件替换未经核对的已有文件', async (t) => {
+test('when downloading with a checksum, the verified new file replaces the unverified existing file', async (t) => {
   const dir = tempDir(t);
   const { downloadToFile } = await import('./core-download.js');
   const dest = path.join(dir, 'core.jar');
@@ -254,7 +254,7 @@ test('带校验值下载时，核对过的新文件替换未经核对的已有�
   assert.deepEqual(fs.readdirSync(dir), ['core.jar']);
 });
 
-test('部署时缓存的 Vanilla jar 校验不符会被重新下载', async (t) => {
+test('a cached Vanilla jar with a mismatched checksum is downloaded again on deploy', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-core-depot-'));
   const originalDataDir = process.env.MYSTRY_DATA_DIR;
   process.env.MYSTRY_DATA_DIR = dir;
@@ -332,7 +332,7 @@ function installerFixture(t: import('node:test').TestContext, onSpawn?: (child: 
   return { children, kills, spawnMock };
 }
 
-test('安装器退出：零退出成功，非零和启动错误失败，清理监听器且不重复完成', async (t) => {
+test('installer exit: zero exit succeeds, non-zero and spawn errors fail, listeners are cleaned up and completion is not repeated', async (t) => {
   const { children } = installerFixture(t);
   const { runInstaller } = await import('./core-installer.js');
   for (const outcome of ['success', 'failure', 'signal', 'error'] as const) {
@@ -356,7 +356,7 @@ test('安装器退出：零退出成功，非零和启动错误失败，清理�
   assert.equal(children.length, 4, '非网络失败不得重试');
 });
 
-test('安装器网络失败最多重试一次，保留最终诊断', async (t) => {
+test('an installer network failure is retried at most once and the final diagnosis is kept', async (t) => {
   const { children } = installerFixture(t);
   const { runInstaller } = await import('./core-installer.js');
   const controller = new AbortController();
@@ -377,7 +377,7 @@ test('安装器网络失败最多重试一次，保留最终诊断', async (t) =
   assert.equal(getEventListeners(controller.signal, 'abort').length, 0);
 });
 
-test('安装器取消：等待退出才释放；缺少 close 时强杀兜底；零退出也不能覆盖取消', async (t) => {
+test('installer cancel: released only after exit; force kill as a fallback when close is missing; a zero exit cannot override the cancel', async (t) => {
   const { config } = await import('../config.js');
   const grace = config.installerKillGraceMs;
   config.installerKillGraceMs = 20;
@@ -400,7 +400,7 @@ test('安装器取消：等待退出才释放；缺少 close 时强杀兜底；�
   assert.equal(kills.length, 3, '两次取消加一次强杀兜底');
 });
 
-test('部署落地后关闭：五种核心均继续注册并完成任务', async (t) => {
+test('shutdown after a deploy has landed: all five cores still register and complete the task', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-core-depot-'));
   const originalDataDir = process.env.MYSTRY_DATA_DIR;
   process.env.MYSTRY_DATA_DIR = dir;
@@ -468,7 +468,7 @@ test('部署落地后关闭：五种核心均继续注册并完成任务', async
   }
 });
 
-test('部署 Forge 时缓存的安装器按官方校验值复核；离线取不到校验值时仍用缓存', async (t) => {
+test('on a Forge deploy the cached installer is re-checked against the official checksum; the cache is still used when the checksum cannot be fetched offline', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-core-depot-'));
   const originalDataDir = process.env.MYSTRY_DATA_DIR;
   process.env.MYSTRY_DATA_DIR = dir;
@@ -531,7 +531,7 @@ test('部署 Forge 时缓存的安装器按官方校验值复核；离线取不�
   assert.deepEqual(ran, [genuine, '离线时的缓存']);
 });
 
-test('部署落地前失败或取消：清理 staging、不注册实例、不遗留最终目录', async (t) => {
+test('failure or cancel before a deploy lands: staging is cleaned up, no instance is registered and no final directory is left behind', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-core-depot-'));
   const originalDataDir = process.env.MYSTRY_DATA_DIR;
   process.env.MYSTRY_DATA_DIR = dir;

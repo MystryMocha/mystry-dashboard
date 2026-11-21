@@ -84,26 +84,26 @@ async function createFixture(t) {
   return root;
 }
 
-test('基准知识库通过', async (t) => {
+test('the baseline knowledge base passes', async (t) => {
   const root = await createFixture(t);
   assert.deepEqual(await checkProjectKnowledge(root), []);
 });
 
-test('缺失 Markdown 链接会失败', async (t) => {
+test('a missing Markdown link fails', async (t) => {
   const root = await createFixture(t);
   await write(root, 'docs/ai/README.md', '[缺失页面](missing.md)\n');
   const errors = await checkProjectKnowledge(root);
   assert.ok(errors.some((error) => error.includes('local link that does not exist') && error.includes('missing.md')));
 });
 
-test('新增但未登记的路由会失败', async (t) => {
+test('a new but unregistered route fails', async (t) => {
   const root = await createFixture(t);
   await write(root, 'apps/server/src/routes/launcher.ts', 'export const launcherRoutes = true;\n');
   const errors = await checkProjectKnowledge(root);
   assert.ok(errors.some((error) => error.includes('Server route list') && error.includes('launcher.ts')));
 });
 
-test('配置新增但未同步的环境变量会失败', async (t) => {
+test('an environment variable added to config but not synced fails', async (t) => {
   const root = await createFixture(t);
   await write(
     root,
@@ -114,14 +114,14 @@ test('配置新增但未同步的环境变量会失败', async (t) => {
   assert.ok(errors.some((error) => error.includes('environment variables') && error.includes('NEW_LIMIT')));
 });
 
-test('Claude Code 入口缺失会失败', async (t) => {
+test('a missing Claude Code entry fails', async (t) => {
   const root = await createFixture(t);
   await fs.rm(path.join(root, 'CLAUDE.md'));
   const errors = await checkProjectKnowledge(root);
   assert.ok(errors.some((error) => error.includes('AI entry') && error.includes('CLAUDE.md')));
 });
 
-test('经符号链接或 junction 路径运行时仍会执行检查，不会静默通过', async (t) => {
+test('the check still runs when invoked through a symlink or junction path, and does not pass silently', async (t) => {
   const root = await createFixture(t);
   await fs.rm(path.join(root, 'CLAUDE.md'));
   // Copy the script to a temp directory and create the link there, so tests do not create links in the repo.

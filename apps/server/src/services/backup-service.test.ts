@@ -63,7 +63,7 @@ async function waitForTask(task: TaskInfo): Promise<TaskInfo> {
   assert.fail(`任务 ${task.id} 未在预期时间内结束`);
 }
 
-test('停服备份后还原：覆盖文件、删除新增文件、保留归属标记并自动备份当前文件', async () => {
+test('restore after a stopped-server backup: overwrites files, deletes added files, keeps the ownership marker and backs up the current files automatically', async () => {
   const { id, dir } = await setup();
   const { listBackups, startBackupTask, startRestoreTask } = await import('./backup-service.js');
   const { OWNERSHIP_MARKER_FILE } = await import('../utils/path.js');
@@ -103,7 +103,7 @@ test('停服备份后还原：覆盖文件、删除新增文件、保留归属�
   assert.equal(fs.readFileSync(path.join(dir, 'added-later.txt'), 'utf8'), 'new');
 });
 
-test('备份或还原进行中拒绝启动、删除实例与再次备份或还原', async () => {
+test('start, instance deletion and another backup or restore are refused while a backup or restore is in progress', async () => {
   const { id } = await setup();
   const { processManager } = await import('./process-manager.js');
   const { deleteInstance, getInstanceRow } = await import('./instance-service.js');
@@ -124,7 +124,7 @@ test('备份或还原进行中拒绝启动、删除实例与再次备份或还�
   assert.equal(processManager.getMaintenance(id), null);
 });
 
-test('运行中的服务器先暂停自动保存并刷盘，打包后恢复自动保存；运行中拒绝还原', { skip: process.platform === 'win32' }, async (t) => {
+test('a running server first pauses autosave and flushes to disk, and autosave resumes after packing; restore is refused while running', { skip: process.platform === 'win32' }, async (t) => {
   const { id, dir } = await setup();
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-fake-java-'));
   const log = path.join(bin, 'commands.log');
@@ -176,7 +176,7 @@ test('运行中的服务器先暂停自动保存并刷盘，打包后恢复自�
   await assert.rejects(startRestoreTask(id, backup!.id), hasKey('server.backups.restoreRunning'));
 });
 
-test('上传的备份校验通过才入列表，损坏文件被拒绝', async () => {
+test('an uploaded backup enters the list only after verification passes, and corrupted files are rejected', async () => {
   const { id } = await setup();
   const { getBackupWithArchive, listBackups, saveUploadedBackup, startBackupTask } = await import('./backup-service.js');
   const created = await waitForTask(await startBackupTask(id));
@@ -197,7 +197,7 @@ test('上传的备份校验通过才入列表，损坏文件被拒绝', async ()
   assert.equal(listBackups(id).length, 2);
 });
 
-test('换目录中断后启动恢复：旧目录未归位时移回，并清理未写完的备份临时文件', async () => {
+test('startup recovery after an interrupted directory swap: the old directory is moved back when not in place, and unfinished backup temp files are cleaned up', async () => {
   const { id, dir } = await setup();
   const { backupRoot, recoverInterruptedBackups } = await import('./backup-service.js');
   const taskDir = path.join(dataRoot, '.mystry-staging', 'crashed-task');
@@ -218,7 +218,7 @@ test('换目录中断后启动恢复：旧目录未归位时移回，并清理�
   assert.equal(fs.existsSync(path.join(taskDir, '.mystry-restore-swap.json')), false);
 });
 
-test('保存完成判定：认各版本服务端日志，不认玩家聊天', async () => {
+test('save-complete detection: recognizes server logs of each version, not player chat', async () => {
   const { isSaveConfirmationLine } = await import('./backup-service.js');
   const accepted = [
     '[12:00:00] [Server thread/INFO]: Saved the game',
@@ -241,7 +241,7 @@ test('保存完成判定：认各版本服务端日志，不认玩家聊天', as
   for (const line of rejected) assert.equal(isSaveConfirmationLine(line), false, line);
 });
 
-test('还原后实例记录的启动文件、核心类型与版本跟随备份', async () => {
+test('after a restore the launch file, core type and version in the instance record follow the backup', async () => {
   const { id, dir } = await setup();
   const { getInstanceRow, updateInstanceServerFiles } = await import('./instance-service.js');
   const { startBackupTask, startRestoreTask } = await import('./backup-service.js');
@@ -264,7 +264,7 @@ test('还原后实例记录的启动文件、核心类型与版本跟随备份',
   assert.ok(fs.existsSync(path.join(dir, after.jar_file)));
 });
 
-test('清单里的启动文件不在备份中时保留实例记录', async () => {
+test('the instance record is kept when the launch file in the manifest is not in the backup', async () => {
   const { id, dir } = await setup();
   const { getInstanceRow, updateInstanceServerFiles } = await import('./instance-service.js');
   const { startBackupTask, startRestoreTask } = await import('./backup-service.js');
@@ -281,7 +281,7 @@ test('清单里的启动文件不在备份中时保留实例记录', async () =>
   assert.equal(getInstanceRow(id)!.jar_file, 'server-1.21.jar');
 });
 
-test('删除备份不留下文件；删除实例备份目录会清掉全部备份', async () => {
+test('deleting a backup leaves no files; deleting the instance backup directory removes all backups', async () => {
   const { id } = await setup();
   const { backupRoot, deleteBackup, deleteInstanceBackups, listBackups, startBackupTask } = await import('./backup-service.js');
   const first = await waitForTask(await startBackupTask(id));
@@ -304,7 +304,7 @@ test('删除备份不留下文件；删除实例备份目录会清掉全部备�
   deleteInstanceBackups(id);
 });
 
-test('BACKUP_DIR 不能放在实例或上传目录里', async () => {
+test('BACKUP_DIR cannot be placed inside the instance or upload directories', async () => {
   const { backupRoot } = await import('./backup-service.js');
   const { config } = await import('../config.js');
   const original = process.env.BACKUP_DIR;

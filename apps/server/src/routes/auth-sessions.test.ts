@@ -15,7 +15,7 @@ process.env.JWT_SECRET = 'a'.repeat(64);
 process.env.SETUP_TOKEN = 'b'.repeat(64);
 process.env.LAUNCHER_TOKEN = 'c'.repeat(64);
 
-test('修改或重置密码后旧令牌、ticket 和控制台连接立即失效', async (t) => {
+test('old tokens, tickets and console connections are invalidated immediately after a password change or reset', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-auth-sessions-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;
 
