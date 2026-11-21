@@ -12,6 +12,7 @@ export default {
   'server.tasks.cancelledByShutdown': '面板正在关闭，任务已取消',
   'server.tasks.timeout': '任务执行超时',
   'server.tasks.aborted': '任务已取消',
+  'server.tasks.cancelledByUser': '你取消了这个任务',
   'server.tasks.notFound': '任务不存在',
   'server.tasks.restartLost': '面板重启过，未完成的任务无法继续，请重新操作',
   'server.tasks.restartLostKeptInstance': '面板重启过，未完成的任务无法继续。实例文件夹已保留，请重新操作或自行检查实例',

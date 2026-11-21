@@ -408,8 +408,12 @@ export function recommendedMaxMemoryMiB(totalMemoryMiB: number | null | undefine
   return Math.max(1024, Math.min(usualRecommendation, Math.max(1024, safeCap)));
 }
 
+/**
+ * 没手动设置时的初始内存（Xms）：G1 均衡和 Paper Aikar 是给服务器调优的方案，和最大内存相同，
+ * 免得运行中反复扩堆；兼容优先和自定义取 1 GiB（最大内存更小时取最大内存），开服时不一下子占满内存。
+ */
 export function automaticInitialMemoryMiB(presetId: JvmPresetId, maximumMiB: number): number {
-  return presetId === 'paper-aikar' ? maximumMiB : Math.min(1024, maximumMiB);
+  return presetId === 'paper-aikar' || presetId === 'g1-balanced' ? maximumMiB : Math.min(1024, maximumMiB);
 }
 
 export function validateJvmArgs(

@@ -87,9 +87,13 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
   let gate: Promise<void> = Promise.resolve();
   setJavaInstallForTests({
     platformKey: () => TEST_PLATFORM,
-    acquire: async (major, _asset, destination, onProgress) => {
+    acquire: async (major, _asset, destination, onProgress, signal) => {
       downloads += 1;
-      await gate;
+      // 和真下载器一样响应取消。
+      await Promise.race([gate, new Promise<never>((_resolve, reject) => {
+        if (signal.aborted) reject(signal.reason);
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      })]);
       const body = serve(major);
       if (body instanceof Error) throw body;
       onProgress(1);
@@ -175,6 +179,32 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
   assert.equal(again.status, 'completed', again.error);
   assert.equal(again.result?.javaRuntimeId, runtimeId);
   assert.equal(downloads, 1);
+
+  // 下载中取消：任务记成「你取消了这个任务」，临时目录清掉；别的任务和已结束的任务不能取消。
+  const cancelUrl = (id: string) => `/api/system/java-runtimes/install/${encodeURIComponent(id)}/cancel`;
+  const anonymousCancel = await app.inject({ method: 'POST', url: cancelUrl(done.id) });
+  assert.equal(anonymousCancel.statusCode, 401);
+  for (const id of [done.id, 'not-a-task']) {
+    const refused = await app.inject({ method: 'POST', url: cancelUrl(id), headers: authorization });
+    assert.equal(refused.statusCode, 409, id);
+    assert.equal(refused.json<{ code: string }>().code, 'server.jvm.javaInstall.notCancellable');
+  }
+  gate = new Promise(() => {});
+  const stuckId = (await install({ major: 8 })).json<TaskInfo>().id;
+  for (let attempt = 0; attempt < 200 && getTask(stuckId)?.progress !== 2; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(getTask(stuckId)?.status, 'running');
+  const cancel = await app.inject({ method: 'POST', url: cancelUrl(stuckId), headers: authorization });
+  assert.equal(cancel.statusCode, 200, cancel.body);
+  const cancelled = await waitForTask(stuckId);
+  assert.equal(cancelled.status, 'failed');
+  assert.equal(cancelled.messageI18n?.key, 'server.tasks.cancelled');
+  assert.equal(cancelled.errorI18n?.key, 'server.tasks.cancelledByUser');
+  assert.deepEqual(leftovers(), ['temurin-jdk-21.0.13_9'], '取消后临时目录必须清掉');
+  const late = await app.inject({ method: 'POST', url: cancelUrl(stuckId), headers: authorization });
+  assert.equal(late.statusCode, 409);
+  gate = Promise.resolve();
 
   // 下载内容与钉死的摘要不符：丢弃，不留目录。
   serve = () => fakeJre('jdk8u512-b09-jre-tampered');

@@ -218,11 +218,3 @@ test('1.13 及更早的实例：默认配置和保存都用数字', async (t) =>
   ensureServerPropertiesDefaults(inst.id, null);
   assert.equal(parseProperties(fs.readFileSync(file, 'utf8')).difficulty, 'normal');
 });
-
-test('JWT 纯数字按毫秒交给 Fastify，而不是秒', async () => {
-  const { parseJwtExpiresIn } = await import('../config.js');
-  assert.equal(parseJwtExpiresIn('3600000'), '3600000ms');
-  assert.equal(parseJwtExpiresIn('2h'), '2h');
-  assert.throws(() => parseJwtExpiresIn('abc'), /JWT_EXPIRES_IN/);
-  assert.throws(() => parseJwtExpiresIn('0'), /JWT_EXPIRES_IN/);
-});

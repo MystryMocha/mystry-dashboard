@@ -41,7 +41,7 @@ The interface follows Apple's design style: a floating, translucent **sidebar** 
 | Instances | `/` | Lists all instances, with quick start and stop |
 | Current Workspace | `/instances/<instance ID>` | Appears after you open an instance and points to the one you're viewing |
 | Quick Deploy | `/deploy` | Downloads and installs a core from the official source |
-| Import Server | `/import` | Copies a server from a local import folder, or extracts an uploaded zip into an instance |
+| Import Server | `/import` | Turns an uploaded server folder or zip, or a folder copied into imports, into an instance |
 | Multiplayer | `/multiplayer` | Opens an instance's game port to friends. You can use your own frp server or open a virtual LAN |
 | This Machine | `/nodes` | Shows this computer's system, CPU, memory and number of instances |
 | Task Center (top right) | — | Slides in from the right with recent deploy and import tasks. It keeps updating after you leave the deploy page, until each task completes or fails |
@@ -64,9 +64,17 @@ On the first run with the launcher, the administrator `admin` is created automat
 ### Signing In
 
 - Title **"Sign In"** → enter your username and password → **"Sign In"**.
-- The sign-in is saved in the current browser and expires after 2 hours by default. After it expires, or after you clear site data, you need to sign in again.
+- The sign-in is saved in the current browser and expires after 12 hours by default. After it expires, or after you clear site data, you need to sign in again. You can change how long it lasts. See [Sign-In Duration](#sign-in-duration).
 - To change your password, click the key icon at the bottom left, then enter your current password and a new one (at least 12 characters).
 - After you change the password, every other browser and device signed in to the panel is signed out right away and has to sign in with the new password. The page where you changed it stays signed in, and an open console reconnects by itself.
+
+### Sign-In Duration
+
+On the **This Machine** page, under **Sign-In**, choose how long a device stays signed in before the panel asks for the password again: 2 hours, 12 hours (the default), 1 day, 7 days, 30 days or **Never**. The choice is saved right away. No restart is needed:
+
+- If you lengthen it, this device uses the new duration right away. Other devices use it after they next sign in.
+- If you shorten it, devices that have been signed in for longer than the new duration must sign in again.
+- With **Never**, every device that signs in stays signed in until the password changes. Be careful with this if **Open on Another Device** is turned on.
 
 ### Open the Panel on Another Device
 
@@ -140,7 +148,7 @@ Downloads files from Mojang / Paper / Fabric / Forge / NeoForge and creates an i
 | Game Version | After you pick a core, the version list loads automatically and the latest release is selected by default |
 | Paper Build (Optional) | Paper only. Leave it empty to use the latest build (stable preferred) |
 | Loader / Forge / NeoForge Version (Optional) | The mod loader version. Fabric also has an Installer Version. Leave it empty to use the latest stable version |
-| JVM Settings | Choose the max memory and an optimization preset. The advanced section lets you set Xms and extra arguments; see [JVM Configurator](#jvm-configurator) |
+| JVM Settings | Enter the initial and max memory and choose an optimization preset. The advanced section takes extra arguments; see [JVM Configurator](#jvm-configurator) |
 | Java Runtime | Defaults to "System Default Java". You can also click "Rescan" and choose another installed Java; see [Java Runtime](#java-runtime) |
 | Minecraft EULA | Unchecked by default. You must check "I have read and agree to the Minecraft EULA" before you can start deploying. `eula=true` is written at startup |
 
@@ -154,11 +162,11 @@ By default the panel runs only one deploy or import task at a time. Other tasks 
 
 ### JVM Configurator
 
-Quick Deploy, import, Create Empty Instance and Settings all use the same configurator. In the basic view you only choose the max memory and an optimization preset, and the final arguments are previewed below. In the advanced section you can switch to a manual `Xms` and enter extra arguments.
+Quick Deploy, import, Create Empty Instance and Settings all use the same configurator. In the basic view you enter the initial memory (`Xms`) and the max memory (`Xmx`) side by side, with common sizes under each (2 / 4 / 6 GB for the initial memory and 8 / 10 / 12 GB for the max memory, hiding any that exceed this computer's memory), and choose an optimization preset next to them (or below them when the space is narrow). The small arrows at the right of each memory box, or the ↑ and ↓ keys in the box, change it by 1 GB. Until you change the initial memory, it's set automatically by the preset. Once you change it, it no longer follows the max memory. The **Advanced JVM Arguments** section holds the extra arguments and the final arguments preview. It opens by itself when there are extra arguments or errors.
 
-- **Compatibility First**: generates memory arguments only. `Xms` is set automatically to `min(1 GiB, Xmx)`.
-- **G1 Balanced**: on top of the compatibility memory settings, enables G1, parallel reference processing and a 200 ms pause target. Available only when Java 8 / 17 / 21 / 25 has been detected.
-- **Paper Aikar**: available only for Paper with a detected Java 8 / 17 / 21 / 25. It sets `Xms=Xmx` automatically and shows a warning below 6 GiB. The UI also shows the frozen version, the review date and the official PaperMC source.
+- **Compatibility First**: generates memory arguments only. The initial memory is set automatically to 1 GiB, or to the max memory if that's smaller.
+- **G1 Balanced**: enables G1, parallel reference processing and a 200 ms pause target. Available only when Java 8 / 17 / 21 / 25 has been detected. Switching to it sets the initial memory to match the max memory, and it keeps following the max memory until you change it yourself.
+- **Paper Aikar**: available only for Paper with a detected Java 8 / 17 / 21 / 25. The initial memory is locked to match the max memory, and a warning appears below 6 GiB. The UI also shows the frozen version, the review date and the official PaperMC source.
 
 The recommended max memory is about 25% of this computer's total memory, rounded down to a multiple of 512 MiB. It's normally no lower than 2 GiB and no higher than 8 GiB, and it leaves at least 2 GiB for the system. On low-memory machines it can drop to 1 GiB. If memory can't be read, it falls back to 2 GiB.
 
@@ -168,17 +176,38 @@ High resource use, an unverified Java version and too little memory for Paper ar
 
 ## Import an Existing Server (Form Reference)
 
-The page offers two methods. Both copy the server into a new managed instance. Neither lets the instance run directly in the original folder.
+The page offers three methods. All of them copy the server into a new managed instance. None of them lets the instance run directly in the original folder.
 
-### Import from a Local Folder
+Until a source is ready, the page shows only the source column. Once the upload is checked (or a usable folder in imports is selected), **Import Settings** appears on the right (below on narrow screens): the instance name, the server the panel recognized (core and version), the Java and maximum memory it will use, and the EULA checkbox. The core type, Minecraft version, Java runtime and JVM settings are in **Change Settings**, which you don't need to open when the recognized values are right. **Change Settings** opens by itself when the Java version doesn't match, no usable Java is found, the JVM arguments have an error or warning, or `user_jvm_args.txt` can't be used. It closes again when you switch to another source. When the Minecraft version isn't known yet (for example with a ZIP, whose version is detected only during the import), the summary says the panel can't tell whether the Java fits; you can enter the version in **Change Settings**.
 
-Use this when the server is already set up on the machine that runs the panel but isn't managed by the panel yet:
+### Upload a Folder
+
+Choose the server's folder right in your browser. This works whether the server is on the computer that runs the panel or on another computer where you've opened the panel's web page:
+
+1. Stop the server normally from its original console and make sure the world has finished saving. A running server holds files such as `session.lock` open, and the browser can't read them.
+2. Open **Import Server → Upload a Folder** in the sidebar, click **Choose Folder**, and choose the level that holds the whole server (the one with `server.jar` or `run.bat` inside). You can also drag the folder onto the box. Your browser asks whether to upload these files to the site. Click Upload.
+3. Click **Upload and Check**. The browser sends the files to the panel in batches, and the progress bar shows how many have been sent. You can click **Cancel Upload** at any time. When all files have arrived, the panel looks for the launch file and reads `user_jvm_args.txt` from the root folder, following the same rules as "Copy from imports" below.
+4. Check the instance name and the recognized values in **Import Settings**. If something needs changing, open **Change Settings** to set the core type, version, Java or memory. Then click **Confirm and Import**.
+
+- The panel only receives the file contents and their paths inside the folder. It can't see or record where the folder is on your computer, and the original folder isn't changed.
+- Uploaded files are kept in `uploads` under the data directory first. When you confirm, the whole folder is moved into the new instance, so it doesn't take up space twice.
+- A checked folder is kept for 30 minutes. Refreshing in the same browser tab lets you continue. Cancelling, expiry or a panel restart deletes it. If you refresh in the middle of an upload, you need to start over.
+- Browsers only upload files, so empty folders aren't carried over. The server creates the empty folders it needs when it starts.
+- The limits on file count and total size are the same as for "Copy from imports". If the data disk doesn't have enough space, you're told at the start.
+- If a file can't be read, the page names it. This usually means the original server is still running.
+- Most phone browsers can't choose folders, so this option isn't shown there. Upload a ZIP or copy from imports instead.
+
+### Copy from imports
+
+Use this when the server is already on the computer that runs the panel but isn't managed by the panel yet. For example, the panel runs on a server you manage over SSH, so your browser is on another computer and can't reach the server's folder. It also suits very large servers.
+
+This method is normally hidden from the method switch. Below Upload a Folder, click **Switch to Copy from imports** to use it. It's listed directly when the `imports` folder already has something in it, or when your browser can't choose folders, such as on a phone. Steps:
 
 1. Stop the server normally from its original console and make sure the world has finished saving.
-2. Copy the complete server folder to `imports/<folder name>` under the data directory (by default, `data/imports` in the panel folder). Don't copy only the jar. Copy the worlds, plugins, mods and configs along with it.
-3. Open **Import Server → Import from a Local Folder** in the sidebar, click **Refresh Folders**, and choose the folder under "Folder to Import".
-4. If `user_jvm_args.txt` is found in the root folder, explicitly choose **Use Detected Arguments / Use Panel Recommendation / Custom Configuration**. If parsing failed, you can't use the detected arguments.
-5. Check the instance name, core type, Minecraft version, JVM settings and Java runtime, then click **Copy and Import**. The core type and version are filled in from the launch file name (for example, `forge-1.12.2-….jar` fills in Forge and 1.12.2). You can change them if they're wrong. If the core type stays on **Auto-detect**, the panel's detection result is used.
+2. Copy the complete server folder into the `imports` folder. Give each server its own folder, directly inside `imports`. The page shows the full path of this folder on the computer that runs the panel (by default, `data/imports` in the panel folder), and **Copy Path** copies it. Don't copy only the jar. Copy the worlds, plugins, mods and configs along with it. If the server is on your own computer and very large, transfer it to this folder with an SFTP client (such as WinSCP or FileZilla) or rsync, which can resume an interrupted transfer. Uploading a folder through the browser can't resume.
+3. Open **Import Server → Copy from imports** in the sidebar and choose the folder under "Servers in imports". If you've just copied it in, click **Refresh** first. Each row shows the core and version the panel recognized, the jar it starts, and whether there's a `user_jvm_args.txt`. A folder whose launch file isn't recognized yet says "Checked on import"; one that can't be imported says why and can't be chosen.
+4. If `user_jvm_args.txt` is found in the root folder, the panel applies its arguments automatically. The memory line of the summary says "From user_jvm_args.txt", and a note above the JVM settings in **Change Settings** says so too. To skip it, click **Cancel** there: the arguments go back to what they were before, and you can click **Apply Again** later. If the file can't be parsed, it isn't applied and the message says why. When you switch to another folder, the arguments from the previous folder are reverted.
+5. Check the instance name and the recognized values in **Import Settings**, change anything in **Change Settings** if needed, then click **Copy and Import**. The core type and version are filled in from the launch file name (for example, `forge-1.12.2-….jar` fills in Forge and 1.12.2). You can change them if they're wrong. If the core type stays on **Auto-detect**, the panel's detection result is used.
 6. Wait for the task to finish and take you to the instance page. Check the files and settings first, then start the server from the panel.
 
 > Don't copy while the original server is still running. The panel can't lock an external process, and copying a running server can give you inconsistent world data.
@@ -197,15 +226,15 @@ The panel never changes or deletes the original folder or the copy in `imports`.
 |------|------|
 | Server Archive (`.zip`) | Required. Up to 512 MiB by default. The number of entries and the total size after extraction are also limited |
 | Instance Name | Filled in after the check succeeds. Same as for deploy |
-| Core Type / Minecraft Version | Optional. Used for how the instance is shown and for the Java version hint. The launch file is still detected by the panel |
-| JVM Settings | Uses the shared configurator after the check succeeds. If arguments were detected, you must explicitly choose how to handle them |
-| Java Runtime | Uses the system default Java by default. You can also choose another Java that the panel has found |
+| Core Type / Minecraft Version | In **Change Settings**. Optional. Used for how the instance is shown and for the Java version hint. The launch file is still detected by the panel |
+| JVM Settings | In **Change Settings**. Uses the shared configurator. If the ZIP has a `user_jvm_args.txt`, it's applied automatically, and you can click **Cancel** |
+| Java Runtime | In **Change Settings**. Uses the system default Java by default. You can also choose another Java that the panel has found |
 | Minecraft EULA | Unchecked by default. If the original server's `eula.txt` is already accepted, you can leave it unchecked. When checked, `eula=true` is written at startup |
 
 Importing takes two steps:
 
 1. Click **Upload and Check**: the panel checks the ZIP's structure and size, and reads `user_jvm_args.txt` from the root folder (or from the only top-level folder).
-2. Confirm the instance, Java and JVM settings, then click **Confirm and Import**. Only then does the background import start.
+2. Check **Import Settings** (open **Change Settings** if needed), then click **Confirm and Import**. Only then does the background import start.
 
 The check result is kept for 30 minutes. If you refresh, or leave and come back, in the same browser tab, you can carry on and confirm. You can also cancel, which deletes the uploaded temporary file right away. After the result expires or the panel restarts, you need to upload again.
 
@@ -238,11 +267,11 @@ The panel doesn't accept a hand-typed Java path. For the Java each game version 
 
 In "Quick Deploy" and on the import page, the panel selects a Java that matches the game version: the system default Java if it matches, otherwise an installed Java with the recommended version. After you choose one yourself, it stops changing your choice. In "Quick Deploy", **Start Deploy** is unavailable until the Java in use is the recommended version, and the page says which version it needs. "Settings" for an existing instance never changes the saved Java on its own.
 
-If the recommended Java isn't installed, **Install Java N** appears below the selector (Java 8, 17, 21 and 25 on Windows and Linux x64). The panel downloads the Eclipse Temurin JRE from GitHub, or through a GitHub mirror when the download source is set to the China mirror. Each version is pinned to a fixed release and checked against its SHA-256 before it's used. It's installed into `runtimes/java` in the data directory, added to the Java list and selected. The download runs as a task, so you can follow it in the "Task Center". If it fails, switch the download source or use the "Download It Yourself" link.
+The line below the selector shows the status of the Java that will actually be used: the Java you selected from the panel's list (for example, "Java 21.0.5 is available"), or the system default Java when "System Default Java" is selected. When the Java in use isn't the recommended version, "Recommended: Java N" follows it. If the recommended Java isn't installed, the same line also has **Install Java N** (Java 8, 17, 21 and 25 on Windows and Linux x64). Clicking it first asks you to confirm and tells you where it downloads from and how big it is. While it downloads, **Cancel Install** next to the progress bar stops it and removes the partial download. The panel downloads the Eclipse Temurin JRE from GitHub, or through a GitHub mirror when the download source is set to the China mirror. Each version is pinned to a fixed release and checked against its SHA-256 before it's used. It's installed into `runtimes/java` in the data directory, added to the Java list and selected. The download runs as a task, so you can follow it in the "Task Center". If it fails, switch the download source or use the "Download It Yourself" link.
 
 By default the panel uses the `java` on the PATH of the environment it runs in, shown in the UI as "System Default Java". You can run `java -version` in the same environment to check its version.
 
-To use another installed Java, click "Rescan" next to **Java Runtime** in "Quick Deploy", on the import page or in "Settings". The panel looks only in `JAVA_HOME` and common install locations, and verifies each one by running it. An entry marked "Unavailable" in the list wasn't found in the latest scan, so you need to choose again. The selected Java is verified once more every time an instance starts and before the Forge / NeoForge installer runs.
+To use another installed Java, click "Rescan" next to **Java Runtime** in "Quick Deploy", on the import page (in **Change Settings**) or in "Settings". The options show only the major version; the path is added only when more than one Java has the same major version. Hover over the list to see the selected Java's path. The panel looks only in `JAVA_HOME` and common install locations, and verifies each one by running it. An entry marked "Unavailable" in the list wasn't found in the latest scan, so you need to choose again. The selected Java is verified once more every time an instance starts and before the Forge / NeoForge installer runs.
 
 When the version doesn't match, the console commonly shows `UnsupportedClassVersionError`, or the server fails to start.
 

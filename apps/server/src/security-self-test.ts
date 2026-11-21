@@ -369,6 +369,10 @@ async function main(): Promise<void> {
       headers: authorization,
     });
     assert.equal(existingSources.statusCode, 200);
+    // imports 的路径只给登录用户看：是绝对路径，和面板实际使用的交接区一致。
+    const listedImportDir = existingSources.json<{ importDir: string }>().importDir;
+    assert.ok(path.isAbsolute(listedImportDir));
+    assert.equal(listedImportDir, path.resolve(config.existingServerImportDir));
     const sourceItems = existingSources.json<{
       sources: Array<{
         id: string;

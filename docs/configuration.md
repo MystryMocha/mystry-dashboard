@@ -42,7 +42,6 @@ Where a limit is measured in bytes or milliseconds, the tables say so. `MiB` is 
 | `JWT_SECRET` | None; required before the first start | 64-character hexadecimal JWT signing secret. Don't use a fixed example value |
 | `SETUP_TOKEN` | None; required before the first setup | 64-character hexadecimal setup token. You can remove it after setup is complete |
 | `LAUNCHER_TOKEN` | None; generated automatically when you use PanelManager / mystryctl | 64-character hexadecimal local shutdown token. Usable only from a loopback address |
-| `JWT_EXPIRES_IN` | `2h` | JWT lifetime. A plain number is read as milliseconds. You can also write `2h` / `30m` / `7d` |
 | `CORS_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` | Exact CORS origin allowlist, comma-separated. Don't use `*` |
 | `RATE_LIMIT_MAX` | `120` | Maximum number of regular requests per rate limit window |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate limit window for regular requests, in milliseconds |
@@ -50,6 +49,8 @@ Where a limit is measured in bytes or milliseconds, the tables say so. `MiB` is 
 | `AUTH_RATE_LIMIT_WINDOW_MS` | `300000` | Authentication rate limit window, in milliseconds |
 | `CONSOLE_TICKET_TTL_SECONDS` | `60` | Console ticket lifetime. Each ticket can open only one WebSocket connection |
 | `FILE_DOWNLOAD_TICKET_TTL_SECONDS` | `60` | File download ticket lifetime. Each ticket can be used for only one download |
+
+The sign-in duration is no longer set with `JWT_EXPIRES_IN`. If it's still in the file, it has no effect and the panel mentions it at startup. Choose the duration on the panel's **This Machine** page instead. The default is 12 hours. See [Sign-In Duration](user-guide.md#sign-in-duration).
 
 ### HTTP, File and Upload Lifecycle
 
@@ -124,7 +125,7 @@ A regular file or zip upload larger than `MAX_UPLOAD_BYTES` returns **413**. Whe
 
 The check result of a ZIP import is held temporarily in `uploads/.tmp-import-preview-*`, isolated per signed-in user. It expires after `IMPORT_PREVIEW_TTL_SECONDS`, and all of them are deleted when the panel restarts. When the panel-wide preview limit is reached, the request returns **429**.
 
-`MAX_EXISTING_IMPORT_*` limits how much a single copy can contain when you import from a local folder. For the other checks made before importing, see [Import from a Local Folder](user-guide.md#import-from-a-local-folder).
+`MAX_EXISTING_IMPORT_*` limits how much a single folder import can contain, whether the folder is uploaded from the browser or copied from `imports`. For the other checks made before importing, see [Upload a Folder](user-guide.md#upload-a-folder) and [Copy from imports](user-guide.md#copy-from-imports). An uploaded folder waits in `uploads/.tmp-folder-upload-*` until you confirm or cancel. It uses the same `IMPORT_PREVIEW_TTL_SECONDS` lifetime and `MAX_IMPORT_PREVIEWS` limit as ZIP previews, and leftovers are deleted when the panel starts.
 
 ### Data Directory
 

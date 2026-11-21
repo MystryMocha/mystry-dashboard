@@ -13,6 +13,9 @@ export const CORE_TYPE_ENUM = [
 /** 面板下载来源：official 只用官方服务器，china 优先用国内镜像，失败后回到官方。 */
 export const DOWNLOAD_SOURCE_ENUM = ['official', 'china'] as const;
 
+/** 登录有效期：登录后多久需要重新输入密码；never 不过期。默认 12h。 */
+export const SESSION_DURATION_ENUM = ['2h', '12h', '1d', '7d', '30d', 'never'] as const;
+
 /** 可一键部署的核心类型（不含 custom） */
 export const DEPLOYABLE_CORE_TYPE_ENUM = [
   'vanilla',
@@ -89,6 +92,15 @@ export const updateDownloadSourceBodySchema = {
   },
 } as const;
 
+export const updateSessionDurationBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['duration'],
+  properties: {
+    duration: { type: 'string', enum: [...SESSION_DURATION_ENUM] },
+  },
+} as const;
+
 export const importExistingServerBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -115,6 +127,18 @@ export const confirmZipImportBodySchema = {
     jvmArgs: { type: 'string', maxLength: 8192 },
     acceptEula: { type: 'boolean' },
     javaRuntimeId: { type: ['string', 'null'], maxLength: 255 },
+  },
+} as const;
+
+/** 浏览器上传文件夹的开始请求；上限由服务端按 MAX_EXISTING_IMPORT_* 再查一遍。 */
+export const createFolderUploadBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['folderName', 'fileCount', 'totalBytes'],
+  properties: {
+    folderName: { type: 'string', minLength: 1, maxLength: 255 },
+    fileCount: { type: 'integer', minimum: 1 },
+    totalBytes: { type: 'integer', minimum: 0 },
   },
 } as const;
 

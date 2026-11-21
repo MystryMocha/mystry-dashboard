@@ -10,6 +10,7 @@ export const TASKS_MESSAGES = {
   'server.tasks.cancelledByShutdown': 'The panel is shutting down, so the task was cancelled.',
   'server.tasks.timeout': 'The task timed out.',
   'server.tasks.aborted': 'The task was cancelled.',
+  'server.tasks.cancelledByUser': 'You cancelled this task.',
   'server.tasks.notFound': 'Task not found.',
   'server.tasks.restartLost': 'The panel restarted, so this unfinished task can\'t continue. Start it again.',
   'server.tasks.restartLostKeptInstance': 'The panel restarted, so this unfinished task can\'t continue. The instance folder was kept. Start it again, or check the instance yourself.',

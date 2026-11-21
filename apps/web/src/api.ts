@@ -2,7 +2,9 @@ import type {
   BackupInfo,
   BackupListResult,
   ConfirmZipImportInput,
+  CreateFolderUploadInput,
   ExistingServerSourceListResult,
+  FolderUploadInfo,
   FileDownloadTicketResult,
   FileDownloadTicketStatusResult,
   FrpEndpoint,
@@ -19,6 +21,9 @@ import type {
   JavaDetectResult,
   DownloadSource,
   DownloadSourceSetting,
+  SessionDuration,
+  SessionDurationSetting,
+  UpdateSessionDurationResult,
   PanelNetworkJoinInfo,
   PanelNetworkStatus,
   PublicHostSetting,
@@ -344,6 +349,11 @@ export async function installJavaRuntime(major: number) {
   return api<TaskInfo>('/api/system/java-runtimes/install', { method: 'POST', json: { major } satisfies InstallJavaRequest });
 }
 
+/** 取消一键安装 Java。运行中的任务要等服务端停下下载、清掉临时文件才结束，调用方继续轮询到结束。 */
+export async function cancelJavaInstall(taskId: string) {
+  return api<TaskInfo>(`/api/system/java-runtimes/install/${encodeURIComponent(taskId)}/cancel`, { method: 'POST' });
+}
+
 /** PATH 中默认 Java 的探测结果。 */
 export async function detectDefaultJava() {
   return api<JavaDetectResult>('/api/system/java');
@@ -357,6 +367,17 @@ export async function getDownloadSource() {
 /** 保存下载来源；之后发起的下载立即使用新来源。 */
 export async function saveDownloadSource(source: DownloadSource) {
   return api<DownloadSourceSetting>('/api/system/download-source', { method: 'PUT', json: { source } });
+}
+
+export async function getSessionDuration() {
+  return api<SessionDurationSetting>('/api/auth/session-duration');
+}
+
+/** 保存登录有效期；面板按新有效期给这台设备换发令牌，这里直接换上，改长也马上生效。 */
+export async function saveSessionDuration(duration: SessionDuration) {
+  const result = await api<UpdateSessionDurationResult>('/api/auth/session-duration', { method: 'PUT', json: { duration } });
+  setToken(result.token);
+  return result;
 }
 
 /** 从其他设备访问面板的状态：网卡、网址、安全选项和面板自带网络。每次读取都会重新枚举网卡。 */
@@ -470,10 +491,9 @@ export async function fetchFriendTunnelConfig(instanceId: string): Promise<strin
   return typeof text === 'string' ? text : '';
 }
 
-/** 固定 DATA_DIR/imports 交接区中的已有服务端候选。 */
+/** 固定 DATA_DIR/imports 交接区中的已有服务端候选，以及这个文件夹在面板电脑上的路径。 */
 export async function listExistingServerSources() {
-  const res = await api<ExistingServerSourceListResult>('/api/import/sources');
-  return res.sources;
+  return api<ExistingServerSourceListResult>('/api/import/sources');
 }
 
 export async function createImportPreview(file: File, signal?: AbortSignal) {
@@ -503,6 +523,43 @@ export async function cancelImportPreview(id: string) {
     method: 'DELETE',
     keepalive: true,
   });
+}
+
+/** 浏览器上传文件夹里的一个文件：relativePath 是去掉最外层文件夹名后的相对路径，用 / 分隔。 */
+export type FolderUploadFile = { file: File; relativePath: string };
+
+function folderUploadApi(id: string, suffix = '') {
+  return `/api/import/folder-uploads/${encodeURIComponent(id)}${suffix}`;
+}
+
+export async function createFolderUpload(input: CreateFolderUploadInput, signal?: AbortSignal) {
+  return api<FolderUploadInfo>('/api/import/folder-uploads', { method: 'POST', json: input, signal });
+}
+
+/** 发送一批文件：每个文件前面先放它的相对路径。File 由浏览器流式读取，不整体读进内存。 */
+export async function uploadFolderBatch(id: string, files: FolderUploadFile[], signal?: AbortSignal) {
+  const form = new FormData();
+  for (const { file, relativePath } of files) {
+    form.append('path', relativePath);
+    form.append('file', file, 'file');
+  }
+  return api<FolderUploadInfo>(folderUploadApi(id, '/files'), { method: 'POST', body: form, signal });
+}
+
+export async function completeFolderUpload(id: string, signal?: AbortSignal) {
+  return api<FolderUploadInfo>(folderUploadApi(id, '/complete'), { method: 'POST', signal });
+}
+
+export async function getFolderUpload(id: string, signal?: AbortSignal) {
+  return api<FolderUploadInfo>(folderUploadApi(id), { signal });
+}
+
+export async function confirmFolderUpload(id: string, input: ConfirmZipImportInput, signal?: AbortSignal) {
+  return api<TaskInfo>(folderUploadApi(id, '/confirm'), { method: 'POST', signal, json: input });
+}
+
+export async function cancelFolderUpload(id: string) {
+  return api<{ ok: true }>(folderUploadApi(id), { method: 'DELETE', keepalive: true });
 }
 
 export type InstanceAction = 'start' | 'stop' | 'restart';

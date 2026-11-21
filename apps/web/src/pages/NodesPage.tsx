@@ -4,6 +4,7 @@ import type { NodeInfo } from '@mystry/shared';
 import { api } from '../api';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { DownloadSourceSection } from '../components/DownloadSourceSection';
+import { SessionDurationSection } from '../components/SessionDurationSection';
 import { PageHeader } from '../components/PageHeader';
 import { StatusPill } from '../components/StatusPill';
 import { errorMessage } from '../errors';
@@ -190,6 +191,8 @@ export function NodesPage() {
           <RemoteAccessDialog onClose={() => setRemoteAccessOpen(false)} />
         </Suspense>
       )}
+
+      <SessionDurationSection />
 
       <DownloadSourceSection />
 

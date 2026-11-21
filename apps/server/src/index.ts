@@ -41,6 +41,7 @@ import {
   initializeImportPreviews,
   shutdownImportPreviews,
 } from './services/import-preview-service.js';
+import { initializeFolderUploads, shutdownFolderUploads } from './services/folder-upload-service.js';
 import { attachFrpLifecycle, shutdownFrp } from './services/frp-manager.js';
 import { attachLanLifecycle, shutdownLan } from './services/lan-manager.js';
 import { isLocalRequest } from './utils/request-origin.js';
@@ -83,6 +84,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     attachFrpLifecycle();
     attachLanLifecycle();
     const previewRecovery = initializeImportPreviews();
+    const folderUploadRecovery = initializeFolderUploads();
 
   const app = Fastify({
     logger: {
@@ -116,15 +118,20 @@ export async function buildApp(options: BuildAppOptions = {}) {
   if (previewRecovery.purged > 0) {
     app.log.info(previewRecovery, '已清理上次面板进程遗留的 ZIP 导入预览');
   }
+  if (folderUploadRecovery.purged > 0) {
+    app.log.info(folderUploadRecovery, '已清理上次面板进程遗留的文件夹上传');
+  }
+  if (process.env.JWT_EXPIRES_IN?.trim()) {
+    app.log.warn('JWT_EXPIRES_IN 已不再使用：登录有效期改在面板「本机环境」页设置，默认 12 小时');
+  }
   app.addHook('onClose', async () => {
     shutdownImportPreviews();
+    shutdownFolderUploads();
   });
 
   await app.register(cors, { origin: config.corsOrigins, credentials: true });
-  await app.register(jwt, {
-    secret: config.jwtSecret,
-    sign: { expiresIn: config.jwtExpiresIn },
-  });
+  // 不设默认有效期：登录令牌只由 signSession 按面板里的登录有效期签发。
+  await app.register(jwt, { secret: config.jwtSecret });
   await app.register(multipart, {
     limits: {
       fileSize: config.maxUploadBytes,

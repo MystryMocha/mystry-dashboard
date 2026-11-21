@@ -52,6 +52,30 @@ export const IMPORTS_MESSAGES = {
   'server.imports.existing.missingLaunchTarget': "The import folder doesn't contain a usable server jar or Forge/NeoForge launch arguments file.",
   'server.imports.existing.copiedNoLaunchTarget': 'No usable server launch file was found after copying.',
 
+  // 浏览器上传文件夹：上传会话
+  'server.imports.folder.invalidParams': 'The folder upload request has unsupported fields or an invalid format.',
+  'server.imports.folder.notFound': 'Folder upload not found.',
+  'server.imports.folder.expired': 'The folder upload has expired. Choose the folder again.',
+  'server.imports.folder.capacity': 'Too many folder uploads are in progress. Try again later.',
+  'server.imports.folder.busy': 'This folder upload is still receiving files or being imported. Try again later.',
+  'server.imports.folder.tooManyFiles': 'The folder has more than {limit} files.',
+  'server.imports.folder.tooLarge': 'The folder is larger than the {limit}-byte limit.',
+  'server.imports.folder.diskSpace': "There isn't enough free space in the panel data directory for this folder.",
+  'server.imports.folder.missingPath': 'Each uploaded file must come right after its path.',
+  'server.imports.folder.invalidPath': "The folder contains a file path the panel can't accept: {path}",
+  'server.imports.folder.reservedName': 'The folder contains a file name the panel reserves for itself: {path}',
+  'server.imports.folder.duplicatePath': 'The folder contains the same file path twice: {path}',
+  'server.imports.folder.moreThanDeclared': 'The upload sent more files or bytes than it declared when it started.',
+  'server.imports.folder.incomplete': "Not every file has arrived yet ({received}/{total} files), so the folder can't be checked.",
+  'server.imports.folder.notReady': "This folder has no usable server launch file, so it can't be imported.",
+  'server.imports.folder.cancelWhileConfirming': "This folder is being imported and can't be cancelled.",
+
+  // 浏览器上传文件夹：导入任务
+  'server.imports.folder.task.queued': 'Waiting to import the uploaded folder…',
+  'server.imports.folder.progress.validating': 'Checking the uploaded folder…',
+  'server.imports.folder.progress.moving': 'Moving the uploaded folder into the panel-managed folder…',
+  'server.imports.folder.progress.done': 'The uploaded folder was imported.',
+
   // Forge/NeoForge 启动文件扫描
   'server.imports.launchScan.timeout': 'Scanning for the Forge/NeoForge launch file timed out.',
   'server.imports.launchScan.tooManyEntries': 'Scanning for the Forge/NeoForge launch file found too many entries.',

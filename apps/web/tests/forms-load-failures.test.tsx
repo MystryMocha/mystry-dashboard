@@ -81,13 +81,13 @@ test('导入：切到 ZIP 后不带着文件夹来源识别出的核心和版本
   await waitFor(() => expect(zipTab.getAttribute('aria-pressed')).toBe('true'));
   const version = await screen.findByRole('textbox', { name: 'Minecraft 版本（可选）' }) as HTMLInputElement;
   const core = screen.getByRole('combobox', { name: '核心类型' }) as HTMLSelectElement;
-  await waitFor(() => expect(screen.getByRole('button', { name: '从本机文件夹导入' })).toBeTruthy());
+  await waitFor(() => expect(screen.getByRole('button', { name: '从 imports 文件夹复制' })).toBeTruthy());
   // 给来源列表一点时间回来，再确认它没有写进 ZIP 的表单。
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(version.value).toBe('');
   expect(core.value).toBe('custom');
 
-  await user.click(screen.getByRole('button', { name: '从本机文件夹导入' }));
+  await user.click(screen.getByRole('button', { name: '从 imports 文件夹复制' }));
   await waitFor(() => expect((screen.getByRole('textbox', { name: 'Minecraft 版本（可选）' }) as HTMLInputElement).value).toBe('1.12.2'));
   expect((screen.getByRole('combobox', { name: '核心类型' }) as HTMLSelectElement).value).toBe('forge');
 

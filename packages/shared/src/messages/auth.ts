@@ -14,4 +14,5 @@ export const AUTH_MESSAGES = {
   'server.auth.launcherLocalOnly': 'The launcher endpoints only accept requests from this computer.',
   'server.auth.invalidLauncherToken': 'The launcher token is invalid.',
   'server.auth.launcherShutdownUnsupported': "Launcher shutdown isn't supported in the current run mode.",
+  'server.auth.sessionDurationInvalid': 'Choose one of the listed sign-in durations.',
 } as const satisfies Record<string, string>;

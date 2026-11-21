@@ -62,6 +62,8 @@ let runningTasks = 0;
 let shuttingDown = false;
 const runningControllers = new Map<string, AbortController>();
 const runningExecutions = new Map<string, Promise<void>>();
+/** 用户要求取消、正在等 worker 收尾的任务；结束时据此记成「你取消了这个任务」，不当成普通失败。 */
+const userCancelled = new Set<string>();
 
 type TaskResultPayload = {
   instanceId?: string;
@@ -348,9 +350,14 @@ async function executeTask(item: QueuedTask, controller: AbortController): Promi
     ended = true;
   }
 
+  // worker 已经正常返回时取消不算数（见上），这里一并清掉标记。
+  const cancelledByUser = userCancelled.delete(item.task.id);
   if (failed) {
-    const error: TaskText = timedOut ? { key: 'server.tasks.timeout' } : failureText(failure);
-    updateTask(item.task.id, { status: 'failed', message: { key: 'server.tasks.failed' }, error }, { phase: 'failed' });
+    const error: TaskText = timedOut
+      ? { key: 'server.tasks.timeout' }
+      : cancelledByUser ? { key: 'server.tasks.cancelledByUser' } : failureText(failure);
+    const message: TaskText = { key: cancelledByUser && !timedOut ? 'server.tasks.cancelled' : 'server.tasks.failed' };
+    updateTask(item.task.id, { status: 'failed', message, error }, { phase: 'failed' });
     return;
   }
 
@@ -380,6 +387,31 @@ export async function runBackgroundTask(
   drainTaskQueue();
 
   return getTask(task.id)!;
+}
+
+/**
+ * 用户取消任务。排队中的直接记成已取消；运行中的中止它的 signal，等 worker 自己收尾（清理临时文件）后
+ * 由 executeTask 记成已取消，所以返回时任务可能还是 running。已结束、或不在本进程队列里的返回 false。
+ * 不是所有任务都能安全中断，调用方要先确认任务类型（目前只开放给一键安装 Java）。
+ */
+export function cancelTask(id: string): boolean {
+  const queuedIndex = taskQueue.findIndex((item) => item.task.id === id);
+  if (queuedIndex !== -1) {
+    taskQueue.splice(queuedIndex, 1);
+    updateTask(id, {
+      status: 'failed',
+      message: { key: 'server.tasks.cancelled' },
+      error: { key: 'server.tasks.cancelledByUser' },
+    }, { phase: 'failed' });
+    return true;
+  }
+  const controller = runningControllers.get(id);
+  if (!controller) return false;
+  if (!controller.signal.aborted) {
+    userCancelled.add(id);
+    controller.abort(new PanelError('server.tasks.cancelledByUser'));
+  }
+  return true;
 }
 
 export function getTaskActivity(): { running: number; queued: number } {
@@ -418,5 +450,6 @@ export function resetTaskRuntimeForTests(): void {
   }
   runningControllers.clear();
   runningExecutions.clear();
+  userCancelled.clear();
 }
 

@@ -19,7 +19,7 @@ export default {
   'server.jvm.issue.paperMemoryLow': 'PaperMC 建議為 Aikar 參數分配至少 6 GiB 記憶體',
 
   'server.jvm.javaInstall.queued': '等待安裝 Java {major}',
-  'server.jvm.javaInstall.downloading': '正在下載 Java {major}（{percent}%）',
+  'server.jvm.javaInstall.downloading': '正在下載 Java {major}',
   'server.jvm.javaInstall.extracting': '正在解壓縮 Java {major}',
   'server.jvm.javaInstall.verifying': '正在檢查 Java {major}',
   'server.jvm.javaInstall.unsupportedMajor': '面板無法自動安裝 Java {major}。',
@@ -28,6 +28,7 @@ export default {
   'server.jvm.javaInstall.checksumMismatch': '下載的 Java {major} 沒有通過檢查碼驗證，已捨棄。',
   'server.jvm.javaInstall.extractFailed': 'Java {major} 的壓縮檔無法解壓縮。',
   'server.jvm.javaInstall.verifyFailed': '安裝好的 Java {major} 執行不正常，沒有加入清單。',
+  'server.jvm.javaInstall.notCancellable': '這次 Java 安裝已經結束，無法再取消。',
 
   'server.jvm.preset.compatibility': '相容優先',
   'server.jvm.preset.g1Balanced': 'G1 均衡',

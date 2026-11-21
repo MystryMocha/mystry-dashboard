@@ -42,7 +42,6 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | `JWT_SECRET` | 无；初次启动前必填 | 64 位十六进制 JWT 签名密钥，不要使用固定示例值 |
 | `SETUP_TOKEN` | 无；初次 setup 前必填 | 64 位十六进制初始化令牌；setup 完成后可移除 |
 | `LAUNCHER_TOKEN` | 无；使用 PanelManager / mystryctl 时自动生成 | 64 位十六进制本机关闭令牌；仅回环地址可使用 |
-| `JWT_EXPIRES_IN` | `2h` | JWT 有效期。纯数字按毫秒计；也可写 `2h` / `30m` / `7d` |
 | `CORS_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` | 精确 CORS 来源白名单，逗号分隔，不要填写 `*` |
 | `RATE_LIMIT_MAX` | `120` | 普通请求限流窗口内的最大次数 |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | 普通请求限流窗口，毫秒 |
@@ -50,6 +49,8 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | `AUTH_RATE_LIMIT_WINDOW_MS` | `300000` | 认证限流窗口，毫秒 |
 | `CONSOLE_TICKET_TTL_SECONDS` | `60` | 控制台 ticket 有效期；每个 ticket 只能建立一次 WebSocket 连接 |
 | `FILE_DOWNLOAD_TICKET_TTL_SECONDS` | `60` | 文件下载 ticket 有效期；每个 ticket 只能下载一次 |
+
+登录有效期不再用 `JWT_EXPIRES_IN` 设置（写了也不生效，启动时会提示），改在面板「本机环境」页选择，默认 12 小时，见 [登录有效期](user-guide.zh-CN.md#登录有效期)。
 
 ### HTTP、文件与上传生命周期
 
@@ -124,7 +125,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 ZIP 导入的预检结果暂存在 `uploads/.tmp-import-preview-*`，按登录用户隔离，`IMPORT_PREVIEW_TTL_SECONDS` 后过期，面板重启时全部删除；全局预览数已满时返回 **429**。
 
-`MAX_EXISTING_IMPORT_*` 限制从本机文件夹导入时单次复制的规模；导入前的其他检查见 [从本机文件夹导入](user-guide.zh-CN.md#从本机文件夹导入)。
+`MAX_EXISTING_IMPORT_*` 限制单次导入一个文件夹的规模，浏览器上传的文件夹和从 `imports` 复制的都算；导入前的其他检查见 [上传文件夹](user-guide.zh-CN.md#上传文件夹) 和 [从 imports 文件夹复制](user-guide.zh-CN.md#从-imports-文件夹复制)。浏览器上传的文件夹在确认或取消前放在 `uploads/.tmp-folder-upload-*`，有效期和全局数量沿用 ZIP 预览的 `IMPORT_PREVIEW_TTL_SECONDS`、`MAX_IMPORT_PREVIEWS`，面板启动时清掉遗留的。
 
 ### 数据目录
 

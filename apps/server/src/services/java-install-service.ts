@@ -8,7 +8,7 @@ import { isPanelError, PanelError } from '../utils/errors.js';
 import { downloadFromPlan } from './core-download.js';
 import { createDownloadPlan, getDownloadSource, githubReleaseCandidates } from './download-sources.js';
 import { panelJavaRoot, registerPanelJavaRuntime } from './java-runtime-service.js';
-import { getTask, runBackgroundTask } from './task-service.js';
+import { cancelTask, getTask, runBackgroundTask } from './task-service.js';
 import { safeExtract } from './zip-service.js';
 
 /**
@@ -209,12 +209,13 @@ async function installJava(
   const archivePath = path.join(staging, `${asset.archive}.partial`);
   const extractDir = path.join(staging, 'extract');
   try {
-    report(2, { key: 'server.jvm.javaInstall.downloading', params: { major, percent: 0 } });
+    // 文案里不再单写下载百分比：进度条右边已有整体进度，两个数对不上反而让人困惑。
+    report(2, { key: 'server.jvm.javaInstall.downloading', params: { major } });
     try {
       const acquire = hooks.acquire ?? defaultAcquire;
       await acquire(major, asset, archivePath, (ratio) => {
         const percent = Math.max(0, Math.min(100, Math.round(ratio * 100)));
-        report(2 + Math.round(percent * 0.78), { key: 'server.jvm.javaInstall.downloading', params: { major, percent } });
+        report(2 + Math.round(percent * 0.78), { key: 'server.jvm.javaInstall.downloading', params: { major } });
       }, signal);
     } catch (error) {
       if (signal.aborted) throw error;
@@ -283,4 +284,16 @@ export async function startJavaInstall(major: number): Promise<TaskInfo> {
   taskId = task.id;
   inFlight.set(major, task.id);
   return task;
+}
+
+/**
+ * 用户取消一键安装。只认本进程里还在排队或运行的 Java 安装任务，部署、导入等别的任务一律不认。
+ * 运行中的任务要等下载或解压停下、临时目录删掉后才变成已取消，返回的任务可能还是 running。
+ */
+export function cancelJavaInstall(taskId: string): TaskInfo {
+  const isJavaInstall = [...inFlight.values()].includes(taskId);
+  if (!isJavaInstall || !cancelTask(taskId)) {
+    throw new PanelError('server.jvm.javaInstall.notCancellable', undefined, { statusCode: 409 });
+  }
+  return getTask(taskId)!;
 }
