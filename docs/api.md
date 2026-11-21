@@ -1,128 +1,130 @@
-# API 参考
+# API Reference
 
-除下列公开接口外，其余 `/api/*` 路由均需 JWT：
+**English** · [简体中文](api.zh-CN.md)
+
+Apart from the public endpoints listed below, all `/api/*` routes require a JWT:
 
 ```http
 Authorization: Bearer <token>
 ```
 
-带请求体的接口使用 JSON，请求头为 `Content-Type: application/json`；启动、停止这类没有请求体的 POST 不要带 `Content-Type`，或者发送 `{}`。其他 `Content-Type` 会返回 **415**。
+Endpoints with a request body use JSON with the header `Content-Type: application/json`; a POST without a body, such as start or stop, should not send `Content-Type`, or should send `{}`. Any other `Content-Type` returns **415**.
 
-错误响应为 JSON：
+Error responses are JSON:
 
 ```json
 { "error": "Instance not found.", "code": "server.instance.notFound", "params": { "id": "abc" } }
 ```
 
-- `error`：渲染好的**英文**说明，脚本和旧客户端可直接显示。
-- `code` / `params`：面板自身产生的错误带有稳定的消息键与参数（键以 `server.` 开头，定义在 `packages/shared/src/messages/`）。Web 界面按当前语言（English / 简体中文 / 繁體中文）用同一个键翻译，缺键时显示 `error`。参数值可以是文本、数字，或另一条 `{ key, params }` 消息（例如失败原因）。
-- Node.js 系统错误、Java 或网络库返回的原始文本没有 `code`，`error` 原样返回。
-- 实例启停、删除、接管冲突（409）的 `code` 也是消息键（如 `server.instance.alreadyRunning`），不再是 `INSTANCE_OPERATION_CONFLICT`。
-- 请求体校验失败（Fastify / AJV）返回 400，`code` 为 `server.common.invalidRequest`，`params.detail` 为英文校验说明。
+- `error`: the rendered **English** description, which scripts and older clients can display directly.
+- `code` / `params`: errors produced by the panel itself carry a stable message key and params (keys start with `server.` and are defined in `packages/shared/src/messages/`). The Web UI translates by the same key in the current language (English / Simplified Chinese / Traditional Chinese), and shows `error` when the key is missing. A param value can be text, a number, or another `{ key, params }` message (for example a failure reason).
+- Raw text from Node.js system errors, Java or network libraries has no `code`, and `error` is returned as is.
+- The `code` of instance start/stop, delete and takeover conflicts (409) is also a message key (such as `server.instance.alreadyRunning`), no longer `INSTANCE_OPERATION_CONFLICT`.
+- A request body validation failure (Fastify / AJV) returns 400 with `code` `server.common.invalidRequest` and `params.detail` holding the English validation message.
 
-## 总览性能监测
+## Overview Performance Monitoring
 
-`GET /api/system/metrics` 需要 JWT，返回共享类型 `DashboardMetrics`：
+`GET /api/system/metrics` requires a JWT and returns the shared type `DashboardMetrics`:
 
-- `sampledAt`：采样时间；`cpuPercent`：整机 CPU 使用率，首次采样为 `null`。
-- `memory`：主机 `usedBytes` / `totalBytes`；`disk`：数据根所在磁盘的 `availableBytes` / `totalBytes`，读取失败为 `null`。
-- `instances`：以实例 ID 为键，包含 `cpuPercent`、`memoryBytes` 与 `state`（`ready` / `collecting` / `unavailable`）。仅采集面板持有的活进程，调用方不能指定 PID 或路径。
-- `warnings`：CPU 或内存连续采样至少 30 秒达到 90% 时提示；磁盘可用空间低于 5 GiB 或 10% 时提示。文本为英文，`warningsI18n` 按相同顺序给出对应的消息键，供界面翻译。
+- `sampledAt`: the sample time; `cpuPercent`: whole-machine CPU usage, `null` on the first sample.
+- `memory`: host `usedBytes` / `totalBytes`; `disk`: `availableBytes` / `totalBytes` of the disk holding the data root, `null` when reading fails.
+- `instances`: keyed by instance ID, containing `cpuPercent`, `memoryBytes` and `state` (`ready` / `collecting` / `unavailable`). Only live processes held by the panel are sampled, and callers cannot specify a PID or path.
+- `warnings`: raised when CPU or memory stays at 90% across samples for at least 30 seconds, and when free disk space is below 5 GiB or 10%. The text is English, and `warningsI18n` gives the matching message keys in the same order for the UI to translate.
 
-CPU 按整机逻辑核总容量归一至 0–100%；进程内存是驻留内存，与 JVM 堆内存上限 Xmx 不同。进程指标目前只支持 Windows 和 Linux，其他平台为 `unavailable`。空值不表示零占用。快照缓存 4 秒，并发请求合并；无历史存储，页面每 5 秒刷新、隐藏时暂停。采样间隔超过 15 秒会重新累计持续告警时间。
+CPU is normalized to 0–100% by the total capacity of all logical cores; process memory is resident memory, which is different from the JVM heap limit Xmx. Process metrics currently support only Windows and Linux, and are `unavailable` on other platforms. An empty value does not mean zero usage. The snapshot is cached for 4 seconds and concurrent requests are merged; there is no history storage, and the page refreshes every 5 seconds and pauses while hidden. A sampling gap of more than 15 seconds restarts the accumulation of sustained-warning time.
 
-## 健康检查
+## Health Check
 
-| 方法 | 路径 | 认证 | 响应 |
+| Method | Path | Auth | Response |
 |------|------|------|------|
-| GET | `/api/health` | 否 | `{ ok: true, service: "mystry-dashboard", processFingerprint?: string }` |
+| GET | `/api/health` | No | `{ ok: true, service: "mystry-dashboard", processFingerprint?: string }` |
 
-`processFingerprint` 仅在便携控制器启动服务时出现，并且只对来自回环地址的请求返回：开启「从其他设备访问」后，其他设备的健康检查拿不到它。它用于让 `mystryctl` 将状态文件、PID 与实际监听服务对应起来，不是认证密钥，也不能替代 `X-Launcher-Token`。面板自带网络（见下）进来的连接落在回环地址上，因此看得到它。
+`processFingerprint` appears only when the service was started by the portable controller, and is returned only to requests from a loopback address: with "access from other devices" enabled, health checks from other devices do not get it. It lets `mystryctl` tie the state file and PID to the service actually listening; it is not an authentication secret and cannot replace `X-Launcher-Token`. Connections arriving through the panel's built-in network (see below) land on a loopback address and therefore can see it.
 
-## 认证 `/api/auth`
+## Authentication `/api/auth`
 
-| 方法 | 路径 | 认证 | 说明 |
+| Method | Path | Auth | Description |
 |------|------|------|------|
-| GET | `/api/auth/status` | 否 | `{ needsSetup: boolean }` |
-| POST | `/api/auth/setup` | `X-Setup-Token` | 仅用户表为空时可用；Body：`{ username, password }` → `{ token, user }` |
-| POST | `/api/auth/login` | 否 | Body：`{ username, password }` → `{ token, user }` 或 401 |
-| POST | `/api/auth/password` | JWT | Body：`{ currentPassword, newPassword }` → `{ ok: true, token, user }`；当前密码错误返回 400。成功后此前签发的 JWT 全部失效（包括这次请求用的），调用方改用响应里的 `token`，见 [令牌失效](#令牌失效) |
-| GET | `/api/auth/me` | 是 | `{ user }` |
-| GET | `/api/auth/session-duration` | 是 | `{ duration }`，取值 `2h` / `12h` / `1d` / `7d` / `30d` / `never`，默认 `12h`，见 [登录有效期](#登录有效期) |
-| PUT | `/api/auth/session-duration` | 是 | Body：`{ duration }` → `{ duration, token }`；不在列表里的值返回 400（`server.auth.sessionDurationInvalid`）。调用方改用响应里按新有效期签发的 `token` |
+| GET | `/api/auth/status` | No | `{ needsSetup: boolean }` |
+| POST | `/api/auth/setup` | `X-Setup-Token` | Available only while the users table is empty; Body: `{ username, password }` → `{ token, user }` |
+| POST | `/api/auth/login` | No | Body: `{ username, password }` → `{ token, user }` or 401 |
+| POST | `/api/auth/password` | JWT | Body: `{ currentPassword, newPassword }` → `{ ok: true, token, user }`; a wrong current password returns 400. On success all previously issued JWTs are invalidated (including the one used for this request), and the caller switches to the `token` in the response; see [Token Invalidation](#token-invalidation) |
+| GET | `/api/auth/me` | Yes | `{ user }` |
+| GET | `/api/auth/session-duration` | Yes | `{ duration }`, one of `2h` / `12h` / `1d` / `7d` / `30d` / `never`, default `12h`; see [Session Duration](#session-duration) |
+| PUT | `/api/auth/session-duration` | Yes | Body: `{ duration }` → `{ duration, token }`; a value not in the list returns 400 (`server.auth.sessionDurationInvalid`). The caller switches to the `token` in the response, issued with the new duration |
 
-### setup 请求
+### The setup Request
 
-`setup` 不使用 JWT，而是要求环境变量 `SETUP_TOKEN` 的值放在 header 中：
+`setup` does not use a JWT; instead it requires the value of the environment variable `SETUP_TOKEN` in a header:
 
 ```http
 POST /api/auth/setup
 Content-Type: application/json
 X-Setup-Token: <SETUP_TOKEN>
 
-{"username":"admin","password":"至少 12 位的强密码"}
+{"username":"admin","password":"a strong password of at least 12 characters"}
 ```
 
-用户创建成功后 setup 接口不再可用。`mystryctl` 和 `PanelManager` 会用这个接口自动创建 `admin`，并在成功后移除 `SETUP_TOKEN`。密钥格式要求见 [配置说明](configuration.zh-CN.md#首次启动必需配置)。
+Once the user is created the setup endpoint is no longer available. `mystryctl` and `PanelManager` use this endpoint to create `admin` automatically, and remove `SETUP_TOKEN` after success. The secret format requirements are in [Configuration](configuration.md#required-settings-for-first-start).
 
-### 登录有效期
+### Session Duration
 
-登录有效期（D-040）保存在 `panel_settings`，在「面板设置」页设置，默认 12 小时，可选 2 小时、12 小时、1 天、7 天、30 天或不过期。`.env` 里的 `JWT_EXPIRES_IN` 已不再生效，启动时如果还写着，终端会提示一句。
+The session duration (D-040) is stored in `panel_settings` and set on the "Panel Settings" page; it defaults to 12 hours, with the options 2 hours, 12 hours, 1 day, 7 days, 30 days or never expire. `JWT_EXPIRES_IN` in `.env` no longer applies, and if it is still present the terminal prints a note at startup.
 
-- setup、登录、修改密码和保存有效期时按当前设置签发令牌；选「不过期」时令牌不带 `exp`。
-- 每次请求再用令牌的签发时间 `iat` 对照当前设置：改短后，登录时间已超过新时长的令牌（包括按「不过期」签发的）下一次请求即返回 **401**。
-- 改长时，保存请求的响应带按新时长签发的令牌，发起修改的设备马上生效；其他设备的令牌仍按签发时的 `exp` 过期，下次登录后按新时长计算。
+- Tokens are issued with the current setting on setup, sign-in, password change and when saving the duration; with "never expire" the token carries no `exp`.
+- On every request the token's issue time `iat` is checked against the current setting again: after shortening, a token whose sign-in is older than the new duration (including ones issued as "never expire") returns **401** on its next request.
+- When lengthening, the response to the save request carries a token issued with the new duration, so the device making the change is affected immediately; tokens on other devices still expire by the `exp` they were issued with, and the new duration applies after their next sign-in.
 
-### 令牌失效
+### Token Invalidation
 
-`users` 表的 `token_version` 记录令牌版本，签发的 JWT 带上 `tv` 字段。每次请求除了验签和有效期（见 [登录有效期](#登录有效期)），还要求 `tv` 与数据库一致；用户不存在也返回 **401**（`server.common.unauthorized`）。
+`token_version` in the `users` table records the token version, and issued JWTs carry it in the `tv` field. Besides signature and validity checks (see [Session Duration](#session-duration)), every request also requires `tv` to match the database; a nonexistent user returns **401** too (`server.common.unauthorized`).
 
-修改密码（`POST /api/auth/password`）和本机重置密码（`POST /api/launcher/reset-password`）成功后版本加 1，因此：
+A successful password change (`POST /api/auth/password`) or local password reset (`POST /api/launcher/reset-password`) increments the version, so:
 
-- 此前签发的所有 JWT 下一次请求即返回 401。修改密码的响应带新令牌，发起修改的会话可以继续使用；重置密码不签发令牌，所有会话都要重新登录。
-- 旧令牌签发、还没用掉的控制台 ticket 和尚未开流的下载 ticket 同时作废；下载 ticket 状态变为 `failed`。
-- 已打开的控制台 WebSocket 以关闭码 **1008** 断开，客户端需要用当前有效的令牌重新申请 ticket。
-- 已经开始传输的下载不打断，它在开流时已通过授权。
+- All previously issued JWTs return 401 on their next request. The password change response carries a new token, so the session making the change can continue; a password reset issues no token, and every session has to sign in again.
+- Console tickets issued by old tokens and not yet used, and download tickets that have not opened a stream, are voided at the same time; the download ticket status becomes `failed`.
+- Open console WebSockets are closed with close code **1008**, and the client has to request a ticket again with a currently valid token.
+- Downloads already transferring are not interrupted; they passed authorization when the stream opened.
 
-0.2.0-preview.3 及更早签发的令牌没有 `tv`，按版本 0 处理：升级后在过期前仍然可用，第一次改密或重置后失效。旧数据库启动时自动补 `token_version` 列，已有用户从 0 开始。
+Tokens issued by 0.2.0-preview.3 and earlier have no `tv` and are treated as version 0: after the upgrade they remain usable until they expire, and are invalidated by the first password change or reset. Old databases get the `token_version` column added automatically at startup, with existing users starting at 0.
 
-## 系统 `/api/system`
+## System `/api/system`
 
-| 方法 | 路径 | 认证 | 响应 |
+| Method | Path | Auth | Response |
 |------|------|------|------|
-| GET | `/api/system/java` | 是 | Java 状态对象 |
-| GET | `/api/system/java-runtimes` | 是 | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
-| POST | `/api/system/java-runtimes/install` | 是 | 请求体 `{ major }`（8、17、21、25），返回后台任务 `TaskInfo`；完成后 `result.javaRuntimeId` 是新运行时 |
-| POST | `/api/system/java-runtimes/install/:taskId/cancel` | 是 | 取消还在排队或运行的一键安装 Java 任务，返回任务当前状态；不是进行中的 Java 安装任务时 409（`server.jvm.javaInstall.notCancellable`） |
-| GET | `/api/system/panel-info` | 是 | `PanelInfo`：`{ host, port, dataDir, backupDir, configPath }`，面板启动时从配置文件读到的监听地址和目录（绝对路径）。只读，不含密钥，给「面板设置」页的「运行信息」展示（D-042） |
-| GET | `/api/system/download-source` | 是 | `{ source: 'official' \| 'china' }` |
-| PUT | `/api/system/download-source` | 是 | 请求体 `{ source }`，返回保存后的值；其他取值返回 400 |
-| GET | `/api/system/remote-access` | 是 | `RemoteAccessStatus`；每次读取都重新枚举网卡 |
-| PUT | `/api/system/remote-access/direct` | 是 | 请求体 `UpdateDirectAccessRequest`，返回 `RemoteAccessStatus` |
-| PUT | `/api/system/remote-access/overlay` | 是 | 请求体 `UpdateOverlayAccessRequest`（开启时 `interfaceName` 必填），返回 `RemoteAccessStatus` |
-| POST | `/api/system/remote-access/certificate` | 是 | 重新生成面板的自签名证书，返回 `RemoteAccessStatus` |
-| PUT | `/api/system/remote-access/panel-network` | 是 | 请求体 `UpdatePanelNetworkRequest`，返回 `PanelNetworkStatus` |
-| GET | `/api/system/remote-access/panel-network/join` | 是 | `PanelNetworkJoinInfo`，含网络密钥，`Cache-Control: no-store` |
-| POST | `/api/system/remote-access/panel-network/reset-secret` | 是 | 重置网络名和密钥，返回 `PanelNetworkStatus` |
-| GET | `/api/system/public-host` | 是 | `{ publicHost: string \| null }` |
-| PUT | `/api/system/public-host` | 是 | 请求体 `{ host: string \| null }`（`null` 清除），返回 `{ publicHost }` |
+| GET | `/api/system/java` | Yes | Java status object |
+| GET | `/api/system/java-runtimes` | Yes | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
+| POST | `/api/system/java-runtimes/install` | Yes | Request body `{ major }` (8, 17, 21, 25); returns the background task `TaskInfo`; on completion `result.javaRuntimeId` is the new runtime |
+| POST | `/api/system/java-runtimes/install/:taskId/cancel` | Yes | Cancels a one-click Java install task still queued or running and returns the task's current state; 409 when it is not a Java install task in progress (`server.jvm.javaInstall.notCancellable`) |
+| GET | `/api/system/panel-info` | Yes | `PanelInfo`: `{ host, port, dataDir, backupDir, configPath }`, the listen address and directories (absolute paths) the panel read from the config file at startup. Read-only, without secrets, shown as "Runtime Info" on the "Panel Settings" page (D-042) |
+| GET | `/api/system/download-source` | Yes | `{ source: 'official' \| 'china' }` |
+| PUT | `/api/system/download-source` | Yes | Request body `{ source }`; returns the saved value; other values return 400 |
+| GET | `/api/system/remote-access` | Yes | `RemoteAccessStatus`; interfaces are re-enumerated on every read |
+| PUT | `/api/system/remote-access/direct` | Yes | Request body `UpdateDirectAccessRequest`; returns `RemoteAccessStatus` |
+| PUT | `/api/system/remote-access/overlay` | Yes | Request body `UpdateOverlayAccessRequest` (`interfaceName` required when enabling); returns `RemoteAccessStatus` |
+| POST | `/api/system/remote-access/certificate` | Yes | Regenerates the panel's self-signed certificate; returns `RemoteAccessStatus` |
+| PUT | `/api/system/remote-access/panel-network` | Yes | Request body `UpdatePanelNetworkRequest`; returns `PanelNetworkStatus` |
+| GET | `/api/system/remote-access/panel-network/join` | Yes | `PanelNetworkJoinInfo`, including the network secret, with `Cache-Control: no-store` |
+| POST | `/api/system/remote-access/panel-network/reset-secret` | Yes | Resets the network name and secret; returns `PanelNetworkStatus` |
+| GET | `/api/system/public-host` | Yes | `{ publicHost: string \| null }` |
+| PUT | `/api/system/public-host` | Yes | Request body `{ host: string \| null }` (`null` clears); returns `{ publicHost }` |
 
-下载来源默认 `official`，保存在 `panel.db`，保存后新发起的下载立即使用，不需要重启。各类文件实际走哪里见[架构说明](architecture.md#下载来源)。
+The download source defaults to `official` and is stored in `panel.db`; downloads started after saving use it immediately, with no restart needed. Where each kind of file actually comes from is described in [Architecture](architecture.md#download-sources).
 
-### 从其他设备访问面板
+### Accessing the Panel from Other Devices
 
-面板的主监听器不变（`HOST:PORT`，默认 `127.0.0.1:3000`）。开启访问时，服务端在要开放的每个 IPv4 地址上另起监听器（同一端口），把连接交给同一个 HTTP 服务；设置保存在 `panel.db` 的 `panel_settings` 表，保存后立即生效，不用重启。任何已登录的请求都可以开关，不限本机。见 [D-033](ai/decisions.md)。
+The panel's main listener does not change (`HOST:PORT`, `127.0.0.1:3000` by default). When access is enabled, the server starts an extra listener (same port) on each IPv4 address to be opened and hands connections to the same HTTP server; the settings are stored in the `panel_settings` table of `panel.db` and take effect right after saving, without a restart. Any signed-in request can toggle it, not only this machine. See [D-033](ai/decisions.md).
 
-- **`direct`（直接访问）**：`interfaceName` 为 `null` 表示所有网卡（不含实例的联机网络），也可以指定一块网卡的名字。`https` 默认 `true`：监听器按第一个字节分流，TLS 握手交给面板，明文请求只回 `308` 跳到同主机的 `https://`，不发 HSTS。`restrictToSubnet` 默认 `false`：开启后每个监听器只接受自己网卡网段的来源（`100.64.0.0/10` 的组网网卡放行整个网段；其他 `/32` 网卡算不出网段，不监听并标 `subnetUnknown`）。
-- **`overlay`（已装的组网软件）**：只在选定的那块网卡上监听，`https` 默认 `false`。直接访问的「所有网卡」会让出这块网卡的地址。
-- **证书**：ECDSA P-256 自签名证书，保存在 `<数据根>/tls/panel.key`、`panel.crt`，有效期 800 天，SAN 为生成时的网卡地址和公网地址。已有证书一直复用，只有文件缺失或损坏、30 天内过期或用户要求时才重新生成。状态里的 `certificate` 只有指纹、到期时间和 SAN，不含私钥。
-- **状态**：`RemoteAccessStatus` 含 `managedByConfig`（`HOST` 已是非回环地址时为 `true`，此时两个 PUT 返回 409 `server.remoteAccess.managedByConfig`）、`port`、`frontendServed`、`platform`、`interfaces`（每块网卡的名字、地址、`cidr` 和分类 `kind`）、`publicHost`、`certificate`、`direct`、`overlay`、`panelNetwork`。`direct` / `overlay` 的 `urls` 列出所有候选网址及是否在监听，单个地址没挂上时带 `problem`（`listenFailed` / `subnetUnknown`）；整体问题在 `problem`（另有 `interfaceGone`、`noAddress`、`certificateFailed`）；`firewall` 为 Windows 防火墙规则的结果 `applied` / `failed` / `skipped`。
-- **防火墙**：Windows 上规则名带面板端口，`MystryDashboard-Panel-Direct-<端口>`、`MystryDashboard-Panel-Overlay-<端口>`、`MystryDashboard-PanelNet-<端口>`，同一台电脑上的两个面板不会互删；只删本进程加过的规则。
-- **失败**：选的网卡不存在返回 409 `server.remoteAccess.interfaceGone`；证书生成或读取失败返回 500 `server.remoteAccess.certificateFailed`；一个地址都没挂上返回 409 `server.remoteAccess.listenFailed` 或 `server.remoteAccess.noAddress`，设置恢复为操作前的值。
-- **面板自带网络（`panel-network`）**：面板运行钉死版本的官方 EasyTier（无 TUN 模式），节点固定为 `10.127.0.1`。面板另在 `127.0.0.1` 上开一个组网专用端口，`tcp_whitelist` 只有它（不含面板端口），`url` 也用它；端口首次从面板端口 + 1 往上找（不用系统的动态端口段），存进设置、每次启动沿用，被别的程序占用时才换并写日志。经这个端口进来的请求按组网设备处理：启动器接口返回 403、`/api/health` 不带进程指纹，限流和登录失败计数把整个组网算一个来源，不和本机共用。`PanelNetworkStatus` 含 `enabled`、`platformSupported`、`installed`、`state`（`stopped` / `installing` / `starting` / `running` / `error`）、`detail`、`virtualIp`、`url`、`devices`、节点设置和 `firewall`，不含网络名和密钥；它们只在 `join` 接口里返回。开启后安装和启动在后台进行，界面按 `state` 轮询。
-- **公网地址（`public-host`）**：用户填写的公网 IP 或域名，联机页和面板网址共用。服务端去掉首尾空白、`http(s)://` 和末尾的 `/`；带端口返回 400 `server.publicHost.hasPort`，其他不合法的写法返回 400 `server.publicHost.invalid`；私网地址不拒绝。面板不解析域名，也不探测公网 IP。
+- **`direct` (direct access)**: `interfaceName` `null` means all interfaces (excluding the instances' multiplayer networks), or the name of one interface can be given. `https` defaults to `true`: the listener dispatches on the first byte, handing TLS handshakes to the panel, while plaintext requests only get a `308` to `https://` on the same host, with no HSTS. `restrictToSubnet` defaults to `false`: when on, each listener accepts only sources in its own interface's subnet (overlay interfaces in `100.64.0.0/10` allow that whole range; for other `/32` interfaces no subnet can be derived, so they are not listened on and are flagged `subnetUnknown`).
+- **`overlay` (installed virtual networking software)**: listens only on the one chosen interface, with `https` defaulting to `false`. "All interfaces" in direct access gives up the addresses of this interface.
+- **Certificate**: an ECDSA P-256 self-signed certificate stored at `<data root>/tls/panel.key` and `panel.crt`, valid for 800 days, with a SAN of the interface addresses and public address at generation time. An existing certificate keeps being reused and is regenerated only when the files are missing or corrupted, it expires within 30 days, or the user asks. `certificate` in the status has only the fingerprint, expiry time and SAN, without the private key.
+- **Status**: `RemoteAccessStatus` contains `managedByConfig` (`true` when `HOST` is already a non-loopback address, in which case the two PUTs return 409 `server.remoteAccess.managedByConfig`), `port`, `frontendServed`, `platform`, `interfaces` (each interface's name, address, `cidr` and classification `kind`), `publicHost`, `certificate`, `direct`, `overlay` and `panelNetwork`. `urls` of `direct` / `overlay` lists all candidate URLs and whether each is listening, with `problem` on a single address that could not be attached (`listenFailed` / `subnetUnknown`); overall problems are in `problem` (also `interfaceGone`, `noAddress`, `certificateFailed`); `firewall` is the Windows firewall rule result `applied` / `failed` / `skipped`.
+- **Firewall**: on Windows the rule names include the panel port, `MystryDashboard-Panel-Direct-<port>`, `MystryDashboard-Panel-Overlay-<port>` and `MystryDashboard-PanelNet-<port>`, so two panels on the same computer do not delete each other's rules; only rules added by this process are deleted.
+- **Failures**: a chosen interface that does not exist returns 409 `server.remoteAccess.interfaceGone`; a failure to generate or read the certificate returns 500 `server.remoteAccess.certificateFailed`; when no address at all could be attached it returns 409 `server.remoteAccess.listenFailed` or `server.remoteAccess.noAddress`, and the settings are restored to their values from before the operation.
+- **Built-in panel network (`panel-network`)**: the panel runs a pinned version of the official EasyTier (no-TUN mode), with the panel peer fixed at `10.127.0.1`. The panel opens another port on `127.0.0.1` dedicated to the virtual network; `tcp_whitelist` contains only it (not the panel port), and `url` uses it too. The port is first searched upward from panel port + 1 (not from the system's dynamic range), stored in settings and reused on every start, and changed (with a log entry) only when another program occupies it. Requests arriving on this port are treated as virtual-network devices: launcher endpoints return 403, `/api/health` omits the process fingerprint, and rate limiting and failed sign-in counting treat the whole virtual network as one origin, not shared with this machine. `PanelNetworkStatus` contains `enabled`, `platformSupported`, `installed`, `state` (`stopped` / `installing` / `starting` / `running` / `error`), `detail`, `virtualIp`, `url`, `devices`, the peer settings and `firewall`, without the network name and secret; those are returned only by the `join` endpoint. After enabling, installation and startup happen in the background, and the UI polls `state`.
+- **Public address (`public-host`)**: the public IP or domain entered by the user, shared by the multiplayer page and the panel URLs. The server strips surrounding whitespace, `http(s)://` and a trailing `/`; a value with a port returns 400 `server.publicHost.hasPort`, and other invalid forms return 400 `server.publicHost.invalid`; private addresses are not rejected. The panel does not resolve domains or detect the public IP.
 
-Java 状态响应准确结构为：
+The exact structure of the Java status response:
 
 ```json
 {
@@ -132,162 +134,162 @@ Java 状态响应准确结构为：
 }
 ```
 
-找不到 Java 时返回 `{ "available": false, "version": null, "majorVersion": null }`。面板不提供全盘目录浏览接口。
+When Java cannot be found it returns `{ "available": false, "version": null, "majorVersion": null }`. The panel offers no whole-disk directory browsing endpoint.
 
-`/api/system/java-runtimes` 返回面板探测并验证过的 Java 运行时注册表；带 `?refresh=1` 请求重新扫描。并发扫描会合并为一个任务，连续强制刷新受 30 秒冷却限制；普通读取默认使用 60 秒缓存。候选路径只来自 `JAVA_HOME`、常见安装目录和面板安装目录（数据根下 `runtimes/java/*`，`source: 'panel'`）扫描，且必须文件名为 `java`/`java.exe`、`-version` 输出可解析出版本号才会入表。实例可通过 `javaRuntimeId` 绑定表内条目（创建、更新、部署请求均接受该可选字段；`null` 表示使用 PATH 中的 `java`），请求不能提交任意可执行路径。绑定运行时在启动或 Forge/NeoForge Installer 执行前会再次验证；最近一次扫描未发现的条目会以 `available: false` 返回。
+`/api/system/java-runtimes` returns the registry of Java runtimes the panel detected and verified; `?refresh=1` requests a rescan. Concurrent scans are merged into one task, and consecutive forced refreshes are limited by a 30-second cooldown; ordinary reads use a 60-second cache by default. Candidate paths come only from scanning `JAVA_HOME`, common install directories and the panel install directory (`runtimes/java/*` under the data root, `source: 'panel'`), and are entered only when the file name is `java`/`java.exe` and a version number can be parsed from the `-version` output. An instance can bind an entry in the table through `javaRuntimeId` (create, update and deploy requests all accept this optional field; `null` means use the `java` on PATH), and requests cannot submit an arbitrary executable path. A bound runtime is verified again before a start or before the Forge/NeoForge installer runs; entries not found by the latest scan are returned with `available: false`.
 
-`installable` 是面板能在这台电脑上自动安装的 Java 主版本（目前 Windows x64 和 Linux x64 上为 `[8, 17, 21, 25]`，其他系统或架构为空）。`POST /api/system/java-runtimes/install` 下载钉死版本的 Eclipse Temurin JRE（来源跟随下载来源设置：GitHub 或公共 GitHub 代理），按钉死的 SHA-256 校验，在数据根 `runtimes/java/.staging-*` 里解压后移到 `runtimes/java/temurin-<版本>`，执行 `-version` 验证后登记；已经装过且能运行时不重复下载。同一主版本已有任务排队或运行时返回那个任务。`POST /api/system/java-runtimes/install/:taskId/cancel` 只取消本进程里还在排队或运行的 Java 安装任务（部署、导入等别的任务 ID 一律 409）：排队的立即结束，运行中的中止下载或解压、删掉临时目录后结束，所以返回时任务可能还是 `running`，要继续轮询；结束后 `status` 为 `failed`，`messageI18n` 为 `server.tasks.cancelled`，`errorI18n` 为 `server.tasks.cancelledByUser`。改名到最终目录之后才到的取消不生效，任务照常完成。不在钉死列表里的主版本返回 400（`server.jvm.javaInstall.unsupportedMajor`），这台电脑没有安装包时返回 409（`server.jvm.javaInstall.platformUnsupported`）。任务失败原因：`downloadFailed`、`checksumMismatch`、`extractFailed`、`verifyFailed`（均在 `server.jvm.javaInstall.*` 下）。
+`installable` is the list of Java major versions the panel can install automatically on this computer (currently `[8, 17, 21, 25]` on Windows x64 and Linux x64, and empty on other systems or architectures). `POST /api/system/java-runtimes/install` downloads a pinned version of the Eclipse Temurin JRE (the source follows the download source setting: GitHub or a public GitHub proxy), verifies it against the pinned SHA-256, extracts it in `runtimes/java/.staging-*` under the data root, moves it to `runtimes/java/temurin-<version>`, and registers it after verifying with `-version`; when it is already installed and runs, nothing is downloaded again. When the same major version already has a task queued or running, that task is returned. `POST /api/system/java-runtimes/install/:taskId/cancel` cancels only Java install tasks still queued or running in this process (any other task ID, such as deploy or import, gets 409): a queued one ends immediately, and a running one ends after the download or extraction is aborted and the temp directory deleted, so the task may still be `running` on return and polling must continue; when it ends `status` is `failed`, `messageI18n` is `server.tasks.cancelled` and `errorI18n` is `server.tasks.cancelledByUser`. A cancel arriving after the rename to the final directory has no effect, and the task completes as usual. A major version not in the pinned list returns 400 (`server.jvm.javaInstall.unsupportedMajor`), and 409 when there is no installer for this computer (`server.jvm.javaInstall.platformUnsupported`). Task failure reasons: `downloadFailed`, `checksumMismatch`, `extractFailed`, `verifyFailed` (all under `server.jvm.javaInstall.*`).
 
-`JavaRuntimeInfo` 字段：
+`JavaRuntimeInfo` fields:
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `id` | string | 运行时注册表 ID；请求仅可提交该值 |
-| `path` | string | 面板扫描到的绝对 Java 可执行路径，仅对已认证用户返回 |
-| `version` / `majorVersion` | string / number | 最近一次验证的完整版本与主版本号 |
-| `source` | `env \| scan` | `JAVA_HOME` 或常见安装目录扫描 |
-| `verifiedAt` | string | 最近一次成功验证时间 |
-| `available` | boolean | 最近一次完整扫描是否仍发现并验证此条目 |
+| `id` | string | Runtime registry ID; requests may submit only this value |
+| `path` | string | Absolute path of the Java executable the panel found, returned only to authenticated users |
+| `version` / `majorVersion` | string / number | Full version and major version from the latest verification |
+| `source` | `env \| scan` | `JAVA_HOME` or the scan of common install directories |
+| `verifiedAt` | string | Time of the latest successful verification |
+| `available` | boolean | Whether the latest full scan still found and verified this entry |
 
-## 实例 `/api/instances`
+## Instances `/api/instances`
 
-| 方法 | 路径 | 说明 |
+| Method | Path | Description |
 |------|------|------|
-| GET | `/api/instances` | 实例列表 `InstanceInfo[]` |
-| GET | `/api/instances/:id` | 单个实例 |
-| POST | `/api/instances` | 创建空实例，Body 见 `CreateInstanceInput` |
-| PATCH | `/api/instances/:id` | 更新 `UpdateInstanceInput`，只改提交的字段。`acceptEula` 从 `true` 改成 `false` 时把实例目录的 `eula.txt` 改写为 `eula=false`；实例在备份或还原中时这一改动返回 **409** |
-| POST | `/api/instances/:id/adopt-managed-directory` | 接管已复制到面板托管根目录的旧实例 |
-| DELETE | `/api/instances/:id` | 删除实例记录及面板托管的实例目录；旧版外部目录不会被访问或删除。默认同时删除该实例在 `BACKUP_DIR` 下的备份，`?keepBackups=1` 时保留（之后不再出现在面板中）；实例已删除但备份删除失败时返回 **500** |
-| POST | `/api/instances/:id/start` | 启动 |
-| POST | `/api/instances/:id/stop` | 停止；`?force=1` 强杀。普通停止超时仍在停止中时返回 **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
-| POST | `/api/instances/:id/restart` | 重启 |
-| POST | `/api/instances/:id/command` | Body：`{ command: string }`，发送控制台命令 |
-| GET | `/api/instances/:id/local-network` | 直连用的地址 `InstanceLocalNetwork`：`{ port, addresses, publicIpv4, publicIpv6, publicHost, serverIpBlocked, serverIpIsUnboundPublicHost, panelPort, platform }`。只读，不开端口也不改配置 |
+| GET | `/api/instances` | Instance list `InstanceInfo[]` |
+| GET | `/api/instances/:id` | A single instance |
+| POST | `/api/instances` | Creates an empty instance; Body: see `CreateInstanceInput` |
+| PATCH | `/api/instances/:id` | Updates with `UpdateInstanceInput`, changing only the submitted fields. When `acceptEula` goes from `true` to `false`, `eula.txt` in the instance directory is rewritten to `eula=false`; while the instance is being backed up or restored this change returns **409** |
+| POST | `/api/instances/:id/adopt-managed-directory` | Takes over a legacy instance that has been copied into the panel's managed root |
+| DELETE | `/api/instances/:id` | Deletes the instance record and the panel-managed instance directory; a legacy external directory is neither accessed nor deleted. By default the instance's backups under `BACKUP_DIR` are deleted too, and kept with `?keepBackups=1` (they no longer appear in the panel afterwards); returns **500** when the instance was deleted but deleting the backups failed |
+| POST | `/api/instances/:id/start` | Start |
+| POST | `/api/instances/:id/stop` | Stop; `?force=1` force kills. When a normal stop times out while still stopping, returns **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
+| POST | `/api/instances/:id/restart` | Restart |
+| POST | `/api/instances/:id/command` | Body: `{ command: string }`; sends a console command |
+| GET | `/api/instances/:id/local-network` | Addresses for direct connection, `InstanceLocalNetwork`: `{ port, addresses, publicIpv4, publicIpv6, publicHost, serverIpBlocked, serverIpIsUnboundPublicHost, panelPort, platform }`. Read-only; opens no ports and changes no config |
 
-`InstanceInfo.startIssue` 在最近一次启动没成功且原因可识别时给出 `{ kind, requiredJava }`，否则为 `null`：`kind` 为 `eula`（尚未同意 Minecraft EULA）、`java-too-new` 或 `java-too-old`（所用 Java 过新或过旧，`requiredJava` 是需要的主版本，无法判断时为 `null`）。这三种由面板从该次进程的控制台输出里按固定句式识别，只存在内存里；再次启动、删除实例或面板重启后清空。`kind` 还可以是 `java-unavailable`（`requiredJava` 恒为 `null`）：实例的 `javaRuntimeId` 指向的运行时在登记表里已标为不可用或已不存在。它不需要启动就给出，每次读取实例时按登记表现算，排在上面三种之前；改选 Java 或重新扫描找回该运行时后消失。服务端打印过 `Done (` 之后的退出不归因于 Java 版本。进程自己以退出码 0 结束（未同意 EULA、游戏内执行 `stop`）时状态为 `stopped`，非 0 才是 `crashed`。
+`InstanceInfo.startIssue` gives `{ kind, requiredJava }` when the latest start failed for a recognizable reason, and is `null` otherwise: `kind` is `eula` (the Minecraft EULA has not been accepted), `java-too-new` or `java-too-old` (the Java in use is too new or too old; `requiredJava` is the major version needed, or `null` when it cannot be determined). These three are recognized by the panel from fixed sentence patterns in that process's console output and exist only in memory; they are cleared on the next start, when the instance is deleted, or when the panel restarts. `kind` can also be `java-unavailable` (`requiredJava` is always `null`): the runtime the instance's `javaRuntimeId` points at is marked unavailable in the registry or no longer exists. It is given without a start, computed from the registry on every instance read, and ranks ahead of the three above; it goes away after another Java is chosen or a rescan finds the runtime again. An exit after the server has printed `Done (` is not attributed to the Java version. When the process ends on its own with exit code 0 (EULA not accepted, `stop` run in-game) the status is `stopped`; only a non-zero code is `crashed`.
 
-`InstanceInfo.ready` 表示本次运行服务端已打印过完成启动的 `Done (` 行、玩家可以进服；状态为 `running` 但世界还在加载时为 `false`，正在停止或没在运行时也为 `false`。它同样只存在内存里。
+`InstanceInfo.ready` means that in this run the server has printed the `Done (` line for finished startup and players can join; it is `false` while the status is `running` but the world is still loading, and also `false` while stopping or not running. It likewise exists only in memory.
 
-`local-network` 的 `addresses` 是这台电脑的局域网 IPv4 地址（不含回环、`169.254.*` 和能认出的虚拟网卡，如 WSL、虚拟机、组网或代理软件的网卡；全是虚拟网卡时照常列出。最多 6 个，`192.168.*` 排在前面），`port` 取自 `server.properties` 的 `server-port`，没写或留空时按游戏默认的 `25565`，写了但不是 1–65535 的整数时为 `null`（frp 和虚拟局域网读端口用同一套规则）。`server-ip` 留空或为 `0.0.0.0` 时返回全部地址；等于其中一个地址时只返回它；其余情况 `serverIpBlocked` 为 `true` 且 `addresses` 为空。`publicIpv6` 是实体网卡上的公网 IPv6 地址（`2000::/3`，不含 6to4、Teredo 和文档示例段，最多 3 个），只在 `server-ip` 留空、为 `*` 或 `::` 时给出，`0.0.0.0` 或具体地址时为空；面板不区分固定地址和系统的临时地址，也不检测路由器是否放行。
+`addresses` of `local-network` is this computer's LAN IPv4 addresses (excluding loopback, `169.254.*` and recognizable virtual interfaces, such as those of WSL, virtual machines, and virtual networking or proxy software; when everything is a virtual interface they are listed as usual. At most 6, with `192.168.*` first). `port` comes from `server-port` in `server.properties`: the game default `25565` when absent or empty, and `null` when something is written that is not an integer in 1–65535 (frp and the virtual LAN read the port by the same rules). When `server-ip` is empty or `0.0.0.0` all addresses are returned; when it equals one of them only that one is returned; otherwise `serverIpBlocked` is `true` and `addresses` is empty. `publicIpv6` is the public IPv6 addresses on physical interfaces (`2000::/3`, excluding 6to4, Teredo and the documentation range, at most 3), given only when `server-ip` is empty, `*` or `::`, and empty for `0.0.0.0` or a specific address; the panel does not tell stable addresses from the system's temporary ones, nor does it check whether the router lets traffic through.
 
-`addresses` 不含网卡上的公网地址和实例自己的联机网卡地址；网卡上直接有的公网 IPv4 单独放在 `publicIpv4`。`publicHost` 是用户在 `PUT /api/system/public-host` 填写的公网 IP 或域名，没填为 `null`。`server-ip` 等于 `addresses` 或 `publicIpv4` 里的某个地址时只返回这一个，`serverIpBlocked` 为 `false`；`server-ip` 等于 `publicHost` 但网卡上没有这个地址时（云服务器上的常见错误），`serverIpBlocked` 和 `serverIpIsUnboundPublicHost` 都为 `true`。`panelPort` 是面板端口，`platform` 是面板所在系统（`process.platform`），界面用它们区分游戏端口和面板端口、显示对应系统的防火墙写法。
+`addresses` does not include public addresses on interfaces or the address of the instance's own multiplayer interface; a public IPv4 directly on an interface goes separately into `publicIpv4`. `publicHost` is the public IP or domain the user entered with `PUT /api/system/public-host`, or `null` when not set. When `server-ip` equals an address in `addresses` or `publicIpv4`, only that one is returned and `serverIpBlocked` is `false`; when `server-ip` equals `publicHost` but no interface has that address (a common mistake on cloud servers), both `serverIpBlocked` and `serverIpIsUnboundPublicHost` are `true`. `panelPort` is the panel port and `platform` is the panel host's OS (`process.platform`); the UI uses them to tell the game port from the panel port and to show the firewall instructions for the right system.
 
-实例目录固定为最终数据根目录的 `instances/<id>`。最终数据根优先取 `MYSTRY_DATA_DIR`，否则取 `DATA_DIR`；创建、部署、导入和启动都不会接受另一个实例目录，`jarFile` 也只能表示实例根目录内的相对文件。
+The instance directory is always `instances/<id>` under the final data root. The final data root prefers `MYSTRY_DATA_DIR`, then `DATA_DIR`; create, deploy, import and start never accept another instance directory, and `jarFile` can only denote a relative file inside the instance root.
 
-### 接管旧版实例
+### Taking Over Legacy Instances
 
-面板不会访问或删除旧版记录指向的外部目录，也不会自动搬迁。调用接管接口前，必须：
+The panel does not access or delete the external directory a legacy record points at, and does not move it automatically. Before calling the takeover endpoint you must:
 
-1. 停止实例和面板服务。
-2. 使用操作系统工具将旧外部目录完整复制到 `DATA_DIR/instances/<id>`。
-3. 启动面板，并以 JWT 调用：
+1. Stop the instance and the panel service.
+2. Copy the old external directory completely to `DATA_DIR/instances/<id>` with operating system tools.
+3. Start the panel, and call with a JWT:
 
 ```http
 POST /api/instances/<id>/adopt-managed-directory
 Authorization: Bearer <token>
 ```
 
-接管成功后返回更新后的 `InstanceInfo`。实例正在运行、目标目录为空或目录不属于该实例时，接口会返回错误。接管或删除面板实例都不会触碰旧外部目录。
+A successful takeover returns the updated `InstanceInfo`. The endpoint returns an error when the instance is running, the target directory is empty or the directory does not belong to the instance. Neither taking over nor deleting a panel instance touches the old external directory.
 
-### `InstanceInfo` 字段摘要
+### `InstanceInfo` Field Summary
 
-| 字段 | 类型 | 说明 |
+| Field | Type | Description |
 |------|------|------|
-| `id` | string | 实例 ID |
-| `name` | string | 显示名称 |
-| `coreType` | `vanilla \| paper \| fabric \| forge \| neoforge \| custom` | 核心类型 |
-| `mcVersion` | string \| null | MC 版本 |
-| `jarFile` | string | 相对实例根目录的 jar 名；Forge / NeoForge 为 `@args:<参数文件相对路径>`，模组加载器没装好时为 `@modloader`。共享包的 `parseLaunchTarget` 负责拆开这两种标记 |
-| `jvmArgs` | string | JVM 参数字符串 |
-| `requiresMigration` | boolean | 是否需要按旧版外部实例流程完成接管 |
-| `nodeId` | string | 执行节点 ID；本机为 `local` |
-| `javaRuntimeId` | string \| null | 绑定的 Java 运行时 ID；`null` 使用 PATH 中的 `java` |
-| `status` | `InstanceStatus` | 运行状态 |
-| `acceptEula` | boolean | 为 `true` 时每次启动写入 `eula=true`；为 `false` 时启动不改 `eula.txt`（导入的服务端可以自带同意记录），只有从 `true` 改成 `false` 的那次保存会写入 `eula=false` |
-| `createdAt` / `updatedAt` | string | ISO 时间 |
+| `id` | string | Instance ID |
+| `name` | string | Display name |
+| `coreType` | `vanilla \| paper \| fabric \| forge \| neoforge \| custom` | Core type |
+| `mcVersion` | string \| null | MC version |
+| `jarFile` | string | Jar name relative to the instance root; for Forge / NeoForge it is `@args:<relative path of the args file>`, and `@modloader` when the mod loader is not installed yet. `parseLaunchTarget` in the shared package splits out these two markers |
+| `jvmArgs` | string | JVM argument string |
+| `requiresMigration` | boolean | Whether takeover still has to be completed through the legacy external instance flow |
+| `nodeId` | string | Execution node ID; `local` for this machine |
+| `javaRuntimeId` | string \| null | ID of the bound Java runtime; `null` uses the `java` on PATH |
+| `status` | `InstanceStatus` | Run status |
+| `acceptEula` | boolean | When `true`, `eula=true` is written on every start; when `false`, a start does not change `eula.txt` (an imported server can come with its own acceptance record), and only the save that changes it from `true` to `false` writes `eula=false` |
+| `createdAt` / `updatedAt` | string | ISO time |
 
-`jvmArgs` 保存与启动前都会经过 `@mystry/shared` 的同一套校验：必须各有一个 `Xms` / `Xmx`，拒绝未闭合引号、重复或冲突 GC、`Xms > Xmx`，也拒绝 `-jar`、classpath、模块启动、`@argfile` 和 `nogui` 等由面板负责的启动参数。请求省略 `jvmArgs` 时，创建、部署和导入仍使用兼容默认值 `-Xms1G -Xmx2G`。旧实例文本不会仅因读取而被改写，但非法旧值必须先修正才能保存或启动。
+`jvmArgs` goes through the same validation in `@mystry/shared` before saving and before starting: there must be exactly one `Xms` and one `Xmx`; unclosed quotes, duplicate or conflicting GC settings and `Xms > Xmx` are rejected, as are launch arguments the panel is responsible for, such as `-jar`, classpath, module launch, `@argfile` and `nogui`. When a request omits `jvmArgs`, create, deploy and import still use the compatible default `-Xms1G -Xmx2G`. Legacy instance text is not rewritten just by being read, but an invalid legacy value has to be fixed before it can be saved or started.
 
-## 文件与配置 `/api/instances/:id`
+## Files and Config `/api/instances/:id`
 
-| 方法 | 路径 | 说明 |
+| Method | Path | Description |
 |------|------|------|
-| GET | `/files?path=` | 列出实例根目录内的目录 `FileEntry[]`；实例根目录的面板所有权标记 `.mystry-instance.json` 不出现在列表中 |
-| GET | `/files/content?path=` | 读文本 `{ path, content }` |
-| PUT | `/files/content` | Body：`{ path, content }` |
-| DELETE | `/files?path=` | 删除实例根目录内的文件或目录 |
-| POST | `/files/mkdir` | Body：`{ path }` |
-| POST | `/files/rename` | Body：`{ from, to }` |
-| GET | `/files/download?path=` | 二进制流；可选 `ticket=` 一次性下载票据；响应含 `Content-Disposition: attachment` |
-| POST | `/files/download-ticket` | Body：`{ path }`；签发并预占下载槽位 |
-| GET | `/files/download-ticket/:ticket/status` | 查询所属下载票据的生命周期状态 |
-| DELETE | `/files/download-ticket/:ticket` | 取消尚未开流的所属下载票据 |
-| POST | `/files/upload?path=` | multipart 单文件 |
-| GET | `/config/server.properties` | 键值对象；`difficulty`、`gamemode` 的数字写法转成名称（如 `1` → `easy`） |
-| PUT | `/config/server.properties` | Body：`Record<string, string>`。`difficulty`、`gamemode` 提交名称；文件原来是数字或实例版本为 1.13 及更早时写回数字。非 ASCII 字符写成 `\uXXXX` |
+| GET | `/files?path=` | Lists a directory inside the instance root, `FileEntry[]`; the panel ownership marker `.mystry-instance.json` in the instance root does not appear in the list |
+| GET | `/files/content?path=` | Reads text `{ path, content }` |
+| PUT | `/files/content` | Body: `{ path, content }` |
+| DELETE | `/files?path=` | Deletes a file or directory inside the instance root |
+| POST | `/files/mkdir` | Body: `{ path }` |
+| POST | `/files/rename` | Body: `{ from, to }` |
+| GET | `/files/download?path=` | Binary stream; optional `ticket=` one-time download ticket; the response includes `Content-Disposition: attachment` |
+| POST | `/files/download-ticket` | Body: `{ path }`; issues a ticket and pre-claims a download slot |
+| GET | `/files/download-ticket/:ticket/status` | Queries the lifecycle status of a download ticket you own |
+| DELETE | `/files/download-ticket/:ticket` | Cancels a download ticket you own that has not opened a stream |
+| POST | `/files/upload?path=` | multipart, single file |
+| GET | `/config/server.properties` | Key-value object; the numeric forms of `difficulty` and `gamemode` are converted to names (such as `1` → `easy`) |
+| PUT | `/config/server.properties` | Body: `Record<string, string>`. `difficulty` and `gamemode` are submitted as names; numbers are written back when the file originally had numbers or the instance version is 1.13 or earlier. Non-ASCII characters are written as `\uXXXX` |
 
-所有 `path` 均为**相对于 `DATA_DIR/instances/<id>` 的逻辑路径**，服务端会校验并拒绝 `..` 逃逸；这些接口不能访问实例根目录以外的文件。下载仅允许普通文件；`Content-Disposition` 仅使用 basename（含 RFC 5987 `filename*`）。无 ticket 的下载使用 Bearer JWT；浏览器原生下载可先使用 Bearer JWT 调用 `POST .../download-ticket`，再以 `GET .../download?path=&ticket=` 触发流式下载（该 GET 不带 Authorization header）。
+Every `path` is a **logical path relative to `DATA_DIR/instances/<id>`**; the server validates it and rejects `..` escapes, and these endpoints cannot reach files outside the instance root. Only regular files can be downloaded; `Content-Disposition` uses the basename only (with RFC 5987 `filename*`). A download without a ticket uses the Bearer JWT; for a native browser download, first call `POST .../download-ticket` with the Bearer JWT, then trigger the streaming download with `GET .../download?path=&ticket=` (this GET carries no Authorization header).
 
-下载 ticket 的签发有效期由 `FILE_DOWNLOAD_TICKET_TTL_SECONDS` 控制，默认 60 秒。签发时状态为 `reserved` 并预占下载并发槽；原生 GET 校验 `instance` 与 `path` 后原子转为 `streaming`，签发有效期不会回收已开流的槽位。状态查询返回 `reserved`、`streaming`、`consumed`、`failed` 或 `expired`：成功传输为 `consumed`，读流错误、连接中止、下载空闲超时及取消为 `failed`，未开流而签发期到期为 `expired`。`expired`、`consumed` 和 `failed` 都按所属用户保留 60 秒短时 tombstone，供状态查询返回终态；超过该期限或无权查询时返回 404。
+The issue lifetime of a download ticket is controlled by `FILE_DOWNLOAD_TICKET_TTL_SECONDS`, 60 seconds by default. On issue the status is `reserved` and a download concurrency slot is pre-claimed; the native GET validates `instance` and `path` and atomically moves it to `streaming`, and the issue lifetime does not reclaim the slot of a stream that has opened. The status query returns `reserved`, `streaming`, `consumed`, `failed` or `expired`: a successful transfer is `consumed`; a read stream error, an aborted connection, a download idle timeout and a cancel are `failed`; and an issue lifetime running out without a stream is `expired`. `expired`, `consumed` and `failed` each keep a short-lived 60-second tombstone per owning user, so the status query can return the final state; after that, or without permission to query, it returns 404.
 
-已认证的 `DELETE .../download-ticket/:ticket` 仅在 ticket、当前用户和 URL 中的实例 ID 三者都匹配，且 ticket 仍为 `reserved` 时取消并立即释放预占槽位，返回 **204**。已进入 `streaming` 时不改变流或槽位，返回 **409**；票据不存在、所属用户或实例不匹配时统一返回 **404**。
+An authenticated `DELETE .../download-ticket/:ticket` cancels and immediately releases the pre-claimed slot, returning **204**, only when the ticket, the current user and the instance ID in the URL all match and the ticket is still `reserved`. Once it is `streaming`, neither the stream nor the slot is changed and it returns **409**; a nonexistent ticket or a mismatched owner or instance uniformly returns **404**.
 
-上传文件超过 `MAX_UPLOAD_BYTES` 时返回 **413**；上传或下载的并发容量已满时返回 **429**。相关超时见 [配置说明](configuration.zh-CN.md)。
+An upload over `MAX_UPLOAD_BYTES` returns **413**; when upload or download concurrency is full it returns **429**. The related timeouts are in [Configuration](configuration.md).
 
-## 实例备份 `/api/instances/:id/backups`
+## Instance Backups `/api/instances/:id/backups`
 
-| 方法 | 路径 | 说明 |
+| Method | Path | Description |
 |------|------|------|
-| GET | `/backups` | `{ backups: BackupInfo[] }`，按创建时间从新到旧 |
-| POST | `/backups` | 一键备份，返回 `TaskInfo`（`type: 'backup'`），完成后 `result.backupId` 为新备份 |
-| POST | `/backups/upload` | multipart 单文件；完整校验通过后返回 `BackupInfo`（`source: 'upload'`） |
-| POST | `/backups/:backupId/restore` | Body：`{ backupCurrent: boolean }`；返回 `TaskInfo`（`type: 'restore'`），完成后 `result.instanceRecordUpdated` 表示是否按备份更新了实例的启动文件、核心类型与版本 |
-| DELETE | `/backups/:backupId` | 删除备份，返回 **204** |
-| POST | `/backups/:backupId/download-ticket` | 签发一次性下载票据并预占下载槽位 |
-| GET | `/backups/:backupId/download?ticket=` | 流式下载 `.tar.gz`；也可不带 `ticket` 改用 Bearer JWT |
+| GET | `/backups` | `{ backups: BackupInfo[] }`, newest first by creation time |
+| POST | `/backups` | One-click backup; returns `TaskInfo` (`type: 'backup'`), and on completion `result.backupId` is the new backup |
+| POST | `/backups/upload` | multipart, single file; returns `BackupInfo` (`source: 'upload'`) after full verification passes |
+| POST | `/backups/:backupId/restore` | Body: `{ backupCurrent: boolean }`; returns `TaskInfo` (`type: 'restore'`), and on completion `result.instanceRecordUpdated` says whether the instance's launch file, core type and version were updated to match the backup |
+| DELETE | `/backups/:backupId` | Deletes the backup; returns **204** |
+| POST | `/backups/:backupId/download-ticket` | Issues a one-time download ticket and pre-claims a download slot |
+| GET | `/backups/:backupId/download?ticket=` | Streams the `.tar.gz`; `ticket` can be omitted in favor of the Bearer JWT |
 
-备份文件是 gzip 压缩的 tar，最后一个条目 `.mystry-backup/manifest.json` 记录每个文件的大小与 SHA-256。备份范围是实例目录 `DATA_DIR/instances/<id>` 下的全部文件，不含面板的归属标记和运行时被 JVM 锁住的 `session.lock`（启动时自动重建），也不含 `panel.db`（用户、实例设置不在备份里）。目录中有符号链接或目录联接时拒绝备份。
+A backup file is a gzip-compressed tar whose last entry, `.mystry-backup/manifest.json`, records each file's size and SHA-256. The backup covers every file under the instance directory `DATA_DIR/instances/<id>`, excluding the panel's ownership marker and `session.lock`, which the JVM locks while running (it is recreated at startup), and excluding `panel.db` (users and instance settings are not in the backup). A backup is refused when the directory contains a symlink or directory junction.
 
-- **运行中备份**：先发 `save-off` 和 `save-all flush`，等服务端自己打印 `Saved the game`（1.12 及更早为 `Saved the world`，只认日志前缀后的整条消息，玩家聊天不算；最多 60 秒），打包完成后发 `save-on`。期间服务器启停或崩溃会取消备份；启动中、停止中的实例返回 **409**。
-- **还原**：服务器必须已停止，否则 **409**。`backupCurrent` 为 `true`（界面默认）时先生成一份 `source: 'pre-restore'` 的备份。备份先完整校验并解压到 `DATA_DIR/.mystry-staging/<taskId>/`，全部通过后才整体替换实例目录；替换中途失败会把原目录移回。面板在替换中途退出时，下次启动会自动回滚或收尾。替换成功后，若清单里记录的启动文件（jar 或 Forge `@args:` 参数文件）在还原后的目录中存在，实例的 `jarFile`、`coreType`、`mcVersion` 会改为清单中的值。
-- **校验**：拒绝绝对路径、`..`、链接和特殊文件、重复路径、面板保留文件、清单之外的文件和校验值不一致的文件；条目数与总大小沿用 `MAX_EXISTING_IMPORT_ENTRIES` / `MAX_EXISTING_IMPORT_BYTES`。
-- **互斥**：备份或还原期间拒绝启动、重启、删除和接管该实例（**409**）；还原期间还拒绝写入、删除、改名和上传实例文件（上传在接收完、写入实例目录前会再检查一次）。正在被还原任务使用的备份不能删除（**409**）。
-- 备份与还原任务的运行时限为 `BACKUP_TASK_TIMEOUT_MS`（默认 6 小时），不受 `TASK_TIMEOUT_MS` 限制。
-- 上传超过 `MAX_BACKUP_UPLOAD_BYTES` 返回 **413**。下载票据的状态查询与取消沿用 `/files/download-ticket/:ticket/status` 和 `DELETE /files/download-ticket/:ticket`。
+- **Backup while running**: `save-off` and `save-all flush` are sent first, then it waits for the server itself to print `Saved the game` (`Saved the world` on 1.12 and earlier; only the whole message after the log prefix counts, not player chat; up to 60 seconds), and `save-on` is sent after packing completes. The server starting, stopping or crashing meanwhile cancels the backup; an instance that is starting or stopping returns **409**.
+- **Restore**: the server must be stopped, otherwise **409**. When `backupCurrent` is `true` (the UI default) a backup with `source: 'pre-restore'` is created first. The backup is fully verified and extracted to `DATA_DIR/.mystry-staging/<taskId>/` first, and the instance directory is replaced as a whole only after everything passes; a failure midway through the replacement moves the original directory back. If the panel exits midway through the replacement, the next start automatically rolls back or finishes up. After a successful replacement, if the launch file recorded in the manifest (a jar or a Forge `@args:` args file) exists in the restored directory, the instance's `jarFile`, `coreType` and `mcVersion` are changed to the values in the manifest.
+- **Verification**: absolute paths, `..`, links and special files, duplicate paths, panel-reserved files, files outside the manifest and files with a mismatched checksum are rejected; the entry count and total size reuse `MAX_EXISTING_IMPORT_ENTRIES` / `MAX_EXISTING_IMPORT_BYTES`.
+- **Mutual exclusion**: during a backup or restore, starting, restarting, deleting and taking over the instance are refused (**409**); during a restore, writing, deleting, renaming and uploading instance files are refused as well (an upload is checked once more after it is received and before it is written to the instance directory). A backup in use by a restore task cannot be deleted (**409**).
+- The time limit for backup and restore tasks is `BACKUP_TASK_TIMEOUT_MS` (6 hours by default), and is not bound by `TASK_TIMEOUT_MS`.
+- An upload over `MAX_BACKUP_UPLOAD_BYTES` returns **413**. Status queries and cancellation of download tickets reuse `/files/download-ticket/:ticket/status` and `DELETE /files/download-ticket/:ticket`.
 
-`BackupInfo` 字段：`id`、`instanceId`、`instanceName`、`source`（`manual` / `pre-restore` / `upload`）、`createdAt`、`sizeBytes`（压缩包大小）、`fileCount`、`contentBytes`（解压后大小）、`coreType`、`mcVersion`、`wasRunning`、`sha256`（压缩包的 SHA-256）。
+`BackupInfo` fields: `id`, `instanceId`, `instanceName`, `source` (`manual` / `pre-restore` / `upload`), `createdAt`, `sizeBytes` (archive size), `fileCount`, `contentBytes` (size after extraction), `coreType`, `mcVersion`, `wasRunning`, `sha256` (SHA-256 of the archive).
 
-## 核心部署与导入
+## Core Deploy and Import
 
-| 方法 | 路径 | 说明 |
+| Method | Path | Description |
 |------|------|------|
 | GET | `/api/cores/:type/versions` | `type`: `vanilla \| paper \| fabric \| forge \| neoforge` |
-| GET | `/api/cores/paper/:version/builds` | Paper build 列表 |
+| GET | `/api/cores/paper/:version/builds` | Paper build list |
 | GET | `/api/cores/fabric/:version/loaders` | Fabric loaders + installers |
-| GET | `/api/cores/forge/:version/loaders` | Forge loader 列表 |
-| GET | `/api/cores/neoforge/:version/loaders` | NeoForge loader 列表，新构建在前。`:version` 是 Minecraft 版本号，如 `1.21.1`、`26.3` |
-| POST | `/api/cores/deploy` | Body：`DeployCoreInput`，返回 `TaskInfo` |
-| GET | `/api/import/sources` | 列出 `DATA_DIR/imports` 的直接子目录及启动文件探测结果 |
-| POST | `/api/import/existing` | Body：`ImportExistingServerInput`，复制交接目录并返回 `TaskInfo` |
-| POST | `/api/import/previews` | multipart 上传单个 ZIP，验证中央目录并返回 `ImportPreviewInfo` |
-| GET | `/api/import/previews/:id` | 恢复当前登录用户的待确认预览 |
-| POST | `/api/import/previews/:id/confirm` | Body：`ConfirmZipImportInput`，确认配置并返回 `TaskInfo` |
-| DELETE | `/api/import/previews/:id` | 取消预览并删除临时 ZIP |
-| POST | `/api/import/folder-uploads` | Body：`CreateFolderUploadInput`，开始浏览器上传文件夹，返回 `FolderUploadInfo` |
-| POST | `/api/import/folder-uploads/:id/files` | multipart 上传一批文件（每个文件前有一个 `path` 字段），返回 `FolderUploadInfo` |
-| POST | `/api/import/folder-uploads/:id/complete` | 全部收到后预检，返回带 `check` 的 `FolderUploadInfo` |
-| GET | `/api/import/folder-uploads/:id` | 恢复当前登录用户的上传 |
-| POST | `/api/import/folder-uploads/:id/confirm` | Body：`ConfirmZipImportInput`，确认配置并返回 `TaskInfo` |
-| DELETE | `/api/import/folder-uploads/:id` | 取消上传并删除临时文件夹 |
-| GET | `/api/tasks/:id` | 查询任务进度 `TaskInfo` |
-| GET | `/api/tasks` | 任务中心列表，按创建时间倒序返回最近 50 条 `{ tasks: TaskInfo[] }` |
+| GET | `/api/cores/forge/:version/loaders` | Forge loader list |
+| GET | `/api/cores/neoforge/:version/loaders` | NeoForge loader list, newest builds first. `:version` is the Minecraft version number, such as `1.21.1` or `26.3` |
+| POST | `/api/cores/deploy` | Body: `DeployCoreInput`; returns `TaskInfo` |
+| GET | `/api/import/sources` | Lists the direct subdirectories of `DATA_DIR/imports` with their launch file detection results |
+| POST | `/api/import/existing` | Body: `ImportExistingServerInput`; copies the handoff directory and returns `TaskInfo` |
+| POST | `/api/import/previews` | multipart upload of a single ZIP; validates the central directory and returns `ImportPreviewInfo` |
+| GET | `/api/import/previews/:id` | Restores the current signed-in user's preview awaiting confirmation |
+| POST | `/api/import/previews/:id/confirm` | Body: `ConfirmZipImportInput`; confirms the config and returns `TaskInfo` |
+| DELETE | `/api/import/previews/:id` | Cancels the preview and deletes the temp ZIP |
+| POST | `/api/import/folder-uploads` | Body: `CreateFolderUploadInput`; starts a browser folder upload and returns `FolderUploadInfo` |
+| POST | `/api/import/folder-uploads/:id/files` | multipart upload of a batch of files (a `path` field before each file); returns `FolderUploadInfo` |
+| POST | `/api/import/folder-uploads/:id/complete` | Prechecks once everything is received; returns `FolderUploadInfo` with `check` |
+| GET | `/api/import/folder-uploads/:id` | Restores the current signed-in user's upload |
+| POST | `/api/import/folder-uploads/:id/confirm` | Body: `ConfirmZipImportInput`; confirms the config and returns `TaskInfo` |
+| DELETE | `/api/import/folder-uploads/:id` | Cancels the upload and deletes the temp folder |
+| GET | `/api/tasks/:id` | Queries task progress `TaskInfo` |
+| GET | `/api/tasks` | Task center list, the latest 50 in descending creation time, `{ tasks: TaskInfo[] }` |
 
-部署和导入始终把内容写入新实例的 `DATA_DIR/instances/<id>`，不接收自定义目录或 Java 可执行文件路径。实例默认使用 PATH 中的 `java` 启动，可通过 `javaRuntimeId` 绑定注册表中当前可用的运行时；部署请求中的绑定同样用于 Forge/NeoForge Installer。Paper 的 `build`、Fabric / Forge / NeoForge 的 `loaderVersion` 等版本字段留空时取最新稳定版；填写了但不存在时任务失败，不会改用其他版本。
+Deploy and import always write content into `DATA_DIR/instances/<id>` of the new instance, and accept neither a custom directory nor a Java executable path. Instances start with the `java` on PATH by default and can bind a currently available runtime from the registry through `javaRuntimeId`; the binding in a deploy request is also used for the Forge/NeoForge installer. Version fields such as Paper's `build` and Fabric / Forge / NeoForge's `loaderVersion` take the latest stable version when left empty; when filled in but nonexistent the task fails and no other version is substituted.
 
-### 同机已有服务端交接
+### Handoff of Existing Servers on the Same Machine
 
-`GET /api/import/sources` 返回：
+`GET /api/import/sources` returns:
 
 ```json
 {
@@ -311,13 +313,13 @@ Authorization: Bearer <token>
 }
 ```
 
-`id` 只是 `DATA_DIR/imports` 下的单层目录名，不是系统路径。`importDir` 是 imports 文件夹在面板电脑上的绝对路径，只用于显示给登录用户照着复制（D-041）；面板不接收客户端提交的任何路径。`coreType` 按启动文件名判断（`paper`、`fabric`、`neoforge`、`forge`，`server.jar` 与 `minecraft_server*` 为 `vanilla`，其余为 `custom`）。`mcVersion` 是从启动文件名或 Forge args 目录名里认出的 `1.7`–`1.21.x` 版本号，认不出、核心为 `custom` 或 NeoForge 时省略。
+`id` is only a single-level directory name under `DATA_DIR/imports`, not a system path. `importDir` is the absolute path of the imports folder on the panel's computer, used only to show the signed-in user where to copy to (D-041); the panel accepts no path submitted by the client. `coreType` is judged from the launch file name (`paper`, `fabric`, `neoforge`, `forge`; `server.jar` and `minecraft_server*` are `vanilla`; the rest are `custom`). `mcVersion` is a `1.7`–`1.21.x` version number recognized from the launch file name or the Forge args directory name, and is omitted when unrecognized, when the core is `custom`, or for NeoForge.
 
-两种导入的请求里，`coreType` 省略或为 `custom` 都表示自动识别，以面板在复制或解压后的识别结果为准；填了其他类型则照填的来。`mcVersion` 留空时用识别到的版本，认不出就保持为空。创建任务示例：
+In the requests of both kinds of import, `coreType` omitted or `custom` means auto-detect, with the panel's detection result after copying or extraction taking effect; any other type is used as given. An empty `mcVersion` uses the recognized version, and stays empty when it cannot be recognized. An example of creating a task:
 
 ```json
 {
-  "name": "生存服",
+  "name": "Survival",
   "sourceId": "paper-survival",
   "coreType": "paper",
   "mcVersion": "1.20.1",
@@ -327,13 +329,13 @@ Authorization: Bearer <token>
 }
 ```
 
-提交前应停止原服务器。复制前的检查与限制见 [从 imports 文件夹复制](user-guide.zh-CN.md#从-imports-文件夹复制)。成功或失败都不会删除源目录；失败时会清理新建的半成品实例。
+The original server should be stopped before submitting. The checks and limits before copying are in [Copy from imports](user-guide.md#copy-from-imports). The source directory is not deleted on success or failure; on failure the newly created, half-finished instance is cleaned up.
 
-目录根部存在普通 `user_jvm_args.txt` 时，来源信息可包含 `detectedJvmConfig`。文件最大 64 KiB；不读取子目录文件，不跟随链接，也不解析或执行 `.bat` / `.sh`。检测到参数后，Web 自动把 `canonicalArgs` 填进 JVM 配置器并提示，用户可取消（还原成沿用之前的参数）或重新应用；提交时仍只发送 `jvmArgs`。解析失败时 `canonicalArgs` 为 `null`，不会沿用。`issues[]` 每项含稳定的 `code`、`severity` 和英文 `message`；共享 JVM 校验产生的诊断另带 `key`（`server.jvm.issue.*`）与 `params` 供界面翻译。
+When a regular `user_jvm_args.txt` exists in the directory root, the source info can include `detectedJvmConfig`. The file is at most 64 KiB; files in subdirectories are not read, links are not followed, and `.bat` / `.sh` are neither parsed nor executed. Once arguments are detected, Web fills `canonicalArgs` into the JVM configurator automatically and shows a notice, and the user can cancel (restoring the arguments from before adopting) or reapply; only `jvmArgs` is sent on submit. When parsing fails `canonicalArgs` is `null` and nothing is adopted. Each item of `issues[]` has a stable `code`, a `severity` and an English `message`; diagnostics produced by the shared JVM validation also carry `key` (`server.jvm.issue.*`) and `params` for the UI to translate.
 
-### ZIP 二阶段导入
+### Two-Phase ZIP Import
 
-第一步仅上传文件：
+The first step only uploads the file:
 
 ```http
 POST /api/import/previews
@@ -342,11 +344,11 @@ Content-Type: multipart/form-data
 file=<server.zip>
 ```
 
-服务端流式写入受控临时目录，验证 ZIP 中央目录、条目配额、ZIP64、链接/特殊文件和重复条目；只额外解压根目录或单一顶层目录中的 `user_jvm_args.txt`，且最多 64 KiB。成功响应：
+The server streams it into a controlled temp directory and validates the ZIP central directory, entry quotas, ZIP64, links/special files and duplicate entries; the only thing additionally extracted is `user_jvm_args.txt` in the root or in a single top-level directory, at most 64 KiB. A successful response:
 
 ```json
 {
-  "id": "不可猜测的随机预览 ID",
+  "id": "an unguessable random preview ID",
   "fileName": "server.zip",
   "sizeBytes": 10485760,
   "expiresAt": "2026-08-11T12:30:00.000Z",
@@ -359,11 +361,11 @@ file=<server.zip>
 }
 ```
 
-第二步确认配置：
+The second step confirms the config:
 
 ```json
 {
-  "name": "生存服",
+  "name": "Survival",
   "coreType": "paper",
   "mcVersion": "1.21.1",
   "jvmArgs": "-Xms4G -Xmx4G -XX:+UseG1GC",
@@ -372,142 +374,142 @@ file=<server.zip>
 }
 ```
 
-预览 ID 绑定登录用户：非所有者和不存在的 ID 返回 **404**，过期返回 **410**，正在确认或重复确认返回 **409**。每个用户最多一个预览，全局容量由 `MAX_IMPORT_PREVIEWS` 控制；新 ZIP 预检成功后才替换旧预览。只有后台任务成功入队才消费预览，任务队列满返回 **429** 且保留预览供重试。预览默认由 `IMPORT_PREVIEW_TTL_SECONDS=1800` 控制，取消、过期、面板关闭或重启都会删除临时 ZIP，不写入数据库也不跨重启恢复。
+A preview ID is bound to the signed-in user: a non-owner or a nonexistent ID returns **404**, an expired one **410**, and one being confirmed or confirmed again **409**. Each user has at most one preview, and the global capacity is controlled by `MAX_IMPORT_PREVIEWS`; a new ZIP replaces the old preview only after its precheck succeeds. The preview is consumed only when the background task is queued successfully; a full task queue returns **429** and keeps the preview for a retry. The preview lifetime is controlled by `IMPORT_PREVIEW_TTL_SECONDS=1800` by default; cancel, expiry, panel shutdown or restart all delete the temp ZIP, and it is neither written to the database nor restored across restarts.
 
-ZIP 导入只能走上面的预览流程；旧的一阶段 `POST /api/import` 已删除，调用会返回 **404**。
+A ZIP import can only go through the preview flow above; the old one-phase `POST /api/import` has been removed, and calling it returns **404**.
 
-### 浏览器上传文件夹
+### Browser Folder Upload
 
-浏览器读出用户选的服务端文件夹，分批把文件传给面板（D-039）。面板只收到文件内容和它们在文件夹里的相对路径，不接收、也不记录用户电脑上的路径。
+The browser reads the server folder the user picked and sends the files to the panel in batches (D-039). The panel receives only the file contents and their relative paths within the folder, and neither receives nor records paths on the user's computer.
 
-1. 开始：`POST /api/import/folder-uploads`，Body `{ "folderName": "survival", "fileCount": 6210, "totalBytes": 2147483648 }`。`folderName` 只用于显示，不能含 `/`、`\` 或控制字符。文件数和总大小沿用 `MAX_EXISTING_IMPORT_ENTRIES` / `MAX_EXISTING_IMPORT_BYTES`，超出返回 **413**；数据盘剩余空间不够返回 **507**。
-2. 分批上传：`POST /api/import/folder-uploads/:id/files`，multipart，每个文件前面先有一个 `path` 字段，值是去掉最外层文件夹名、用 `/` 分隔的相对路径。一次最多 500 个文件，同一会话同一时间只接收一批（否则 **409**）。
-3. 预检：`POST /api/import/folder-uploads/:id/complete`。收到的文件数和字节数必须与开始时声明的一致，否则 **409**。响应的 `state` 变成 `ready`，`check` 与 imports 来源的预检结果字段相同（`launchTarget`、`coreType`、`mcVersion`、`ready`、`detectedJvmConfig`、`error` / `errorI18n`）。
-4. 确认：`POST /api/import/folder-uploads/:id/confirm`，Body 同 ZIP 确认。`check.ready` 为 `false` 时返回 **409**。任务把临时文件夹整个改名搬进 `DATA_DIR/.mystry-staging/<taskId>/<instanceId>`（不在同一个盘上时退回逐个复制），再确认启动文件、原子移动到 `instances/<id>` 并登记。
+1. Start: `POST /api/import/folder-uploads`, Body `{ "folderName": "survival", "fileCount": 6210, "totalBytes": 2147483648 }`. `folderName` is for display only and cannot contain `/`, `\` or control characters. The file count and total size reuse `MAX_EXISTING_IMPORT_ENTRIES` / `MAX_EXISTING_IMPORT_BYTES` and return **413** when exceeded; insufficient free space on the data disk returns **507**.
+2. Batched upload: `POST /api/import/folder-uploads/:id/files`, multipart, with a `path` field before each file whose value is the relative path with the outermost folder name removed, separated by `/`. At most 500 files per request, and a session accepts only one batch at a time (otherwise **409**).
+3. Precheck: `POST /api/import/folder-uploads/:id/complete`. The received file count and byte count must match what was declared at the start, otherwise **409**. `state` in the response becomes `ready`, and `check` has the same fields as the precheck result of an imports source (`launchTarget`, `coreType`, `mcVersion`, `ready`, `detectedJvmConfig`, `error` / `errorI18n`).
+4. Confirm: `POST /api/import/folder-uploads/:id/confirm`, with the same Body as the ZIP confirm. Returns **409** when `check.ready` is `false`. The task renames the whole temp folder into `DATA_DIR/.mystry-staging/<taskId>/<instanceId>` (falling back to copying file by file when not on the same drive), then confirms the launch file, moves it atomically to `instances/<id>` and registers it.
 
-相对路径必须是普通写法：拒绝空段、`.`、`..`、绝对路径、反斜杠和控制字符；Windows 上还拒绝 `<>:"|?*`、结尾的点或空格，以及 `CON`、`NUL` 这类保留名；根目录不能有面板保留的 `.mystry-instance.json` 和 `.mystry-staging-marker.json`。同一路径出现两次、文件和目录同名、实际字节数超过声明、文件前面缺 `path` 字段都返回 **400**。一批里任何一个文件出错，整个会话作废并删除临时文件夹，需要从头再传，不支持断点续传。
+Relative paths must be in the ordinary form: empty segments, `.`, `..`, absolute paths, backslashes and control characters are rejected; on Windows `<>:"|?*`, a trailing dot or space, and reserved names such as `CON` and `NUL` are rejected as well; the root cannot contain the panel-reserved `.mystry-instance.json` and `.mystry-staging-marker.json`. The same path appearing twice, a file and a directory sharing a name, actual bytes exceeding what was declared, and a file without a preceding `path` field all return **400**. If any file in a batch fails, the whole session is voided and the temp folder deleted, and the upload has to start over; resuming is not supported.
 
-上传文件写在 `DATA_DIR/uploads/.tmp-folder-upload-<id>/`。会话绑定登录用户：非所有者和不存在的 ID 返回 **404**，过期返回 **410**。每个用户只保留一个会话，新开始的上传替换还没确认的旧会话；全局同时存在的会话数沿用 `MAX_IMPORT_PREVIEWS`（满了返回 **429**）。会话空闲期限沿用 `IMPORT_PREVIEW_TTL_SECONDS`，每收到一批或预检一次都重新计时。取消、过期、面板关闭都会删除临时文件夹；面板启动时按前缀清掉上次遗留的临时文件夹。会话只在内存里，不跨重启恢复。
+Uploaded files are written under `DATA_DIR/uploads/.tmp-folder-upload-<id>/`. A session is bound to the signed-in user: a non-owner or a nonexistent ID returns **404**, and an expired one **410**. Only one session is kept per user, and a newly started upload replaces an old session that has not been confirmed; the number of sessions existing globally at once reuses `MAX_IMPORT_PREVIEWS` (**429** when full). The session idle period reuses `IMPORT_PREVIEW_TTL_SECONDS`, restarting each time a batch is received or a precheck runs. Cancel, expiry and panel shutdown all delete the temp folder; at startup the panel cleans up temp folders left over from last time by prefix. Sessions live only in memory and are not restored across restarts.
 
-批量上传请求同样受全局请求频率限制（每个路由每分钟 `RATE_LIMIT_MAX` 次）；被限流的那一批还没写任何文件，Web 会等几秒后重发同一批，页面显示「上传暂停」。请求体还没发完面板就回 **429** 并断开时，浏览器往往只报网络错误，Web 会先用 `GET /api/import/folder-uploads/:id` 确认会话还在、`receivedFiles` 没变再重发；会话已不在（如面板重启）则提示上传中断。
+Batch upload requests are subject to the global request rate limit as well (`RATE_LIMIT_MAX` per minute per route); a rate-limited batch has not written any file yet, so Web waits a few seconds and resends the same batch while the page shows "Upload paused". When the panel answers **429** and disconnects before the request body is fully sent, the browser often reports only a network error, so Web first confirms with `GET /api/import/folder-uploads/:id` that the session still exists and `receivedFiles` is unchanged before resending; when the session is gone (for example the panel restarted) it reports that the upload was interrupted.
 
-ZIP 中的普通文件只支持存储和 Deflate 两种压缩方式；其他方式会使导入任务失败，并清理半成品实例。
+Regular files in a ZIP support only the stored and Deflate compression methods; other methods make the import task fail, and the half-finished instance is cleaned up.
 
-### `TaskInfo` 状态
+### `TaskInfo` Status
 
-| status | 含义 |
+| status | Meaning |
 |--------|------|
-| `pending` | 排队 |
-| `running` | 执行中 |
-| `completed` | 成功，`result` 可能含 `instanceId` |
-| `failed` | 失败，`error` 为原因 |
+| `pending` | Queued |
+| `running` | Running |
+| `completed` | Succeeded; `result` may contain `instanceId` |
+| `failed` | Failed; `error` is the reason |
 
-`message` 与 `error` 是英文文本；同时返回的 `messageI18n` / `errorI18n`（`{ key, params }`）供界面按语言翻译。升级前创建的任务没有这两个字段，`message` / `error` 可能是中文原文，按原样显示即可。数据库为此在 `tasks` 表新增可空列 `message_i18n`、`error_i18n`（启动时自动补列，无需手动迁移）。
+`message` and `error` are English text; `messageI18n` / `errorI18n` (`{ key, params }`), returned alongside, let the UI translate by language. Tasks created before the upgrade do not have these two fields, and their `message` / `error` may be the original Chinese text, which is simply shown as is. For this the database adds the nullable columns `message_i18n` and `error_i18n` to the `tasks` table (added automatically at startup, with no manual migration needed).
 
-部署或导入提交成功后，即使暂时没有执行槽位，也会先返回 `pending` 任务；队列已满时返回 **429**。调用方应继续查询 `/api/tasks/:id`，直到 `completed` 或 `failed`；任务开始执行后超过 `TASK_TIMEOUT_MS` 会失败。排队不是失败，不要重复提交。
+After a deploy or import is submitted successfully, a `pending` task is returned first even when no execution slot is free for now; a full queue returns **429**. Callers should keep querying `/api/tasks/:id` until `completed` or `failed`; a task fails if it runs past `TASK_TIMEOUT_MS` after it starts executing. Queued is not failed, so do not submit again.
 
-## 控制台 WebSocket
+## Console WebSocket
 
-先用 JWT 调用 `POST /api/instances/:id/console-ticket` 获取一次性 ticket：
+First call `POST /api/instances/:id/console-ticket` with a JWT to get a one-time ticket:
 
 ```http
 POST /api/instances/<id>/console-ticket
 Authorization: Bearer <token>
 ```
 
-然后连接：`ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`。ticket 默认 60 秒有效且只能建立一次连接。修改或重置密码后，未用的 ticket 作废，已建立的连接以关闭码 1008 断开，见 [令牌失效](#令牌失效)。
+Then connect: `ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`. A ticket is valid for 60 seconds by default and can establish only one connection. After a password change or reset, unused tickets are voided and established connections are closed with close code 1008; see [Token Invalidation](#token-invalidation).
 
-连接数、入站消息大小、命令长度和发送速率的上限见 [配置说明](configuration.zh-CN.md) 中 `MAX_CONSOLE_*` 等变量；超过限制时服务端不会向实例 stdin 写入。
+The limits on connection count, inbound message size, command length and send rate are in the `MAX_CONSOLE_*` and related variables in [Configuration](configuration.md); when a limit is exceeded the server does not write to the instance's stdin.
 
-### 服务端 → 客户端消息（JSON）
+### Server → Client Messages (JSON)
 
-| type | 字段 | 说明 |
+| type | Fields | Description |
 |------|------|------|
-| `history` | `data`, `status?` | 连接时历史输出 |
-| `output` | `data` | 新日志片段 |
-| `status` | `status` | 状态变更 |
-| `error` | `data`, `code?`, `params?` | 错误说明：`data` 为英文文本，`code` / `params` 为可翻译的消息键与参数 |
+| `history` | `data`, `status?` | History output on connect |
+| `output` | `data` | A new log fragment |
+| `status` | `status` | Status change |
+| `error` | `data`, `code?`, `params?` | Error description: `data` is English text, and `code` / `params` are the translatable message key and params |
 
-### 客户端 → 服务端
+### Client → Server
 
 ```json
 { "type": "command", "data": "say hello" }
 ```
 
-命令写入实例 stdin 成功后，服务端把 `> 命令` 作为一行追加到该实例的控制台缓冲并作为 `output` 帧推送（上一块输出没换行时先补换行），因此所有连接和之后的 `history` 帧都能看到已发出的命令。`POST /api/instances/:id/command` 和备份时面板自动发送的 `save-off` / `save-all flush` / `save-on` 同样回显。
+After a command is written to the instance's stdin successfully, the server appends `> command` as a line to that instance's console buffer and pushes it as an `output` frame (adding a line break first when the previous output chunk had none), so every connection and later `history` frames can see the command that was sent. `POST /api/instances/:id/command`, and the `save-off` / `save-all flush` / `save-on` the panel sends automatically during a backup, are echoed the same way.
 
-## PanelManager 本机接口
+## PanelManager Local Endpoints
 
-`POST /api/launcher/shutdown` 只供仓库根目录的 PanelManager 调用，不使用登录 JWT。请求必须来自回环地址并携带：
+`POST /api/launcher/shutdown` is called only by PanelManager in the repository root and does not use the sign-in JWT. The request must come from a loopback address and carry:
 
 ```http
 X-Launcher-Token: <LAUNCHER_TOKEN>
 ```
 
-有效请求返回 **202**，响应包含 `accepted`、运行实例数、运行/排队任务数和是否已经处于关闭过程。令牌无效返回 401，非本机来源返回 403，当前启动方式未提供安全关闭回调时返回 503。该接口使用独立限流，并在响应发送完成后开始停止任务、Minecraft 实例、HTTP 服务和数据库。
+A valid request returns **202**, with a response containing `accepted`, the number of running instances, the number of running/queued tasks, and whether shutdown is already in progress. An invalid token returns 401, a non-local origin 403, and 503 when the current way of starting provides no safe shutdown callback. The endpoint has its own rate limit, and after the response is sent it begins stopping tasks, Minecraft instances, the HTTP service and the database.
 
-同一条件（回环来源加 `X-Launcher-Token`）下还有：
+Under the same conditions (a loopback origin plus `X-Launcher-Token`) there are also:
 
-| 方法 | 路径 | 说明 |
+| Method | Path | Description |
 |------|------|------|
-| POST | `/api/launcher/reset-password` | 请求体 `{ password }`，重置管理员密码 |
-| GET | `/api/launcher/remote-access` | 返回 `RemoteAccessStatus` |
-| PUT | `/api/launcher/remote-access/direct` | 请求体 `UpdateDirectAccessRequest`，开关直接访问 |
-| POST | `/api/launcher/remote-access/certificate` | 重新生成证书 |
+| POST | `/api/launcher/reset-password` | Request body `{ password }`; resets the admin password |
+| GET | `/api/launcher/remote-access` | Returns `RemoteAccessStatus` |
+| PUT | `/api/launcher/remote-access/direct` | Request body `UpdateDirectAccessRequest`; toggles direct access |
+| POST | `/api/launcher/remote-access/certificate` | Regenerates the certificate |
 
-这些接口供 `mystryctl` 的 `reset-password` 和 `remote` 命令使用。从额外监听器（其他设备）进来的请求，来源地址不是回环，一律返回 403；面板自带网络进来的连接落在回环地址上，靠 `X-Launcher-Token` 挡住。
+These endpoints serve the `reset-password` and `remote` commands of `mystryctl`. Requests arriving on the extra listeners (other devices) do not have a loopback source address and always get 403; connections arriving through the panel's built-in network land on a loopback address and are stopped by `X-Launcher-Token`.
 
-## 联机穿透 `/api/frp`
+## Multiplayer Tunneling `/api/frp`
 
-面板只代管钉死版本的官方 `frpc`（`FRP_CLIENT_VERSION`）。用户提供自己的 frp 服务器地址、端口和令牌；请求不能提交可执行路径或原始配置。令牌只写不回读，响应里只有 `tokenSet`。本地转发固定到 `127.0.0.1` 上的实例 `server-port`，不会开放面板端口。
+The panel manages only a pinned version of the official `frpc` (`FRP_CLIENT_VERSION`). Users provide the address, port and token of their own frp server; requests cannot submit an executable path or raw config. The token is write-only and never returned; responses contain only `tokenSet`. Local forwarding is fixed to the instance's `server-port` on `127.0.0.1` and does not open the panel port.
 
-| 方法 | 路径 | 说明 |
+| Method | Path | Description |
 |------|------|------|
-| GET | `/api/frp/runtime` | `{ version, installed, platformSupported, archive }`。`archive` 为本机平台的官方压缩包 `{ name, sha256, url, maxBytes }`，平台不支持时为 `null` |
-| POST | `/api/frp/runtime` | 从 GitHub 下载并校验钉死的官方客户端；已安装则直接返回 |
-| POST | `/api/frp/runtime/upload` | multipart 字段 `file`：上传用户自己下载的官方压缩包（可来自镜像）。只在 SHA-256 与 `archive.sha256` 一致时安装，否则 400 `server.frp.uploadMismatch`；超过 `maxBytes` 返回 413 |
-| GET | `/api/frp/endpoints` | 穿透服务器列表。不含令牌 |
-| POST | `/api/frp/endpoints` | 创建。Body 见 `createFrpEndpointBodySchema` |
-| PATCH | `/api/frp/endpoints/:id` | 更新。省略 `token` 或空字符串表示不改令牌。成功后会按新配置重新同步已启用的隧道 |
-| DELETE | `/api/frp/endpoints/:id` | 删除。仍有实例启用着使用它的联机时 **409**；已关闭的隧道设置会随端点一起清除 |
-| GET | `/api/instances/:id/tunnel` | 该实例的联机状态 `InstanceTunnel` |
-| PUT | `/api/instances/:id/tunnel` | 保存并按当前实例状态启动或停止 `frpc` |
-| GET | `/api/instances/:id/tunnel/friend-config` | 内网模式的玩家配置 `friend-frpc.toml`。文件含令牌，只应交给要加入的玩家 |
+| GET | `/api/frp/runtime` | `{ version, installed, platformSupported, archive }`. `archive` is the official archive for this machine's platform, `{ name, sha256, url, maxBytes }`, or `null` when the platform is unsupported |
+| POST | `/api/frp/runtime` | Downloads and verifies the pinned official client from GitHub; returns directly when already installed |
+| POST | `/api/frp/runtime/upload` | multipart field `file`: uploads an official archive the user downloaded themselves (possibly from a mirror). Installed only when the SHA-256 matches `archive.sha256`, otherwise 400 `server.frp.uploadMismatch`; over `maxBytes` returns 413 |
+| GET | `/api/frp/endpoints` | Tunnel server list. Without tokens |
+| POST | `/api/frp/endpoints` | Create. Body: see `createFrpEndpointBodySchema` |
+| PATCH | `/api/frp/endpoints/:id` | Update. An omitted `token` or an empty string means the token is unchanged. After success, enabled tunnels are resynced with the new config |
+| DELETE | `/api/frp/endpoints/:id` | Delete. **409** while an instance still has multiplayer enabled using it; disabled tunnel settings are cleared together with the endpoint |
+| GET | `/api/instances/:id/tunnel` | The instance's multiplayer status `InstanceTunnel` |
+| PUT | `/api/instances/:id/tunnel` | Saves, and starts or stops `frpc` according to the current instance status |
+| GET | `/api/instances/:id/tunnel/friend-config` | The player config `friend-frpc.toml` for private modes. The file contains the token and should only be given to players who are joining |
 
-`mode` 为 `public` 时玩家直接连接公网端口，必须提供 `remotePort`。`stcp` 经 frp 服务器中转，`xtcp` 在双方客户端之间打洞；这两种模式由玩家在自己的电脑上运行官方 `frpc` 和下载的配置，再连接本机 `127.0.0.1`。`server-ip` 若指向某一块网卡，隧道不会启动。实例停止、崩溃或面板关闭时，对应的 `frpc` 会退出。面板重启后不会恢复已经消失的游戏进程，需要重新启动实例。
+With `mode` `public` players connect directly to the public port, and `remotePort` is required. `stcp` is relayed through the frp server, and `xtcp` punches a hole between the two clients; in these two modes players run the official `frpc` with the downloaded config on their own computer, then connect to `127.0.0.1` locally. If `server-ip` points at one specific interface, the tunnel does not start. When the instance stops or crashes or the panel shuts down, the matching `frpc` exits. After a panel restart, a game process that is already gone is not brought back, and the instance has to be started again.
 
-## 虚拟局域网 `/api/lan`
+## Virtual LAN `/api/lan`
 
-面板只代管钉死版本的官方 EasyTier（`EASYTIER_VERSION`）。打开后，这个实例加入一个只属于它的虚拟局域网，朋友用面板给出的一条锁定命令加入。请求不能提交可执行路径、原始配置或网络密钥；密钥由面板生成，只出现在给朋友的说明里，不出现在状态接口里。本地只放行实例的 `server-port`，不开放面板端口，也不转发语音和查询用的 UDP。
+The panel manages only a pinned version of the official EasyTier (`EASYTIER_VERSION`). Once turned on, the instance joins a virtual LAN that belongs only to it, and friends join with a locked-down command the panel provides. Requests cannot submit an executable path, raw config or the network secret; the secret is generated by the panel and appears only in the instructions for friends, never in the status endpoint. Locally only the instance's `server-port` is allowed; the panel port is not opened, and UDP for voice and query is not forwarded.
 
-| 方法 | 路径 | 说明 |
+| Method | Path | Description |
 |------|------|------|
-| GET | `/api/lan/runtime` | `{ version, installed, platformSupported, archive }`，`archive` 同上 |
-| POST | `/api/lan/runtime` | 从 GitHub 下载并校验钉死的官方客户端；已安装则直接返回 |
-| POST | `/api/lan/runtime/upload` | multipart 字段 `file`：上传用户自己下载的官方压缩包。只在 SHA-256 一致时安装，否则 400 `server.lan.uploadMismatch` |
-| GET | `/api/instances/:id/lan` | 该实例的虚拟局域网状态 `InstanceLan`。不含网络密钥；含 `peers`、`useSharedPeers`、`sharedPeers`、`listenPort` 和非阻断提示 `warning` |
-| PUT | `/api/instances/:id/lan` | Body `{ enabled, peers?, useSharedPeers? }`。`peers` 最多 8 个，每个必须是 `tcp://`、`udp://`、`ws://`、`wss://` 或 `quic://` 加主机和端口（ws/wss 可带结尾 `/`），服务端规范化并去重；省略的字段保持原值。关掉共享节点又没有自定义节点时返回 400 `server.lan.peersRequired` |
-| GET | `/api/instances/:id/lan/friend` | 给朋友的说明。含网络密钥，只应交给要一起玩的人 |
+| GET | `/api/lan/runtime` | `{ version, installed, platformSupported, archive }`, with `archive` as above |
+| POST | `/api/lan/runtime` | Downloads and verifies the pinned official client from GitHub; returns directly when already installed |
+| POST | `/api/lan/runtime/upload` | multipart field `file`: uploads an official archive the user downloaded themselves. Installed only when the SHA-256 matches, otherwise 400 `server.lan.uploadMismatch` |
+| GET | `/api/instances/:id/lan` | The instance's virtual LAN status `InstanceLan`. Without the network secret; includes `peers`, `useSharedPeers`, `sharedPeers`, `listenPort` and the non-blocking notice `warning` |
+| PUT | `/api/instances/:id/lan` | Body `{ enabled, peers?, useSharedPeers? }`. At most 8 `peers`, each of which must be `tcp://`, `udp://`, `ws://`, `wss://` or `quic://` plus a host and port (ws/wss may have a trailing `/`); the server normalizes and deduplicates them, and omitted fields keep their values. Turning off shared peers with no custom peers returns 400 `server.lan.peersRequired` |
+| GET | `/api/instances/:id/lan/friend` | The instructions for friends. Contains the network secret and should only be given to the people you play with |
 
-面板端 EasyTier 在每次启动时挑一个随机空闲端口，同时监听 TCP 与 UDP（EasyTier 会自动补上同端口的 IPv6），供 IPv6 或同一局域网的朋友直接连接；朋友端仍不监听。连接需要网络名和密钥（`private_mode`），也不会为其他网络中转。Windows 上面板在启动前添加名为 `MystryDashboard-LAN-<实例 id>` 的入站放行规则（游戏 TCP 端口只限本实例虚拟 IP；监听端口的 TCP 与 UDP 只限面板启动的 easytier-core 程序，限定程序的规则加不上时退回不限程序），停止、崩溃或面板关闭时按名字删除；加不上时 `warning` 为 `server.lan.firewallFailed`。面板异常退出时残留的规则会在下次面板启动时按本面板已知的实例 ID（有虚拟局域网记录或 `DATA_DIR/lan/<id>` 工作目录）清扫，之后停止、关闭虚拟局域网或删除实例时也会补删；不按 `MystryDashboard-LAN-` 前缀删除，避免误删其他面板的规则。
+The panel-side EasyTier picks a random free port on every start and listens on both TCP and UDP (EasyTier automatically adds IPv6 on the same port), for friends on IPv6 or the same LAN to connect directly; the friend side still does not listen. Connecting requires the network name and secret (`private_mode`), and it does not relay for other networks. On Windows, before starting, the panel adds inbound allow rules named `MystryDashboard-LAN-<instance id>` (the game TCP port restricted to this instance's virtual IP; TCP and UDP on the listen port restricted to the easytier-core program the panel starts, falling back to no program restriction when the program-restricted rule cannot be added), and deletes them by name on stop, crash or panel shutdown; when they cannot be added `warning` is `server.lan.firewallFailed`. Rules left behind when the panel exits abnormally are swept at the next panel start by the instance IDs known to this panel (those with a virtual LAN record or a `DATA_DIR/lan/<id>` work directory), and are also deleted later on stop, on disabling the virtual LAN or on deleting the instance; deletion is not done by the `MystryDashboard-LAN-` prefix, to avoid removing another panel's rules.
 
-游戏没在运行时客户端不会启动，但已保存的开关和将要使用的虚拟地址仍会返回。`server-ip` 若指向某一块网卡，虚拟局域网不会启动。实例停止、崩溃或面板关闭时，对应的 EasyTier 会退出。Windows 上面板和朋友的命令都需要管理员权限，否则创建不了虚拟网卡。
+While the game is not running the client does not start, but the saved switch and the virtual address to be used are still returned. If `server-ip` points at one specific interface, the virtual LAN does not start. When the instance stops or crashes or the panel shuts down, the matching EasyTier exits. On Windows both the panel and the friend's command need administrator rights, or the virtual interface cannot be created.
 
-## 节点 `/api/nodes`
+## Nodes `/api/nodes`
 
-阶段一仅保证本机节点 `local` 可用。远程节点创建由共享常量 `REMOTE_NODE_CREATION_ENABLED` 控制，当前为关闭。
+Phase one guarantees only the local node `local`. Creating remote nodes is controlled by the shared constant `REMOTE_NODE_CREATION_ENABLED`, which is currently off.
 
-| 方法 | 路径 | 说明 |
+| Method | Path | Description |
 |------|------|------|
-| GET | `/api/nodes` | 节点列表 `NodeInfo[]` |
-| GET | `/api/nodes/:id` | 单个节点 |
-| POST | `/api/nodes` | 创建远程节点（当前返回 **403**） |
-| PATCH | `/api/nodes/:id` | 重命名 |
-| DELETE | `/api/nodes/:id` | 删除远程节点（本机不可删；有实例时拒绝） |
-| POST | `/api/nodes/:id/secret/reset` | 重置密钥（当前返回 **403**） |
+| GET | `/api/nodes` | Node list `NodeInfo[]` |
+| GET | `/api/nodes/:id` | A single node |
+| POST | `/api/nodes` | Creates a remote node (currently returns **403**) |
+| PATCH | `/api/nodes/:id` | Rename |
+| DELETE | `/api/nodes/:id` | Deletes a remote node (the local one cannot be deleted; refused while it has instances) |
+| POST | `/api/nodes/:id/secret/reset` | Resets the secret (currently returns **403**) |
 
-创建实例时若传入非本机 `nodeId`，服务端会拒绝（远程执行尚未开放）。
+When creating an instance, a non-local `nodeId` is rejected by the server (remote execution is not open yet).
 
-## 类型定义
+## Type Definitions
 
-完整 TypeScript 定义与请求体 JSON Schema 见 `packages/shared/src/index.ts` / `packages/shared/src/schemas.ts`。
+The full TypeScript definitions and request body JSON Schemas are in `packages/shared/src/index.ts` / `packages/shared/src/schemas.ts`.

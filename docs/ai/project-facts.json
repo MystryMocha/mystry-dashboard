@@ -251,7 +251,7 @@
       "path": ".github/PULL_REQUEST_TEMPLATE.md",
       "includes": [
         "npm run verify",
-        "知识库"
+        "knowledge base"
       ]
     },
     {

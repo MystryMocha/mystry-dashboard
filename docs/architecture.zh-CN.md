@@ -1,0 +1,294 @@
+# 架构设计
+
+[English](architecture.md) · **简体中文**
+
+## 总体架构
+
+```mermaid
+flowchart LR
+  subgraph client [浏览器]
+    Web[React 前端]
+  end
+  subgraph server [Node 后端]
+    Fastify[Fastify HTTP]
+    WS[WebSocket 控制台]
+    PM[ProcessManager]
+    FS[文件服务]
+    Core[核心部署 / 导入]
+    Nodes[节点注册]
+    DB[(SQLite panel.db)]
+    JavaStatus[Java 状态与运行时探测]
+  end
+  subgraph host [本机]
+    Java[PATH java 或已注册运行时]
+    Dirs[DATA_DIR/instances/<id>]
+    Imports[DATA_DIR/imports/<目录名>]
+  end
+  Web -->|REST + Bearer JWT| Fastify
+  Web -->|WS + 一次性 ticket| WS
+  Fastify --> DB
+  Fastify --> PM
+  Fastify --> FS
+  Fastify --> Core
+  Fastify --> Nodes
+  Fastify --> JavaStatus
+  PM -->|spawn Java -jar| Java
+  Java --> Dirs
+  FS --> Dirs
+  Core --> Dirs
+  Imports -->|只读扫描并流式复制| Core
+  JavaStatus -->|exec java -version| Java
+```
+
+核心边界是：实例唯一工作目录为 `DATA_DIR/instances/<id>`。`DATA_DIR` 可相对于项目根目录配置，也可使用绝对路径；实例服务、文件服务、部署和导入目标都只解析这个托管根目录。同机已有服务端的交接区见 [实例目录与安全边界](#实例目录与安全边界)，ZIP 预览的暂存见 [部署与导入流水线](#部署与导入流水线)。不存在用户可指定的安装目录，也不存在面向整台机器的目录浏览能力。实例默认通过 PATH 中的 `java` 启动；也只能按 ID 使用面板扫描、注册并在执行前复验的运行时，客户端不能提交路径。
+
+当前为多机扩展**阶段一**：内置本机节点 `local` 承担全部执行；远程节点创建与 Agent 连接尚未开放（由共享常量 `REMOTE_NODE_CREATION_ENABLED` 控制）。
+
+## Monorepo 布局
+
+| 包名 | 路径 | 职责 |
+|------|------|------|
+| `@mystry/shared` | `packages/shared` | 共享类型与接口定义 |
+| `@mystry/server` | `apps/server` | API、进程、文件、部署 |
+| `@mystry/web` | `apps/web` | 管理面板 UI |
+
+根 `package.json` 通过 npm workspaces 聚合 `apps/*` 与 `packages/*`。
+
+## 便携发布布局
+
+便携包不从源码目录运行。`scripts/portable/package-portable.mjs` 在目标平台原生组装以下布局：
+
+```text
+mystry-dashboard/
+├── runtime/                 # 官方 Node.js 固定版本
+├── app/
+│   ├── server/dist/
+│   ├── web/dist/
+│   ├── shared/dist/
+│   ├── mystryctl.mjs
+│   └── node_modules/        # 仅生产依赖
+├── config/
+├── data/
+├── logs/
+├── mystryctl.cmd
+├── mystryctl
+├── manifest.json
+└── VERSION
+```
+
+工作区 `@mystry/shared` 会被物理复制到 `app/node_modules/@mystry/shared`，发布包拒绝符号链接，避免 Windows ZIP 保留指向构建仓库的 junction。`config/`、`data/` 和 `logs/` 在发布产物中为空。
+
+便携包的 `mystryctl.cmd` 和 `mystryctl` 只负责调用包内 Node；Linux / WSL 源码入口 `PanelManager.sh` 先完成 Node 版本、依赖和构建预检，再调用同一跨平台生命周期控制器 `scripts/portable/mystryctl.mjs`。后台启动会记录 PID、随机进程指纹、启动时间和健康地址，并通过 `LAUNCHER_TOKEN` 调用回环关闭接口。若 PID 被复用或健康检查不匹配，控制器不会直接强杀未知进程。
+
+运行目录由 `MYSTRY_HOME` 定位；配置和数据可分别通过 `MYSTRY_CONFIG_PATH`、`MYSTRY_DATA_DIR` 解耦。默认实例边界仍为便携根目录的 `data/instances/<id>`。
+
+## 后端模块
+
+### 入口 `apps/server/src/index.ts`
+
+- 注册 CORS、JWT、multipart、WebSocket、静态资源（`frontend-assets.ts`：发送构建时生成的 `.br` / `.gz` 预压缩副本，`/assets/*` 长期缓存，`index.html` 每次校验）。
+- 挂载路由：`auth`、`instances`、`files`、`backups`、`cores`、`console`、`system`、`nodes`、`frp`、`lan`、`launcher`。
+- 健康检查：`GET /api/health`。
+
+### 路由层 `apps/server/src/routes/`
+
+| 文件 | 前缀 / 路径 | 功能 |
+|------|-------------|------|
+| `auth.ts` | `/api/auth/*` | 初始化、登录、当前用户 |
+| `instances.ts` | `/api/instances/*` | CRUD、接管、启停、控制台命令 |
+| `files.ts` | `/api/instances/:id/files/*` | 实例根目录内的文件与 `server.properties` |
+| `cores.ts` | `/api/cores/*`、`/api/import*` | 版本列表、部署、ZIP 导入和同机目录交接 |
+| `console.ts` | `/api/instances/:id/console-ticket`、`/ws/console/:id` | 控制台 ticket 与 WebSocket |
+| `system.ts` | `/api/system/java`、`/api/system/java-runtimes` | PATH `java` 状态和本机运行时探测 |
+| `nodes.ts` | `/api/nodes/*` | 本机/远程节点列表与管理（阶段一） |
+| `frp.ts` | `/api/frp/*`、`/api/instances/:id/tunnel` | 官方 frpc 联机。不接受可执行路径或原始配置 |
+| `lan.ts` | `/api/lan/*`、`/api/instances/:id/lan` | 官方 EasyTier 虚拟局域网。不接受可执行路径或原始配置 |
+| `launcher.ts` | `/api/launcher/shutdown` | PanelManager 本机令牌关闭通道 |
+
+路由的错误响应统一经 `src/http-errors.ts` 的 `sendRouteError`：服务层已知错误（排队任务过多、面板正在关闭、上传超限、预览失效、重命名冲突）映射为对应状态码，其余用路由给定的默认状态码。
+
+除 `auth/status`、`auth/setup`、`auth/login`、健康检查与本机 launcher 关闭通道外，业务路由经 `authenticate` 校验 JWT。`auth/setup` 另需 `X-Setup-Token`，且只在用户表为空时有效；launcher 通道（安全关闭、重置管理员密码）只接受回环地址与有效 `X-Launcher-Token`。
+
+### 服务层 `apps/server/src/services/`
+
+| 服务 | 说明 |
+|------|------|
+| `auth-service` | bcrypt 密码、单用户 setup |
+| `instance-service` | 实例 CRUD、托管目录接管，与 DB 同步 |
+| `process-manager` | 解析 PATH 或已绑定运行时、参数解析、缓冲输出、启停重启与终态快照 |
+| `file-service` | 实例根目录路径规范化、防目录逃逸 |
+| `config-service` | `server.properties` 解析与写入 |
+| `core-depot` | 部署任务编排：准备 staging、获取核心、探测启动目标，以及统一落地/注册收尾 |
+| `core-metadata` | 有界元数据请求、版本列表、下载地址解析与不可变版本缓存文件名 |
+| `core-download` | 流式下载、独立 part 文件、按缓存路径合并并发请求和等待者取消 |
+| `core-installer` | Forge / NeoForge Installer 进程、输出与进度、网络失败重试、取消和退出收尾，以及 JVM argfile 写入 |
+| `core-utils` | 核心下载与元数据请求共用的超时中止器和请求 User-Agent |
+| `zip-service` | ZIP 中央目录校验、受限 JVM 参数预览和流式解压；预览与解压共用条目数据范围校验 |
+| `import-service` | 调度 ZIP 导入任务，整理 staging 单层目录、探测启动目标、落地注册及清理临时文件 |
+| `import-preview-service` | 管理按用户隔离、限时限量且不持久化的 ZIP 待确认预览 |
+| `existing-server-import-service` | 枚举固定交接区，只读校验并流式复制已有服务端 |
+| `jvm-detection-service` | 有界读取根目录 `user_jvm_args.txt` 并返回结构化诊断 |
+| `jvm-validation-service` | 使用共享规则在保存、任务入队和启动前规范化与复验 JVM 参数 |
+| `server-launch-detect` | 探测普通 jar 与现代 Forge/NeoForge args 启动目标 |
+| `task-service` | 内存任务调度、持久化状态、启动中断收敛与半成品清理 |
+| `java-detect` | 执行 `java -version` 并返回可用状态与版本 |
+| `java-runtime-service` | 扫描、验证、注册 Java 运行时，合并刷新并在执行前复验绑定条目 |
+| `node-service` | 节点 CRUD、密钥哈希；远程创建受 `REMOTE_NODE_CREATION_ENABLED` 控制 |
+| `node-registry` | 节点在线态 / 心跳（内存；Agent 接入前本机恒为 online） |
+
+### 部署与导入流水线
+
+部署由 `core-metadata` 解析版本与地址，`core-download` 管理下载和缓存，`core-installer` 管理 Installer，`core-depot` 编排任务。核心文件先写入独立的 part 文件，完整完成后才原子发布到 `DATA_DIR/cache/cores/`，未完成的文件不会被当作缓存复用。相同缓存路径的并发任务共享一次下载；单个等待者取消不影响其他等待者，全部退出才中止下载并清理 part 文件；中止时立即把这次下载移出合并表，之后的请求会重新下载，不会拿到前一批的取消原因。
+
+ZIP 预览与解压由 `zip-service` 统一做条目文件头和数据范围校验，不支持的压缩方式在打开文件流前拒绝；任务入队与实例落地由 `import-service` 负责。ZIP 预览只在 `uploads/.tmp-import-preview-*` 暂存，绑定登录用户且不跨重启，确认入队后由导入任务接管清理。
+
+所有部署和导入统一按「staging 原子落地 → 注册实例 → 更新实例元数据」收尾。目录落地后不再检查取消信号，必须继续注册，正常返回的 worker 仍记为成功。落地前失败只清理 staging，最终实例目录不参与该清理。
+
+### 数据层 `apps/server/src/db.ts`
+
+SQLite 表：
+
+- `users` — 管理员
+- `instances` — 实例元数据、jar、JVM 参数、托管状态、`node_id`、`java_runtime_id` 等
+- `tasks` — 部署 / 导入任务
+- `nodes` — 执行节点元数据与密钥哈希（含内置 `local`）
+- `java_runtimes` — 面板扫描、验证过的 Java 运行时及当前可用状态
+
+使用 `node:sqlite` 的 `DatabaseSync`，WAL 模式。实例文件不存入数据库，统一位于 `DATA_DIR/instances/<id>`。
+
+## 实例目录与安全边界
+
+默认数据结构：
+
+```text
+DATA_DIR/
+├── panel.db
+├── instances/
+│   └── <id>/
+├── imports/
+│   └── <目录名>/
+├── cache/cores/
+├── frp/<实例 id>/
+├── lan/<实例 id>/
+├── runtimes/frp/<版本>/
+├── runtimes/easytier/<版本>/
+└── uploads/
+```
+
+`defaultInstanceDir(id)` 将实例 ID 解析为 `DATA_DIR/instances/<id>`；文件读写和进程工作目录都必须经过实例根目录校验。文件 API 接收的 `path` 是相对实例根目录的逻辑路径，并拒绝 `..` 逃逸。
+
+`DATA_DIR/imports` 不是实例根目录，而是管理员通过系统工具放入已有服务端副本的固定交接区。接口不接受绝对路径，只列出直接子目录；复制任务拒绝 symlink/junction、特殊文件、ownership marker、超配额目录和磁盘空间不足。源目录从不由面板删除，任务失败时只清理带有效 ownership marker 的新托管半成品实例。
+
+### 旧版外部实例接管
+
+历史记录可能保留旧版外部目录的迁移状态。面板不会读取、扫描、搬迁或删除该外部目录。用户必须先停止实例和面板服务，用系统工具将完整目录复制到 `DATA_DIR/instances/<id>`，再通过 `POST /api/instances/:id/adopt-managed-directory` 或实例页的 **接管托管目录**。接管只确认并登记面板托管副本；面板不会自动操作旧位置。
+
+## 进程模型
+
+`ProcessManager` 对每个实例维护：
+
+- 子进程引用
+- 状态（与前端 `InstanceStatus` 一致）
+- 受 `MAX_CONSOLE_BUFFER_BYTES` 限制的环形文本缓冲
+
+子进程退出后，活动进程引用会释放，但 `stopped` / `crashed` 终态和最后一段受限控制台历史会保留到下一次启动或实例删除，供页面刷新和 WebSocket 重连读取。
+
+普通 jar 的启动命令形态：
+
+```text
+<PATH java 或已绑定运行时> <jvmArgs...> -jar <jarFile> nogui
+```
+
+工作目录固定为 `DATA_DIR/instances/<id>`。未绑定时 `java` 由运行面板的进程环境通过 PATH 解析；绑定时只允许使用注册表 ID 对应、且执行前重新通过 `-version` 验证的运行时。数据库和请求均不能替换为任意可执行路径。
+
+共享包的 `jvm-config.ts` 负责直接参数与 Java argfile 解析、内存公式、版本化预设和结构化诊断。数据库不保存配置器字段，只继续保存规范化 `jvmArgs` 字符串。普通 jar 将解析后的 JVM 参数直接放在 `-jar` 前；Forge / NeoForge 在启动前把同一规范参数重写为 `user_jvm_args.txt`，再组合面板控制的两个 argfile 和 `nogui`。
+
+联机穿透另起一个官方 `frpc` 子进程，工作目录是 `DATA_DIR/frp/<实例 id>`，环境同样经过 `getMinecraftChildEnv()`。它只在实例处于运行中且联机已启用时存在；实例停止、崩溃或面板关闭时退出。面板不管理 frps。
+
+虚拟局域网另起一个官方 `easytier-core` 子进程，工作目录是 `DATA_DIR/lan/<实例 id>`，环境同样经过 `getMinecraftChildEnv()`。它只在实例处于运行中且虚拟局域网已启用时存在；实例停止、崩溃或面板关闭时退出。面板不提供公共虚拟网络，也不接受用户粘贴的 EasyTier 配置。
+
+## 前端结构
+
+| 路径 | 说明 |
+|------|------|
+| `src/App.tsx` | 路由与侧栏布局 |
+| `src/auth.tsx` | 登录态、setup 检测 |
+| `src/api.ts` | `fetch` 封装、实例接口路径编码、实例启停、任务轮询、认证下载 |
+| `src/errors.ts` | 异常转可展示文本与中止判断 |
+| `src/instance-status.ts` | 实例状态对应的术语表键与可执行操作判断 |
+| `src/i18n/` | 多语言：语言检测与切换（`locale.ts`）、`useI18n()` 与 Intl 格式化（`index.ts`）、按区域拆分的 `en/`、`zh-CN/`、`zh-TW/` 文案表 |
+| `src/components/LanguageToggle.tsx`、`ThemeToggle.tsx` | 工具栏与登录页的语言、外观弹层（共用 `hooks/usePopover.ts`） |
+| `src/hooks/*` | 统一间隔的页面轮询（隐藏时暂停）、实例操作、未保存修改拦截、原生 dialog 开关、按 key 缓存的元数据加载 |
+| `src/pages/*` | 各功能页 |
+| `src/components/FilesTab.tsx` | 实例文件管理（列表、上传、编辑、重命名、删除、下载） |
+| `src/components/ConsolePanel.tsx` | xterm + WebSocket |
+| `src/components/JvmSettingsEditor.tsx` | 四处复用的内存、预设、高级参数、检测选择与诊断界面 |
+| `src/components/EulaCheckbox.tsx` | 同样四处复用的 EULA 同意勾选框 |
+
+路由表：
+
+- `/login` — 登录 / 初始化
+- `/` — 实例总览
+- `/deploy` — 一键部署
+- `/import` — 同机目录交接或 zip 导入
+- `/multiplayer` — 联机。选择实例后，用分段切换虚拟局域网或 frp
+- `/nodes` — 本机环境（当前只有内置本机节点）
+- `/settings` — 面板设置：这台设备的语言和外观，面板的登录有效期、下载来源和「在其他设备上打开」，修改密码，只读的运行信息。入口是侧栏底部用户区的齿轮
+- `/instances/:id/*` — 实例详情 Tab
+
+## 认证流程
+
+1. `GET /api/auth/status` → `needsSetup`。
+2. 若需 setup：`POST /api/auth/setup`，携带 `X-Setup-Token: <SETUP_TOKEN>` → `{ token, user }`。
+3. `setup` 只在用户表为空时接受；管理员创建后可以移除 `SETUP_TOKEN`。
+4. 否则：`POST /api/auth/login` → `{ token, user }`。
+5. 后续 HTTP 请求：`Authorization: Bearer <token>`。
+6. 控制台先用 JWT 获取一次性 ticket，再通过 WebSocket query `ticket` 连接。
+
+## 外部依赖 API
+
+### 下载来源
+
+面板有「官方来源」和「国内镜像」两种下载来源，默认官方。设置在「面板设置」页，保存在 `panel.db` 的 `panel_settings` 表。官方来源绝不访问第三方；国内镜像按下表顺序尝试，失败后回到官方。
+
+| 文件 | 官方来源 | 国内镜像（依次尝试） | 校验 |
+|------|----------|----------------------|------|
+| Vanilla 版本列表 | Mojang | BMCLAPI → Mojang | 无 |
+| Vanilla 部署用的版本清单 | Mojang | 同官方：清单是校验链的根，不走镜像 | — |
+| Vanilla 版本详情与 jar | Mojang | BMCLAPI → Mojang | 详情按清单里的 SHA-1，jar 按详情里的 SHA-1 |
+| Paper 版本与 jar | `fill.papermc.io` | 同官方，没有可靠镜像 | jar 按 Fill 接口的 SHA-256 |
+| Fabric 版本列表 | Fabric Meta | BMCLAPI `/fabric-meta` → Fabric Meta | 无 |
+| Fabric 服务端 jar | Fabric Meta 现场生成 | 同官方，BMCLAPI 不提供 | 无 |
+| Forge 版本列表 | `files.minecraftforge.net` 的 `maven-metadata.json` | BMCLAPI → 官方 | 无 |
+| NeoForge 版本列表 | `maven.neoforged.net` | BMCLAPI → 官方 | 无 |
+| Forge / NeoForge 安装器 | 官方 Maven | BMCLAPI `/maven` → 官方 Maven | 按官方 Maven 的 `.sha256` |
+| 安装器依赖与 Vanilla jar | 安装器自行下载 | 面板先经 BMCLAPI 预取，缺的由安装器补齐 | 按安装器清单里的 SHA-1 |
+| frpc | GitHub | 南京大学镜像 → `ghfast.top` → `gh-proxy.com` → GitHub | 钉死的 SHA-256 |
+| EasyTier | GitHub | `ghfast.top` → `gh-proxy.com` → GitHub | 钉死的 SHA-256 |
+
+规则：
+
+- **校验值未知时不用镜像**。`createDownloadPlan()` 在没有校验值时丢弃所有镜像地址，只留官方地址。BMCLAPI 的 Maven 路径会跳转到社区节点，公共 GitHub 代理的运营方也不可知，所以镜像给的文件必须能和可信的校验值对上才用。
+- **校验值不能来自社区节点**。BMCLAPI 只有 JSON 列表接口由主站直接返回，`/maven`、`/v1/packages`、`/v1/objects` 都会 302 到 USTC、CERNET 或志愿者节点。Forge / NeoForge 的 `.sha256` 因此只读官方 Maven。Vanilla 的清单在 BMCLAPI 上同样会被 302 到社区节点，所以部署时清单只从 Mojang 取（版本列表仍可走镜像）：清单里的 SHA-1 核对版本详情，版本详情里的 SHA-1 核对 jar，详情和 jar 才能用镜像。详情和 jar 的地址必须是 Mojang 的 https 地址，清单或详情缺 SHA-1 时直接报错，不退回到不校验的下载。
+- **缓存复用前复核**。核心缓存只按核心类型和版本命名、不分来源，计划带校验值时每次使用前按它重新核对，不符就删除重下；计划没有校验值时（Fabric、离线取不到 `.sha256` 的安装器）只看文件非空。
+- **https 不降级**。请求 https 地址时，跟随跳转后的最终地址不是 https 就拒绝，元数据和文件下载都一样；只检查最终地址，中间经过 http 再回到 https 的跳转链目前拦不住。
+- **校验在写入最终路径之前**。文件边下载边算摘要，不符就丢弃，换下一个来源。
+- **列表结果不算校验**。版本列表来自镜像时最多显示错版本，不会让未校验的文件进入实例。
+- **BMCLAPI 有限流**。实测同一地址 60 秒内超过 10 次返回 429（2026-11-05，按地址计，不同文件互不影响）。这里不做等待：429 和其他失败一样换下一个来源。
+- 有后备来源时，等待响应头的时限是 `CORE_METADATA_TIMEOUT_MS`，卡住的镜像不会耗尽整段下载超时。全部失败时错误里列出每个来源的原因，并提示到「面板设置」更换来源。
+
+国内镜像下仍会连接官方的部分：安装器的 `--mirror` 不改写 `libraries.minecraft.net`，NeoForge 安装器也不使用它，所以面板改为预取：两种安装器都会跳过 SHA-1 相符的已有文件。但安装器在 1.17+ 仍要从 Mojang 下载映射文件，且会检测官方站点能否连接。Fabric 和 Forge 服务端第一次启动时也可能自己下载文件。
+
+Forge / NeoForge 由 `--installServer` 完成安装。
+
+下载文件可缓存在 `DATA_DIR/cache/cores/` 以减少重复拉取；下载大小和超时受对应环境变量限制。
+
+核心缓存下载先写入临时文件，完整下载并通过校验后才原子发布到最终缓存路径，失败、取消或超时不会留下可复用的部分文件。ZIP Web 导入先创建不持久化的用户预览，只有确认且后台任务成功入队才消费；队列满时保留预览。部署 / 导入任务由并发槽位和等待队列调度，队列满时拒绝新任务；任务执行超过配置的超时会被取消，Installer 结束时先等待 `INSTALLER_KILL_GRACE_MS` 再强制结束。任务 worker 不跨进程恢复；启动时遗留的 `pending` / `running` 会转为失败，并尝试删除任务已关联的半成品实例。
+
+HTTP 请求与上传还有总请求、连接、keep-alive 和上传空闲超时。上传大小超限返回 413，上传并发容量或任务队列耗尽返回 429。实例文件下载受 `MAX_CONCURRENT_FILE_DOWNLOADS=4` 并发槽位限制，容量耗尽返回 429；`FILE_DOWNLOAD_IDLE_TIMEOUT_MS=60000` 空闲超时会关闭下载并释放槽位。控制台 transport、并发连接、命令速率、stdin 待处理输入和历史输出均有独立字节 / 数量上限。
+
+## 类型共享
+
+`packages/shared/src/index.ts` 导出 `InstanceInfo`、`DeployCoreInput`、`TaskInfo`、`ConsoleMessage`、`NodeInfo` 等类型，以及请求体 JSON Schema（如 `createInstanceBodySchema`），供 Fastify AJV 与 TypeScript 契约共用，减少路由内双写漂移。
+
+构建顺序：**必须先构建 `@mystry/shared`**，再构建 server / web。独立类型检查：`npm run typecheck`。

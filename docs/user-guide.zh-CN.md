@@ -454,4 +454,4 @@ Mystry Dashboard 运行在你**本机**上：用网页管理多个 Minecraft **�
 
 - [分步教程](tutorials.zh-CN.md)：从零开 Paper 服、导入 zip、联机、模组服与备份
 - [配置说明](configuration.zh-CN.md)：配置文件、安全与数据目录
-- [API 参考](api.md)：接口与自动化集成
+- [API 参考](api.zh-CN.md)：接口与自动化集成

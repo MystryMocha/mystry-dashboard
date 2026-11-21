@@ -54,6 +54,7 @@ Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.4`）是
 - Web 界面支持多语言：`en` 为默认与缺键回落语言，另有 `zh-CN`、`zh-TW`（台湾惯用词，不是简繁转换）。用户可见文案只能写进 `apps/web/src/i18n/en/*.ts` 并同步补齐 `zh-CN/*.ts`、`zh-TW/*.ts`（类型检查强制两边键一致），组件里不得内联文案；状态词、通用动作和导航名以 `i18n/en/common.ts` 术语表为准。英文按钮/标题用 Title Case、说明用 sentence case；数字、日期、大小用 `useI18n().fmt`（Intl）。服务端返回给用户的错误、任务进度和控制台错误必须用 `PanelError` / `panelErrorBody` / 任务 `report(progress, { key, params })` 返回 `server.*` 消息键：英文模板写在 `packages/shared/src/messages/<区域>.ts`，并在 `apps/web/src/i18n/zh-CN/server/`、`zh-TW/server/` 补翻译；响应的 `error` 文本默认英文。启动期终端日志不在此列。新增/修改的代码注释使用英文（项目面向国际贡献者）；存量中文注释正在按包分批翻译，改到的文件不要留下中英混写。
 - 注释只写代码本身看不出来的东西：原因、约束、踩过的坑、不能做的事。不写复述代码行为的注释；能靠命名或拆函数说清楚的，就改代码不写注释。改代码时不得删除说明原因或约束的既有注释，除非该约束已不成立。
 - 设计或修改界面前读 [`docs/design-system.md`](docs/design-system.md)（毛玻璃只用于导航层、强调色只引用变量、组件类名）；各语言写作规则、新增语言与从右到左布局见 [`docs/localization.md`](docs/localization.md)。两者都以源码为准。
+- 提交信息使用英文（`fix: ...`、`docs: ...`），说明为什么改。
 - 无 ESLint/Prettier；与周围文件风格保持一致（TypeScript + ESM）。不要把 React Router 从已锁定的 `6.30.6` 升到 7。
 
 ## 标准变更顺序
@@ -64,7 +65,7 @@ Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.4`）是
 2. 服务端路由与服务
 3. 前端 API 调用
 4. 用户可见入口及错误反馈
-5. 文档（至少 `docs/api.md` / 当前状态，视改动范围）
+5. 文档（至少 `docs/api.md` / 当前状态，视改动范围）；有中文版（`X.zh-CN.md`）的文档，英文版 `X.md` 和中文版一起改
 6. 自动检查与必要的人工行为验证
 
 配置、路由、脚本或 AI 入口变化时，同步 [`project-facts.json`](docs/ai/project-facts.json) 并运行 `npm.cmd run knowledge:check`。

@@ -13,7 +13,7 @@
 
 面板本身是独立的 Node.js 程序，不是游戏模组，运行面板不需要安装 Fabric 或 Forge。
 
-[快速开始](#快速开始) · [为什么选择 Mystry？](#为什么选择-mystry-dashboard) · [功能一览](#功能) · [文档中心](docs/README.zh-CN.md) · [分步教程](docs/tutorials.zh-CN.md) · [贡献指南](CONTRIBUTING.md)
+[快速开始](#快速开始) · [为什么选择 Mystry？](#为什么选择-mystry-dashboard) · [功能一览](#功能) · [文档中心](docs/README.zh-CN.md) · [分步教程](docs/tutorials.zh-CN.md) · [贡献指南](CONTRIBUTING.zh-CN.md)
 
 > **预览版提示**：当前版本为 `0.2.0-preview.4`。正式投入长期服使用前，请先阅读 [使用边界](#使用边界)。
 
@@ -96,7 +96,7 @@
 | **1. 便携预览版（推荐）** | Windows x64 / Linux x64；**包内自带 Node.js 22** | [下载、校验与启动](docs/portable-release.zh-CN.md) |
 | **2. Windows 源码管理器** | Node.js ≥ 22 | 双击仓库根目录 `PanelManager.cmd` |
 | **3. Linux / WSL 源码管理器** | Node.js ≥ 22 | 运行 `./PanelManager.sh start` |
-| **4. 手动开发** | Node.js ≥ 22，两个开发终端 | [安装与配置](docs/getting-started.zh-CN.md#手动安装与首次配置)、[开发指南](docs/development.md) |
+| **4. 手动开发** | Node.js ≥ 22，两个开发终端 | [安装与配置](docs/getting-started.zh-CN.md#手动安装与首次配置)、[开发指南](docs/development.zh-CN.md) |
 
 ### 3 步启动（源码管理器）
 
@@ -155,7 +155,7 @@ Linux/macOS 将 `npm.cmd` 换成 `npm`。后端直接托管预压缩（`.br` / `
 
 最终数据根优先使用 `MYSTRY_DATA_DIR`，其次 `DATA_DIR`，默认是仓库或便携包下的 `data/`。文档中的 `DATA_DIR/...` 均表示最终解析后的数据根，目录结构见 [配置说明](docs/configuration.zh-CN.md#数据目录)。
 
-默认仅监听本机回环地址 `127.0.0.1:3000`，从其他设备访问需要在面板里主动开启。面板具有实例文件读写与进程执行权限，对外访问前请阅读 [安全政策](SECURITY.md) 与 [配置说明](docs/configuration.zh-CN.md)。密钥及运行数据不得提交到仓库。
+默认仅监听本机回环地址 `127.0.0.1:3000`，从其他设备访问需要在面板里主动开启。面板具有实例文件读写与进程执行权限，对外访问前请阅读 [安全政策](SECURITY.zh-CN.md) 与 [配置说明](docs/configuration.zh-CN.md)。密钥及运行数据不得提交到仓库。
 
 旧版外部目录的迁移步骤见 [旧版外部实例接管](docs/user-guide.zh-CN.md#旧版外部实例接管)；备份或迁移前请先安全停止实例和面板。
 
@@ -169,7 +169,7 @@ Linux/macOS 将 `npm.cmd` 换成 `npm`。后端直接托管预压缩（`.br` / `
 | `scripts/` | 启动器（`PanelManager`、`mystryctl`）、验证与便携打包工具 |
 | `docs/` | 中英双语用户文档、开发参考与 AI 知识库 |
 
-用户文档（[文档中心](docs/README.zh-CN.md)、[快速开始](docs/getting-started.zh-CN.md)、[分步教程](docs/tutorials.zh-CN.md)、[使用指南](docs/user-guide.zh-CN.md)、[配置说明](docs/configuration.zh-CN.md)、[便携预览版](docs/portable-release.zh-CN.md)）均提供 **简体中文** 与 **English** 双语版本。开发与实现参考见 [开发指南](docs/development.md)、[API 参考](docs/api.md)、[架构设计](docs/architecture.md) 与 [CLAUDE.md](CLAUDE.md)。完整验证套件可运行 `npm.cmd run verify`（Linux/macOS 为 `npm run verify`）。
+用户文档（[文档中心](docs/README.zh-CN.md)、[快速开始](docs/getting-started.zh-CN.md)、[分步教程](docs/tutorials.zh-CN.md)、[使用指南](docs/user-guide.zh-CN.md)、[配置说明](docs/configuration.zh-CN.md)、[便携预览版](docs/portable-release.zh-CN.md)）均提供 **简体中文** 与 **English** 双语版本。开发与实现参考见 [开发指南](docs/development.zh-CN.md)、[API 参考](docs/api.zh-CN.md)、[架构设计](docs/architecture.zh-CN.md) 与 [CLAUDE.md](CLAUDE.md)。完整验证套件可运行 `npm.cmd run verify`（Linux/macOS 为 `npm run verify`）。
 
 ## 路线图
 
@@ -177,11 +177,11 @@ Linux/macOS 将 `npm.cmd` 换成 `npm`。后端直接托管预压缩（`.br` / `
 - 定时自动备份与备份保留策略
 - 支持 Left 4 Dead 2（求生之路 2）服务端管理
 
-已发布版本记录见 [变更日志](CHANGELOG.md)。
+已发布版本记录见 [变更日志](CHANGELOG.zh-CN.md)。
 
 ## 贡献与许可证
 
-欢迎提交 Issue、Pull Request 和文档修正，请先阅读 [贡献指南](CONTRIBUTING.md) 与 [行为准则](CODE_OF_CONDUCT.md)。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
+欢迎提交 Issue、Pull Request 和文档修正，请先阅读 [贡献指南](CONTRIBUTING.zh-CN.md) 与 [行为准则](CODE_OF_CONDUCT.zh-CN.md)。安全问题请按 [SECURITY.md](SECURITY.zh-CN.md) 私下报告。
 
 如果 Mystry Dashboard 帮到了你和朋友的服务器，欢迎在 GitHub 右上角点一颗 **Star**，让更多服主和自托管玩家看到这个项目。
 
