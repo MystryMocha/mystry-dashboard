@@ -37,7 +37,7 @@ test('本平台真实采集仅查询目标进程并返回累计 CPU 和驻留内
 });
 
 test('真实监测路由拒绝未认证请求，认证后返回资源快照', async () => {
-  // 认证要核对令牌版本，路由测试使用临时数据目录里的空库，不读写用户实例，也不使用真实密钥。
+  // Authentication checks the token version, so the route tests use an empty database in a temp data directory, never reading or writing user instances or using real secrets.
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-metrics-route-test-'));
   process.env.JWT_SECRET = randomBytes(32).toString('hex');
   process.env.SETUP_TOKEN = randomBytes(32).toString('hex');

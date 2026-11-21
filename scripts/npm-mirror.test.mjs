@@ -10,7 +10,7 @@ import { findMirror, NPM_MIRRORS, OFFICIAL_REGISTRY } from './npm-mirror.mjs';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-/** 脚本按自身位置找 config/，复制到临时目录后就不会碰到仓库里的选择。 */
+/** The script finds config/ relative to its own location, so once copied to a temp directory it does not touch the choice in the repo. */
 function createSandbox(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-npm-mirror-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

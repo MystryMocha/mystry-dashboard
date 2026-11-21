@@ -56,7 +56,7 @@ function ConsoleTab({
   busy: boolean;
   onAgreeEulaAndStart: () => void;
 }) {
-  // 提示只放在控制台页：实例设置页有自己的 EULA 勾选草稿，两处同时改会互相覆盖。
+  // The notice is only on the console page: the instance settings page has its own EULA checkbox draft, and changing both at once would overwrite each other.
   const issue = canStartInstance(instance.status) ? instance.startIssue ?? null : null;
   return (
     <>
@@ -113,7 +113,7 @@ function settingsFromInstance(instance: InstanceInfo): SettingsDraft {
 
 const SETTINGS_KEYS = ['name', 'jarFile', 'jvmArgs', 'acceptEula', 'javaRuntimeId'] as const;
 
-/** 和加载时不一样的设置项；保存栏据此写「N 项修改未保存」。 */
+/** Settings that differ from when they were loaded; the save bar uses this to write "N unsaved changes". */
 function changedSettings(left: SettingsDraft, right: SettingsDraft): (keyof SettingsDraft)[] {
   return SETTINGS_KEYS.filter((key) => left[key] !== right[key]);
 }
@@ -125,10 +125,10 @@ function SettingsTab({
   onDeleted,
 }: {
   instance: InstanceInfo;
-  /** 实例页的重启入口：实例在运行时，保存后的提示里给出「重启实例」。 */
+  /** The instance page's restart entry: while the instance is running, the notice after saving offers "Restart Instance". */
   restart: RestartControl;
   onSaved: () => void;
-  /** 实例已从这里删除：由实例页离开当前页面。 */
+  /** The instance has been deleted from here: the instance page leaves the current page. */
   onDeleted: () => void;
 }) {
   const { t } = useI18n();
@@ -141,7 +141,7 @@ function SettingsTab({
   const [javaRuntimeId, setJavaRuntimeId] = useState<string | null>(instance.javaRuntimeId);
   const [javaMajor, setJavaMajor] = useState<number | null>(null);
   const [jvmValid, setJvmValid] = useState(true);
-  // 放弃修改时加一，让 JVM 配置器重新挂载：它的内存框里没填完的文本没有发到这里，只把值设回去清不掉。
+  // Incremented on discarding changes, so the JVM configurator remounts: unfinished text in its memory box was never sent here, and just setting the value back does not clear it.
   const [jvmEpoch, setJvmEpoch] = useState(0);
   const [originalSettings, setOriginalSettings] = useState<SettingsDraft>(() => settingsFromInstance(instance));
   const [error, setError] = useState('');
@@ -153,16 +153,16 @@ function SettingsTab({
   const changed = changedSettings(draft, originalSettings);
   const dirty = changed.length > 0;
   const blocker = useUnsavedGuard(dirty, saving);
-  // 这里改的是已有的名称，清空算填错（失焦后说明原因），和新建表单里「还没填」不是一回事。
+  // What is edited here is an existing name, so clearing it counts as a mistake (the reason is explained after blur), which is not the same as "not filled in yet" in a create form.
   const nameIssue = instanceNameIssue(name);
-  // 只在用户改过 Jar 文件名时检查，库里原有的值不拦其他设置的保存。
+  // Checked only when the user has changed the jar file name; a value already in the database does not block saving other settings.
   const jarFileIssue: Issue | null = jarFile !== originalSettings.jarFile && jarFile.trim() === '' ? { key: 'validation.jarFile.required' } : null;
-  // 保存栏点名第一个要改的字段，顺序和页面上的一致。
+  // The save bar names the first field to fix, in the same order as on the page.
   const invalidLabel = nameIssue ? t('validation.fixField', { field: t('instance.settings.name.label') })
     : jarFileIssue ? t('validation.fixField', { field: t('instance.settings.jarFile.label') })
       : jvmValid ? null : t('validation.jvm.invalid');
   const invalid = invalidLabel !== null;
-  // Forge / NeoForge 的启动目标是面板识别出的参数文件，不是 jar 文件名，只读显示。
+  // The launch target of Forge / NeoForge is the args file the panel recognized, not a jar file name, and is shown read-only.
   const launchTarget = parseLaunchTarget(originalSettings.jarFile);
 
   async function save() {
@@ -170,7 +170,7 @@ function SettingsTab({
     setSaving(true);
     savedNotice.clear();
     try {
-      // 只提交改过的项：没动的 Java 已失效、或 Jar 是面板识别的启动标记时，不能拦住其他设置的保存。
+      // Only changed items are submitted: an untouched Java that is no longer valid, or a jar that is a launch marker recognized by the panel, must not block saving other settings.
       await api(instanceApi(instance.id), {
         method: 'PATCH',
         json: Object.fromEntries(changed.map((key) => [key, draft[key]])),
@@ -178,7 +178,7 @@ function SettingsTab({
       setError('');
       setOriginalSettings(draft);
       feedback.reset();
-      // 名称改了立即生效；Jar、Java、JVM 参数和 EULA 只在启动时读取，实例在运行就要重启。
+      // A name change takes effect immediately; the jar, Java, JVM arguments and EULA are read only at start, so a running instance has to restart.
       savedNotice.show(changed.some((key) => key !== 'name'));
       onSaved();
     } catch (err) {
@@ -188,7 +188,7 @@ function SettingsTab({
     }
   }
 
-  /** 让各字段显示错误原因，并跳到第一个要改的字段；按 Enter 提交不了和点保存栏的状态文字是同一个动作。 */
+  /** Makes the fields show their error reasons and jumps to the first field to fix; Enter failing to submit and clicking the save bar's status text are the same action. */
   function revealInvalid() {
     feedback.revealAll();
     focusFirstInvalidField(formRef.current);
@@ -217,14 +217,14 @@ function SettingsTab({
   return (
     <>
       <FormFeedbackProvider value={feedback.value}>
-        {/* noValidate：校验由页面自己做，不让浏览器的原生提示拦住提交。 */}
+        {/* noValidate: validation is done by the page itself, so the browser's native prompts do not block submission. */}
         <form
           ref={formRef}
           className="form-stack settings-workspace"
           noValidate
           {...formSubmit}
         >
-          {/* 宽屏时左栏基本信息与许可协议，右栏运行环境；窄屏按原顺序上下排列。 */}
+          {/* On wide screens basic info and the license agreement are in the left column and the runtime environment in the right; narrow screens stack them in the original order. */}
           <div className="form-columns">
             <div className="form-column">
               <section className="form-section">
@@ -270,9 +270,9 @@ function SettingsTab({
                       <label htmlFor="instance-settings-launch-file">{t('instance.settings.launchFile.label')}</label>
                       <input
                         id="instance-settings-launch-file"
-                        // 「未安装」是状态不是待填的提示，按正文颜色作为值显示，不用低对比度的占位符。
+                        // "Not installed" is a state, not a hint for something to fill in, so it is shown as a value in the body text color, not as a low-contrast placeholder.
                         value={launchTarget.kind === 'args' ? launchTarget.path : t('instance.settings.launchFile.pendingValue')}
-                        // 路径常被截断，悬停可看全。
+                        // Paths are often truncated; hover shows the whole thing.
                         title={launchTarget.kind === 'args' ? launchTarget.path : undefined}
                         readOnly
                         aria-describedby="instance-settings-launch-file-help"
@@ -322,7 +322,7 @@ function SettingsTab({
                     disabled={saving}
                     onResolvedMajorChange={setJavaMajor}
                   />
-                  {/* JVM 配置器自己显示错误；这层容器不参与排版，只让「跳到要改的字段」能落到它里面。 */}
+                  {/* The JVM configurator shows its own errors; this container takes no part in layout and only lets "jump to the field to fix" land inside it. */}
                   <div className="form-fields" data-field-invalid={jvmValid ? undefined : ''}>
                     <JvmSettingsEditor
                       key={jvmEpoch}
@@ -344,7 +344,7 @@ function SettingsTab({
 
           {error && <p className="callout callout-danger" role="alert">{error}</p>}
 
-          {/* 删除和日常设置分开，放在页面最下面；实例没停时不能删，原因写在这一行里。 */}
+          {/* Delete is kept apart from everyday settings, at the very bottom of the page; it cannot be deleted while the instance is not stopped, and the reason is written in this row. */}
           <section className="form-section">
             <h3 className="form-section-title">{t('instance.settings.section.danger')}</h3>
             <div className="list-group">
@@ -403,7 +403,7 @@ function SettingsTab({
   );
 }
 
-/** 实例子路由对应的标签名，用于浏览器标签标题；未知子路由会被重定向回控制台。 */
+/** Tab name for an instance sub-route, used in the browser tab title; unknown sub-routes are redirected back to the console. */
 const TAB_TITLE_KEYS = new Map<string, MessageKey>([
   ['', 'instance.tab.console'],
   ['files', 'instance.tab.files'],
@@ -422,7 +422,7 @@ export function InstancePage() {
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [confirmForceStop, setConfirmForceStop] = useState(false);
   const [deleted, setDeleted] = useState(false);
-  // 每确认一次重启加一：保存栏里「重启实例后生效」的提示据此收起。
+  // Incremented on each confirmed restart: the "takes effect after restarting the instance" notice in the save bar collapses based on it.
   const [restartSignal, setRestartSignal] = useState(0);
 
   const load = useCallback(async () => {
@@ -435,7 +435,7 @@ export function InstancePage() {
   }, [id]);
   usePolling(load);
 
-  // 滚动后顶栏显示实例名，比「实例工作台」更能说明正在改哪个实例。
+  // After scrolling the top bar shows the instance name, which says more about which instance is being edited than "Instance Workspace".
   useToolbarTitle(instance?.name ?? null);
   const tabTitleKey = TAB_TITLE_KEYS.get(subPath.replace(/\/+$/, ''));
   useDocumentTitle(
@@ -454,7 +454,7 @@ export function InstancePage() {
     void run(id, () => controlInstance(id, action, options));
   }
 
-  /** 用户在提示里点了「同意并启动」：先记下同意，启动时面板会据此写入 eula.txt。 */
+  /** The user clicked "Accept and Start" in the notice: acceptance is recorded first, and on start the panel writes eula.txt based on it. */
   function agreeEulaAndStart() {
     void run(id, async () => {
       await api(instanceApi(id), { method: 'PATCH', json: { acceptEula: true } });
@@ -462,7 +462,7 @@ export function InstancePage() {
     });
   }
 
-  // 实例已删除：整页换成跳转。设置表单随之卸载，没保存的修改不会再弹「离开前保存」。
+  // The instance is deleted: the whole page is replaced by a redirect. The settings form unmounts with it, so unsaved changes no longer prompt "save before leaving".
   if (deleted) return <Navigate to="/" replace />;
 
   if (!instance) {
@@ -487,7 +487,7 @@ export function InstancePage() {
     );
   }
 
-  // 参数配置和实例设置的保存栏用的重启入口：和页头的重启按钮走同一个确认框、同一套禁用条件。
+  // The restart entry used by the save bars of the config editor and instance settings: the same confirmation dialog and the same disabling conditions as the restart button in the page header.
   const restart: RestartControl = {
     running: instance.status === 'running',
     disabled: busy || instance.requiresMigration || isLifecycleBusy(instance.status),
@@ -508,7 +508,7 @@ export function InstancePage() {
             <h1 className="large-title instance-name">{instance.name}</h1>
             <div className="instance-meta">
               <InstanceStatusPill instance={instance} />
-              {/* 与总览列表同一写法：核心名加游戏版本，自定义 jar 显示「自定义 Jar」。 */}
+              {/* Same form as the overview list: core name plus game version, with "Custom Jar" for a custom jar. */}
               <span>
                 {coreDisplayName(instance.coreType, t)}
                 {instance.mcVersion ? ` ${instance.mcVersion}` : ''}
@@ -516,8 +516,8 @@ export function InstancePage() {
             </div>
           </div>
 
-          {/* 只放当前状态下能做的事：停着时只有「启动」；进程还在时才有停止、重启，强制停止收进「⋯」。
-              待迁移的实例先处理下方的迁移说明，这里不放按钮。 */}
+          {/* Only what can be done in the current state: just "Start" while stopped; stop and restart only while the process is still there, with force stop tucked into "⋯".
+              For an instance pending migration, handle the migration notice below first; no buttons go here. */}
           {!instance.requiresMigration && (
             <div className="instance-actions">
               {canStartInstance(instance.status) && (
@@ -564,7 +564,7 @@ export function InstancePage() {
 
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
 
-      {/* 实例的几个页面用下划线文字标签，不用胶囊分段：分段控件留给「同一份内容换个视图」的场合。 */}
+      {/* The instance's pages use underlined text tabs rather than a capsule segmented control: segmented controls are reserved for "the same content in another view". */}
       {!instance.requiresMigration && (
         <nav className="hub-tabs" aria-label={t('instance.tabs.label')}>
           <NavLink to={`/instances/${id}`} end className={hubTabClass}>

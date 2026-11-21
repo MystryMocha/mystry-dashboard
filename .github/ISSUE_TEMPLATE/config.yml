@@ -1,4 +1,4 @@
-# 仅保留结构化 Issue 模板；安全问题请勿公开开 Issue，见仓库根目录 SECURITY.md
+# Only structured Issue templates are kept; do not open public Issues for security problems, see SECURITY.md in the repo root
 blank_issues_enabled: false
 contact_links:
   - name: Documentation & Troubleshooting / 文档与故障排查

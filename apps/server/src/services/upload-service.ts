@@ -45,7 +45,7 @@ function tempPath(prefix: string): string {
   );
 }
 
-/** 将 multipart 流直接写入受控临时目录，不把上传内容聚合到内存。maxBytes 默认 MAX_UPLOAD_BYTES。 */
+/** Writes the multipart stream straight into a controlled temp directory, without aggregating the upload in memory. maxBytes defaults to MAX_UPLOAD_BYTES. */
 export async function streamToUploadTemp(
   input: Readable,
   prefix: string,
@@ -94,7 +94,7 @@ export async function streamToUploadTemp(
     try {
       if (target) fs.rmSync(target, { force: true });
     } catch {
-      /* 清理失败不覆盖原始错误 */
+      /* A cleanup failure does not override the original error */
     }
     if ((input as Readable & { truncated?: boolean }).truncated) {
       throw new UploadTooLargeError();
@@ -117,7 +117,7 @@ export function removeUploadTemp(filePath: string): void {
   fs.rmSync(resolved, { force: true });
 }
 
-/** 确保后台任务只接收 uploads 目录中的临时文件。 */
+/** Ensures background tasks receive only temp files in the uploads directory. */
 export function assertUploadPath(filePath: string): string {
   const safe = resolveSafePath(config.uploadDir, path.basename(filePath));
   if (!path.basename(safe).startsWith('.tmp-import-')) {
@@ -126,7 +126,7 @@ export function assertUploadPath(filePath: string): string {
   return safe;
 }
 
-/** ZIP 预览只能引用专用前缀的受控上传临时文件。 */
+/** A ZIP preview can only reference controlled upload temp files with the dedicated prefix. */
 export function assertImportPreviewUploadPath(filePath: string): string {
   const safe = resolveSafePath(config.uploadDir, path.basename(filePath));
   if (!path.basename(safe).startsWith('.tmp-import-preview-')) {

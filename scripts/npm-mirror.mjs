@@ -7,10 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { isMainModule } from './is-main-module.mjs';
 
 /**
- * 源码启动器安装依赖时使用的 npm 下载源。
- * package-lock.json 只记录官方地址，npm 安装时把官方地址换成所选的源；
- * 内容仍由锁文件里的 integrity 校验，所以换源不会改变安装结果。
- * 便携版自带依赖，不用这个开关。
+ * The npm registry the source launcher uses when installing dependencies.
+ * package-lock.json records only official URLs, and at install time npm replaces the official URL with the chosen registry;
+ * content is still verified by the integrity in the lockfile, so switching registries does not change the install result.
+ * The portable version bundles its dependencies and does not use this switch.
  */
 export const OFFICIAL_REGISTRY = 'https://registry.npmjs.org/';
 
@@ -23,16 +23,16 @@ export const NPM_MIRRORS = [
 ];
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-// config/ 已被 .gitignore 忽略，单独放一个文件，不碰保存密钥的配置文件。
+// config/ is already ignored by .gitignore; a separate file is used so the config file holding secrets is not touched.
 const selectionPath = path.join(projectRoot, 'config', 'npm-mirror');
 const managerCommand = process.platform === 'win32' ? '.\\PanelManager.cmd' : './PanelManager.sh';
 
-// 启动器已把界面语言规范化后写入 MYSTRY_LANG。
+// The launcher has already normalized the UI language and written it to MYSTRY_LANG.
 const chinese = /^zh/i.test(process.env.MYSTRY_LANG ?? '');
 const text = (zh, en) => (chinese ? zh : en);
 const label = (mirror) => text(mirror.zh, mirror.en);
 
-/** 名称不区分大小写，也接受菜单里的编号。 */
+/** Names are case-insensitive, and the numbers from the menu are accepted too. */
 export function findMirror(value) {
   const normalized = String(value ?? '').trim().toLowerCase();
   if (!normalized) return undefined;
@@ -45,7 +45,7 @@ function unknownMirrorMessage(value) {
   return text(`未知的 npm 下载源：${value}。可选：${names}。`, `Unknown npm download source: ${value}. Choose one of: ${names}.`);
 }
 
-/** 环境变量优先于保存的选择，方便在 CI 或单次命令里临时指定。 */
+/** The environment variable takes precedence over the saved choice, which makes it easy to set temporarily in CI or for a single command. */
 function currentSelection() {
   const fromEnvironment = process.env.MYSTRY_NPM_MIRROR?.trim();
   const saved = fs.existsSync(selectionPath) ? fs.readFileSync(selectionPath, 'utf8').trim() : '';
@@ -88,7 +88,7 @@ function setMirror(value) {
 function main() {
   const [command, value] = process.argv.slice(2);
   if (command === 'registry') {
-    // 跟随 npm 自身配置时输出空内容，启动器据此不加 --registry。
+    // When following npm's own config the output is empty, and the launcher adds no --registry based on that.
     console.log(currentSelection().url);
     return;
   }

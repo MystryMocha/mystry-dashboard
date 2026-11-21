@@ -1,5 +1,5 @@
 /**
- * 数据目录 Unix 权限回归。
+ * Data directory Unix permission regression.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

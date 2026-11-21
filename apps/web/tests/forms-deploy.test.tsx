@@ -8,9 +8,9 @@ import { setupFormTestEnv } from './form-test-env';
 
 const java25 = { id: 'rt25', path: 'C:/Java/jdk-25/bin/java.exe', version: '25.0.1', majorVersion: 25, source: 'scan', verifiedAt: '', available: true };
 
-/** 请求替身的可调部分：每个用例开头按需要改。 */
+/** Adjustable parts of the request stub: changed as needed at the start of each case. */
 let javaRuntimes: unknown[];
-/** 为 true 时 Java 列表一直不返回，页面停在「正在检查 Java」。 */
+/** When true the Java list never returns, and the page stays on "checking Java". */
 let javaPending: boolean;
 let deployBodies: Array<Record<string, unknown>>;
 
@@ -19,7 +19,7 @@ beforeEach(() => {
   javaRuntimes = [java25];
   javaPending = false;
   deployBodies = [];
-  // 只是替身：不发真实请求，更不会真的下载核心。部署任务一直停在运行中，页面保持「部署中」。
+  // A stub only: no real request is sent, let alone a real core download. The deploy task stays running, and the page stays on "deploying".
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     const path = String(url);
     if (path.startsWith('/api/system/java-runtimes')) {
@@ -44,7 +44,7 @@ function mountDeploy() {
   return render(<MemoryRouter><DeployPage /></MemoryRouter>);
 }
 
-/** 等版本和 Java 都就绪：这时只差 EULA 没勾。 */
+/** Waits until both the versions and Java are ready: at this point only the EULA is unchecked. */
 async function waitUntilOnlyEulaMissing() {
   expect(await screen.findByRole('button', { name: '勾选同意 Minecraft EULA 后才能部署' })).toBeTruthy();
 }
@@ -56,7 +56,7 @@ test('部署页 Java 不符：操作栏状态可点并跳到 Java 选择框，�
   const status = await screen.findByRole('button', { name: '先安装或选择 Java 25' });
   expect(status.className).toContain('link-button');
   expect(status.getAttribute('type')).toBe('button');
-  // 第 4 节在这种情况下没有别的内容，整节不出现；旧的那句长说明也不在页面上。
+  // Section 4 has nothing else in this case, so the whole section is absent; the old long explanation is not on the page either.
   expect(screen.queryByRole('heading', { name: /确认并部署/ })).toBeNull();
   expect(screen.queryByText(/这个版本需要 Java 25/)).toBeNull();
 
@@ -86,7 +86,7 @@ test('部署页实例名称：错误在失焦后才显示并关联输入框，�
 
   await user.clear(name);
   await user.paste('a'.repeat(129));
-  // 还在输入：操作栏已经说了原因，字段本身先不打断。
+  // Still typing: the action bar has already given the reason, so the field itself does not interrupt yet.
   expect(screen.getByRole('button', { name: '实例名称最多 128 个字符' })).toBeTruthy();
   expect(name.getAttribute('aria-invalid')).toBeNull();
   expect(document.querySelector('.field .error')).toBeNull();
@@ -97,12 +97,12 @@ test('部署页实例名称：错误在失焦后才显示并关联输入框，�
   expect(name.getAttribute('aria-invalid')).toBe('true');
   expect(name.getAttribute('aria-describedby')!.split(' ')).toContain(error.id);
 
-  // 已经在报错的字段每次按键重新检查，改对了马上消失。
+  // A field already showing an error is rechecked on every keystroke and clears as soon as it is fixed.
   await user.type(name, '{Backspace}');
   expect(document.querySelector('.field .error')).toBeNull();
   expect(name.getAttribute('aria-invalid')).toBeNull();
 
-  // 空的必填项不标红；点操作栏的状态文字回到名称。
+  // An empty required item is not marked red; clicking the status text in the action bar goes back to the name.
   await user.clear(name);
   await user.tab();
   expect(name.getAttribute('aria-invalid')).toBeNull();
@@ -120,7 +120,7 @@ test('部署页按 Enter：不能部署时显示原因并跳到要改的字段�
   expect(submit.getAttribute('type')).toBe('submit');
   expect(submit.disabled).toBe(true);
 
-  // 名称填错、还没失焦：Enter 让它显示原因，焦点留在名称上。
+  // Name filled in wrong and not blurred yet: Enter makes it show the reason, and focus stays on the name.
   await user.clear(name);
   await user.paste('a'.repeat(129));
   expect(document.querySelector('.field .error')).toBeNull();
@@ -128,21 +128,21 @@ test('部署页按 Enter：不能部署时显示原因并跳到要改的字段�
   expect(document.querySelector('.field .error')!.textContent).toBe('实例名称最多 128 个字符');
   expect(document.activeElement).toBe(name);
 
-  // 名称改对后只差 EULA：Enter 跳到勾选框，不提交。
+  // After the name is fixed only the EULA is missing: Enter jumps to the checkbox without submitting.
   await user.clear(name);
   await user.paste('生存服');
   await user.keyboard('{Enter}');
   expect(document.activeElement).toBe(eula);
   expect(deployBodies).toHaveLength(0);
 
-  // 勾选框里的 Enter 不提交；EULA 仍然要用户自己勾。
+  // Enter in the checkbox does not submit; the EULA still has to be checked by the user.
   await user.click(eula);
   expect(submit.disabled).toBe(false);
   eula.focus();
   await user.keyboard('{Enter}');
   expect(deployBodies).toHaveLength(0);
 
-  // 多行文本框（JVM 额外参数）里的 Enter 是换行。
+  // Enter in the multi-line text box (extra JVM arguments) is a line break.
   const textarea = document.querySelector<HTMLTextAreaElement>('form textarea')!;
   textarea.focus();
   await user.keyboard('{Enter}');
@@ -150,13 +150,13 @@ test('部署页按 Enter：不能部署时显示原因并跳到要改的字段�
   await user.clear(textarea);
   await waitFor(() => expect(submit.disabled).toBe(false));
 
-  // 可以部署：输入框里按 Enter 提交；连按不会发第二次。
+  // Ready to deploy: pressing Enter in an input submits; pressing repeatedly does not send a second time.
   name.focus();
   await user.keyboard('{Enter}{Enter}');
   await waitFor(() => expect(deployBodies).toHaveLength(1));
   expect(deployBodies[0]).toMatchObject({ name: '生存服', coreType: 'paper', mcVersion: '26.3', acceptEula: true, javaRuntimeId: 'rt25' });
   await waitFor(() => expect(screen.getByRole('button', { name: '部署任务运行中…' })).toBeTruthy());
-  // 第 4 节只在有进度或失败原因时出现。
+  // Section 4 appears only when there is progress or a failure reason.
   expect(screen.getByRole('heading', { name: /确认并部署/ })).toBeTruthy();
   expect(deployBodies).toHaveLength(1);
 });
@@ -166,7 +166,7 @@ test('部署页点主按钮走表单提交，表单里只有它是 submit，可�
   mountDeploy();
   await waitUntilOnlyEulaMissing();
   expect(screen.getByRole('button', { name: /^Paper 构建版本（可选）/ })).toBeTruthy();
-  // 必填项不标。
+  // Required items are not marked.
   expect(screen.getByLabelText('实例名称')).toBeTruthy();
   expect(screen.getByRole('button', { name: /^游戏版本/ }).getAttribute('aria-labelledby')).toBeTruthy();
   expect(screen.queryByRole('button', { name: /^游戏版本（可选）/ })).toBeNull();
@@ -177,7 +177,7 @@ test('部署页点主按钮走表单提交，表单里只有它是 submit，可�
   await user.click(screen.getByRole('radio', { name: /Paper/ }));
   await waitUntilOnlyEulaMissing();
 
-  // 展开下拉后连同选项一起检查：除主按钮外都必须写明 type="button"，否则点了会误提交。
+  // After opening the dropdown, check it together with its options: everything except the primary button must state type="button", or a click would submit by mistake.
   await user.click(screen.getByRole('button', { name: /^游戏版本/ }));
   const form = document.querySelector('form')!;
   const buttons = [...form.querySelectorAll('button')];

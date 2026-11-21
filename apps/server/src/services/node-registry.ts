@@ -4,19 +4,19 @@ import type { NodeHostInfo, NodeStatus } from '@mystry/shared';
 import { LOCAL_NODE_ID } from '@mystry/shared';
 
 /**
- * 节点运行期状态注册表（内存态，重启面板即重置）。
+ * Registry of node runtime state (in memory, reset when the panel restarts).
  *
- * 设计与 ProcessManager 保持一致：数据库只存节点的静态元数据（名称、密钥哈希），
- * 在线状态/心跳/主机信息属于运行期信息，不写库。
+ * The design matches ProcessManager: the database stores only a node's static metadata (name, secret hash),
+ * while online status / heartbeat / host info are runtime information and are not written to the database.
  *
- * 目前只有本机节点，它代表面板自身，始终在线。
+ * Currently there is only the local node, which represents the panel itself and is always online.
  */
 class NodeRegistry extends EventEmitter {
   private online = new Map<string, { lastSeenAt: string; hostInfo: NodeHostInfo | null }>();
 
   constructor() {
     super();
-    // 本机节点视为面板自身，始终在线
+    // The local node is the panel itself and is always online
     this.markOnline(LOCAL_NODE_ID, {
       platform: os.platform(),
       arch: os.arch(),
@@ -44,7 +44,7 @@ class NodeRegistry extends EventEmitter {
   }
 
   markOffline(nodeId: string): void {
-    if (nodeId === LOCAL_NODE_ID) return; // 本机节点不可下线
+    if (nodeId === LOCAL_NODE_ID) return; // The local node cannot go offline
     this.online.delete(nodeId);
     this.emit('status', nodeId, 'offline' satisfies NodeStatus);
   }

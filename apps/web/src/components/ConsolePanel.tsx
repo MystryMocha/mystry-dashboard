@@ -20,7 +20,7 @@ type Props = {
   canSend?: boolean;
 };
 
-// 命令本身是 Minecraft 命令，不翻译；说明存文案键，渲染时再取当前语言。
+// The commands themselves are Minecraft commands and not translated; descriptions store string keys, resolved in the current language at render time.
 const QUICK_COMMANDS: { label: string; descKey: MessageKey; cmd: string }[] = [
   { label: 'list', descKey: 'console.quick.list', cmd: 'list' },
   { label: 'save-all', descKey: 'console.quick.saveAll', cmd: 'save-all' },
@@ -29,11 +29,11 @@ const QUICK_COMMANDS: { label: string; descKey: MessageKey; cmd: string }[] = [
   { label: 'help', descKey: 'console.quick.help', cmd: 'help' },
 ];
 
-// 服务端写进控制台日志的面板提示整行：英文句式为当前写法，中文句式来自旧版本留下的历史缓冲。
+// Whole lines of panel notices the server writes to the console log: the English pattern is the current form, and the Chinese pattern comes from history buffers left by older versions.
 const PROCESS_START_FAILED_RE = /^(?:\[Panel\] Process failed to start: |\[面板\] 进程启动失败：)(.*)$/gm;
 const PROCESS_EXITED_RE = /^(?:\[Panel\] Process exited \(exit code (.*?), signal (.*?)\)|\[面板\] 进程已退出（退出码 (.*?)，信号 (.*?)）)$/gm;
 
-// 读屏模式是每个浏览器的个人偏好，读写失败（隐私模式等）时按关闭处理。
+// Screen reader mode is a personal preference per browser; when reading or writing it fails (private mode, etc.) it is treated as off.
 const SCREEN_READER_KEY = 'mystry_console_screen_reader';
 
 function readScreenReaderPreference(): boolean {
@@ -49,14 +49,14 @@ function storeScreenReaderPreference(enabled: boolean): void {
     if (enabled) localStorage.setItem(SCREEN_READER_KEY, '1');
     else localStorage.removeItem(SCREEN_READER_KEY);
   } catch {
-    // 无法持久化时只影响下次打开，本次开关照常生效。
+    // When it cannot be persisted only the next open is affected; the switch works as usual this time.
   }
 }
 
 /**
- * xterm 的读屏朗读区最多读约 20 行，之后只提示「输出太多」，直到重建才恢复。
- * 关掉再打开读屏模式会重建无障碍层：历史快照写完后、发送命令前各重置一次，
- * 避免整段历史被朗读，也让命令的回显能被读到。
+ * xterm's screen reader live region reads at most about 20 lines, after which it only says "too much output" until rebuilt.
+ * Turning screen reader mode off and on rebuilds the accessibility layer: it is reset once after the history snapshot is written and once before a command is sent,
+ * so the whole history is not read out, and the command's echo can be read.
  */
 function resetScreenReaderAnnouncements(term: Terminal): void {
   if (!term.options.screenReaderMode) return;
@@ -64,12 +64,12 @@ function resetScreenReaderAnnouncements(term: Terminal): void {
   term.options.screenReaderMode = true;
 }
 
-/** 「无」占位换成可翻译消息，其余（退出码、信号名）原样显示。 */
+/** The "none" placeholder is replaced with a translatable message; the rest (exit code, signal name) is shown as is. */
 function exitDetail(value: string): PanelMessageParam {
   return value === 'none' || value === '无' ? { key: 'server.instance.consoleNone' } : value;
 }
 
-/** 把服务端写入的面板提示行改写为当前界面语言；其余输出原样保留。 */
+/** Rewrites panel notice lines written by the server into the current UI language; other output is kept as is. */
 function localizePanelLines(text: string): string {
   if (!text.includes('[Panel]') && !text.includes('[面板]')) return text;
   return text
@@ -84,7 +84,7 @@ function localizePanelLines(text: string): string {
       }));
 }
 
-/** 控制台错误帧：有消息键时按当前语言显示，否则显示服务端原文。 */
+/** Console error frame: shown in the current language when there is a message key, otherwise the server's original text. */
 function consoleErrorText(msg: ConsoleMessage): string {
   return isServerMessageKey(msg.code)
     ? translateMessageNow({ key: msg.code, params: msg.params }, msg.data)
@@ -104,7 +104,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
   const [connected, setConnected] = useState(false);
   const [copyMessage, setCopyMessage] = useState('');
   const [screenReaderMode, setScreenReaderMode] = useState(readScreenReaderPreference);
-  // 终端只随实例重建；创建时读 ref 取当前开关，避免把开关放进依赖导致断开重连。
+  // The terminal is rebuilt only with the instance; the current switch state is read from a ref at creation, so the switch does not go into the dependencies and cause a disconnect and reconnect.
   const screenReaderModeRef = useRef(screenReaderMode);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyRequestRef = useRef(0);
@@ -117,7 +117,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // xterm 的读屏文案是全局静态值，创建终端前按当前界面语言设置；终端只读，输入框标签改为「控制台输出」。
+    // xterm's screen reader strings are global static values, set in the current UI language before the terminal is created; the terminal is read-only, so the input label is changed to "Console output".
     Terminal.strings.promptLabel = translateNow('console.output.label');
     Terminal.strings.tooMuchOutput = translateNow('console.output.tooMuchOutput');
 
@@ -129,7 +129,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
       fontFamily: "'SF Mono', ui-monospace, Menlo, 'Cascadia Mono', Consolas, 'DejaVu Sans Mono', monospace",
       fontSize: 13,
       lineHeight: 1.25,
-      // 终端区域固定深色，配色取自 Apple 系统色的深色变体。
+      // The terminal area is always dark, with colors taken from the dark variants of Apple's system colors.
       theme: {
         background: '#161618',
         foreground: '#e5e5ea',
@@ -176,8 +176,8 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
       }
     };
 
-    // 终端连接副作用只随实例重建；写入终端的提示用模块级 t()，按写入时的界面语言取文案，
-    // 避免把 t 放进依赖导致切换语言时重建终端并断开 WebSocket。
+    // The terminal connection side effect is rebuilt only with the instance; notices written to the terminal use the module-level t(), taking strings in the UI language at write time,
+    // so t does not go into the dependencies and rebuild the terminal and drop the WebSocket when the language switches.
     const panelPrefix = () => translateNow('console.prefix.panel');
 
     const writeSystemLine = (line: string) => {
@@ -209,7 +209,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
         );
         wsRef.current = ws;
 
-        // 重连后服务端会重发完整历史缓冲；「已重新连接」提示留到历史写完再输出，避免被清屏抹掉。
+        // After a reconnect the server resends the full history buffer; the "reconnected" notice is held until the history is written, so the clear does not wipe it.
         let reconnectNoticePending = false;
 
         ws.onopen = () => {
@@ -224,12 +224,12 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
           try {
             const msg = JSON.parse(String(ev.data)) as ConsoleMessage;
             if (msg.type === 'history') {
-              // 历史帧是服务端缓冲的完整快照：先清空终端和未完成的半行，再整体写入，避免重连后日志重复。
+              // A history frame is the full snapshot buffered by the server: clear the terminal and any unfinished half line first, then write it whole, so logs are not duplicated after a reconnect.
               term.reset();
               colorState.pending = '';
               writeColored(msg.data, true);
-              // write 是异步解析的：空写入的回调在历史解析完后、后续写入解析前触发，
-              // 因此历史不会被朗读，而紧随其后的「已重新连接」提示仍会播报。
+              // write is parsed asynchronously: the callback of an empty write fires after the history is parsed and before later writes are parsed,
+              // so the history is not read out, while the "reconnected" notice right after it is still announced.
               term.write('', () => {
                 if (!disposed) resetScreenReaderAnnouncements(term);
               });
@@ -436,7 +436,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
         </form>
       </div>
 
-      {/* 快捷命令按钮栏 */}
+      {/* Quick command button bar */}
       <div className="quick-cmd-bar" role="group" aria-label={t('console.quick.label')}>
         <span className="quick-cmd-label">{t('console.quick.label')}</span>
         {QUICK_COMMANDS.map((item) => (

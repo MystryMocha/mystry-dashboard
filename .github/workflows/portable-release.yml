@@ -1,4 +1,4 @@
-# 第三方 Actions 固定 SHA：见 .github/actions-pins.md（审查日期 2026-08-07）
+# Third-party Actions pinned by SHA: see .github/actions-pins.md (reviewed 2026-08-07)
 name: Portable Preview Release
 
 on:

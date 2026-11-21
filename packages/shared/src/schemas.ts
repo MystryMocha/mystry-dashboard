@@ -1,6 +1,6 @@
-/** Fastify AJV 使用的请求 JSON Schema；字段改动时同步 index.ts 中对应的类型。 */
+/** Request JSON Schemas used by Fastify AJV; when fields change, keep the matching types in index.ts in sync. */
 
-/** 核心类型枚举（含 custom） */
+/** Core type enum (including custom) */
 export const CORE_TYPE_ENUM = [
   'vanilla',
   'paper',
@@ -10,13 +10,13 @@ export const CORE_TYPE_ENUM = [
   'custom',
 ] as const;
 
-/** 面板下载来源：official 只用官方服务器，china 优先用国内镜像，失败后回到官方。 */
+/** Panel download source: official uses only the official servers; china prefers mirrors in China and falls back to official on failure. */
 export const DOWNLOAD_SOURCE_ENUM = ['official', 'china'] as const;
 
-/** 登录有效期：登录后多久需要重新输入密码；never 不过期。默认 12h。 */
+/** Session duration: how long after sign-in the password must be entered again; never does not expire. Defaults to 12h. */
 export const SESSION_DURATION_ENUM = ['2h', '12h', '1d', '7d', '30d', 'never'] as const;
 
-/** 可一键部署的核心类型（不含 custom） */
+/** Core types that support one-click deploy (excluding custom) */
 export const DEPLOYABLE_CORE_TYPE_ENUM = [
   'vanilla',
   'paper',
@@ -25,10 +25,10 @@ export const DEPLOYABLE_CORE_TYPE_ENUM = [
   'neoforge',
 ] as const;
 
-/** 面板能自动安装的 Java 主版本（Eclipse Temurin JRE，具体版本和 SHA-256 钉死在服务端）。 */
+/** Java major versions the panel can install automatically (Eclipse Temurin JRE; the exact version and SHA-256 are pinned on the server). */
 export const JAVA_INSTALL_MAJORS = [8, 17, 21, 25] as const;
 
-/** POST /api/system/java-runtimes/install：只接受面板钉死了安装包的主版本。 */
+/** POST /api/system/java-runtimes/install: only accepts major versions whose installer the panel has pinned. */
 export const installJavaBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -130,7 +130,7 @@ export const confirmZipImportBodySchema = {
   },
 } as const;
 
-/** 浏览器上传文件夹的开始请求；上限由服务端按 MAX_EXISTING_IMPORT_* 再查一遍。 */
+/** Start request for a browser folder upload; the server checks the limits again against MAX_EXISTING_IMPORT_*. */
 export const createFolderUploadBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -162,7 +162,7 @@ export const loginBodySchema = {
   },
 } as const;
 
-/** 密码长度规则由服务端校验，这里只挡超长输入，用户才能看到具体的长度提示。 */
+/** Password length rules are validated by the server; this only blocks oversized input, so users get to see the specific length hint. */
 const newPasswordSchema = { type: 'string', maxLength: 1024 } as const;
 
 export const changePasswordBodySchema = {
@@ -201,10 +201,10 @@ export const updateNodeBodySchema = {
   },
 } as const;
 
-/** 实例内相对路径最大长度（与 file 路由一致） */
+/** Maximum length of a relative path inside an instance (same as the file routes) */
 const maxInstanceRelativePathLength = 1024;
 
-/** POST /api/instances/:id/files/download-ticket 请求体 */
+/** POST /api/instances/:id/files/download-ticket request body */
 export const fileDownloadTicketBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -214,19 +214,19 @@ export const fileDownloadTicketBodySchema = {
   },
 } as const;
 
-/** GET /api/instances/:id/files/download 查询参数 */
+/** GET /api/instances/:id/files/download query parameters */
 export const fileDownloadQuerySchema = {
   type: 'object',
   additionalProperties: false,
   required: ['path'],
   properties: {
     path: { type: 'string', maxLength: maxInstanceRelativePathLength },
-    /** 一次性下载 ticket；有 ticket 时可不带 JWT */
+    /** One-time download ticket; with a ticket the JWT may be omitted */
     ticket: { type: 'string', minLength: 1, maxLength: 128 },
   },
 } as const;
 
-/** POST /api/instances/:id/backups/:backupId/restore 请求体 */
+/** POST /api/instances/:id/backups/:backupId/restore request body */
 export const restoreBackupBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -235,12 +235,12 @@ export const restoreBackupBodySchema = {
   },
 } as const;
 
-/** GET /api/instances/:id/backups/:backupId/download 查询参数 */
+/** GET /api/instances/:id/backups/:backupId/download query parameters */
 export const backupDownloadQuerySchema = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    /** 一次性下载 ticket；有 ticket 时可不带 JWT */
+    /** One-time download ticket; with a ticket the JWT may be omitted */
     ticket: { type: 'string', minLength: 1, maxLength: 128 },
   },
 } as const;
@@ -269,7 +269,7 @@ export const createFrpEndpointBodySchema = {
   },
 } as const;
 
-/** PATCH /api/frp/endpoints/:id。token 省略或空字符串表示不改令牌。 */
+/** PATCH /api/frp/endpoints/:id. An omitted or empty-string token means the token is unchanged. */
 export const updateFrpEndpointBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -305,7 +305,7 @@ export const updateInstanceLanBodySchema = {
   required: ['enabled'],
   properties: {
     enabled: { type: 'boolean' },
-    // 与 LAN_CUSTOM_PEER_LIMIT 一致；具体格式由服务端逐条校验。
+    // Same as LAN_CUSTOM_PEER_LIMIT; the exact format is validated per item by the server.
     peers: {
       type: 'array',
       maxItems: 8,
@@ -315,10 +315,10 @@ export const updateInstanceLanBodySchema = {
   },
 } as const;
 
-/** 网卡名只限长度，不限字符：中文 Windows 的网卡叫「以太网」「本地连接* 1」。是否存在由服务端按枚举结果判断。 */
+/** Interface names are limited in length only, not in characters: on Chinese Windows, interfaces are named "以太网" or "本地连接* 1". Whether one exists is decided by the server from the enumeration result. */
 const interfaceNameSchema = { type: ['string', 'null'], minLength: 1, maxLength: 255 } as const;
 
-/** PUT /api/system/remote-access/direct、PUT /api/system/remote-access/overlay 与启动器同名接口 */
+/** PUT /api/system/remote-access/direct, PUT /api/system/remote-access/overlay and the launcher endpoints of the same name */
 export const updateAccessModeBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -339,7 +339,7 @@ export const updatePanelNetworkBodySchema = {
   properties: {
     enabled: { type: 'boolean' },
     useSharedPeers: { type: 'boolean' },
-    // 与 LAN_CUSTOM_PEER_LIMIT 一致；具体格式由服务端逐条校验。
+    // Same as LAN_CUSTOM_PEER_LIMIT; the exact format is validated per item by the server.
     customPeers: {
       type: 'array',
       maxItems: 8,
@@ -348,7 +348,7 @@ export const updatePanelNetworkBodySchema = {
   },
 } as const;
 
-/** PUT /api/system/public-host；具体格式由服务端校验，这里只挡超长输入。 */
+/** PUT /api/system/public-host; the exact format is validated by the server, this only blocks oversized input. */
 export const updatePublicHostBodySchema = {
   type: 'object',
   additionalProperties: false,

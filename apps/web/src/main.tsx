@@ -25,7 +25,7 @@ function ErrorScreen({ error }: { error: Error }) {
   );
 }
 
-/** 渲染期异常兜底，避免整页白屏且无法恢复。 */
+/** Fallback for render-time exceptions, so the whole page does not go blank with no way to recover. */
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
 

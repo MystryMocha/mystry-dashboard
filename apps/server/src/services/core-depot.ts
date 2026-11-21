@@ -79,8 +79,8 @@ export async function deployCore(input: DeployCoreInput) {
           );
           const installerDest = resolveSafePath(dir, installerName);
 
-          // 先解析下载计划再看缓存：缓存不分来源共用，要按官方 Maven 的校验值核对后才能执行。
-          // 离线时取不到 .sha256，计划不带校验值，非空缓存仍可直接使用。
+          // Resolve the download plan before looking at the cache: the cache is shared across sources and must be checked against the official Maven checksum before being executed.
+          // Offline, .sha256 cannot be fetched and the plan carries no checksum; a non-empty cache can still be used directly.
           throwIfAborted(signal);
           const plan = await resolveInstallerDownload(input.coreType, input.mcVersion, loaderVersion, signal);
           if (await verifyCoreCache(cachePath, plan.expected, signal)) {
@@ -120,7 +120,7 @@ export async function deployCore(input: DeployCoreInput) {
           try {
             fs.unlinkSync(installerDest);
           } catch {
-            /* 清理失败不影响后续启动目标探测 */
+            /* A cleanup failure does not affect the launch target detection that follows */
           }
 
           throwIfAborted(signal);
@@ -146,7 +146,7 @@ export async function deployCore(input: DeployCoreInput) {
           throwIfAborted(signal);
           report(95, { key: 'server.deploy.progress.writingInstance' });
         } else {
-          // Vanilla / Paper / Fabric：直接下载 jar
+          // Vanilla / Paper / Fabric: download the jar directly
           throwIfAborted(signal);
           const destJar = resolveSafePath(dir, 'server.jar');
 
@@ -168,7 +168,7 @@ export async function deployCore(input: DeployCoreInput) {
               input.installerVersion,
               signal,
             );
-            // Fabric 的服务端 jar 由官方接口现场生成，BMCLAPI 不提供，始终走官方。
+            // Fabric's server jar is generated on the fly by the official API and BMCLAPI does not provide it, so it always goes to official.
             plan = createDownloadPlan([officialCandidate('FabricMC', fabric.url)]);
             cacheBasename = buildResolvedCoreCacheBasename('fabric', input.mcVersion, {
               loader: fabric.loader,
@@ -177,7 +177,7 @@ export async function deployCore(input: DeployCoreInput) {
           }
           const cachePath = path.join(config.cacheDir, cacheBasename.replace(/[^\w.-]+/g, '_'));
 
-          // 缓存按计划的校验值核对后才复用，不符的会被删掉并重新下载。
+          // The cache is reused only after being checked against the plan's checksum; a mismatch is deleted and downloaded again.
           if (await verifyCoreCache(cachePath, plan.expected, signal)) {
             throwIfAborted(signal);
             report(60, { key: 'server.deploy.progress.usingCache' });
@@ -202,7 +202,7 @@ export async function deployCore(input: DeployCoreInput) {
           jarFile = 'server.jar';
         }
 
-        // 目录一旦落地就必须继续注册；此处不能加入 await 或取消检查。
+        // Once the directory has landed, registration must follow; no await or cancellation check may be added here.
         promoteTaskStagingToInstance(taskId, instanceId);
         registerPromotedInstance(instanceId, {
           name: input.name,
@@ -221,7 +221,7 @@ export async function deployCore(input: DeployCoreInput) {
           try {
             removeTaskStagingTree(taskId, instanceId);
           } catch {
-            /* 清理失败不覆盖原始错误 */
+            /* A cleanup failure does not override the original error */
           }
         }
       }

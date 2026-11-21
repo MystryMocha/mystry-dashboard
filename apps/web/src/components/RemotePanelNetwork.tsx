@@ -44,17 +44,17 @@ const CONNECTION_KEY = {
   unknown: 'remoteAccess.net.devices.unknown',
 } as const satisfies Record<string, MessageKey>;
 
-/** 文本框里一行一个节点；空行忽略，格式由服务端校验。 */
+/** One peer per line in the text box; blank lines are ignored, and the format is validated by the server. */
 function parsePeers(text: string): string[] {
   return text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
 }
 
-/** 密钥每 4 个字符一组显示，方便照着输入；复制的仍是不带空格的原文。 */
+/** The secret is displayed in groups of 4 characters so it is easy to type by reading; what is copied is still the original without spaces. */
 function groupSecret(secret: string): string {
   return secret.replace(/(.{4})(?=.)/g, '$1 ');
 }
 
-/** 另一台电脑上等价的命令行。白名单只留一个用不到的端口，那台电脑不会被同一网络里的设备访问。 */
+/** The equivalent command line for another computer. The whitelist keeps only one unused port, so that computer cannot be accessed by devices on the same network. */
 function joinCommand(join: PanelNetworkJoinInfo): string {
   return [
     'easytier-core',
@@ -71,8 +71,8 @@ function joinCommand(join: PanelNetworkJoinInfo): string {
 }
 
 /**
- * 面板自带的 EasyTier 网络：开启、让设备加入、扫码打开面板、看已加入的设备。
- * 网络名和密钥不在状态里，只在用户点「显示加入信息」时请求。
+ * The panel's built-in EasyTier network: enable it, let devices join, scan to open the panel, and see joined devices.
+ * The network name and secret are not in the status, and are requested only when the user clicks "Show join info".
  */
 export function RemotePanelNetwork({
   network,
@@ -97,7 +97,7 @@ export function RemotePanelNetwork({
   const tooManyPeers = peers.length > LAN_CUSTOM_PEER_LIMIT;
   const noPeers = !useShared && peers.length === 0;
   const peersIssue = lanPeersIssue(peers);
-  // 「开启」用的是已保存的节点设置，不是下面还没保存的草稿，所以按已保存的判断能不能开。
+  // "Enable" uses the saved peer settings, not the unsaved draft below, so whether it can be enabled is decided by what is saved.
   const savedNoPeers = !network.useSharedPeers && network.customPeers.length === 0;
 
   async function run(action: () => Promise<void>): Promise<void> {
@@ -121,7 +121,7 @@ export function RemotePanelNetwork({
   const savePeers = () => run(async () => {
     onNetwork(await savePanelNetwork({ enabled: network.enabled, customPeers: peers, useSharedPeers: useShared }));
     peersTouched.current = false;
-    // 节点变了，已显示的加入信息作废。
+    // The peers changed, so join info already displayed is void.
     setJoin(null);
     setNotice(t('remoteAccess.net.peers.saved'));
   });
@@ -138,7 +138,7 @@ export function RemotePanelNetwork({
   });
 
   async function copy(text: string): Promise<void> {
-    // 密钥不回显到提示里。
+    // The secret is not echoed in the notice.
     setNotice(await copyText(text) ? t('remoteAccess.copied', { text: text.length > 48 ? `${text.slice(0, 24)}…` : text }) : t('remoteAccess.copyFailed'));
   }
 
@@ -203,7 +203,7 @@ export function RemotePanelNetwork({
             <button className="btn btn-primary" type="button" disabled={busy || savedNoPeers} onClick={() => void toggle(true)}>
               {busy ? t('remoteAccess.action.working') : t('remoteAccess.action.turnOn')}
             </button>
-            {/* 节点设置在收起的高级区里，按钮不可点时在旁边说原因。 */}
+            {/* Peer settings are in the collapsed advanced section, so when the button is disabled the reason is given beside it. */}
             {savedNoPeers && <span className="field-help">{t('remoteAccess.net.peers.required')}</span>}
           </>
         )}

@@ -9,9 +9,9 @@ import { setLocalePreference } from '../src/i18n';
 import { resetRouteFocusForTests } from '../src/hooks/useRouteFocus';
 
 vi.mock('@xterm/xterm', () => ({ Terminal: class {
-  // ConsolePanel 创建终端前会写 xterm 的全局读屏文案，模拟类必须带这个静态对象。
+  // ConsolePanel writes xterm's global screen reader strings before creating the terminal, so the mock class must have this static object.
   static strings = { promptLabel: '', tooMuchOutput: '' };
-  // 切换读屏模式时会写 options.screenReaderMode。
+  // Switching screen reader mode writes options.screenReaderMode.
   options = { screenReaderMode: false };
   loadAddon() {} open() {} dispose() {} clear() {} selectAll() {} write() {} writeln() {} reset() {}
   getSelection() { return ''; }
@@ -23,7 +23,7 @@ const instance = { id: 'test', name: 'Survival', coreType: 'custom', status: 'st
 let signedIn: boolean;
 
 function Location() { return <span data-testid="location">{useLocation().pathname}</span>; }
-// 参数配置、实例设置页用到 useBlocker，需要数据路由；这里只走不依赖它的页面。
+// The config editor and instance settings pages use useBlocker and need a data router; only pages that do not depend on it are covered here.
 function mountApp(path = '/') {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -35,7 +35,7 @@ function mountApp(path = '/') {
 
 beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
-  // 本组按英文文案断言，语言切换在用例内显式触发。
+  // This group asserts on the English text, and language switches are triggered explicitly within the cases.
   document.documentElement.lang = 'en'; document.documentElement.dataset.localePreference = 'en';
   document.title = 'Mystry Dashboard';
   resetRouteFocusForTests();
@@ -81,7 +81,7 @@ test('浏览器标签标题随路由变化，切换语言后同步更新', async
   await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/import"]')!);
   await waitFor(() => expect(document.title).toBe('Import Server · Mystry Dashboard'));
 
-  // 面板设置的入口在侧栏底部用户区，不在导航分组里。
+  // The entry to panel settings is in the user area at the bottom of the sidebar, not in the navigation groups.
   await user.click(document.querySelector<HTMLAnchorElement>('.sidebar-footer a[href="/settings"]')!);
   await waitFor(() => expect(document.title).toBe('Panel Settings · Mystry Dashboard'));
 });
@@ -123,7 +123,7 @@ test('首屏加载不抢焦点；导航后焦点落到新页面 h1；实例内�
   await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/deploy"]')!);
   const deployHeading = await screen.findByRole('heading', { level: 1, name: 'Quick Deploy' });
   await waitFor(() => expect(document.activeElement).toBe(deployHeading));
-  // 标题只能被脚本聚焦，不进入 Tab 顺序。
+  // The heading can only be focused by script and does not enter the Tab order.
   expect(deployHeading.getAttribute('tabindex')).toBe('-1');
 
   await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/"]')!);

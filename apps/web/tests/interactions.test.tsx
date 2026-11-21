@@ -30,7 +30,7 @@ vi.mock('@xterm/xterm', () => ({ Terminal: class {
   static strings = { promptLabel: '', tooMuchOutput: '' };
   options: { screenReaderMode: boolean };
   constructor(options: { screenReaderMode?: boolean } = {}) {
-    // 与 xterm 一致：只有值真正变化时才重建读屏层，这里记录每次变化。
+    // Same as xterm: the screen reader layer is rebuilt only when the value really changes, and each change is recorded here.
     let screenReaderMode = Boolean(options.screenReaderMode);
     this.options = {
       get screenReaderMode() { return screenReaderMode; },
@@ -59,11 +59,11 @@ let nodes: unknown[];
 let failNodes: boolean;
 beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
-  // 这组回归按中文原文查元素，固定界面语言为 zh-CN；语言切换与英文文案见 i18n.test.tsx。
+  // This regression group looks up elements by the Chinese text, with the UI language fixed to zh-CN; for language switching and English text see i18n.test.tsx.
   document.documentElement.lang = 'zh-CN'; document.documentElement.dataset.localePreference = 'zh-CN';
   requests = []; nodes = []; failNodes = false; terminal.text = ''; terminal.written = ''; terminal.created = []; terminal.srChanges = []; terminal.current = null;
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener() {}, removeEventListener() {} });
-  // jsdom 不实现原生模态层；此替身仅验证开关状态与应用的焦点恢复逻辑。
+  // jsdom does not implement the native modal layer; this stub only verifies open state and the app's focus restoration logic.
   HTMLDialogElement.prototype.showModal = function () { this.open = true; this.querySelector<HTMLElement>('button')?.focus(); };
   HTMLDialogElement.prototype.close = function () { if (!this.open) return; this.open = false; this.dispatchEvent(new Event('close')); };
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -100,7 +100,7 @@ test('总览监测保留过期数据，重试恢复，异常筛选可清除', as
   expect(await screen.findByText('2.4 GiB')).toBeTruthy();
   fail = true;
   await user.click(screen.getByRole('button', { name: '刷新', exact: true }));
-  // 可见状态行与读屏播报区各有一份错误文本。
+  // The visible status line and the screen reader live region each have a copy of the error text.
   expect(await screen.findAllByText(/数据可能过期/)).toHaveLength(2);
   expect(screen.getByText('2.4 GiB（过期）')).toBeTruthy();
   fail = false;
@@ -133,7 +133,7 @@ test('总览每行给出状态说明和下一步，没有实例时只保留三�
   expect(screen.getByText('这个服务器需要 Java 21')).toBeTruthy();
   expect(screen.getByRole('link', { name: '打开实例设置' }).getAttribute('href')).toBe('/instances/java/settings');
   expect(screen.getByRole('link', { name: '查看并同意' }).getAttribute('href')).toBe('/instances/eula');
-  // 未同意 EULA 而停下的实例也算异常。
+  // An instance that stopped because the EULA was not accepted also counts as abnormal.
   await user.click(screen.getByRole('button', { name: '异常 2' }));
   expect(screen.queryByRole('link', { name: '生存服' })).toBeNull();
   expect(screen.getByRole('link', { name: '新服' })).toBeTruthy();
@@ -146,7 +146,7 @@ test('总览每行给出状态说明和下一步，没有实例时只保留三�
   const paths = within(document.querySelector('.start-path-list') as HTMLElement);
   expect(paths.getByRole('link', { name: /一键部署/ }).getAttribute('href')).toBe('/deploy');
   expect(paths.getByRole('link', { name: /导入服务端/ }).getAttribute('href')).toBe('/import');
-  // 顶部不再重复一套创建按钮。
+  // The top no longer repeats a set of create buttons.
   expect(screen.getAllByRole('link', { name: /一键部署/ })).toHaveLength(1);
   await user.click(paths.getByRole('button', { name: /创建空实例/ }));
   expect(screen.getByRole('dialog', { name: '创建空实例' })).toBeTruthy();
@@ -308,15 +308,15 @@ test('部署页默认 Paper 与最新正式版，EULA 需主动勾选，Build �
   expect(submit.disabled).toBe(true);
 
   await user.click(eula);
-  // 26.3 需要 Java 25，这台电脑没有：不能开始部署，并说明原因。
+  // 26.3 needs Java 25 and this computer does not have it: deployment cannot start, and the reason is explained.
   expect(await screen.findByRole('button', { name: '先安装或选择 Java 25' })).toBeTruthy();
   expect(submit.disabled).toBe(true);
-  // 装好 Java 25 后重新扫描：自动选中，按钮可用。
+  // Rescan after installing Java 25: it is selected automatically and the button is enabled.
   javaRuntimes = [java25];
   await user.click(screen.getByRole('button', { name: '重新扫描' }));
   await waitFor(() => expect(submit.disabled).toBe(false));
   expect(screen.queryByText(/先安装或选择 Java 25/)).toBeNull();
-  // 取消同意后按钮变灰，操作栏说明要先勾选 EULA；再勾上恢复。
+  // After acceptance is withdrawn the button is greyed out and the action bar says the EULA must be checked first; checking it again restores it.
   await user.click(eula);
   expect(submit.disabled).toBe(true);
   expect(screen.getByText('勾选同意 Minecraft EULA 后才能部署')).toBeTruthy();
@@ -454,7 +454,7 @@ test('侧栏齿轮进入面板设置：语言和外观就地生效，显示运�
   mount(<AuthProvider><App /></AuthProvider>);
   const gear = await screen.findByRole('link', { name: '面板设置' });
   expect(gear.closest('.sidebar-footer')).toBeTruthy();
-  // 修改密码不再占用户区的一个图标，只在设置页里。
+  // Change password no longer takes up an icon in the user area; it is only on the settings page.
   expect(screen.queryByRole('button', { name: '修改密码' })).toBeNull();
   await user.click(gear);
   expect(await screen.findByRole('heading', { level: 1, name: '面板设置' })).toBeTruthy();
@@ -462,25 +462,25 @@ test('侧栏齿轮进入面板设置：语言和外观就地生效，显示运�
   expect(gear.getAttribute('aria-current')).toBe('page');
   expect(gear.className).toContain('active');
 
-  // 运行信息只读：监听地址、目录和配置文件来自接口。
+  // Runtime info is read-only: the listen address, directories and config file come from the API.
   expect(await screen.findByText('127.0.0.1:3000')).toBeTruthy();
   expect(screen.getByText('/srv/mystry/data')).toBeTruthy();
   expect(screen.getByText('/srv/mystry/data/backups')).toBeTruthy();
   expect(screen.getByText('/srv/mystry/config/panel.env')).toBeTruthy();
   expect(screen.getByText('监听地址和目录在配置文件里设置，改完要重启面板才生效。')).toBeTruthy();
 
-  // 登录有效期和下载来源搬到了这一页。
+  // Session duration and download source moved to this page.
   expect(await screen.findByRole('combobox', { name: '登录有效期' })).toBeTruthy();
   expect(await screen.findByRole('button', { name: '官方来源', pressed: true })).toBeTruthy();
 
-  // 语言：选了马上换，和顶栏的语言按钮是同一个设置。
+  // Language: switches as soon as chosen, the same setting as the language button in the top bar.
   await user.selectOptions(screen.getByRole('combobox', { name: '语言' }), 'en');
   expect(await screen.findByRole('heading', { level: 1, name: 'Panel Settings' })).toBeTruthy();
   expect(localStorage.getItem('mystry_locale')).toBe('en');
   await user.selectOptions(screen.getByRole('combobox', { name: 'Language' }), 'zh-CN');
   expect(await screen.findByRole('heading', { level: 1, name: '面板设置' })).toBeTruthy();
 
-  // 外观：分段按钮，选中项带 aria-pressed。
+  // Appearance: a segmented button, with aria-pressed on the selected item.
   const dark = screen.getByRole('button', { name: '深色' });
   await user.click(dark);
   expect(dark.getAttribute('aria-pressed')).toBe('true');
@@ -488,13 +488,13 @@ test('侧栏齿轮进入面板设置：语言和外观就地生效，显示运�
   await user.click(screen.getByRole('button', { name: '自动' }));
   expect(document.documentElement.dataset.appearancePreference).toBe('auto');
 
-  // 修改密码从这里打开；取消后回到设置页。
+  // Change password opens from here; after cancelling it returns to the settings page.
   await user.click(screen.getByRole('button', { name: '修改密码' }));
   expect(await screen.findByLabelText('当前密码')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '取消' }));
   await waitFor(() => expect(screen.queryByLabelText('当前密码')).toBeNull());
 
-  // 退出登录：设置页里的按钮和侧栏的图标各一个。
+  // Sign out: one button on the settings page and one icon in the sidebar.
   const account = screen.getByRole('region', { name: '账号' });
   expect(within(account).getByText('测试员')).toBeTruthy();
   await user.click(within(account).getByRole('button', { name: '退出登录' }));
@@ -522,7 +522,7 @@ test('面板设置页读不到运行信息时说明原因，其余设置照常�
   mount(<AuthProvider><SettingsPage /></AuthProvider>);
   expect((await screen.findByRole('alert')).textContent).toContain('测试网络失败');
   expect(screen.queryByText('监听地址')).toBeNull();
-  // 版本号来自前端构建，不依赖接口。
+  // The version number comes from the frontend build and does not depend on the API.
   expect(screen.getByText('版本')).toBeTruthy();
   const select = await screen.findByRole('combobox', { name: '登录有效期' }) as HTMLSelectElement;
   await waitFor(() => expect(select.value).toBe('12h'));
@@ -676,7 +676,7 @@ test('部署页版本下拉：名称由可见标签加当前值组成，键盘�
     if (url === '/api/cores/paper/versions') return new Response(JSON.stringify({ versions: ['26.3', '26.2', '1.21.11'] }));
     return baseFetch(url, options);
   }));
-  // jsdom 未实现 scrollIntoView，键盘移动活动项时会调用它。
+  // jsdom does not implement scrollIntoView, which is called when the keyboard moves the active item.
   Element.prototype.scrollIntoView = vi.fn();
   const user = userEvent.setup();
   mount(<DeployPage />);
@@ -705,7 +705,7 @@ test('部署页版本下拉：名称由可见标签加当前值组成，键盘�
   expect(document.activeElement).not.toBe(trigger);
 });
 
-/** jsdom 没有真实布局：按桌面实测尺寸模拟下拉面板（每项 34px、提示与内边距 44px、上限 400px）。 */
+/** jsdom has no real layout: the dropdown panel is simulated with sizes measured on desktop (34px per item, 44px for the hint and padding, a 400px cap). */
 function mockLazySelectLayout() {
   const contentHeight = (el: HTMLElement) => el.querySelectorAll('[role="option"]').length * 34 + 44;
   vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockImplementation(function (this: HTMLElement) {
@@ -730,7 +730,7 @@ test('部署页版本下拉：首屏填不满面板时继续加载，滚动后�
 
   await user.click(await screen.findByRole('button', { name: '游戏版本 1.0' }));
   const listbox = screen.getByRole('listbox', { name: '游戏版本' });
-  // 10 项只有 384px，放不满 400px 的面板；加载到 20 项出现滚动条后必须停下，不能一次全部渲染。
+  // 10 items are only 384px and do not fill the 400px panel; loading must stop once a scrollbar appears at 20 items, and must not render everything at once.
   expect(within(listbox).getAllByRole('option')).toHaveLength(20);
   expect(listbox.getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: '1.0' }).id);
 
@@ -790,7 +790,7 @@ test('总览例行刷新不进 live region，只播报出错与恢复', async ()
   await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
   expect(screen.getByText(/^更新于/).textContent).not.toBe(before);
   expect(liveText()).not.toContain('更新于');
-  // 例行轮询不切换刷新按钮的禁用状态，避免聚焦在按钮上的键盘用户被打断。
+  // Routine polling does not toggle the refresh button's disabled state, so keyboard users focused on the button are not interrupted.
   expect(refresh().disabled).toBe(false);
 
   fail = true;
@@ -854,7 +854,7 @@ test('控制台读屏模式可开关并记住，历史写完和发送命令前�
     sockets[0].onopen?.();
     sockets[0].onmessage?.({ data: JSON.stringify({ type: 'history', data: '[10:00:00 INFO]: Done (3.2s)!\n', status: 'running' }) });
   });
-  // 着色与历史替换不受影响；历史写完后关再开一次，清空 xterm 的朗读计数。
+  // Coloring and history replacement are unaffected; after the history is written, close and reopen once to reset xterm's announcement count.
   expect(terminal.written).toContain('Done (3.2s)');
   expect(terminal.srChanges).toEqual([false, true]);
 
@@ -877,7 +877,7 @@ test('参数配置遇到选项之外的值时原样显示，不误显示成第�
     JSON.stringify({ difficulty: '9', gamemode: 'creative' }),
     { status: 200, headers: { 'content-type': 'application/json' } },
   )));
-  // useBlocker 需要数据路由，这里不能用 MemoryRouter。
+  // useBlocker needs a data router, so MemoryRouter cannot be used here.
   const router = createMemoryRouter([{ path: '/', element: <ConfigTab instanceId="test" /> }]);
   render(<RouterProvider router={router} />);
 
@@ -889,7 +889,7 @@ test('参数配置遇到选项之外的值时原样显示，不误显示成第�
   expect(within(gamemode).queryByRole('option', { name: 'creative' })).toBeNull();
 });
 
-// 参数配置的测试共用：按给定文件内容挂载，并记下保存时提交的内容。
+// Shared by the config editor tests: mounts with the given file content and records what is submitted on save.
 function mountConfigTab(fileProps: Record<string, string>, mcVersion?: string) {
   const saves: Record<string, string>[] = [];
   vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => {
@@ -907,7 +907,7 @@ test('参数配置：文件里没写的键显示游戏默认值，拨回默认�
 
   const onlineMode = await screen.findByRole('switch', { name: '正版验证（在线模式）' }) as HTMLInputElement;
   await waitFor(() => expect(onlineMode.disabled).toBe(false));
-  // 开关和下拉按默认值显示，数字和文本框把默认值放在占位字里，输入框本身是空的。
+  // Switches and dropdowns show the default value, number and text boxes put the default in the placeholder, and the input itself is empty.
   expect(onlineMode.checked).toBe(true);
   expect((screen.getByRole('switch', { name: '启用白名单' }) as HTMLInputElement).checked).toBe(false);
   const difficulty = screen.getByRole('combobox', { name: '难度' }) as HTMLSelectElement;
@@ -918,11 +918,11 @@ test('参数配置：文件里没写的键显示游戏默认值，拨回默认�
   expect(maxPlayers.value).toBe('');
   expect(maxPlayers.placeholder).toBe('20');
   expect((screen.getByRole('textbox', { name: '世界种子' }) as HTMLInputElement).placeholder).toBe('随机');
-  // 保存栏只在有修改时出现。
+  // The save bar appears only when there are changes.
   const findSave = () => screen.queryByRole('button', { name: '保存配置' }) as HTMLButtonElement | null;
   expect(findSave()).toBeNull();
 
-  // 拨离默认值算修改，拨回去又回到没改。
+  // Toggling away from the default counts as a change, and toggling back returns to unchanged.
   await user.click(onlineMode);
   expect(onlineMode.checked).toBe(false);
   expect(findSave()!.disabled).toBe(false);
@@ -933,13 +933,13 @@ test('参数配置：文件里没写的键显示游戏默认值，拨回默认�
   expect(findSave()!.disabled).toBe(false);
   await user.selectOptions(difficulty, 'easy');
   expect(findSave()).toBeNull();
-  // 数字框填了再清空同样回到没改。
+  // Filling in a number box and clearing it likewise returns to unchanged.
   await user.type(maxPlayers, '8');
   expect(findSave()!.disabled).toBe(false);
   await user.clear(maxPlayers);
   expect(findSave()).toBeNull();
 
-  // 显示出来的默认值不会跟着写进文件。
+  // The displayed default value is not written into the file along with the rest.
   await user.selectOptions(difficulty, 'hard');
   await user.click(findSave()!);
   await waitFor(() => expect(saves).toEqual([{ motd: 'Imported', 'server-port': '25565', difficulty: 'hard' }]));
@@ -949,7 +949,7 @@ test('参数配置：文件里值留空的键按服务端实际生效的情况�
   mountConfigTab({ difficulty: '', 'online-mode': '', 'max-players': '', motd: '', 'level-seed': '' });
 
   const difficulty = await screen.findByRole('combobox', { name: '难度' }) as HTMLSelectElement;
-  // 下拉项和数字留空时服务端用默认值，开关留空等于关，文本留空就是空的（世界种子留空是随机）。
+  // When left empty, dropdown items and numbers use the server default, a switch equals off, and text is simply empty (an empty world seed is random).
   await waitFor(() => expect(difficulty.value).toBe('easy'));
   expect(within(difficulty).queryByRole('option', { name: '请选择' })).toBeNull();
   expect((screen.getByRole('switch', { name: '正版验证（在线模式）' }) as HTMLInputElement).checked).toBe(false);
@@ -967,7 +967,7 @@ test('参数配置：已有的数字项可以清空保存，填了超范围的�
   await waitFor(() => expect(view.value).toBe('12'));
   const port = screen.getByRole('textbox', { name: '服务器端口' }) as HTMLInputElement;
 
-  // 清空后不报错，占位字是服务端会用的默认值。
+  // No error after clearing, and the placeholder is the default the server will use.
   await user.clear(port);
   await user.clear(view);
   expect(view.getAttribute('aria-invalid')).toBeNull();
@@ -976,7 +976,7 @@ test('参数配置：已有的数字项可以清空保存，填了超范围的�
   const save = screen.getByRole('button', { name: '保存配置' }) as HTMLButtonElement;
   expect(save.disabled).toBe(false);
 
-  // 超范围的值马上拦住保存，红字等失焦后才显示。
+  // An out-of-range value blocks saving right away, and the red text shows only after blur.
   await user.type(view, '99');
   expect(save.disabled).toBe(true);
   expect(screen.getByRole('status').textContent).toBe('先修正「视距（区块）」');
@@ -1014,7 +1014,7 @@ test('参数配置：按实例游戏版本隐藏已改成游戏规则的项，�
   for (const name of ['玩家对战（PVP）', '开启下界', '生成怪物', '生成动物']) {
     expect(screen.queryByRole('switch', { name })).toBeNull();
   }
-  // 藏起来的键不出现在「高级选项」里，两个分组末尾说明去哪里设置。
+  // Hidden keys do not appear in "Advanced Options", and the end of both groups says where to set them.
   expect(screen.queryByLabelText('pvp')).toBeNull();
   expect(screen.queryByLabelText('spawn-animals')).toBeNull();
   expect(screen.getAllByText('/gamerule')).toHaveLength(2);
@@ -1028,7 +1028,7 @@ test('参数配置：按实例游戏版本隐藏已改成游戏规则的项，�
 
 test('参数配置：旧版本和版本未知时不隐藏仍在用的项', async () => {
   mountConfigTab({ motd: 'Old' }, '1.21.8');
-  // 1.21.8：生成动物已在 1.21.2 移除，其余三项到 1.21.9 才移除。
+  // 1.21.8: spawn animals was already removed in 1.21.2, and the other three were removed only in 1.21.9.
   const pvp = await screen.findByRole('switch', { name: '玩家对战（PVP）' }) as HTMLInputElement;
   await waitFor(() => expect(pvp.disabled).toBe(false));
   expect(pvp.checked).toBe(true);
@@ -1038,7 +1038,7 @@ test('参数配置：旧版本和版本未知时不隐藏仍在用的项', async
   expect(screen.queryByText('/gamerule')).toBeNull();
   cleanup();
 
-  // 快照号、自定义 Jar 等认不出版本的实例全部照常显示。
+  // Instances whose version cannot be recognized, such as snapshot numbers and custom jars, show everything as usual.
   for (const version of [undefined, '25w35a']) {
     mountConfigTab({ motd: 'Old' }, version);
     expect(await screen.findByRole('switch', { name: '生成动物' })).toBeTruthy();
@@ -1111,7 +1111,7 @@ test('服务器完成启动后提示可以进服并指向联机；点「不再�
     { initialEntries: ['/instances/test'] },
   )} />);
 
-  // 还在加载世界时不提示。
+  // No notice while the world is still loading.
   const loading = open();
   expect(await screen.findByRole('heading', { name: '测试服' })).toBeTruthy();
   expect(screen.queryByText('服务器已启动，现在可以进服了。')).toBeNull();
@@ -1125,7 +1125,7 @@ test('服务器完成启动后提示可以进服并指向联机；点「不再�
   expect(screen.queryByText('服务器已启动，现在可以进服了。')).toBeNull();
   started.unmount();
 
-  // 关掉后重新打开页面也不再出现。
+  // After dismissing it, it does not appear again when the page is reopened.
   open();
   expect(await screen.findByRole('heading', { name: '测试服' })).toBeTruthy();
   expect(screen.queryByText('服务器已启动，现在可以进服了。')).toBeNull();
@@ -1170,12 +1170,12 @@ test('联机页默认「直接连接」：列出可复制的地址，并能转�
   expect(await screen.findByText('192.168.1.23:25565')).toBeTruthy();
   expect(screen.getByText('10.0.0.5:25565')).toBeTruthy();
   expect(screen.getByText('有多个地址时，玩家可以逐个试。')).toBeTruthy();
-  // 实例没在运行时先提示启动。
+  // When the instance is not running, it first prompts to start it.
   expect(screen.getByText('服务器没在运行，启动后玩家才能加入。')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '复制 192.168.1.23:25565' }));
   expect(writeText).toHaveBeenCalledWith('192.168.1.23:25565');
   expect(await screen.findByText('已复制 192.168.1.23:25565。')).toBeTruthy();
-  // 有公网 IPv6 时另给一个带方括号的地址，并提醒只放行端口。
+  // With a public IPv6 another address with square brackets is given, with a reminder to allow only the port.
   expect(screen.getByText('IPv6 加入地址')).toBeTruthy();
   expect(screen.getByText(/只放行这台电脑的 25565 端口/)).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '复制 [2408:8207:ab::10]:25565' }));
@@ -1199,7 +1199,7 @@ test('联机页指引栏可以关闭并记住；客户端未安装时手动安�
   await user.click(screen.getByRole('button', { name: '关闭指引' }));
   expect(screen.queryByRole('heading', { name: '指引' })).toBeNull();
   expect(localStorage.getItem('mystry_multiplayer_guide')).toBe('closed');
-  // 被点的按钮消失后，焦点交给接替它的按钮。
+  // After the clicked button disappears, focus goes to the button that takes its place.
   expect(document.activeElement).toBe(screen.getByRole('button', { name: '显示指引' }));
   await user.click(screen.getByRole('button', { name: '显示指引' }));
   expect(screen.getByRole('heading', { name: '指引' })).toBeTruthy();
@@ -1208,7 +1208,7 @@ test('联机页指引栏可以关闭并记住；客户端未安装时手动安�
 
   await user.click(screen.getByRole('button', { name: '虚拟局域网' }));
   expect(await screen.findByText('未安装 EasyTier 客户端。')).toBeTruthy();
-  // 没装客户端时只留安装提示，开关和中继节点等装好再出现。
+  // Without the client installed only the install prompt is left; the switch and relay peers appear once it is installed.
   expect(screen.queryByRole('switch', { name: '对玩家开放这个实例' })).toBeNull();
   expect(screen.queryByText('中继节点')).toBeNull();
   expect(screen.queryByText(/SHA-256 一致才会安装/)).toBeNull();
@@ -1243,9 +1243,9 @@ test('虚拟局域网开关立即保存，只带服务端已保存的中继节�
   await user.click(await screen.findByRole('button', { name: '虚拟局域网' }));
   const toggle = await screen.findByRole('switch', { name: '对玩家开放这个实例' }) as HTMLInputElement;
   expect(toggle.checked).toBe(false);
-  // 已经填过自己的中继节点：折叠区默认展开，不藏着已生效的设置。
+  // Own relay peers already filled in: the collapsible section is expanded by default, so settings already in effect are not hidden.
   expect((screen.getByText('中继节点').closest('details') as HTMLDetailsElement).open).toBe(true);
-  // 文本框里没保存的改动不会被开关带走。
+  // Unsaved changes in the text box are not carried along by the switch.
   await user.type(screen.getByLabelText('自己的中继节点'), '\ntcp://draft.example.com:11010');
 
   await user.click(toggle);
@@ -1262,7 +1262,7 @@ test('虚拟局域网开关立即保存，只带服务端已保存的中继节�
     { enabled: true, peers: ['tcp://relay.example.com:11010'], useSharedPeers: true },
   ]);
 
-  // 中继节点单独保存，带上服务端当前的开关；开着时提醒重新发加入说明。
+  // Relay peers are saved separately, with the server's current switch state; while on, there is a reminder to resend the join instructions.
   await user.click(screen.getByRole('button', { name: '保存中继节点' }));
   expect(await screen.findByText('中继节点已保存。要把新的加入说明重新发给玩家。')).toBeTruthy();
   expect(JSON.parse(bodies[2])).toEqual({ enabled: true, peers: ['tcp://relay.example.com:11010', 'tcp://draft.example.com:11010'], useSharedPeers: true });
@@ -1288,7 +1288,7 @@ test('frp 第一次保存穿透设置就是「保存并开放」，之后穿透�
   }));
   mount(<MultiplayerPage />);
   await user.click(await screen.findByRole('button', { name: 'frp 穿透' }));
-  // 还没保存过穿透设置：没有开关，按钮直接是「保存并开放」。
+  // Tunnel settings never saved yet: there is no switch, and the button is "Save and Open" directly.
   const saveOpen = await screen.findByRole('button', { name: '保存并开放' });
   expect(screen.queryByRole('switch', { name: '对玩家开放这个实例' })).toBeNull();
   await user.click(saveOpen);
@@ -1298,7 +1298,7 @@ test('frp 第一次保存穿透设置就是「保存并开放」，之后穿透�
   expect(toggle.checked).toBe(true);
   expect((screen.getByText('穿透设置').closest('details') as HTMLDetailsElement).open).toBe(false);
 
-  // 之后用开关关掉，带的是服务端已保存的设置。
+  // Turning it off with the switch afterwards sends the settings saved on the server.
   await user.click(toggle);
   await waitFor(() => expect(bodies).toHaveLength(2));
   expect(JSON.parse(bodies[1])).toEqual({ enabled: false, endpointId: 'e1', mode: 'public', remotePort: 25565, visitorBindPort: 25566 });
@@ -1339,7 +1339,7 @@ test('令牌已换发时，旧令牌请求返回的 401 不会清掉新令牌', 
     expect(getToken()).toBe('fresh-token');
     expect(onUnauthorized).not.toHaveBeenCalled();
 
-    // 当前令牌本身被拒绝时照常退出登录。
+    // When the current token itself is rejected, sign out as usual.
     const current = api('/api/system/metrics').catch((error: unknown) => error);
     respond(new Response(JSON.stringify({ error: 'expired', code: 'server.common.unauthorized' }), { status: 401 }));
     await current;
@@ -1370,7 +1370,7 @@ test('联机页公网直连：填写公网地址后给出「地址:游戏端口�
   }));
   mount(<MultiplayerPage />);
   expect(await screen.findByText('172.16.0.8:25570')).toBeTruthy();
-  // 局域网地址的标题始终写明「同一网络」；没有公网地址时不显示公网卡片，Linux 上不显示 Windows 弹窗提示。
+  // The LAN address heading always says "same network"; without a public address the public card is not shown, and on Linux the Windows prompt hint is not shown.
   expect(screen.getByText('同一网络的加入地址')).toBeTruthy();
   expect(screen.queryByText('公网加入地址')).toBeNull();
   expect(screen.queryByText(/Windows 可能弹窗/)).toBeNull();
@@ -1380,7 +1380,7 @@ test('联机页公网直连：填写公网地址后给出「地址:游戏端口�
   expect(screen.getByText('这像是内网地址，其他网络的玩家连不上。')).toBeTruthy();
   await user.clear(input);
   await user.type(input, '203.0.113.10:25570');
-  // 带端口时不用等服务端报错：输入框下直接说明，保存按钮不可点。
+  // With a port there is no need to wait for a server error: it is explained right below the input, and the save button is disabled.
   expect(await screen.findByText(/端口不用填，会自动用服务器的游戏端口/)).toBeTruthy();
   expect((screen.getByRole('button', { name: '保存' }) as HTMLButtonElement).disabled).toBe(true);
   await user.clear(input);
@@ -1388,7 +1388,7 @@ test('联机页公网直连：填写公网地址后给出「地址:游戏端口�
   await user.click(screen.getByRole('button', { name: '保存' }));
   expect(await screen.findByText('203.0.113.10:25570')).toBeTruthy();
   expect(saved.at(-1)).toBe('{"host":"203.0.113.10"}');
-  // 有公网地址后，局域网地址改用「同一网络」标题，避免被当成公网加入地址。
+  // Once there is a public address, the LAN address uses the "same network" heading, so it is not mistaken for a public join address.
   expect(screen.getByText('同一网络的加入地址')).toBeTruthy();
   expect(screen.getByText(/放行入方向 TCP 25570（游戏端口）。面板端口 3000 只在/)).toBeTruthy();
   expect(screen.getByText('sudo ufw allow 25570/tcp')).toBeTruthy();
@@ -1454,14 +1454,14 @@ test('在其他设备上打开：默认 HTTPS 开启直接访问，显示二维�
   const onClose = vi.fn();
   render(<RemoteAccessDialog onClose={onClose} />);
   expect(await screen.findByText('面板现在只允许这台电脑访问，其他设备打不开。')).toBeTruthy();
-  // 默认值：所有网卡、HTTPS 开、不限来源。
+  // Defaults: all interfaces, HTTPS on, no source restriction.
   expect((screen.getByLabelText('网卡') as HTMLSelectElement).value).toBe('');
   expect((screen.getByRole('switch', { name: '使用 HTTPS' }) as HTMLInputElement).checked).toBe(true);
   expect((screen.getByRole('switch', { name: '只允许同一网段的设备' }) as HTMLInputElement).checked).toBe(false);
   expect(screen.getByRole('option', { name: 'Meta（198.18.0.1）' })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '开启' }));
   expect(bodies).toEqual(['{"enabled":true,"interfaceName":null,"restrictToSubnet":false,"https":true}']);
-  // 开启后：二维码、网址说明、没挂上的地址和原因、证书指纹、防火墙失败提示。
+  // After enabling: the QR code, URL explanation, addresses that could not be attached with reasons, the certificate fingerprint, and the firewall failure notice.
   expect(await screen.findByRole('img', { name: 'https://192.168.2.163:3000/ 的二维码' })).toBeTruthy();
   expect(screen.getByText('同一个 Wi-Fi 或路由器下的设备用这个。')).toBeTruthy();
   expect(screen.getByText('面板没能在这个地址上监听，3000 端口可能被别的程序占用。')).toBeTruthy();
@@ -1472,12 +1472,12 @@ test('在其他设备上打开：默认 HTTPS 开启直接访问，显示二维�
   await user.click(screen.getByRole('button', { name: '复制 https://192.168.2.163:3000/' }));
   expect(writeText).toHaveBeenCalledWith('https://192.168.2.163:3000/');
   expect(await screen.findByText('已复制 https://192.168.2.163:3000/。')).toBeTruthy();
-  // 开启后改开关立即生效。
+  // After enabling, changing a switch takes effect immediately.
   await user.click(screen.getByRole('switch', { name: '使用 HTTPS' }));
   expect(bodies.at(-1)).toBe('{"enabled":true,"interfaceName":null,"restrictToSubnet":false,"https":false}');
   expect(await screen.findByRole('img', { name: 'http://192.168.2.163:3000/ 的二维码' })).toBeTruthy();
   expect(screen.queryByText('AB:CD')).toBeNull();
-  // 弹窗底部的「关闭」只关弹窗；停用访问方式的按钮另有名字。
+  // "Close" at the bottom of the dialog only closes the dialog; the button that disables an access mode has a different name.
   await user.click(screen.getByRole('button', { name: '关闭此方式' }));
   await waitFor(() => expect(JSON.parse(bodies.at(-1)!).enabled).toBe(false));
   expect(await screen.findByText('面板现在只允许这台电脑访问，其他设备打不开。')).toBeTruthy();
@@ -1544,7 +1544,7 @@ test('在其他设备上打开：面板自带网络开启后给出加入信息�
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
   render(<RemoteAccessDialog onClose={() => {}} />);
   await user.click(await screen.findByRole('button', { name: '虚拟组网' }));
-  // 没检测到组网网卡时默认「面板自带」。
+  // "Built into the panel" is the default when no overlay interface is detected.
   expect(screen.getByRole('button', { name: '面板自带', pressed: true })).toBeTruthy();
   expect(screen.getByText('未开启')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '开启' }));
@@ -1554,7 +1554,7 @@ test('在其他设备上打开：面板自带网络开启后给出加入信息�
   expect(joinRequests).toBe(0);
   await user.click(screen.getByRole('button', { name: '显示加入信息' }));
   expect(await screen.findByText('mystry-panel-abc')).toBeTruthy();
-  // 密钥每 4 个一组显示，复制的是不带空格的原文，提示里不回显完整密钥以外的内容。
+  // The secret is displayed in groups of 4, what is copied is the original without spaces, and the notice echoes nothing beyond the full secret.
   expect(screen.getByText('abcd efgh ijkl mnop qrst uvwx yz')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '复制 网络密钥' }));
   expect(writeText).toHaveBeenCalledWith('abcdefghijklmnopqrstuvwxyz');
@@ -1568,7 +1568,7 @@ test('在其他设备上打开：面板自带网络开启后给出加入信息�
 
 test('二维码矩阵尺寸、三个定位角和结果稳定；中文内容不被截断', () => {
   const matrix = qrMatrix('https://192.168.2.163:3000/')!;
-  // 27 个字节、纠错等级 M：版本 2 只放得下 26 个字节，所以是版本 3，29×29。
+  // 27 bytes at error correction level M: version 2 fits only 26 bytes, so it is version 3, 29×29.
   expect(matrix.length).toBe(29);
   expect(matrix.every((row) => row.length === 29)).toBe(true);
   const finder = (top: number, left: number) => {
@@ -1586,7 +1586,7 @@ test('二维码矩阵尺寸、三个定位角和结果稳定；中文内容不�
   expect(finder(22, 0)).toBe(true);
   expect(qrMatrix('https://192.168.2.163:3000/')).toEqual(matrix);
   expect(qrMatrix('https://192.168.2.164:3000/')).not.toEqual(matrix);
-  // 中文按 UTF-8 编码：字节数比字符数多，矩阵比同样字符数的 ASCII 大。
+  // Chinese is encoded as UTF-8: there are more bytes than characters, and the matrix is larger than for ASCII of the same character count.
   expect(qrMatrix('网络密钥'.repeat(8))!.length).toBeGreaterThan(qrMatrix('abcd'.repeat(8))!.length);
   expect(qrMatrix('x'.repeat(5000))).toBeNull();
 });
@@ -1608,11 +1608,11 @@ test('复制：没有 navigator.clipboard（非安全上下文）时退回 execC
   button.focus();
   expect(await copyText('http://192.168.2.163:3000/')).toBe(true);
   expect(copied).toEqual(['copy:http://192.168.2.163:3000/']);
-  // 临时文本框用完即删，焦点回到原来的按钮。
+  // The temporary text box is removed right after use, and focus returns to the original button.
   expect(document.querySelector('textarea')).toBeNull();
   expect(document.activeElement).toBe(button);
 
-  // 标准接口被拒绝时同样退回。
+  // It also falls back when the standard API is rejected.
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } });
   expect(await copyText('b')).toBe(true);
   document.execCommand = vi.fn(() => false);
@@ -1620,7 +1620,7 @@ test('复制：没有 navigator.clipboard（非安全上下文）时退回 execC
   button.remove();
 });
 
-// ---- Java 选择器：新建实例自动选推荐版本，没有时一键安装 ----
+// ---- Java picker: new instances auto-select the recommended version, with one-click install when it is missing ----
 
 const java21 = { id: 'rt21', path: 'C:/Java/jdk-21/bin/java.exe', version: '21.0.5', majorVersion: 21, source: 'scan', verifiedAt: '2026-11-01T00:00:00Z', available: true };
 const java8 = { id: 'rt8', path: 'C:/Java/jre8/bin/java.exe', version: '1.8.0_492', majorVersion: 8, source: 'scan', verifiedAt: '2026-11-01T00:00:00Z', available: true };
@@ -1656,22 +1656,22 @@ test('Java 选择器：新建实例自动选推荐版本，手动改过后不再
   const user = userEvent.setup();
   render(<JavaSelectHarness autoSelect onValue={(value) => values.push(value)} />);
   const select = await screen.findByLabelText(/^Java 运行时/) as HTMLSelectElement;
-  // 默认 Java 是 8，Minecraft 1.21.1 推荐 21：自动选已装的 Java 21，不出现安装按钮。
+  // The default Java is 8 and Minecraft 1.21.1 recommends 21: the installed Java 21 is selected automatically, and no install button appears.
   await waitFor(() => expect(select.value).toBe('rt21'));
   expect(screen.queryByRole('button', { name: /安装 Java/ })).toBeNull();
-  // 用的就是推荐版本：不再写「推荐 Java 21」，标签里也不带。
+  // The recommended version is the one in use: "Recommended: Java 21" is no longer written, and the label does not carry it either.
   expect(screen.queryByText('推荐 Java 21')).toBeNull();
   expect(screen.getByRole('combobox', { name: 'Java 运行时' })).toBe(select);
-  // 换成 1.16.5：默认 Java 8 正好合适，回到默认。
+  // Change to 1.16.5: the default Java 8 fits exactly, so it goes back to the default.
   await user.click(screen.getByRole('button', { name: '切到 1.16.5' }));
   await waitFor(() => expect(select.value).toBe(''));
-  // 用户亲手选了 21 之后，不再被自动改回。
+  // After the user picks 21 by hand, it is no longer changed back automatically.
   await user.selectOptions(select, 'rt21');
   expect(select.value).toBe('rt21');
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
   expect(select.value).toBe('rt21');
   expect(values.at(-1)).toBe('rt21');
-  // 推荐的 Java 8 已经装了：不符提示只让改选，不再给下载链接。
+  // The recommended Java 8 is already installed: the mismatch notice only asks to choose another, without a download link.
   expect(await screen.findByText(/所选 Java 是 Java 21，推荐使用 Java 8/)).toBeTruthy();
   expect(screen.queryByRole('link', { name: /下载 Java/ })).toBeNull();
 });
@@ -1706,13 +1706,13 @@ test('Java 选择器：推荐版本没装时一键安装，装好后自动选中
   render(<JavaSelectHarness autoSelect onValue={(value) => values.push(value)} />);
   const button = await screen.findByRole('button', { name: '安装 Java 21' });
   expect(installingStates).toEqual([false]);
-  // 状态点、推荐版本、安装按钮、手动下载链接排在同一行，按这个顺序；下载来源和大小只在悬停提示里。
+  // The status dot, recommended version, install button and manual download link sit on one row, in this order; the download source and size are only in the hover tooltip.
   const row = button.closest('.java-status-row') as HTMLElement;
   expect([...row.children].map((child) => child.textContent)).toEqual(['系统默认 Java 1.8.0_492 可用', '推荐 Java 21', '安装 Java 21', '自己下载安装']);
   expect(screen.queryByText(/这台电脑还没装/)).toBeNull();
-  // 手动下载链接留作后备。
+  // The manual download link is kept as a fallback.
   expect(screen.getByRole('link', { name: '自己下载安装' }).getAttribute('href')).toBe('https://adoptium.net/temurin/releases/?version=21');
-  // 点按钮先弹确认，写明下载来源和大小；点「取消」什么都不发。
+  // Clicking the button first shows a confirmation stating the download source and size; clicking "Cancel" sends nothing.
   await user.click(button);
   let dialog = screen.getByRole('dialog', { name: '安装 Java 21？' });
   expect(within(dialog).getByText(/Eclipse Temurin.*40–60 MB.*下载期间可以取消/)).toBeTruthy();
@@ -1720,7 +1720,7 @@ test('Java 选择器：推荐版本没装时一键安装，装好后自动选中
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(posted).toEqual([]);
   expect(installingStates).toEqual([false]);
-  // 确认后才开始下载。
+  // The download starts only after confirming.
   await user.click(button);
   dialog = screen.getByRole('dialog', { name: '安装 Java 21？' });
   await user.click(within(dialog).getByRole('button', { name: '安装 Java 21' }));
@@ -1728,7 +1728,7 @@ test('Java 选择器：推荐版本没装时一键安装，装好后自动选中
   await waitFor(() => expect(select.value).toBe('panel21'));
   expect(posted).toEqual([{ major: 21 }]);
   expect(values.at(-1)).toBe('panel21');
-  // 安装期间通知页面暂停提交，结束后恢复。
+  // During the install the page is told to pause submission, and it resumes afterwards.
   await waitFor(() => expect(installingStates).toEqual([false, true, false]));
   expect(screen.queryByRole('button', { name: /安装 Java/ })).toBeNull();
 });
@@ -1741,7 +1741,7 @@ test('Java 选择器：没装 Java 时没有橙色警告，推荐版本照样跟
   const recommended = await screen.findByText('推荐 Java 21');
   expect(recommended.closest('.java-status-row')!.textContent).toContain('未找到系统默认 Java');
   expect(screen.queryByText(/推荐使用 Java/)).toBeNull();
-  // 面板装不了（installable 没有 21）时不给安装按钮，只给下载链接。
+  // When the panel cannot install it (installable lacks 21) there is no install button, only the download link.
   expect(screen.queryByRole('button', { name: /安装 Java/ })).toBeNull();
   expect(screen.getByRole('link', { name: '下载 Java 21' })).toBeTruthy();
 });
@@ -1767,17 +1767,17 @@ test('Java 选择器：下载中可以取消，取消后不报错，按钮回到
   await user.click(await screen.findByRole('button', { name: '安装 Java 21' }));
   await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '安装 Java 21' }));
 
-  // 「取消安装」在进度条的文字行里，百分比右边。
+  // "Cancel install" is in the progress bar's text row, to the right of the percentage.
   const cancel = await screen.findByRole('button', { name: '取消安装' });
   expect(cancel.closest('.task-progress')).toBeTruthy();
   expect(screen.getByRole('progressbar', { name: 'Java 21 安装进度' })).toBeTruthy();
-  // 文案不再另写下载百分比，只有右边一个整体进度。
+  // The text no longer writes a separate download percentage; there is only the one overall progress on the right.
   expect(cancel.closest('.task-progress-text')!.textContent).toBe('正在下载 Java 2130%取消安装');
   await user.click(cancel);
   expect(cancelRequested).toBe(true);
   expect((screen.getByRole('button', { name: '正在取消…' }) as HTMLButtonElement).disabled).toBe(true);
 
-  // 下一次轮询拿到「已取消」：进度条收起，不显示错误，可以重新安装。
+  // The next poll gets "cancelled": the progress bar collapses, no error is shown, and it can be installed again.
   await waitFor(() => expect(screen.queryByRole('progressbar')).toBeNull(), { timeout: 4000 });
   expect(screen.queryByText(/你取消了这个任务/)).toBeNull();
   expect(document.querySelector('p.error')).toBeNull();
@@ -1872,7 +1872,7 @@ test('实例页头按钮跟着状态走：停着只有「启动」，运行中�
   await waitFor(() => expect(calls).toEqual(['/api/instances/test/stop?force=1']));
   running.unmount();
 
-  // 启动中既不能停也不能重启，只留得下强制停止。
+  // While starting it can neither be stopped nor restarted; only force stop is left.
   status = 'starting';
   open();
   expect(await screen.findByRole('button', { name: '更多操作' })).toBeTruthy();
@@ -1900,7 +1900,7 @@ test('实例设置：页面底部可以删除实例，没停时不能删；有�
     }
     return baseFetch(url, options);
   }));
-  // 路由跳转时会用 jsdom 的 AbortSignal 构造 Node 自带的 Request，两者不认对方；换成只带路由用得到的字段的替身。
+  // A route navigation constructs Node's own Request with jsdom's AbortSignal, and the two do not accept each other; replaced with a stub carrying only the fields the router uses.
   vi.stubGlobal('Request', class {
     method = 'GET';
     headers = new Headers();
@@ -1922,7 +1922,7 @@ test('实例设置：页面底部可以删除实例，没停时不能删；有�
   open();
   const remove = await screen.findByRole('button', { name: '删除实例' }) as HTMLButtonElement;
   expect(remove.disabled).toBe(false);
-  // 先改一项不保存：删除后离开页面不应再被「未保存的修改」拦住。
+  // Change one item without saving first: after deleting, leaving the page should no longer be blocked by "unsaved changes".
   await user.type(screen.getByRole('textbox', { name: '名称' }), '改');
   await user.click(remove);
   const dialog = screen.getByRole('dialog', { name: '删除实例「测试服」？' });
@@ -1930,7 +1930,7 @@ test('实例设置：页面底部可以删除实例，没停时不能删；有�
   expect(confirm.disabled).toBe(true);
   await user.type(within(dialog).getByRole('textbox', { name: /请输入/ }), '测试服');
   await user.click(confirm);
-  // 删除失败：弹窗不关，原因显示在弹窗里。
+  // Delete fails: the dialog stays open and the reason is shown inside it.
   expect((await within(dialog).findByRole('alert')).textContent).toContain('测试删除失败');
   expect(screen.queryByText('总览页')).toBeNull();
   failDelete = false;
@@ -1961,7 +1961,7 @@ test('联机页：实例没在运行时可以直接启动；有要先处理的�
   expect(await screen.findByText('服务器没在运行，启动后玩家才能加入。')).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '启动' }));
   await waitFor(() => expect(starts).toEqual(['/api/instances/test/start']));
-  // 启动请求发出后马上重新读取状态：提示换成「正在启动」，按钮收起，不会被再点一次。
+  // The status is re-read right after the start request is sent: the notice changes to "Starting", the button collapses, and it cannot be clicked again.
   expect(await screen.findByText('服务器正在启动，启动完成后玩家才能加入。')).toBeTruthy();
   expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
   first.unmount();
@@ -1989,7 +1989,7 @@ test('任务中心：没有任务在跑时入口不显示数字；被取消的�
   const trigger = screen.getByRole('button', { name: /打开任务中心/ });
   await user.click(trigger);
   const cancelled = (await screen.findByText('你取消了这个任务')).closest('article') as HTMLElement;
-  // 历史里有两条任务，但都已结束：入口上没有数字。
+  // There are two tasks in the history but both have ended: no number on the entry.
   expect(trigger.querySelector('.toolbar-badge')).toBeNull();
   expect(cancelled.className).toContain('status-cancelled');
   expect(within(cancelled).getAllByText('已取消')).toHaveLength(1);

@@ -36,7 +36,7 @@ test('便携包路径只收可打印 ASCII，Windows 自带 tar 才能在任何�
   for (const name of ['index.js', 'snow man', '@fastify', 'a-b_c.d~', 'mystry-dashboard']) {
     assert.equal(isArchiveSafeName(name), true, name);
   }
-  // @fastify/send 的测试夹具目录名就是这样，bsdtar 在非 UTF-8 代码页下（已在 GBK 下实测）会跳过它并报错退出。
+  // The test fixture directory in @fastify/send is named exactly like this, and under a non-UTF-8 code page (verified under GBK) bsdtar skips it and exits with an error.
   for (const name of ['snow ☃', '中文.txt', 'café', '', 'tab	name']) {
     assert.equal(isArchiveSafeName(name), false, JSON.stringify(name));
   }
@@ -51,20 +51,20 @@ test('便携入口只调用包内 Node 运行时', async () => {
   assert.doesNotMatch(unix, /\bnpm\b/i);
 });
 
-/** 取出两种语言都必须一致的事实：日期、版本号、地址、公告编号和审计计数。 */
+/** Extracts the facts that must match in both languages: dates, version numbers, URLs, advisory IDs and audit counts. */
 function releaseFacts(text) {
   const pattern = /\d{4}-\d{2}-\d{2}|GHSA-[\w-]+|\b\d+(?:\.\d+)+\b|\b\d+ (?:critical|high|moderate)\b/g;
   return [...new Set(text.match(pattern) ?? [])].sort();
 }
 
-/** 取出行内代码（命令、文件名、变量名）；含中文的是界面文案，不参与比对。 */
+/** Extracts inline code (commands, file names, variable names); anything containing Chinese is UI text and takes no part in the comparison. */
 function inlineCode(text) {
   const body = text.replace(/^```[\s\S]*?^```$/gm, '');
   const tokens = [...body.matchAll(/`([^`\n]+)`/g)].map((match) => match[1]);
   return [...new Set(tokens.filter((token) => !/\p{Script=Han}/u.test(token)))].sort();
 }
 
-/** 统计结构：一种语言多出或漏掉一节、一条列表、一行表格时计数就不同。 */
+/** Counts structure: when one language has an extra or missing section, list item or table row, the counts differ. */
 function documentShape(text) {
   const count = (pattern) => (text.match(pattern) ?? []).length;
   return {
@@ -76,7 +76,7 @@ function documentShape(text) {
   };
 }
 
-/** 译文无法靠程序证明语义相同，这里只拦住事实、标识符和结构上的漂移。 */
+/** A program cannot prove a translation means the same, so this only blocks drift in facts, identifiers and structure. */
 function assertSameContent(english, chinese) {
   assert.ok(releaseFacts(english).length > 0, '没有提取到事实，比对没有意义');
   assert.deepEqual(releaseFacts(english), releaseFacts(chinese));
@@ -101,7 +101,7 @@ test('便携说明文档中英两版内容一致', async () => {
   const docs = path.join(scriptDir, '..', '..', 'docs');
   const english = await fsp.readFile(path.join(docs, 'portable-release.md'), 'utf8');
   const chinese = await fsp.readFile(path.join(docs, 'portable-release.zh-CN.md'), 'utf8');
-  // 发布维护步骤只在中文版写全，英文版只放链接，因此不比对这一节
+  // Release maintenance steps are written out in full only in the Chinese version, with the English version only linking to them, so this section is not compared
   const [englishBody, ...englishRest] = english.split('\n## Release Maintenance\n');
   const [chineseBody, ...chineseRest] = chinese.split('\n## 发布维护\n');
   assert.equal(englishRest.length, 1);
@@ -130,8 +130,8 @@ test('包内 README.txt 英文在前，中英两段内容一致', async () => {
 });
 
 /**
- * 以交互方式运行控制器：stdin 被标记为终端，默认打开菜单，选项通过管道逐步输入。
- * 返回读取输出、写入一行与等待退出的辅助函数。
+ * Runs the controller interactively: stdin is marked as a terminal, the menu opens by default, and choices are fed step by step through a pipe.
+ * Returns helper functions for reading output, writing a line and waiting for exit.
  */
 async function startInteractiveController(t, args = ['menu']) {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-interactive-'));
@@ -178,7 +178,7 @@ async function startInteractiveController(t, args = ['menu']) {
 
 test('双击启动直接运行面板，不显示菜单，出错时等待回车', async (t) => {
   const controller = await startInteractiveController(t, []);
-  // 临时目录没有服务端构建产物，启动会失败。
+  // The temp directory has no server build output, so starting fails.
   await controller.waitForOutput('按回车键关闭窗口');
   assert.match(controller.output(), /找不到服务端构建产物/);
   assert.doesNotMatch(controller.output(), /请选择/);
@@ -201,7 +201,7 @@ test('菜单命令执行完后等待回车再关闭窗口', async (t) => {
 test('菜单命令出错时也先显示错误并等待回车', async (t) => {
   const controller = await startInteractiveController(t);
   await controller.waitForOutput('请选择');
-  // 临时目录没有服务端构建产物，启动会失败。
+  // The temp directory has no server build output, so starting fails.
   controller.send('2');
   await controller.waitForOutput('按回车键关闭窗口');
   assert.match(controller.output(), /找不到服务端构建产物/);
@@ -210,10 +210,10 @@ test('菜单命令出错时也先显示错误并等待回车', async (t) => {
   assert.equal(await controller.exited, 1);
 });
 
-/** 异步运行控制器：测试进程里的伪造面板要在它运行期间响应请求，不能用 spawnSync。 */
+/** Runs the controller asynchronously: the fake panel inside the test process has to answer requests while it runs, so spawnSync cannot be used. */
 function runController(command, env, nodeArgs = [], { input } = {}) {
   return new Promise((resolve) => {
-    // command 可以是数组：remote 带子命令和参数。input 不为空时接到标准输入，用来回答提问。
+    // command may be an array: remote takes a subcommand and arguments. When input is not empty it is connected to standard input, to answer prompts.
     const child = spawn(process.execPath, [...nodeArgs, path.join(scriptDir, 'mystryctl.mjs'), ...[command].flat()], {
       env,
       stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
@@ -243,7 +243,7 @@ test('按配置文件中的 DATA_DIR 找运行状态；指纹不匹配时不发�
 
   const configPath = path.join(home, 'config', 'panel.env');
   await fsp.mkdir(path.dirname(configPath), { recursive: true });
-  // 值带引号、数据目录写在配置文件里，与服务端的 dotenv 读法保持一致。
+  // The value is quoted and the data directory is written in the config file, matching how the server reads it with dotenv.
   await fsp.writeFile(configPath, [
     `PORT="${server.address().port}"`,
     'DATA_DIR=custom-data',
@@ -272,8 +272,8 @@ test('按配置文件中的 DATA_DIR 找运行状态；指纹不匹配时不发�
 });
 
 /**
- * 测试进程里的伪造面板：健康检查返回固定指纹，并记录重置密码请求。
- * state.json 指向测试进程自身的 PID，控制器就把它当作自己启动的面板。
+ * A fake panel inside the test process: the health check returns a fixed fingerprint, and password reset requests are recorded.
+ * state.json points at the test process's own PID, so the controller treats it as a panel it started.
  */
 async function startFakeManagedPanel(t) {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-reset-'));
@@ -331,7 +331,7 @@ test('reset-password：输出不是终端时先拒绝，不请求服务端', asy
     assert.match(result.output, /reset-password/);
     assert.doesNotThrow(() => assertNoCredentialsShown(result.output, 'reset-password'));
   }
-  // 面板在运行且受管，仍然一次都没有请求重置：用户原来的密码保持有效。
+  // The panel is running and managed, yet not a single reset was requested: the user's original password stays valid.
   assert.equal(panel.resetRequests.length, 0, '拒绝前不应请求重置接口');
 });
 
@@ -350,7 +350,7 @@ for (const language of ['zh-CN', 'en-US']) {
     assert.match(body.password, /^[A-HJ-NP-Za-km-z2-9]{16}$/);
     assert.equal(result.output.includes(body.password), true, '终端里应显示新密码');
     assert.equal(result.output.includes(panel.launcherToken), false, '令牌不应出现在输出里');
-    // 发布冒烟靠这个检查拦截密码，分隔线和密码行要各自认得出控制器的真实输出；报错也不能回显密码。
+    // The release smoke test relies on this check to catch passwords, so the separator and the password line each have to be recognized in the controller's real output; errors must not echo the password either.
     const rejectsWithoutEcho = (error) => /密码块/.test(error.message) && !error.message.includes(body.password);
     assert.throws(() => assertNoCredentialsShown(result.output, 'reset-password'), rejectsWithoutEcho);
     const withoutDivider = result.output.replace(/^=+\r?$/gm, '');
@@ -373,7 +373,7 @@ test('界面语言跟随 MYSTRY_LANG 和 LANG，非中文一律用英文', () =>
   assert.match(help({ MYSTRY_LANG: 'en-US' }), /Usage: .*\n[\s\S]*Commands:/);
   assert.match(help({ MYSTRY_LANG: 'ja-JP' }), /Usage: /);
   if (process.platform !== 'win32') {
-    // Windows 不看 LANG（常被终端写死），只在类 Unix 上验证。
+    // Windows does not look at LANG (often hard-coded by the terminal), so this is verified only on Unix-like systems.
     assert.match(help({ LANG: 'zh_CN.UTF-8' }), /用法：/);
     assert.match(help({ LANG: 'en_US.UTF-8' }), /Usage: /);
     assert.match(help({ LC_ALL: 'C', LANG: 'zh_CN.UTF-8' }), /用法：/);
@@ -431,7 +431,7 @@ test('冒烟用请求日志证明接口未被调用；日志不记请求时判�
     () => assertRequestNotLogged(`${log}${request(forbidden)}\n`, forbidden, '/api/auth/status'),
     /被请求过/,
   );
-  // 没有对照请求时「没看到」不能当作「没请求」。
+  // Without a control request, "not seen" cannot be taken as "not requested".
   assert.throws(
     () => assertRequestNotLogged('{"msg":"Server listening"}\n', forbidden, '/api/auth/status'),
     /无法确认/,
@@ -553,8 +553,8 @@ test('SBOM 只包含生产依赖并使用 CycloneDX 1.6', async () => {
 });
 
 /**
- * 测试进程里的伪造面板：实现启动器的「从其他设备访问」接口，记录收到的请求。
- * state.json 指向测试进程自身的 PID，控制器就把它当作自己启动的面板。
+ * A fake panel inside the test process: implements the launcher's "access from other devices" endpoints and records the requests received.
+ * state.json points at the test process's own PID, so the controller treats it as a panel it started.
  */
 async function startFakeRemotePanel(t, { publicUrl = false, failWith = null } = {}) {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-remote-'));
@@ -636,7 +636,7 @@ async function startFakeRemotePanel(t, { publicUrl = false, failWith = null } = 
     MYSTRY_DATA_DIR: path.join(home, 'data'),
     MYSTRY_LANG: 'zh-CN',
   };
-  // 不让测试所在环境的 SSH 变量、端口等影响结果。
+  // Keep SSH variables, ports and the like in the test environment from affecting the result.
   for (const name of ['DATA_DIR', 'PORT', 'HOST', 'SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY']) delete env[name];
   return {
     env,
@@ -658,7 +658,7 @@ test('remote 命令：开启、查看、切换 HTTPS、换证书和关闭都经�
   assert.match(before.output, /网卡：所有网卡 {2}HTTPS：开 {2}只允许同一网段：关/);
   assert.match(before.output, /eth0 {2}172\.16\.0\.8 {2}\(lan\)/);
 
-  // 开启：和界面的默认值一样，所有网卡、HTTPS、不限来源。
+  // Enable: same defaults as the UI, all interfaces, HTTPS, no source restriction.
   const on = await run(['on']);
   assert.equal(on.code, 0, on.output);
   assert.deepEqual(panel.requests.at(-1).body, { enabled: true, interfaceName: null, restrictToSubnet: false, https: true });
@@ -668,19 +668,19 @@ test('remote 命令：开启、查看、切换 HTTPS、换证书和关闭都经�
   assert.match(on.output, /证书指纹（SHA-256）：AA:BB:CC/);
   assert.match(on.output, new RegExp(`安全组放行 TCP ${panel.port}`));
   assert.match(on.output, /remote https off（连接不再加密）/);
-  // 不是 SSH 登录时不打印占位网址。
+  // The placeholder URL is not printed when not logged in through SSH.
   assert.doesNotMatch(on.output, /<服务器地址>/);
 
-  // 经 SSH 登录、网卡上没有公网地址：打印占位网址和说明。
+  // Logged in through SSH with no public address on any interface: the placeholder URL and notes are printed.
   const ssh = await run(['on'], { ...panel.env, SSH_CONNECTION: '198.51.100.5 50000 172.16.0.8 22' });
   assert.match(ssh.output, new RegExp(`https://<服务器地址>:${panel.port}/`));
   assert.match(ssh.output, /<服务器地址> 是你 SSH 登录这台服务器时用的 IP 或域名/);
 
-  // 指定网卡名。
+  // A specified interface name.
   await run(['on', 'eth0']);
   assert.equal(panel.requests.at(-1).body.interfaceName, 'eth0');
 
-  // 关掉 HTTPS：网址改为 http，不带指纹，提示怎么再打开。
+  // Turn off HTTPS: the URL becomes http without a fingerprint, with a hint on how to turn it back on.
   const plain = await run(['https', 'off']);
   assert.equal(plain.code, 0, plain.output);
   assert.equal(panel.requests.at(-1).body.https, false);
@@ -711,13 +711,13 @@ test('remote 命令：开启、查看、切换 HTTPS、换证书和关闭都经�
   assert.equal(usage.code, 1);
   assert.match(usage.output, /用法：.* remote \[status \| on/);
 
-  // 每个请求都带启动器令牌，令牌不出现在任何输出里。
+  // Every request carries the launcher token, and the token appears in no output.
   assert.ok(panel.requests.every((request) => request.token === panel.launcherToken));
   for (const result of [before, on, ssh, plain, renewed, status, off, usage]) {
     assert.equal(result.output.includes(panel.launcherToken), false);
   }
 
-  // 英文界面。
+  // English UI.
   const english = await run(['status'], { ...panel.env, MYSTRY_LANG: 'en-US' });
   assert.match(english.output, /Access from other devices: off/);
 });
@@ -728,7 +728,7 @@ test('remote 命令：填过公网地址时直接打印公网网址；失败时�
   assert.equal(on.code, 0, on.output);
   assert.match(on.output, new RegExp(`https://203\\.0\\.113\\.10:${panel.port}/`));
   assert.doesNotMatch(on.output, /<服务器地址>/);
-  // 公网网址排在局域网网址前面。
+  // Public URLs come before LAN URLs.
   assert.ok(on.output.indexOf('203.0.113.10') < on.output.indexOf('172.16.0.8'));
 
   const failing = await startFakeRemotePanel(t, { failWith: 'server.remoteAccess.listenFailed' });
@@ -742,12 +742,12 @@ test('remote 命令：填过公网地址时直接打印公网网址；失败时�
 
 test('remote 命令：面板未运行时除 status 外都提示先启动；无子命令在终端里可直接开关', async (t) => {
   const panel = await startFakeRemotePanel(t);
-  // 无子命令、输出不是终端：只显示状态，不提问也不改设置。
+  // No subcommand and output is not a terminal: only the status is shown, with no question asked and no setting changed.
   const piped = await runController(['remote'], panel.env);
   assert.equal(piped.code, 0, piped.output);
   assert.match(piped.output, /从其他设备访问：未开启/);
   assert.equal(panel.requests.some((request) => request.method === 'PUT'), false);
-  // 终端里回答 y：开启。直接回车等于否。
+  // Answer y in a terminal: enable. A bare Enter means no.
   const declined = await runController(['remote'], panel.env, panel.terminalArgs, { input: '\n' });
   assert.match(declined.output, /现在开启吗？\[y\/N\]/);
   assert.equal(panel.requests.some((request) => request.method === 'PUT'), false);
@@ -769,7 +769,7 @@ test('remote 命令：面板未运行时除 status 外都提示先启动；无�
   assert.equal(panel.requests.length, count, '面板不受管时不应请求启动器接口');
 });
 
-// 伪造面板：响应健康检查；收到 SIGINT 后记录下来，稍等片刻（模拟安全关闭）再正常退出。
+// Fake panel: answers the health check; on SIGINT it records it, waits a moment (simulating a safe shutdown) and then exits normally.
 const FAKE_PANEL_SOURCE = `
 import fs from 'node:fs';
 import http from 'node:http';
@@ -848,10 +848,10 @@ function reservePort() {
   });
 }
 
-// 终端 Ctrl+C 会把 SIGINT 发给整个前台进程组，连按两次时控制器不能先被杀掉，
+// Ctrl+C in a terminal sends SIGINT to the whole foreground process group, and when pressed twice the controller must not be killed first,
 test('前台模式只显示可读日志，完整日志写入文件', { timeout: 60_000 }, async (t) => {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-foreground-log-'));
-  // Windows 上进程刚退出时目录句柄可能还没释放，清理要重试。
+  // On Windows the directory handle may not be released yet right after the process exits, so cleanup has to retry.
   t.after(() => fsp.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
   const fakeBin = path.join(home, 'bin');
   await fsp.mkdir(path.join(home, 'apps', 'server', 'dist'), { recursive: true });
@@ -956,7 +956,7 @@ for (const [name, terminal] of [['终端里显示账号和密码', true], ['输�
     assert.match(body.password, /^[A-HJ-NP-Za-km-z2-9]{16}$/);
     assert.equal(output.includes(token), false, '令牌不应出现在输出里');
     assert.equal(output.includes(body.password), terminal);
-    // 发布冒烟用同一个检查判断首次启动是否写出了密码。
+    // The release smoke test uses the same check to tell whether the first start wrote out the password.
     if (terminal) {
       assert.throws(() => assertNoCredentialsShown(output, 'foreground'), /密码块/);
     } else {
@@ -970,7 +970,7 @@ for (const [name, terminal] of [['终端里显示账号和密码', true], ['输�
   });
 }
 
-// 首次启动时的「从其他设备访问」：只在经 SSH 登录、管理员已建好、输入输出都是终端时提问。
+// "Access from other devices" on first start: asked only when logged in through SSH, with the admin created, and with both input and output being terminals.
 for (const scenario of [
   { name: 'SSH 登录且在终端里：提问，直接回车即开启并打印网址', ssh: true, terminal: true, input: '\n', expectPut: true },
   { name: 'SSH 登录且在终端里：回答 n 不开启，只打印提示行', ssh: true, terminal: true, input: 'n\n', expectPut: false },
@@ -1008,7 +1008,7 @@ for (const scenario of [
       ...(scenario.remoteFails ? { FAKE_PANEL_REMOTE_FAIL: '1' } : {}),
     };
     for (const name of ['SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY', 'HOST', 'DATA_DIR']) delete env[name];
-    // 不是 SSH 登录时控制器会尝试打开浏览器，测试里关掉；SSH 登录时本来就不打开，不设这个变量也不应打开。
+    // When not logged in through SSH the controller tries to open a browser, which is turned off in tests; under SSH login it never opens one anyway, and should not even without this variable.
     if (scenario.ssh) env.SSH_CONNECTION = '198.51.100.5 50000 172.16.0.8 22';
     else env.MYSTRY_NO_BROWSER = '1';
     const child = spawn(process.execPath, [
@@ -1053,7 +1053,7 @@ for (const scenario of [
       return;
     }
     if (scenario.expectPut) {
-      // 和界面的默认值一样：所有网卡、HTTPS、不限来源。
+      // Same defaults as the UI: all interfaces, HTTPS, no source restriction.
       assert.deepEqual(puts[0].body, { enabled: true, interfaceName: null, restrictToSubnet: false, https: true });
       assert.match(output, new RegExp(`https://172\\.16\\.0\\.8:${port}/`));
       assert.match(output, new RegExp(`https://<服务器地址>:${port}/`));
@@ -1074,7 +1074,7 @@ test('双击后关闭窗口不影响后台面板，重新打开后 Ctrl+C 安全
   await fsp.writeFile(path.join(home, 'apps', 'server', 'dist', 'index.js'), FAKE_PANEL_SOURCE, 'utf8');
   await fsp.mkdir(fakeBin);
   await fsp.writeFile(path.join(fakeBin, 'java'), '#!/bin/sh\necho \'openjdk version "21"\' >&2\n', { mode: 0o755 });
-  // 管道没有原始模式，这里补一个空实现，用写入 0x03 模拟终端里的 Ctrl+C。
+  // A pipe has no raw mode, so an empty implementation is added here, and writing 0x03 simulates Ctrl+C in a terminal.
   await fsp.writeFile(preload, `
     Object.defineProperty(process.stdin, 'isTTY', { value: true });
     process.stdin.setRawMode = () => process.stdin;
@@ -1123,7 +1123,7 @@ test('双击后关闭窗口不影响后台面板，重新打开后 Ctrl+C 安全
   assert.match(first.output, /不会自动停止/);
   assert.doesNotMatch(first.output, /request completed/);
 
-  // 强杀查看窗口相当于关窗口：面板不是它的子进程，要继续运行。
+  // Force-killing the viewer window amounts to closing the window: the panel is not its child process and has to keep running.
   first.child.kill('SIGKILL');
   await first.exited;
   assert.equal(await health(), true);
@@ -1138,7 +1138,7 @@ test('双击后关闭窗口不影响后台面板，重新打开后 Ctrl+C 安全
   assert.equal(fs.existsSync(path.join(home, 'data', 'launcher', 'state.json')), false);
 });
 
-// 必须等面板自己关完再按面板的退出码退出。Windows 无法用 kill 模拟控制台 Ctrl+C。
+// It must wait for the panel to finish closing on its own and then exit with the panel's exit code. Windows cannot simulate a console Ctrl+C with kill.
 test('前台模式下连按两次 Ctrl+C 仍等待面板安全关闭', {
   timeout: 60_000,
   skip: process.platform === 'win32' ? 'Windows 无法用 kill 模拟控制台 Ctrl+C' : false,
@@ -1149,7 +1149,7 @@ test('前台模式下连按两次 Ctrl+C 仍等待面板安全关闭', {
   await fsp.mkdir(path.join(home, 'apps', 'server', 'dist'), { recursive: true });
   await fsp.writeFile(path.join(home, 'apps', 'server', 'dist', 'index.js'), FAKE_PANEL_SOURCE, 'utf8');
   await fsp.mkdir(fakeBin);
-  // 启动前检查需要 java；PATH 只放这个假 java，也避免把令牌写进开发机剪贴板。
+  // The pre-start check needs java; PATH holds only this fake java, which also keeps the token out of the dev machine's clipboard.
   await fsp.writeFile(path.join(fakeBin, 'java'), '#!/bin/sh\necho \'openjdk version "21"\' >&2\n', { mode: 0o755 });
 
   const child = spawn(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'foreground'], {
@@ -1163,7 +1163,7 @@ test('前台模式下连按两次 Ctrl+C 仍等待面板安全关闭', {
       PORT: String(await reservePort()),
       FAKE_PANEL_MARKER: marker,
     },
-    // 独立进程组，下面才能像终端一样把信号发给整个组。
+    // A separate process group, so that the signal can be sent to the whole group below, as a terminal does.
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -1173,7 +1173,7 @@ test('前台模式下连按两次 Ctrl+C 仍等待面板安全关闭', {
   const exited = new Promise((resolve) => child.on('exit', (code, signal) => resolve({ code, signal })));
   t.after(async () => {
     if (child.exitCode === null && child.signalCode === null) {
-      try { process.kill(-child.pid, 'SIGKILL'); } catch { /* 进程组已退出 */ }
+      try { process.kill(-child.pid, 'SIGKILL'); } catch { /* The process group has already exited */ }
       await exited;
     }
     await fsp.rm(home, { recursive: true, force: true });

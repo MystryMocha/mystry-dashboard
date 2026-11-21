@@ -51,7 +51,7 @@ type PrecheckCacheEntry = {
 
 const sourcePrecheckCache = new Map<string, PrecheckCacheEntry>();
 
-/** 来源列表中显示给用户的说明：英文文本与消息键同时返回，Web 按界面语言翻译。 */
+/** Description shown to the user in the source list: the English text and the message key are both returned, and Web translates by the UI language. */
 function sourceError(message: PanelMessage): Pick<ExistingServerSourceInfo, 'error' | 'errorI18n'> {
   return { error: renderPanelMessage(message), errorI18n: message };
 }
@@ -87,7 +87,7 @@ function assertSourceId(sourceId: string): void {
   }
 }
 
-/** 只允许解析 DATA_DIR/imports 下的直接子目录，不接受系统路径。 */
+/** Only direct subdirectories of DATA_DIR/imports may be resolved; system paths are not accepted. */
 export function resolveExistingServerSource(sourceId: string): string {
   assertSourceId(sourceId);
   const importRoot = assertSafeInstanceRoot(config.existingServerImportDir);
@@ -100,8 +100,8 @@ export function resolveExistingServerSource(sourceId: string): string {
 }
 
 /**
- * 预检一个服务端文件夹：找启动文件、认核心和版本、读 user_jvm_args.txt。
- * imports 来源和浏览器上传的文件夹共用；读不了文件夹等意外错误照常抛出，由调用方转成不可导入的说明。
+ * Prechecks a server folder: finds the launch file, recognizes the core and version, and reads user_jvm_args.txt.
+ * Shared by the imports source and browser-uploaded folders; unexpected errors such as an unreadable folder are thrown as usual, and the caller turns them into a cannot-import description.
  */
 export async function precheckServerFolder(sourceDir: string): Promise<ServerFolderCheck> {
   const withJvmConfig = (check: ServerFolderCheck): ServerFolderCheck => {
@@ -154,7 +154,7 @@ export async function precheckServerFolder(sourceDir: string): Promise<ServerFol
   });
 }
 
-/** 预检抛出的意外错误转成「不可导入」的结果，原因随消息键一起返回。 */
+/** Turns an unexpected error thrown by the precheck into a "cannot import" result, with the reason returned along with the message key. */
 export function failedServerFolderCheck(error: unknown): ServerFolderCheck {
   const errorI18n = toPanelMessage(error);
   return {
@@ -314,7 +314,7 @@ async function copySourceDirectory(
 
       if (stat.isDirectory()) {
         assertSafeInstanceRoot(source);
-        // 使用固定权限而不是沿用源目录 mode，避免把源端特殊权限带入面板托管目录。
+        // Fixed permissions are used instead of inheriting the source directory's mode, so special permissions on the source side are not carried into the panel-managed directory.
         await fs.promises.mkdir(target, { mode: 0o700 });
         await walk(relative);
         reportCopyProgress();
@@ -331,7 +331,7 @@ async function copySourceDirectory(
           ? new PanelError('server.imports.existing.tooLarge', { limit: config.maxExistingImportBytes })
           : undefined;
       });
-      // 先打开源文件 fd 再 fstat 校验，消除 lstat 与读流之间文件被替换的 TOCTOU 窗口。
+      // Open the source file fd first and then validate with fstat, closing the TOCTOU window where the file is replaced between lstat and the read stream.
       const sourceFd = await fs.promises.open(source, 'r');
       try {
         const fdStat = await sourceFd.stat();
@@ -355,13 +355,13 @@ async function copySourceDirectory(
   await walk('');
 }
 
-/** 导入任务需要的实例设置；jvmArgs 已在入队前规范化。 */
+/** Instance settings the import task needs; jvmArgs is already normalized before queuing. */
 export type ServerFolderImportInput = Omit<ImportExistingServerInput, 'sourceId' | 'jvmArgs'> & { jvmArgs: string };
 
 /**
- * 服务端文件夹怎么进 staging：
- * - copy：imports 交接区的来源只读，逐个文件复制，原文件夹保留。
- * - move：浏览器上传到面板临时目录的文件夹归面板所有，整个改名搬进 staging，不再多占一份空间。
+ * How a server folder gets into staging:
+ * - copy: a source in the imports handoff area is read-only, so files are copied one by one and the original folder is kept.
+ * - move: a folder uploaded from the browser into the panel's temp directory belongs to the panel, so it is renamed into staging as a whole without taking up a second copy of the space.
  */
 export type ServerFolderTransfer = 'copy' | 'move';
 
@@ -377,8 +377,8 @@ const FOLDER_TASK_TEXT = {
 } as const;
 
 /**
- * 把上传的文件夹整个改名搬进 staging。先在文件夹里写好 staging 标记再改名，
- * 面板在改名后退出时，崩溃恢复能凭标记认出并清理它。临时目录和 staging 不在同一个盘上时退回逐个复制。
+ * Renames the uploaded folder into staging as a whole. The staging marker is written inside the folder before renaming,
+ * so if the panel exits after the rename, crash recovery can recognize it by the marker and clean it up. When the temp directory and staging are not on the same drive, fall back to copying file by file.
  */
 async function moveFolderIntoStaging(
   sourceRoot: string,
@@ -406,8 +406,8 @@ async function moveFolderIntoStaging(
 }
 
 /**
- * 把一个服务端文件夹导入成面板实例：检查启动文件 → 复制或搬进 staging → 再确认启动文件 → 原子移动并登记。
- * imports 交接区和浏览器上传的文件夹共用；任务失败时只清理本任务的 staging。
+ * Imports a server folder as a panel instance: check the launch file → copy or move into staging → confirm the launch file again → move atomically and register.
+ * Shared by the imports handoff area and browser-uploaded folders; when the task fails only this task's staging is cleaned up.
  */
 export async function runServerFolderImport(
   taskId: string,
@@ -423,7 +423,7 @@ export async function runServerFolderImport(
     throwIfAborted(signal);
     const sourceRoot = assertSafeInstanceRoot(source.resolveRoot());
     report(5, { key: text.validating });
-    // 复制前先整体扫一遍：链接、特殊文件和配额。浏览器上传的文件夹在接收时已逐个检查过，不再扫。
+    // Scan everything once before copying: links, special files and quotas. Browser-uploaded folders were already checked file by file on receipt and are not scanned again.
     const scan = source.transfer === 'copy' ? await scanSourceDirectory(sourceRoot, signal) : null;
     const sourceLaunchTarget = await detectServerLaunchTarget(
       sourceRoot,
@@ -483,14 +483,14 @@ export async function runServerFolderImport(
       try {
         removeTaskStagingTree(taskId, instanceId);
       } catch {
-        /* 清理失败不覆盖原始错误 */
+        /* A cleanup failure does not override the original error */
       }
     }
   }
 }
 
 export async function importExistingServerDirectory(input: ImportExistingServerInput) {
-  // 在占用任务队列前先拒绝路径型或不存在的 sourceId；任务执行时仍会再次校验。
+  // Reject a path-like or nonexistent sourceId before taking a task queue slot; it is validated again when the task runs.
   resolveExistingServerSource(input.sourceId);
   const { sourceId, ...settings } = input;
   const taskInput: ServerFolderImportInput = {

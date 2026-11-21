@@ -2,8 +2,8 @@ import { isPanelMessage } from '@mystry/shared';
 import { tm } from './i18n';
 
 /**
- * 把任意异常转成可展示的错误文案。
- * 服务端返回的可翻译错误（ApiError 等带 messageI18n 的异常）按当前界面语言显示，其余用原文。
+ * Turns any exception into displayable error text.
+ * Translatable errors returned by the server (ApiError and other exceptions carrying messageI18n) are shown in the current UI language; the rest use their original text.
  */
 export function errorMessage(error: unknown): string {
   if (error !== null && typeof error === 'object' && 'messageI18n' in error && isPanelMessage(error.messageI18n)) {
@@ -12,7 +12,7 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** 请求被中止（组件卸载、用户取消）时不需要提示错误。 */
+/** No error needs to be shown when a request is aborted (component unmount, user cancel). */
 export function isAbortError(error: unknown): boolean {
   return error !== null
     && typeof error === 'object'

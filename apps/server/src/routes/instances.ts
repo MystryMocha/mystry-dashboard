@@ -34,7 +34,7 @@ const commandBodySchema = {
 
 function replyProcessManagerError(reply: FastifyReply, err: unknown) {
   if (isInstanceStopPendingError(err)) {
-    // `code` 是停止仍在进行的稳定标识（前端按 stillStopping 判断），可翻译消息放在 errorI18n。
+    // `code` is the stable identifier for a stop still in progress (the frontend checks stillStopping); the translatable message goes in errorI18n.
     return reply.code(202).send({
       code: 'INSTANCE_STOP_PENDING',
       error: err.message,
@@ -44,7 +44,7 @@ function replyProcessManagerError(reply: FastifyReply, err: unknown) {
     });
   }
   if (isInstanceOperationConflictError(err)) {
-    // 冲突错误按通用错误体返回，`code` 为消息键，前端据此翻译。
+    // Conflict errors are returned in the common error body, with `code` as the message key for the frontend to translate.
     return reply.code(409).send(errorBody(err));
   }
   return sendRouteError(reply, err);
@@ -61,7 +61,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     return inst;
   });
 
-  // 同一网络直连：只读返回本机局域网地址和游戏端口，不开端口也不改配置。
+  // Direct connection on the same network: read-only, returns this machine's LAN addresses and the game port without opening ports or changing config.
   app.get<{ Params: { id: string } }>('/api/instances/:id/local-network', async (req, reply) => {
     if (!getInstanceRow(req.params.id)) return reply.code(404).send(panelErrorBody('server.instance.notFound'));
     try {
@@ -100,7 +100,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     try {
       return await updateInstanceSettings(req.params.id, req.body);
     } catch (err) {
-      // 还原备份期间取消同意 EULA 会得到 409 冲突，其余按通用错误返回。
+      // Withdrawing EULA acceptance while a backup is being restored gets a 409 conflict; everything else is returned as a common error.
       return replyProcessManagerError(reply, err);
     }
   });
@@ -124,7 +124,7 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     } catch (err) {
       return sendRouteError(reply, err);
     }
-    // 实例删除后备份在界面里再也找不到，默认一起删除；keepBackups=1 时留在 BACKUP_DIR 由用户自行处理。
+    // Once an instance is deleted its backups can no longer be found in the UI, so they are deleted with it by default; with keepBackups=1 they stay in BACKUP_DIR for the user to handle.
     if (req.query.keepBackups !== '1') {
       try {
         deleteInstanceBackups(req.params.id);

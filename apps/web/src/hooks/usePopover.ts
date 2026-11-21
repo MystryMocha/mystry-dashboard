@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react';
 
 /**
- * 工具栏弹层（外观、语言）共用的开关、定位与焦点逻辑：
- * 面板挂到 body 并用 fixed 定位在按钮下方右对齐；打开时聚焦选中的单选项，
- * Esc 关闭并把焦点还给按钮，点击或 Tab 到外部时自动收起。
+ * Toggle, positioning and focus logic shared by toolbar popovers (appearance, language):
+ * the panel is attached to body and fixed-positioned below the button, right-aligned; on open the selected radio item is focused,
+ * Esc closes it and returns focus to the button, and clicking or tabbing outside collapses it automatically.
  */
 export function usePopover(width: number) {
   const [open, setOpen] = useState(false);
@@ -50,7 +50,7 @@ export function usePopover(width: number) {
       if (!isInside(event.target)) setOpen(false);
     }
     function onFocusIn(event: FocusEvent) {
-      // Tab 离开面板时自动收起，避免浮层停留在页面上。
+      // Collapse automatically when Tab leaves the panel, so the popover does not linger on the page.
       if (!isInside(event.target)) setOpen(false);
     }
 

@@ -16,10 +16,10 @@ function isPrivateHost(host: string): boolean {
 }
 
 /**
- * 直连：朋友和这台电脑在同一个网络时用局域网地址；这台电脑有公网 IP（云服务器、机房）时，
- * 朋友用「公网地址:游戏端口」直接加入。这台电脑有公网 IPv6 时，另外给出可以试的地址。
- * 只显示地址、端口和检查清单，不安装任何东西，也不改服务器配置；公网地址由用户填写，不自动探测。
- * 主栏放地址和必须处理的提示；排查、公网检查清单和 IPv6 路由器说明放右侧指引栏。
+ * Direct connection: when friends are on the same network as this computer they use the LAN address; when this computer has a public IP (cloud server, data center),
+ * friends join directly with "public address:game port". When this computer has a public IPv6, another address to try is given as well.
+ * Only addresses, the port and a checklist are shown; nothing is installed and no server config is changed; the public address is entered by the user and not auto-detected.
+ * The main column holds addresses and notices that must be handled; troubleshooting, the public network checklist and IPv6 router notes go in the guide column on the right.
  */
 export function DirectSection({
   instance,
@@ -30,7 +30,7 @@ export function DirectSection({
   instance: InstanceInfo;
   guide: GuideControl;
   onChooseVirtualLan: () => void;
-  /** 在这里启动了实例之后调用，让页面重新读取实例状态。 */
+  /** Called after an instance is started from here, so the page re-reads the instance status. */
   onInstanceChanged: () => Promise<void> | void;
 }) {
   const { t } = useI18n();
@@ -51,7 +51,7 @@ export function DirectSection({
     try {
       const next = await getInstanceLocalNetwork(instance.id);
       setNetwork(next);
-      // 用户正在输入时，轮询结果不覆盖输入框。
+      // While the user is typing, polling results do not overwrite the input.
       if (!hostTouched.current) setHostDraft(next.publicHost ?? '');
       setError('');
     } catch (err) {
@@ -96,7 +96,7 @@ export function DirectSection({
     setStartError('');
     try {
       await controlInstance(instance.id, 'start');
-      // 马上刷新实例状态，按钮不会在下一次轮询前又变回可点。
+      // Refresh the instance status right away, so the button does not become clickable again before the next poll.
       await onInstanceChanged();
     } catch (err) {
       setStartError(errorMessage(err));
@@ -106,12 +106,12 @@ export function DirectSection({
   }
 
   const running = instance.status === 'running';
-  // 待迁移，或已知这次启动一定失败：不放「启动」，带去实例页处理。
+  // Pending migration, or this start is known to be bound to fail: no "Start" here, go to the instance page to handle it.
   const needsFix = canStartInstance(instance.status) && (instance.requiresMigration || !!instance.startIssue);
   const port = network?.port ?? null;
   const withPort = (host: string) => (host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`);
   const addresses = port != null && network ? network.addresses.map(withPort) : [];
-  // IPv6 地址带端口时必须用方括号包起来，游戏才认得出端口。
+  // An IPv6 address with a port must be wrapped in square brackets for the game to recognize the port.
   const ipv6Addresses = port != null && network ? network.publicIpv6.map(withPort) : [];
   const publicHosts = network ? [...new Set([...(network.publicHost ? [network.publicHost] : []), ...network.publicIpv4])] : [];
   const publicAddresses = port != null ? publicHosts.map(withPort) : [];
@@ -189,7 +189,7 @@ export function DirectSection({
     <MultiplayerLayout guide={guideContent} control={guide}>
       <p className="section-lead">{t('multiplayer.direct.intro')}</p>
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
-      {/* 没在运行时地址用不了：能启动就在这里启动；有要先处理的问题（EULA、Java、待迁移）就带去实例页，那里写着原因。 */}
+      {/* Addresses are unusable while not running: start it here if it can be started; when there is a problem to handle first (EULA, Java, pending migration), go to the instance page, where the reason is written. */}
       {!running && (
         <div className="callout" role="status">
           <p>
@@ -217,7 +217,7 @@ export function DirectSection({
         <p className="callout callout-danger" role="alert">{t('multiplayer.direct.portInvalid')}</p>
       )}
 
-      {/* 局域网地址只对同一网络有效：标题始终写明范围，地址下第一句说限制，紧跟着给出其他网络的出路。 */}
+      {/* LAN addresses are valid only on the same network: the heading always states the scope, the first sentence under the address states the limitation, and the way out for other networks follows right after. */}
       <section className="form-section">
         <h3 className="form-section-title">{t('multiplayer.direct.sameNetworkTitle')}</h3>
         <div className="card form-card direct-block">
@@ -232,11 +232,11 @@ export function DirectSection({
           ) : network && !network.serverIpBlocked && port != null ? (
             <>
               <p className="field-help">{t('multiplayer.direct.noAddress')}</p>
-              {/* 没有局域网地址时，127.0.0.1 是服主在这台电脑上自测的唯一地址；有局域网地址时用它即可，不再多给一个。 */}
+              {/* With no LAN address, 127.0.0.1 is the only address for the host to test on this computer; with a LAN address that one is enough and no extra one is given. */}
               <p className="field-help">{t('multiplayer.direct.self', { address: `127.0.0.1:${port}` })}</p>
             </>
           ) : null}
-          {/* server-ip 绑定、端口无效或读取失败时，上面的红色提示要先处理，这里不再单独放一行出路。 */}
+          {/* When server-ip is bound, the port is invalid or reading failed, the red notice above has to be handled first, so no separate way-out row is placed here. */}
           {network && (addresses.length > 0 || (!network.serverIpBlocked && port != null)) && (
             <div className="direct-elsewhere">
               <p>{t(hasPublic ? 'multiplayer.direct.elsewherePublic' : 'multiplayer.direct.elsewhere')}</p>
@@ -253,7 +253,7 @@ export function DirectSection({
             </div>
           )}
           {(windows || !network) && <p className="field-help">{t('multiplayer.direct.firewall')}</p>}
-          {/* 状态区一直保留，读屏软件才会播报；空的时候隐藏，不占间距。 */}
+          {/* The status area is always kept so screen readers announce it; it is hidden when empty and takes no spacing. */}
           <p role="status" aria-live="polite" className={notice ? 'field-help' : 'visually-hidden'}>{notice}</p>
         </div>
       </section>

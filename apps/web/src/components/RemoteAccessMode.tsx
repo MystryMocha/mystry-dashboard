@@ -33,14 +33,14 @@ const PROBLEM_TEXT: Record<RemoteAccessProblem, MessageKey> = {
   certificateFailed: 'remoteAccess.problem.certificateFailed',
 };
 
-/** 下拉框里「所有网卡」对应的值；真实网卡名不会是空字符串。 */
+/** The value for "all interfaces" in the dropdown; a real interface name is never an empty string. */
 const ALL_ADAPTERS = '';
 
 function isPrivateHost(host: string): boolean {
   return /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(host) || host === 'localhost';
 }
 
-/** 浏览器当前是不是经这种方式打开的面板：是的话，关掉它会断开自己。 */
+/** Whether the browser currently has the panel open through this mode: if so, turning it off would disconnect itself. */
 function usesCurrentOrigin(urls: readonly RemoteAccessUrl[]): boolean {
   return urls.some((item) => {
     try {
@@ -52,8 +52,8 @@ function usesCurrentOrigin(urls: readonly RemoteAccessUrl[]): boolean {
 }
 
 /**
- * 「直接访问」和「已装的组网软件」共用的分段：选网卡、两个安全开关、开启或关闭，
- * 开启后显示二维码、网址和防火墙结果。网址只用服务端返回的，不用 window.location 拼。
+ * The segment shared by "direct access" and "installed virtual networking software": choose an interface, two security switches, enable or disable,
+ * and after enabling, the QR code, URLs and firewall result. URLs come only from the server and are not built from window.location.
  */
 export function RemoteAccessMode({
   mode,
@@ -79,7 +79,7 @@ export function RemoteAccessMode({
   const [selectedUrl, setSelectedUrl] = useState('');
   const [hostDraft, setHostDraft] = useState(status.publicHost ?? '');
   const [hostOpen, setHostOpen] = useState(false);
-  // 没开启时，网卡和两个开关只是草稿，点「开启」才提交；开启后每次改动立即生效。
+  // While not enabled, the interface and the two switches are only a draft, submitted on "Enable"; after enabling every change takes effect immediately.
   const overlayDefault = status.interfaces.find((entry) => entry.kind === 'overlay')?.name
     ?? status.interfaces[0]?.name ?? ALL_ADAPTERS;
   const [draft, setDraft] = useState<UpdateDirectAccessRequest>({
@@ -94,7 +94,7 @@ export function RemoteAccessMode({
   const firstUrl = listeningUrls[0]?.url ?? '';
   const shownUrl = listeningUrls.some((item) => item.url === selectedUrl) ? selectedUrl : firstUrl;
 
-  // 地址变了（DHCP、换 Wi-Fi）时提示二维码已更新。
+  // When the address changes (DHCP, switching Wi-Fi) a notice says the QR code was updated.
   useEffect(() => {
     if (previousFirstUrl.current && firstUrl && previousFirstUrl.current !== firstUrl && !busy) {
       setNotice(t('remoteAccess.changed', { url: firstUrl }));
@@ -109,7 +109,7 @@ export function RemoteAccessMode({
   const selectedName = current.interfaceName ?? ALL_ADAPTERS;
   const selectedEntry = status.interfaces.find((entry) => entry.name === selectedName);
   const hasOverlayAdapter = status.interfaces.some((entry) => entry.kind === 'overlay');
-  // 之前选的网卡现在找不到了（拔了网线、关了虚拟网卡）：不能用它开启，提示换一块。
+  // The previously chosen interface can no longer be found (cable unplugged, virtual interface turned off): it cannot be used to enable, and a notice asks to choose another.
   const adapterMissing = selectedName !== ALL_ADAPTERS && !names.includes(selectedName);
   const hostIssue = publicHostIssue(hostDraft);
 
@@ -290,15 +290,15 @@ export function RemoteAccessMode({
         >
           {mode === 'direct' && <option value={ALL_ADAPTERS}>{t('remoteAccess.adapter.all')}</option>}
           {/*
-            组网方式必须选一块网卡，没有「所有网卡」。还没选时（打开时没有网卡、之后才连上）给一个占位项，
-            否则浏览器把下拉框显示成第一块网卡，开启按钮却因为没选而点不了。
+            The overlay mode must choose one interface and has no "all interfaces". When none is chosen yet (no interface at open, connected later) a placeholder item is given,
+            or the browser would display the dropdown as the first interface while the enable button stays disabled because nothing was chosen.
           */}
           {mode === 'overlay' && selectedName === ALL_ADAPTERS && (
             <option value={ALL_ADAPTERS} disabled={names.length > 0}>
               {names.length === 0 ? t('common.none') : t('remoteAccess.adapter.choose')}
             </option>
           )}
-          {/* 选中的网卡已经不在了：照样列出，否则下拉框会显示成别的网卡。 */}
+          {/* The selected interface is gone: it is still listed, or the dropdown would display another interface. */}
           {selectedName !== ALL_ADAPTERS && !names.includes(selectedName) && (
             <option value={selectedName}>{selectedName}</option>
           )}
@@ -325,7 +325,7 @@ export function RemoteAccessMode({
               <span className="list-row-title" id={httpsTitleId}>{t('remoteAccess.security.https')}</span>
               <span className="list-row-desc" id={httpsHelpId}>
                 {t('remoteAccess.security.httpsHelp')}
-                {/* 只有直接访问可能用公网地址打开；组网地址不受这条影响。 */}
+                {/* Only direct access may be opened by a public address; overlay addresses are not affected by this. */}
                 {mode === 'direct' && !current.https && ` ${t('remoteAccess.security.httpsChromeNote')}`}
               </span>
             </span>
@@ -412,7 +412,7 @@ export function RemoteAccessMode({
             <p className="field-help">{t('remoteAccess.publicHost.help')}</p>
             {hostIssue && <p className="error">{t(hostIssue.key)}</p>}
             {!hostIssue && isPrivateHost(hostDraft.trim()) && <p className="field-warn">{t('remoteAccess.publicHost.private')}</p>}
-            {/* 只提醒、不改默认值：云服务器上开「只允许同一网段」会把用户自己挡在外面。 */}
+            {/* Only a reminder, without changing the default: on a cloud server, turning on "same subnet only" would lock the user out themselves. */}
             {status.publicHost && !current.restrictToSubnet && <p className="field-warn">{t('remoteAccess.publicHost.exposed')}</p>}
           </div>
         ) : (
@@ -444,7 +444,7 @@ export function RemoteAccessMode({
             >
               {busy ? t('remoteAccess.action.working') : t('remoteAccess.action.turnOn')}
             </button>
-            {/* 证书生成失败时给一条出路：同样的请求，不加密。 */}
+            {/* When certificate generation fails a way out is offered: the same request, without encryption. */}
             {failedKey === 'server.remoteAccess.certificateFailed' && (
               <button className="btn" type="button" disabled={busy} onClick={() => void apply({ ...current, enabled: true, https: false })}>
                 {t('remoteAccess.action.turnOnPlain')}

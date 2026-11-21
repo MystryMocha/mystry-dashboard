@@ -49,14 +49,14 @@ function readOwner(lockDir: string): PanelLockOwner | null {
   }
 }
 
-/** 判断 PID 是否仍存活；无法确认时视为存活，避免双写数据库。 */
+/** Tells whether a PID is still alive; treated as alive when it cannot be confirmed, to avoid double writes to the database. */
 export function isProcessAlive(pid: number): boolean {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    // 只有 ESRCH 能确认进程不存在；EPERM（Windows 等平台上对存活进程可能返回）等其他错误都按存活处理。
+    // Only ESRCH confirms the process does not exist; EPERM (which platforms such as Windows may return for a live process) and other errors are all treated as alive.
     return !hasErrorCode(error, 'ESRCH');
   }
 }
@@ -65,7 +65,7 @@ function writeOwner(lockDir: string, owner: PanelLockOwner): void {
   writeFileAtomic(path.join(lockDir, OWNER_FILE), `${JSON.stringify(owner)}\n`);
 }
 
-/** 清理超过 7 天的 quarantine 锁目录，防止面板反复异常退出后累积垃圾目录。 */
+/** Cleans up quarantine lock directories older than 7 days, so junk directories do not pile up after repeated abnormal panel exits. */
 function cleanupOldQuarantines(dataDir: string): void {
   const cutoffMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
   try {
@@ -77,11 +77,11 @@ function cleanupOldQuarantines(dataDir: string): void {
           fs.rmSync(dir, { recursive: true, force: true });
         }
       } catch {
-        /* 单个目录清理失败不影响其他目录 */
+        /* A failure to clean one directory does not affect the others */
       }
     }
   } catch {
-    /* 数据目录不可读时跳过清理 */
+    /* Skip cleanup when the data directory is unreadable */
   }
 }
 
@@ -131,7 +131,7 @@ function tryAcquireOnce(dataDir: string): PanelDataLock | 'exists' {
     try {
       fs.rmSync(lockDir, { recursive: true, force: true });
     } catch {
-      /* 忽略清理失败 */
+      /* Ignore cleanup failures */
     }
     throw error;
   }
@@ -150,14 +150,14 @@ function tryAcquireOnce(dataDir: string): PanelDataLock | 'exists' {
           fs.rmSync(lockDir, { recursive: true, force: true });
         }
       } catch {
-        /* 释放失败不抛出，避免掩盖原始关闭错误 */
+        /* A release failure is not thrown, so it does not mask the original shutdown error */
       }
     },
   };
 }
 
 /**
- * 取得数据目录生命周期锁；存活 PID 持有锁时拒绝启动。
+ * Acquires the data directory lifecycle lock; startup is refused when a live PID holds the lock.
  */
 export function acquirePanelDataLock(dataDir: string = config.dataDir): PanelDataLock {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -170,7 +170,7 @@ export function acquirePanelDataLock(dataDir: string = config.dataDir): PanelDat
       throw lockConflictError(dataDir, owner);
     }
     if (!owner) {
-      // 无法解析 owner 时不冒险删除，视为仍被占用
+      // When the owner cannot be parsed, do not risk deleting; treat it as still held
       throw lockConflictError(dataDir, owner);
     }
 

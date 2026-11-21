@@ -7,7 +7,7 @@ import { nowIso } from '../utils/path.js';
 import { nodeRegistry } from './node-registry.js';
 import { PanelError } from '../utils/errors.js';
 
-/** 节点密钥使用 sha256 摘要存储：密钥本身是高熵随机串，无需 bcrypt 慢哈希 */
+/** Node secrets are stored as a sha256 digest: the secret itself is a high-entropy random string, so a slow bcrypt hash is unnecessary */
 function hashSecret(secret: string): string {
   return crypto.createHash('sha256').update(secret).digest('hex');
 }
@@ -59,7 +59,7 @@ export function getNodeRow(id: string): NodeRow | null {
   return row ?? null;
 }
 
-/** 创建远程节点，返回节点信息与仅展示一次的密钥（供部署 Agent 时填入配置） */
+/** Creates a remote node, returning the node info and the secret shown only once (to put into the config when deploying the Agent) */
 export function createNode(input: CreateNodeInput): NodeSecretResult {
   if (!REMOTE_NODE_CREATION_ENABLED) {
     throw new PanelError('server.system.remoteNodeCreationDisabled');
@@ -107,7 +107,7 @@ export function deleteNode(id: string): void {
   nodeRegistry.markOffline(id);
 }
 
-/** 重置节点密钥；旧密钥立即失效，新密钥仅返回一次 */
+/** Resets the node secret; the old secret is invalid immediately and the new one is returned only once */
 export function resetNodeSecret(id: string): NodeSecretResult {
   const existing = getNodeRow(id);
   if (!existing) throw new PanelError('server.system.nodeNotFound');

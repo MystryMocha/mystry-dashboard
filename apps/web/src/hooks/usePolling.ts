@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 
-/** 页面数据统一的轮询间隔。 */
+/** The polling interval shared by page data. */
 export const POLL_INTERVAL_MS = 5_000;
 
 /**
- * 挂载时立即执行一次，之后按固定间隔重复；页面隐藏时跳过，回到前台立即补一次。
- * callback 变化（如切换实例）会重新开始计时并立即执行。
+ * Runs once immediately on mount, then repeats at a fixed interval; skipped while the page is hidden, and run once right away when it returns to the foreground.
+ * A change of callback (such as switching instances) restarts the timer and runs immediately.
  */
 export function usePolling(callback: () => unknown, intervalMs = POLL_INTERVAL_MS): void {
   useEffect(() => {

@@ -26,7 +26,7 @@ function tempDir(t: TestContext): string {
   return dir;
 }
 
-/** 在临时数据目录里初始化数据库；必须先关库再删目录，否则 Windows 上文件仍被占用。 */
+/** Initializes the database in a temp data directory; the database must be closed before the directory is deleted, or the files are still held on Windows. */
 async function tempDatabase(t: TestContext) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-sources-db-'));
   const originalDataDir = process.env.MYSTRY_DATA_DIR;
@@ -42,7 +42,7 @@ async function tempDatabase(t: TestContext) {
   return { dir, ...db };
 }
 
-/** 按地址返回固定内容的 fetch 替身，记录每一次请求。 */
+/** A fetch stub that returns fixed content by URL and records every request. */
 function mockFetch(t: TestContext, routes: Record<string, () => Response | Promise<Response>>): string[] {
   const calls: string[] = [];
   t.mock.method(globalThis, 'fetch', async (url: string | URL | Request) => {
@@ -246,13 +246,13 @@ test('两种来源的 NeoForge 构建列表按真实版本号匹配，快照构�
       assert.deepEqual(await listNeoForgeLoaders(mcVersion, undefined, source), loaders, `${source} ${mcVersion}`);
     }
   }
-  // 修复前的错误版本号在官方列表里不再有任何匹配。
+  // The wrong version number from before the fix no longer matches anything in the official list.
   assert.deepEqual(await listNeoForgeLoaders('1.26.3', undefined, 'official'), []);
 });
 
 test('NeoForge 构建按数字排序，BMCLAPI 乱序时默认项仍是最新构建', async (t) => {
   const { listNeoForgeLoaders } = await import('./core-metadata.js');
-  // 取自 BMCLAPI 对 1.21 的真实返回顺序：最后一项是旧的 beta，不是最新构建。
+  // Taken from BMCLAPI's real response order for 1.21: the last item is an old beta, not the latest build.
   const order = ['21.0.150', '21.0.0-beta', '21.0.139-beta', '21.0.14-beta', '21.0.167', '21.0.98-beta'];
   mockFetch(t, {
     'https://bmclapi2.bangbang93.com/neoforge/list/1.21': () => Response.json(order.map((version) => ({ version }))),
@@ -301,7 +301,7 @@ test('Vanilla 下载计划带上 SHA-1，国内来源优先镜像', async (t) =>
     downloads: { server: { url: 'https://piston-data.mojang.com/v1/objects/abc/server.jar', sha1: 'a'.repeat(40) } },
   });
   const calls = mockFetch(t, {
-    // 镜像上的清单即使被社区节点改过也不会被读取：解析下载计划时清单只取自 Mojang。
+    // A manifest on the mirror is never read, even if a community node altered it: when resolving the download plan the manifest comes only from Mojang.
     'https://bmclapi2.bangbang93.com/mc/game/version_manifest_v2.json': () => Response.json({
       versions: [{
         id: '1.21.1',
@@ -386,7 +386,7 @@ test('清单没有详情 SHA-1 时拒绝，不读任何来源的版本详情', a
   assert.deepEqual(calls, ['https://launchermeta.mojang.com/mc/game/version_manifest_v2.json']);
 });
 
-/** 一份 Vanilla 清单加版本详情的替身：详情文本按原样返回，清单里的 SHA-1 与它对应。 */
+/** A stub for a Vanilla manifest plus version details: the details text is returned as is, and the SHA-1 in the manifest matches it. */
 function vanillaRoutes(
   detailUrl: string,
   server: { url?: string; sha1?: string },
@@ -483,7 +483,7 @@ test('官方地址返回的版本详情与清单 SHA-1 不符时同样拒绝', a
   );
   t.mock.restoreAll();
 
-  // 国内来源下镜像和官方都不符：两个来源都报校验失败，不会采用任何一份。
+  // Under the China source neither the mirror nor official matches: both sources report a checksum failure, and neither copy is used.
   mockFetch(t, {
     'https://launchermeta.mojang.com/mc/game/version_manifest_v2.json': manifest,
     'https://bmclapi2.bangbang93.com/v1/packages/abc/1.21.1.json': () => new Response(tampered),
@@ -498,7 +498,7 @@ test('官方地址返回的版本详情与清单 SHA-1 不符时同样拒绝', a
   });
 });
 
-/** 带最终地址的响应替身：Response 构造出来没有 url，用它模拟跟随跳转后的结果。 */
+/** A response stub with a final URL: a constructed Response has no url, so this simulates the result after following redirects. */
 function redirectedResponse(body: string, finalUrl: string): Response {
   const response = new Response(body);
   Object.defineProperty(response, 'url', { value: finalUrl });
@@ -526,7 +526,7 @@ test('https 请求被跳转到 http 时拒绝，元数据和文件下载都一�
   );
   assert.deepEqual(fs.readdirSync(dir), [], '不落地任何文件');
 
-  // 跳转到 https 社区节点照常可用；被拒绝的来源在汇总错误里有自己的原因。
+  // Redirecting to an https community node works as usual; a rejected source has its own reason in the aggregated error.
   await downloadFromPlan(
     {
       candidates: [
@@ -670,7 +670,7 @@ test('不响应的镜像按响应时限放弃，不耗尽整段下载超时', as
   const { downloadToFile } = await import('./core-download.js');
   const dir = tempDir(t);
   const server = createServer(() => {
-    /* 收到请求后一直不回复 */
+    /* Never replies after receiving the request */
   });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -733,7 +733,7 @@ test('预取清单只收已知仓库且带校验值的文件', async () => {
   assert.equal(resolveServerJarPath(undefined, '1.16.5'), './minecraft_server.1.16.5.jar');
 });
 
-/** 写一个只含清单的最小安装器 jar；ZIP 用存储方式，不需要压缩库。 */
+/** Writes a minimal installer jar containing only the manifest; the ZIP uses the stored method, so no compression library is needed. */
 function writeInstallerJar(file: string, entries: Record<string, string>): void {
   const local: Buffer[] = [];
   const central: Buffer[] = [];

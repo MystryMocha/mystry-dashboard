@@ -34,7 +34,7 @@ function runtimeInfo(): LanRuntimeInfo {
   };
 }
 
-/** 虚拟局域网。只管理钉死版本的官方 EasyTier，不接受任意配置或可执行路径。 */
+/** Virtual LAN. Only manages the official EasyTier at its pinned version; arbitrary config or executable paths are not accepted. */
 export async function lanRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
 
@@ -50,7 +50,7 @@ export async function lanRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // 连不上 GitHub 时，用户在别处下载同名官方压缩包再上传；只按钉死的 SHA-256 接受。
+  // When GitHub is unreachable, the user downloads the same official archive elsewhere and uploads it; it is accepted only by the pinned SHA-256.
   app.post('/api/lan/runtime/upload', async (req, reply) => {
     let temp: string | null = null;
     try {

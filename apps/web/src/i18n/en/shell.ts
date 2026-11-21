@@ -1,8 +1,8 @@
-/** 应用外壳（侧栏、工具栏、底部标签栏、外观与语言弹层、启动与异常页）文案（英文主表）。 */
+/** App shell (sidebar, toolbar, bottom tab bar, appearance and language popovers, splash and error pages) strings (English primary table). */
 export default {
   'shell.pageTitle.workspace': 'Instance',
   'shell.pageTitle.fallback': 'Admin Console',
-  // 浏览器标签标题：页面名在前、品牌名在后；实例页的页面名为「标签 · 实例名」。
+  // Browser tab title: page name first, brand name last; the page name of an instance page is "tab · instance name".
   'shell.docTitle': '{page} · Mystry Dashboard',
   'shell.docTitle.instance': '{tab} · {name}',
   'shell.loading.page': 'Loading page…',

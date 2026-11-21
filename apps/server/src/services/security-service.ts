@@ -20,7 +20,7 @@ export type LoginFailureLimiter = {
   reset: (request: FastifyRequest, username: string) => void;
 };
 
-/** 按恒定时间比较请求头里的令牌，避免比较耗时的差异泄露令牌内容。未配置令牌时一律拒绝。 */
+/** Compares the token in the request header in constant time, so differences in comparison time do not leak the token. Always rejects when no token is configured. */
 export function tokenMatches(value: string | string[] | undefined, expected: string | null): boolean {
   if (expected === null || typeof value !== 'string') return false;
   const expectedBytes = Buffer.from(expected, 'utf8');
@@ -29,9 +29,9 @@ export function tokenMatches(value: string | string[] | undefined, expected: str
 }
 
 /**
- * 轻量内存限流器。面板是单进程服务，使用 Fastify hook 可以避免引入与 Fastify 版本耦合的插件。
- * 未启用 proxy trust，因此这里使用 Fastify 已验证的 request.ip，不采信任意 X-Forwarded-For；
- * 经面板自带网络进来的请求统一算一个来源，不和本机共用额度（clientKey）。
+ * Lightweight in-memory rate limiter. The panel is a single-process service, and using a Fastify hook avoids a plugin coupled to the Fastify version.
+ * Proxy trust is not enabled, so the request.ip verified by Fastify is used here and arbitrary X-Forwarded-For is not trusted;
+ * requests arriving through the panel's built-in network all count as one origin and do not share a quota with this machine (clientKey).
  */
 export function createRateLimitHook(options: RateLimitOptions) {
   const buckets = new Map<string, Bucket>();
@@ -70,7 +70,7 @@ export function createRateLimitHook(options: RateLimitOptions) {
   };
 }
 /**
- * 登录失败限流器：只累计密码验证失败；成功登录会清除记录，避免正常管理员操作被锁定。
+ * Failed sign-in rate limiter: only password verification failures are counted; a successful sign-in clears the record, so normal admin activity is not locked out.
  */
 export function createLoginFailureLimiter(options: RateLimitOptions): LoginFailureLimiter {
   const buckets = new Map<string, Bucket>();
@@ -85,7 +85,7 @@ export function createLoginFailureLimiter(options: RateLimitOptions): LoginFailu
   }
 
   function getKey(request: FastifyRequest, username: string): string {
-    // 用户名大小写不能成为绕过失败计数的手段；实际认证仍沿用原有大小写语义。
+    // Username case must not be a way around the failure count; actual authentication keeps its original case semantics.
     return [options.name, clientKey(request), username.trim().toLowerCase()].join(':');
   }
 

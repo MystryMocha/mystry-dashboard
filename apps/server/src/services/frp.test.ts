@@ -41,7 +41,7 @@ test('frp 只转发游戏端口，且令牌不进入配置正文或子进程环�
   process.env.LAUNCHER_TOKEN = 'c'.repeat(64);
   const token = 'bridge-alpha-key';
 
-  // config.ts 在加载时读取环境变量，静态 import 会先用到仓库 .env。
+  // config.ts reads environment variables at load time, and a static import would pick up the repo's .env first.
   const { initDb, closeDb } = await import('../db.js');
   const { PanelError } = await import('../utils/errors.js');
   const {
@@ -98,7 +98,7 @@ test('frp 只转发游戏端口，且令牌不进入配置正文或子进程环�
   assert.match(rendered, /localPort = 25565/);
   assert.match(rendered, /auth\.tokenSource\.type = "file"/);
   assert.equal(rendered.includes(token), false);
-  // frpc 公共配置没有顶层 clientID，严格模式下未知字段会让整份配置被拒。
+  // The frpc common config has no top-level clientID; in strict mode an unknown field gets the whole config rejected.
   assert.equal(/^clientID/m.test(rendered), false);
   assert.match(rendered, /^user = "mystry"$/m);
   assert.equal(assertFrpHost('203.0.113.7'), '203.0.113.7');
@@ -142,7 +142,7 @@ test('frp 只转发游戏端口，且令牌不进入配置正文或子进程环�
     (error: unknown) => error instanceof PanelError && error.messageKey === 'server.frp.endpointInUse',
   );
 
-  // 启用中的隧道仍然挡住删除；关闭后删除端点会顺带清掉已关闭的隧道行和它的文件目录。
+  // An enabled tunnel still blocks deletion; after it is disabled, deleting the endpoint also clears the disabled tunnel row and its file directory.
   const spare = createFrpEndpoint({
     name: 'Spare',
     serverAddr: 'spare.example.com',
@@ -246,7 +246,7 @@ test('frp 只转发游戏端口，且令牌不进入配置正文或子进程环�
     mode: 'stcp',
     visitorBindPort: 25566,
   });
-  // 端口留空时游戏用 25565，穿透照常工作，不报「本地端口无效」。
+  // With the port left empty the game uses 25565 and the tunnel works as usual, without reporting "invalid local port".
   writeServerProperties(first.id, { 'server-ip': '', 'server-port': '' });
   assert.equal(describeInstanceTunnel(first.id).detail?.key === 'server.frp.localPortInvalid', false);
   const visitorChild = fakeChild();

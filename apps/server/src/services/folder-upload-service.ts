@@ -1,9 +1,9 @@
 /**
- * 浏览器里选文件夹上传：浏览器读出用户选的服务端文件夹，分批把文件传给面板。
+ * Folder upload from the browser: the browser reads the server folder the user picked and sends the files to the panel in batches.
  *
- * 一次上传是一个会话：开始时声明文件数和总大小 → 分批接收文件 → 全部收到后预检 → 确认导入或取消。
- * 文件写在 uploads/ 下面板自己的临时目录里，服务端从不接触用户电脑上的路径；
- * 确认导入时整个临时目录改名搬进任务 staging，不再多复制一份。会话只在内存里，面板重启时清掉残留目录。
+ * One upload is one session: declare the file count and total size at the start → receive files in batches → precheck once everything is received → confirm the import or cancel.
+ * Files are written into the panel's own temp directory under uploads/, and the server never touches paths on the user's computer;
+ * on confirming the import the whole temp directory is renamed into the task staging, without making another copy. Sessions live only in memory, and leftover directories are cleaned up when the panel restarts.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,23 +30,23 @@ import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { runBackgroundTask } from './task-service.js';
 import { STAGING_MARKER_FILE } from './task-staging-service.js';
 
-/** 上传会话临时目录的前缀：和 ZIP 上传的 .tmp-import-* 文件分开，启动时按这个前缀清理残留。 */
+/** Prefix of upload session temp directories: kept apart from the ZIP upload's .tmp-import-* files, and leftovers are cleaned up by this prefix at startup. */
 export const FOLDER_UPLOAD_DIR_PREFIX = '.tmp-folder-upload-';
-/** 一次请求最多带多少个文件；浏览器按这个数和大小分批发送。 */
+/** Maximum number of files per request; the browser sends in batches by this number and by size. */
 export const FOLDER_UPLOAD_BATCH_MAX_FILES = 500;
 const MAX_RELATIVE_PATH_LENGTH = 1024;
 const MAX_PATH_DEPTH = 64;
 const MAX_SEGMENT_LENGTH = 255;
 const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/i;
-/** 面板自己会在实例根目录写的文件，上传的文件夹根目录里不能有同名文件。 */
+/** Files the panel itself writes into the instance root; the root of an uploaded folder must not contain files with the same names. */
 const RESERVED_ROOT_FILES = [OWNERSHIP_MARKER_FILE, STAGING_MARKER_FILE].map((name) => name.toLowerCase());
 
 /**
- * 会话状态：
- * - uploading：等下一批文件；ready：全部收到并预检过，等确认
- * - receiving：正在收一批文件或正在预检，不能同时做别的
- * - confirming：正在把导入任务排进队列
- * - cancelled：收文件途中被取消，收完这一批后删掉临时目录
+ * Session states:
+ * - uploading: waiting for the next batch of files; ready: everything received and prechecked, waiting for confirmation
+ * - receiving: receiving a batch of files or prechecking, and nothing else can be done at the same time
+ * - confirming: queuing the import task
+ * - cancelled: cancelled while receiving files; the temp directory is deleted after this batch is received
  */
 type SessionState = 'uploading' | 'receiving' | 'ready' | 'confirming' | 'cancelled';
 
@@ -57,7 +57,7 @@ type FolderUploadSession = {
   state: SessionState;
 };
 
-/** multipart 迭代器给出的一段：字段或文件。 */
+/** One part yielded by the multipart iterator: a field or a file. */
 export type FolderUploadPart =
   | { type: 'field'; fieldname: string; value: unknown }
   | { type: 'file'; fieldname: string; file: Readable & { truncated?: boolean } };
@@ -77,7 +77,7 @@ function snapshot(session: FolderUploadSession): FolderUploadInfo {
   return { ...session.info };
 }
 
-/** 只删 uploads 下、带本模块前缀的目录，防止误删别的东西。 */
+/** Deletes only directories under uploads that carry this module's prefix, so nothing else is deleted by mistake. */
 function removeSessionDir(dir: string): void {
   const uploadRoot = path.resolve(config.uploadDir);
   const resolved = path.resolve(dir);
@@ -92,11 +92,11 @@ function dropSession(session: FolderUploadSession): void {
   try {
     removeSessionDir(session.dir);
   } catch {
-    /* 删不掉的残留由下次启动按前缀清理。 */
+    /* Leftovers that cannot be deleted are cleaned up by prefix at the next start. */
   }
 }
 
-/** 等待期间 cancelFolderUpload 可能把状态改成 cancelled；单独成函数，免得类型收窄把这个检查判成恒假。 */
+/** cancelFolderUpload may change the state to cancelled while waiting; this is a separate function so type narrowing does not judge the check as always false. */
 function wasCancelled(session: FolderUploadSession): boolean {
   return session.state === 'cancelled';
 }
@@ -115,8 +115,8 @@ function findOwnedSession(id: string, userId: string, now = Date.now()): FolderU
 }
 
 /**
- * 浏览器给的相对路径只接受「a/b/c.txt」这种普通写法：拒绝空段、`.`、`..`、反斜杠和控制字符，
- * Windows 上再拒绝冒号等非法字符、结尾的点或空格和 CON、NUL 这类保留名，并拒绝根目录里面板保留的文件名。
+ * Relative paths given by the browser are accepted only in the ordinary "a/b/c.txt" form: empty segments, `.`, `..`, backslashes and control characters are rejected,
+ * on Windows also illegal characters such as colons, trailing dots or spaces and reserved names like CON and NUL, plus file names the panel reserves in the root.
  */
 export function normalizeUploadRelativePath(raw: string): string {
   const invalid = () => httpError('server.imports.folder.invalidPath', 400, { path: raw.slice(0, MAX_RELATIVE_PATH_LENGTH) });
@@ -136,7 +136,7 @@ export function normalizeUploadRelativePath(raw: string): string {
   return segments.join('/');
 }
 
-/** 把一个上传的文件流式写进会话目录；不覆盖已有文件，超过声明的总大小或空闲超时就中止。 */
+/** Streams one uploaded file into the session directory; existing files are not overwritten, and it aborts when the declared total size is exceeded or on idle timeout. */
 async function writeUploadedFile(
   session: FolderUploadSession,
   relative: string,
@@ -161,14 +161,14 @@ async function writeUploadedFile(
   });
 
   try {
-    // 路径检查也放在这里面：上一级已经是文件时，Linux 上检查本身就报 ENOTDIR（Windows 报 ENOENT，到建目录时才报错）。
+    // The path check goes in here too: when the parent is already a file, the check itself fails with ENOTDIR on Linux (Windows reports ENOENT and fails only when creating the directory).
     const target = resolveSafePath(session.dir, relative);
     await fs.promises.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
     armIdleTimer();
     await pipeline(input, counter, fs.createWriteStream(target, { flags: 'wx', mode: 0o600 }));
   } catch (error) {
     if (timedOut) throw new PanelError('server.files.upload.idleTimeout');
-    // 同一路径传了两次（Windows 上只差大小写也算），或某个文件和目录同名。
+    // The same path was sent twice (differing only in case also counts on Windows), or a file and a directory share a name.
     if (hasErrorCode(error, 'EEXIST') || hasErrorCode(error, 'ENOTDIR')) {
       throw httpError('server.imports.folder.duplicatePath', 400, { path: relative });
     }
@@ -205,7 +205,7 @@ function purgeOrphanFolderUploads(): number {
   return removed;
 }
 
-/** 面板启动时调用：清掉上次进程留下的上传临时目录，并定时清理过期会话。 */
+/** Called at panel startup: cleans up upload temp directories left by the previous process, and periodically cleans up expired sessions. */
 export function initializeFolderUploads(): { purged: number } {
   if (cleanupTimer) clearInterval(cleanupTimer);
   for (const session of [...sessions.values()]) dropSession(session);
@@ -223,7 +223,7 @@ export function shutdownFolderUploads(): void {
   for (const session of [...sessions.values()]) dropSession(session);
 }
 
-/** 开始一次文件夹上传。每个用户只保留一个会话：新开始的会替换还没确认的旧会话。 */
+/** Starts a folder upload. Only one session is kept per user: a newly started one replaces an old session that has not been confirmed. */
 export function createFolderUpload(userId: string, input: CreateFolderUploadInput, now = Date.now()): FolderUploadInfo {
   cleanupExpiredFolderUploads(now);
   const folderName = input.folderName.trim();
@@ -246,7 +246,7 @@ export function createFolderUpload(userId: string, input: CreateFolderUploadInpu
   }
 
   fs.mkdirSync(config.uploadDir, { recursive: true, mode: 0o700 });
-  // 被替换的旧会话也会腾出空间，但旧会话可能还没传多少，这里按新声明的总大小直接比较。
+  // The replaced old session frees space too, but it may not have uploaded much yet, so the newly declared total size is compared directly here.
   const stat = fs.statfsSync(config.uploadDir);
   if (BigInt(input.totalBytes) > BigInt(stat.bavail) * BigInt(stat.bsize)) {
     throw httpError('server.imports.folder.diskSpace', 507);
@@ -276,8 +276,8 @@ export function createFolderUpload(userId: string, input: CreateFolderUploadInpu
 }
 
 /**
- * 接收一批文件：每个文件前面先有一个 `path` 字段给出它在文件夹里的相对路径。
- * 一批里任何一个文件出错，整个会话作废并删掉临时目录，浏览器需要从头再传。
+ * Receives a batch of files: before each file comes a `path` field giving its relative path in the folder.
+ * If any file in a batch fails, the whole session is voided and the temp directory deleted, and the browser has to upload again from the start.
  */
 export async function receiveFolderUploadBatch(
   id: string,
@@ -325,7 +325,7 @@ export async function receiveFolderUploadBatch(
   return snapshot(session);
 }
 
-/** 文件全部收到后预检：找启动文件、认核心和版本、读 user_jvm_args.txt。重复调用直接返回上次的结果。 */
+/** Prechecks once all files are received: finds the launch file, recognizes the core and version, and reads user_jvm_args.txt. Repeated calls return the previous result directly. */
 export async function completeFolderUpload(id: string, userId: string, now = Date.now()): Promise<FolderUploadInfo> {
   const session = findOwnedSession(id, userId, now);
   if (session.state === 'ready') return snapshot(session);
@@ -359,7 +359,7 @@ export function cancelFolderUpload(id: string, userId: string, now = Date.now())
   const session = findOwnedSession(id, userId, now);
   if (session.state === 'confirming') throw httpError('server.imports.folder.cancelWhileConfirming', 409);
   if (session.state === 'receiving') {
-    // 正在收的那一批结束时会看到这个状态并删掉临时目录。
+    // The batch being received sees this state when it ends and deletes the temp directory.
     session.state = 'cancelled';
     sessions.delete(id);
     return;
@@ -367,7 +367,7 @@ export function cancelFolderUpload(id: string, userId: string, now = Date.now())
   dropSession(session);
 }
 
-/** 确认导入：排进后台任务，任务把临时目录整个搬进 staging。任务队列满时保留会话，可以稍后再确认。 */
+/** Confirms the import: queues a background task that moves the whole temp directory into staging. When the task queue is full the session is kept and can be confirmed again later. */
 export async function confirmFolderUpload(
   id: string,
   userId: string,
@@ -392,11 +392,11 @@ export async function confirmFolderUpload(
           resolveRoot: () => dir,
         });
       } finally {
-        // 搬进 staging 后这里已经不存在；检查失败或任务被中止、没搬成时删掉上传的临时目录。
+        // After being moved into staging it no longer exists here; delete the uploaded temp directory when the check fails, or the task is aborted and the move did not happen.
         try {
           removeSessionDir(dir);
         } catch {
-          /* 残留由下次启动按前缀清理。 */
+          /* Leftovers are cleaned up by prefix at the next start. */
         }
       }
     });
@@ -408,7 +408,7 @@ export async function confirmFolderUpload(
   }
 }
 
-/** 测试用：清空内存里的会话，不动磁盘。 */
+/** For tests: clears the in-memory sessions without touching the disk. */
 export function resetFolderUploadsForTests(): void {
   sessions.clear();
 }

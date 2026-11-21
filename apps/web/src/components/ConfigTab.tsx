@@ -10,59 +10,59 @@ import { SaveBar, useFormSubmit, useSavedNotice, type RestartControl } from './S
 import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 
 /**
- * server.properties 引导化编辑器：
- * 常用配置按分组展示为中文标签 + 开关/下拉/数字控件；
- * 未收录的键折叠进「高级选项」保留原始文本编辑。
- * 保存仍提交完整的键值记录；服务端只修改每个 key 的最后一次定义，并保留注释、空行与重复键行。
+ * Guided editor for server.properties:
+ * common settings are shown in groups as a localized label + switch/dropdown/number control;
+ * keys not covered are folded into "Advanced Options", keeping raw text editing.
+ * Saving still submits the full key-value record; the server modifies only the last definition of each key, and preserves comments, blank lines and duplicate key lines.
  *
- * 文件里没写的键按游戏默认值显示（只显示，不写进文件）；实例的游戏版本已经不读的键不显示，
- * 文件里留着的旧值保存时原样带回。
+ * Keys not written in the file are shown with the game default (display only, not written into the file); keys the instance's game version no longer reads are not shown,
+ * and old values left in the file are sent back as is on save.
  *
- * 开关和其他项一样随保存栏一起提交；保存栏只在有修改时出现。数字项的错误在失焦后才显示。
+ * Switches are submitted together with the save bar like other items; the save bar appears only when there are changes. Errors on number items show only after blur.
  */
 
 type FieldType = 'text' | 'number' | 'boolean' | 'select';
 
-// 属性键名（如 max-players）是技术名不翻译；标签、说明与选项名存文案键，渲染时再取当前语言。
+// Property key names (such as max-players) are technical names and not translated; labels, descriptions and option names store string keys, resolved in the current language at render time.
 interface FieldMeta {
   key: string;
   labelKey: MessageKey;
   descKey: MessageKey;
   type: FieldType;
   options?: { value: string; labelKey: MessageKey }[];
-  /** 数字字段的取值范围，与 Minecraft 文档一致；max 省略表示只限下限。 */
+  /** Value range of a number field, matching the Minecraft documentation; an omitted max means only a lower bound. */
   min?: number;
   max?: number;
   /**
-   * 文件里没写这个键时游戏实际使用的值：开关和下拉按它显示，文本和数字框拿它做占位字。
-   * 已和 1.21.8、1.21.10 官方服务端首次运行生成的 server.properties 逐项核对；
-   * spawn-animals 这两个版本都已经没有，它的默认值取自 1.12.2 官方核心里读这个键的代码。
+   * The value the game actually uses when the file does not have this key: switches and dropdowns display it, and text and number boxes use it as the placeholder.
+   * Checked item by item against the server.properties generated on first run by the official 1.21.8 and 1.21.10 servers;
+   * spawn-animals no longer exists in either version, and its default is taken from the code that reads this key in the official 1.12.2 core.
    */
   defaultValue?: string;
-  /** 输入框为空时的占位文案，优先于 defaultValue（世界种子留空表示随机，没有固定默认值）。 */
+  /** Placeholder text when the input is empty, taking precedence over defaultValue (an empty world seed means random and has no fixed default). */
   placeholderKey?: MessageKey;
-  /** 从这个游戏版本起服务端不再读这个键；实例版本已知且不低于它时不显示这一项。 */
+  /** From this game version on the server no longer reads this key; the item is not shown when the instance version is known and not lower than it. */
   removedIn?: string;
-  /** 从这个游戏版本起才有这个键；实例版本已知且更早时不显示这一项。 */
+  /** This key exists only from this game version on; the item is not shown when the instance version is known and earlier. */
   addedIn?: string;
 }
 
 interface GroupMeta {
   titleKey: MessageKey;
   fields: FieldMeta[];
-  /** 本组有项从 since 版本起改成了游戏规则：这些项隐藏后，在组末尾说明去哪里设置。 */
+  /** Some items in this group became game rules from version since: after they are hidden, the end of the group says where to set them. */
   gameRuleNote?: { key: MessageKey; since: string };
-  /** 本组有项从 since 版本起被直接去掉（没有变成游戏规则）：隐藏后在组末尾说明。 */
+  /** Some items in this group were removed outright from version since (without becoming game rules): explained at the end of the group after hiding. */
   removedNote?: { key: MessageKey; since: string };
 }
 
-/** 解析正式版版本号的前三段（1.21.9、26.3）；快照号（25w35a）等认不出的返回 null。 */
+/** Parses the first three segments of a release version number (1.21.9, 26.3); returns null for unrecognized ones such as snapshot numbers (25w35a). */
 function parseMcVersion(version: string | null | undefined): [number, number, number] | null {
   const match = /^(\d+)\.(\d+)(?:\.(\d+))?/.exec(version ?? '');
   return match ? [Number(match[1]), Number(match[2]), Number(match[3] ?? 0)] : null;
 }
 
-/** 版本未知或认不出时返回 false：宁可多显示一项，也不把还在用的设置藏起来。 */
+/** Returns false when the version is unknown or unrecognized: better to show one item too many than to hide a setting still in use. */
 function isMcVersionAtLeast(version: string | null | undefined, since: string): boolean {
   const current = parseMcVersion(version);
   const target = parseMcVersion(since);
@@ -73,12 +73,12 @@ function isMcVersionAtLeast(version: string | null | undefined, since: string): 
   return true;
 }
 
-/** 版本已知且早于 since 才返回 true；版本未知时返回 false，理由同上。 */
+/** Returns true only when the version is known and earlier than since; returns false when the version is unknown, for the same reason as above. */
 function isMcVersionBefore(version: string | null | undefined, since: string): boolean {
   return parseMcVersion(version) !== null && !isMcVersionAtLeast(version, since);
 }
 
-/** 有几个键和加载时不一样（新增、删除、改值各算一项），保存栏据此写「N 项修改未保存」。 */
+/** How many keys differ from when they were loaded (an addition, a deletion and a value change each count as one); the save bar uses this to write "N unsaved changes". */
 function countChangedProperties(current: Record<string, string>, original: Record<string, string>): number {
   let count = 0;
   for (const key of new Set([...Object.keys(current), ...Object.keys(original)])) {
@@ -154,8 +154,8 @@ const KNOWN_KEYS = new Set(GROUPS.flatMap((group) => group.fields.map((field) =>
 const FIELD_BY_KEY = new Map(GROUPS.flatMap((group) => group.fields.map((field) => [field.key, field] as const)));
 
 /**
- * 一行设置。写成模块顶层的组件：useFieldFeedback 是钩子，不能在循环里直接调用；
- * 也不能定义在 ConfigTab 里面，否则每次渲染都会重新挂载，丢掉焦点和「失焦过」的记录。
+ * One settings row. Written as a module-level component: useFieldFeedback is a hook and cannot be called directly in a loop;
+ * it cannot be defined inside ConfigTab either, or it would remount on every render and lose focus and the "blurred" record.
  */
 function ConfigRow({
   field,
@@ -166,7 +166,7 @@ function ConfigRow({
   onChange,
 }: {
   field: FieldMeta;
-  /** 文件里的原始值；没有这个键时是 undefined。 */
+  /** The raw value in the file; undefined when the key is absent. */
   raw: string | undefined;
   loaded: boolean;
   disabled: boolean;
@@ -175,14 +175,14 @@ function ConfigRow({
 }) {
   const { t } = useI18n();
   const errorText = issue ? t(issue.key, issue.params) : null;
-  // 合不合法每次按键都算（决定保存按钮）；红字等失焦、按 Enter 或点了保存栏的状态文字之后才显示。
+  // Validity is computed on every keystroke (it decides the save button); the red text shows only after blur, pressing Enter, or clicking the save bar's status text.
   const { shown, onBlur } = useFieldFeedback(errorText);
-  // 文件里没写时，开关和下拉显示游戏实际使用的默认值；只是显示，用户不改就不会写进文件。
-  // 文件还没读到（加载中或读取失败）时不显示默认值，免得被当成文件里的实际情况。
+  // When the file does not have it, switches and dropdowns display the default the game actually uses; display only, and nothing is written into the file unless the user changes it.
+  // Before the file is read (loading or read failure) defaults are not shown, so they are not mistaken for what is actually in the file.
   const fallback = loaded ? field.defaultValue : undefined;
-  // 文件里写了键但值留空时（在 1.21.10 服务端上实测）：下拉项和数字按默认值生效，开关按「关」生效，文本就是空的。
+  // When the file has the key with an empty value (verified on a 1.21.10 server): dropdown items and numbers take the default, switches act as "off", and text is simply empty.
   const value = (field.type === 'select' ? raw || fallback : raw ?? fallback) ?? '';
-  // 文本框只在文件里没有这个键时才拿默认值做占位字：清空一个已有的值会存成空值，不会回到默认值。
+  // A text box uses the default as its placeholder only when the file does not have the key: clearing an existing value saves an empty value and does not return to the default.
   const placeholder = !loaded ? undefined
     : field.placeholderKey ? t(field.placeholderKey)
       : field.type === 'text' && raw !== undefined ? undefined
@@ -192,7 +192,7 @@ function ConfigRow({
   const errorId = `${inputId}-error`;
   const describedBy = shown ? `${descId} ${errorId}` : descId;
   return (
-    // data-field-invalid 不管红字显没显示都标着，focusFirstInvalidField 靠它找到第一个要改的字段。
+    // data-field-invalid is set whether or not the red text is showing, and focusFirstInvalidField uses it to find the first field to fix.
     <div className={`list-row config-row config-row-${field.type}`} data-field-invalid={issue ? '' : undefined}>
       <div className="list-row-text">
         <label htmlFor={inputId} className="list-row-title">{t(field.labelKey)}</label>
@@ -219,13 +219,13 @@ function ConfigRow({
             aria-describedby={descId}
             onChange={(e) => onChange(field.key, e.target.value)}
           >
-            {/* 只有既没写、也没有默认值可显示时才需要「请选择」。 */}
+            {/* "Please choose" is needed only when it is neither written nor has a default to display. */}
             {value === '' && (
               <option value="" disabled>
                 {t('config.select.placeholder')}
               </option>
             )}
-            {/* 文件里的值不在选项内时原样显示，否则下拉框会误显示成第一项。 */}
+            {/* A value in the file that is not among the options is shown as is, or the dropdown would wrongly display the first item. */}
             {raw && !field.options?.some((option) => option.value === raw) && <option value={raw}>{raw}</option>}
             {field.options?.map((option) => (
               <option key={option.value} value={option.value}>
@@ -236,7 +236,7 @@ function ConfigRow({
             ))}
           </select>
         ) : field.type === 'number' ? (
-          // 文件里原有的脏值（如 abc）原样显示；只整理用户新输入的内容。
+          // A dirty value already in the file (such as abc) is shown as is; only what the user newly types is tidied.
           <NumberInput
             id={inputId}
             className="input"
@@ -262,16 +262,16 @@ function ConfigRow({
           />
         )}
       </div>
-      {/* 说明放在整行最后：窄屏时紧跟在输入框下面，宽屏时右对齐在输入框下方。 */}
+      {/* The description goes last in the row: right below the input on narrow screens, and right-aligned under the input on wide screens. */}
       {shown && <p className="error config-row-error" id={errorId}>{errorText}</p>}
     </div>
   );
 }
 
 /**
- * 切换实例时由上层按实例 ID 重新挂载。
- * mcVersion 是实例的游戏版本，用来隐藏这个版本不读的项；自定义 Jar 等版本未知的实例传 null，全部照常显示。
- * restart 是实例页的重启入口：实例在运行时，保存后的提示里给出「重启实例」；不传时只提示已保存。
+ * Remounted by the parent per instance ID when the instance changes.
+ * mcVersion is the instance's game version, used to hide items this version does not read; instances with an unknown version, such as custom jars, pass null and show everything as usual.
+ * restart is the instance page's restart entry: while the instance is running, the notice after saving offers "Restart Instance"; when not passed, only a saved notice is shown.
  */
 export function ConfigTab({
   instanceId,
@@ -312,18 +312,18 @@ export function ConfigTab({
 
   const dirtyCount = loaded ? countChangedProperties(props, originalProps) : 0;
   const dirty = dirtyCount > 0;
-  // 只校验改过的数字字段：文件里原有的值即使不规范也不拦保存，只拦用户新填的错误值。
+  // Only changed number fields are validated: an existing value in the file does not block saving even if malformed; only wrong values the user newly entered are blocked.
   const fieldIssues = new Map<string, Issue>();
   for (const field of NUMBER_FIELDS) {
     const value = props[field.key];
     if (value === undefined || value === originalProps[field.key]) continue;
-    // 数字项可以清空：存成空值后服务端按默认值生效（占位字显示的就是它），所以空串不算错。
-    // 只输了一个「-」不是空串，算没输完，不会被当成清空存进去。
+    // Number items can be cleared: once saved as an empty value the server applies the default (which is what the placeholder shows), so an empty string is not an error.
+    // A lone "-" is not an empty string; it counts as unfinished and is not saved as a clear.
     const issue = integerIssue(value, field.min ?? 0, field.max, true);
     if (issue) fieldIssues.set(field.key, issue);
   }
   const invalid = fieldIssues.size > 0;
-  // 保存栏点名第一个要改的字段，长页面里不用上下找。顺序和页面上的一致，跳转时落在同一项上。
+  // The save bar names the first field to fix, so there is no hunting up and down a long page. The order matches the page, and the jump lands on the same item.
   const firstInvalid = NUMBER_FIELDS.find((field) => fieldIssues.has(field.key));
   const blocker = useUnsavedGuard(dirty, saving);
 
@@ -339,7 +339,7 @@ export function ConfigTab({
       setOriginalProps(props);
       feedback.reset();
       setError('');
-      // server.properties 只在启动时读取：实例在运行就要重启才生效。
+      // server.properties is read only at start: a running instance has to restart for it to take effect.
       savedNotice.show(true);
     } catch (err) {
       setError(errorMessage(err));
@@ -348,7 +348,7 @@ export function ConfigTab({
     }
   }
 
-  /** 让各字段显示错误原因，并跳到第一个要改的字段；按 Enter 提交不了和点保存栏的状态文字是同一个动作。 */
+  /** Makes the fields show their error reasons and jumps to the first field to fix; Enter failing to submit and clicking the save bar's status text are the same action. */
   function revealInvalid() {
     feedback.revealAll();
     focusFirstInvalidField(formRef.current);
@@ -371,11 +371,11 @@ export function ConfigTab({
   const advancedKeys = Object.keys(props).filter((key) => !KNOWN_KEYS.has(key)).sort();
 
   function setValue(key: string, value: string) {
-    // 再次修改时收起「已保存」的提示。
+    // Collapse the "saved" notice on the next edit.
     savedNotice.clear();
     setProps((prev) => {
-      // 文件里原本没有的键回到「没填」时视为没改，避免多写一行，也不会一直显示「有未保存的修改」：
-      // 文本和数字框是清空；开关和下拉没有「空」这个状态，回到游戏默认值就算没填。
+      // A key not originally in the file counts as unchanged when it returns to "not filled in", avoiding an extra line and a permanent "unsaved changes":
+      // for text and number boxes that means cleared; switches and dropdowns have no "empty" state, so returning to the game default counts as not filled in.
       if (!(key in originalProps)) {
         const field = FIELD_BY_KEY.get(key);
         const backToDefault = (field?.type === 'boolean' || field?.type === 'select') && value === field.defaultValue;
@@ -388,7 +388,7 @@ export function ConfigTab({
     });
   }
 
-  // 这个版本不读的项不显示：已经移除的，或者还没加入的。文件里留着的值不动，保存时原样带回。
+  // Items this version does not read are not shown: already removed, or not added yet. Values left in the file are untouched and sent back as is on save.
   const isHidden = (field: FieldMeta) => (field.removedIn !== undefined && isMcVersionAtLeast(mcVersion, field.removedIn))
     || (field.addedIn !== undefined && isMcVersionBefore(mcVersion, field.addedIn));
   const disabled = !loaded || saving;
@@ -396,7 +396,7 @@ export function ConfigTab({
   return (
     <>
       <FormFeedbackProvider value={feedback.value}>
-        {/* noValidate：校验由页面自己做，不让浏览器的原生提示拦住提交。 */}
+        {/* noValidate: validation is done by the page itself, so the browser's native prompts do not block submission. */}
         <form
           ref={formRef}
           className="form-stack config-workspace"
@@ -412,7 +412,7 @@ export function ConfigTab({
             </div>
           )}
 
-          {/* 宽屏时各分组排成两列，窄屏仍是一列。 */}
+          {/* On wide screens the groups are laid out in two columns; narrow screens keep one column. */}
           <div className="config-groups">
             {GROUPS.map((group) => (
               <section className="form-section" key={group.titleKey}>

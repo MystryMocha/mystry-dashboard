@@ -9,7 +9,7 @@ import { api } from '../api';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n, type I18n, type MessageKey } from '../i18n';
 
-/** 服务端监测告警：有消息键时按当前语言显示，否则显示服务端原文。 */
+/** Server monitoring warning: shown in the current language when there is a message key, otherwise the server's original text. */
 export function metricWarningTexts(metrics: Metrics, tm: I18n['tm']): string[] {
   return metrics.warnings.map((warning, index) => {
     const message = metrics.warningsI18n?.[index];
@@ -17,7 +17,7 @@ export function metricWarningTexts(metrics: Metrics, tm: I18n['tm']): string[] {
   });
 }
 
-/** 按消息键判断是否出现某类告警。 */
+/** Tells by message key whether a certain kind of warning is present. */
 function hasWarning(metrics: Metrics | null, key: ServerMessageKey): boolean {
   return metrics?.warningsI18n?.some((message) => message.key === key) ?? false;
 }
@@ -42,12 +42,12 @@ export function processMetric(
 export function useDashboardMetrics() {
   const { t } = useI18n();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
-  // 只保存文案键，渲染时按当前语言取文案，切换语言后错误提示也会跟着变。
+  // Only the string key is stored and the text is resolved in the current language at render time, so error messages follow a language switch too.
   const [errorKey, setErrorKey] = useState<MessageKey | null>(null);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(false);
-  // 只有用户手动刷新才进入 busy：例行轮询若也切换按钮禁用和文案，聚焦在按钮上的键盘/读屏用户每 5 秒都会被打断。
+  // Only a manual refresh by the user enters busy: if routine polling also toggled the button's disabled state and text, keyboard/screen reader users focused on the button would be interrupted every 5 seconds.
   const refresh = useCallback(async (manual = false) => {
     if (pending.current) return;
     pending.current = true;
@@ -72,7 +72,7 @@ export function useDashboardMetrics() {
   return { metrics, error, busy, refresh };
 }
 
-/** 细长占用条：取值 0–100，超出按满格画；null 时只显示底槽。纯装饰，数值由旁边的文字给出。 */
+/** Thin usage bar: values 0–100, drawn full when above; with null only the track shows. Purely decorative, with the number given by the text beside it. */
 export function Meter({
   ratio,
   tone = 'neutral',
@@ -112,7 +112,7 @@ function HostMeter({
   );
 }
 
-/** 本机资源：CPU、内存、数据盘三条细占用条，告警时对应一条变红。 */
+/** Local resources: three thin usage bars for CPU, memory and the data disk, with the matching one turning red on a warning. */
 export function HostMeters({ metrics, error }: { metrics: Metrics | null; error: string }) {
   const { t, fmt } = useI18n();
   const placeholder = error ? t('dashboard.metrics.unavailable') : t('dashboard.metrics.collecting');

@@ -23,9 +23,9 @@ type PanelStyle = {
 };
 
 /**
- * 卡片内的「更多操作」菜单。
- * 面板通过 portal 挂到 body 并使用 fixed 定位，避免被卡片的 overflow 裁剪；
- * 统一在触发按钮下方右对齐展开，仅在下方空间不足且上方更宽裕时翻到上方。
+ * The "more actions" menu inside a card.
+ * The panel is attached to body through a portal and fixed-positioned, so it is not clipped by the card's overflow;
+ * it always opens below the trigger button, right-aligned, flipping above only when there is not enough room below and more room above.
  */
 export function ActionMenu({
   label: labelProp,
@@ -66,7 +66,7 @@ export function ActionMenu({
     if (returnFocus) triggerRef.current?.focus();
   }, []);
 
-  // 面板渲染后、浏览器绘制前完成定位，避免先在错误位置闪一帧。
+  // Positioning is done after the panel renders and before the browser paints, so it does not flash one frame at the wrong position.
   useLayoutEffect(() => {
     if (!open) return;
     updatePosition();
@@ -107,7 +107,7 @@ export function ActionMenu({
       return;
     }
     if (event.key === 'Tab') {
-      // 焦点先回到触发按钮，再由浏览器默认行为移到其前/后的元素。
+      // Focus goes back to the trigger button first, and the browser's default behavior then moves it to the element before/after it.
       close(true);
       return;
     }
@@ -160,7 +160,7 @@ export function ActionMenu({
             className="action-menu-panel"
             role="menu"
             aria-label={label}
-            // 首帧尚未测量时透明（仍可聚焦），避免在左上角闪现。
+            // Transparent on the first frame before measuring (still focusable), so it does not flash in the top-left corner.
             style={panelStyle ?? { opacity: 0, top: 0, right: 0 }}
             onKeyDown={onPanelKeyDown}
           >
@@ -174,7 +174,7 @@ export function ActionMenu({
                 disabled={item.disabled}
                 title={item.title}
                 onClick={() => {
-                  // 先把焦点交还触发按钮，确认弹窗关闭后浏览器会恢复到这里。
+                  // Hand focus back to the trigger button first; after the confirmation dialog closes the browser restores focus here.
                   close(true);
                   item.onSelect();
                 }}

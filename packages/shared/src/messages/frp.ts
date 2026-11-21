@@ -1,4 +1,4 @@
-/** 联机穿透面向用户的英文模板。其他语言由 Web 按同一个键翻译。 */
+/** User-facing English templates for frp tunneling. Web translates other languages by the same key. */
 export const FRP_MESSAGES = {
   'server.frp.invalidParams': 'The tunnel settings contain unsupported fields or are malformed.',
   'server.frp.endpointNotFound': 'The frp server was not found.',

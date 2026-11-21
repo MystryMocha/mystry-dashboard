@@ -66,7 +66,7 @@ test('推荐内存按四分之一、512 MiB、系统保留和上下限计算', (
   assert.equal(automaticInitialMemoryMiB('compatibility', 8192), 1024);
   assert.equal(automaticInitialMemoryMiB('compatibility', 512), 512);
   assert.equal(automaticInitialMemoryMiB('custom', 8192), 1024);
-  // G1 均衡和 Paper Aikar 是服务器调优方案，初始内存和最大内存相同。
+  // G1 Balanced and Paper Aikar are server tuning profiles, with initial memory equal to max memory.
   assert.equal(automaticInitialMemoryMiB('g1-balanced', 8192), 8192);
   assert.equal(automaticInitialMemoryMiB('paper-aikar', 8192), 8192);
 });
@@ -84,7 +84,7 @@ test('三个 JVM 预设可生成并反向识别', () => {
   assert.equal(inspectJvmArgs(g1).presetId, 'g1-balanced');
   assert.equal(inspectJvmArgs(paper, { coreType: 'paper', javaMajor: 21 }).presetId, 'paper-aikar');
   assert.equal(validateJvmArgs(paper, { coreType: 'paper', javaMajor: 21 }).length, 0);
-  // MC 26.x 推荐 Java 25，G1 与 Aikar 预设不能因此报版本不匹配
+  // MC 26.x recommends Java 25, and the G1 and Aikar presets must not report a version mismatch because of it
   assert.equal(validateJvmArgs(g1, { javaMajor: 25 }).length, 0);
   assert.equal(validateJvmArgs(paper, { coreType: 'paper', javaMajor: 25 }).length, 0);
 });
@@ -131,7 +131,7 @@ test('预设限制与旧参数错误均保留为结构化诊断', () => {
   assert.equal(inspected.extraArgs, oldValue);
   assert.equal(inspected.issues[0]?.code, 'PARSE_ERROR');
   assert.equal(inspected.issues[0]?.key, 'server.jvm.issue.unclosedQuote');
-  // 每条诊断的 key 均为 server.jvm.issue.<code 的 camelCase>（解析错误除外，使用解析器给出的键）
+  // Each diagnostic's key is server.jvm.issue.<code in camelCase> (except parse errors, which use the key given by the parser)
   for (const item of [...mismatch, ...validateJvmArgs('-Xms4G -Xmx2G')]) {
     const camel = item.code.toLowerCase().replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
     assert.equal(item.key, `server.jvm.issue.${camel}`);
@@ -189,20 +189,20 @@ test('服务端在实例保存和任务入队前拒绝非法参数', async (t) =
 });
 
 test('recommendedJavaMajor 按 MC 版本推荐 Java，年份版本号 26.x 需要 Java 25', () => {
-  // 年份版本号（26.1 起）
+  // Year-based version numbers (from 26.1)
   assert.equal(recommendedJavaMajor('26.1'), 25);
   assert.equal(recommendedJavaMajor('26.1.2'), 25);
   assert.equal(recommendedJavaMajor('26.3'), 25);
   assert.equal(recommendedJavaMajor('26.3-rc-3'), 25);
   assert.equal(recommendedJavaMajor('27.1'), 25);
-  // 旧 1.x 版本号保持原有分段
+  // Old 1.x version numbers keep their original ranges
   assert.equal(recommendedJavaMajor('1.21.11'), 21);
   assert.equal(recommendedJavaMajor('1.21.11-rc3'), 21);
   assert.equal(recommendedJavaMajor('1.20.5'), 21);
   assert.equal(recommendedJavaMajor('1.20.4'), 17);
   assert.equal(recommendedJavaMajor('1.17'), 17);
   assert.equal(recommendedJavaMajor('1.16.5'), 8);
-  // 无法识别的格式不给推荐，避免误报
+  // No recommendation for unrecognized formats, to avoid false reports
   assert.equal(recommendedJavaMajor('25w14a'), null);
   assert.equal(recommendedJavaMajor('snapshot'), null);
   assert.equal(recommendedJavaMajor(''), null);

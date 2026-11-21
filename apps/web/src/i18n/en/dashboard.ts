@@ -1,4 +1,4 @@
-/** 实例总览页与本机监测卡片文案（英文主表）。 */
+/** Instance overview page and local monitoring card strings (English primary table). */
 export default {
   'dashboard.subtitle.summary_one': '{count} instance, {running} running',
   'dashboard.subtitle.summary_other': '{count} instances, {running} running',

@@ -12,11 +12,11 @@ import { cancelTask, getTask, runBackgroundTask } from './task-service.js';
 import { safeExtract } from './zip-service.js';
 
 /**
- * 面板自动安装 Java：下载钉死版本的 Eclipse Temurin JRE，按钉死的 SHA-256 校验，
- * 解压到 <数据根>/runtimes/java/<版本>，执行 -version 确认后登记进 Java 运行时注册表。
- * 下载来源跟随面板的下载来源设置（GitHub 或公共 GitHub 代理）；摘要钉死，所以来源不影响可信度。
- * 升级版本：改 TEMURIN_RELEASES 里的 tag、文件名和摘要（取自同一 Release 的 .sha256.txt）。
- * 旧版本的目录不会自动删除：已有实例可能还绑定着它。
+ * Automatic Java install by the panel: downloads a pinned version of the Eclipse Temurin JRE, verifies it against the pinned SHA-256,
+ * extracts it to <data root>/runtimes/java/<version>, and after confirming with -version registers it in the Java runtime registry.
+ * The download source follows the panel's download source setting (GitHub or a public GitHub proxy); the digest is pinned, so the source does not affect trust.
+ * To upgrade a version: change the tag, file name and digest in TEMURIN_RELEASES (taken from the .sha256.txt of the same Release).
+ * Directories of old versions are not deleted automatically: existing instances may still be bound to them.
  */
 
 interface TemurinAsset {
@@ -25,9 +25,9 @@ interface TemurinAsset {
 }
 
 interface TemurinRelease {
-  /** GitHub Release tag，如 jdk-25.0.5+8 */
+  /** GitHub Release tag, e.g. jdk-25.0.5+8 */
   tag: string;
-  /** 键为 `${process.platform}:${process.arch}` */
+  /** The key is `${process.platform}:${process.arch}` */
   assets: Record<string, TemurinAsset>;
 }
 
@@ -62,24 +62,24 @@ export const TEMURIN_RELEASES: Record<(typeof JAVA_INSTALL_MAJORS)[number], Temu
   },
 };
 
-/** 官方 JRE 压缩包都在 40–62 MB；留出余量，挡住异常大的响应。 */
+/** Official JRE archives are all 40–62 MB; leave headroom while blocking abnormally large responses. */
 const ARCHIVE_BYTE_LIMIT = 128 * 1024 * 1024;
 const STAGING_PREFIX = '.staging-';
 
 type JavaMajor = (typeof JAVA_INSTALL_MAJORS)[number];
 
 export interface JavaInstallHooks {
-  /** 替换下载：把官方压缩包写到 destination */
+  /** Replaces the download: writes the official archive to destination */
   acquire?: (major: JavaMajor, asset: TemurinAsset, destination: string, onProgress: (ratio: number) => void, signal: AbortSignal) => Promise<void>;
-  /** 替换平台判断，键同 TEMURIN_RELEASES 的 assets */
+  /** Replaces the platform check; same key as assets in TEMURIN_RELEASES */
   platformKey?: () => string;
 }
 
 let hooks: JavaInstallHooks = {};
-/** 同一主版本只跑一个安装任务：重复点击时返回同一个任务，不并发写同一个目录。 */
+/** Only one install task runs per major version: repeated clicks return the same task instead of writing the same directory concurrently. */
 const inFlight = new Map<JavaMajor, string>();
 
-/** 测试用：替换下载和平台判断；传 null 恢复默认并清空进行中的记录。 */
+/** For tests: replaces the download and the platform check; pass null to restore the defaults and clear the in-progress records. */
 export function setJavaInstallForTests(next: JavaInstallHooks | null): void {
   hooks = next ?? {};
   if (next === null) inFlight.clear();
@@ -93,13 +93,13 @@ export function isJavaInstallMajor(value: unknown): value is JavaMajor {
   return (JAVA_INSTALL_MAJORS as readonly unknown[]).includes(value);
 }
 
-/** 这台电脑上能自动安装的主版本；系统或架构没有官方包时为空。 */
+/** Major versions that can be installed automatically on this computer; empty when there is no official package for the OS or architecture. */
 export function installableJavaMajors(): number[] {
   const key = currentPlatformKey();
   return JAVA_INSTALL_MAJORS.filter((major) => Boolean(TEMURIN_RELEASES[major].assets[key]));
 }
 
-/** 目录名：tag 里的 + 换成 _，避免在命令行和网址里被误读。 */
+/** Directory name: the + in the tag is replaced with _, so it is not misread on command lines and in URLs. */
 function installDirName(major: JavaMajor): string {
   return `temurin-${TEMURIN_RELEASES[major].tag.replace(/[^A-Za-z0-9._-]/g, '_')}`;
 }
@@ -135,7 +135,7 @@ function sha256File(file: string): Promise<string> {
   });
 }
 
-/** Linux 的 tar.gz 用系统 tar 解压（同 frp-runtime）；摘要已核对过，内容就是官方包。 */
+/** The Linux tar.gz is extracted with the system tar (same as frp-runtime); the digest has been verified, so the content is the official package. */
 function extractTarGz(archive: string, destination: string, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn('tar', ['-xzf', archive, '-C', destination, '--no-same-owner'], {
@@ -148,14 +148,14 @@ function extractTarGz(archive: string, destination: string, signal: AbortSignal)
   });
 }
 
-/** 官方包解压后只有一个顶层目录（如 jdk-25.0.5+8-jre）；返回它，结构不对时返回 null。 */
+/** The extracted official package has a single top-level directory (such as jdk-25.0.5+8-jre); returns it, or null when the structure is wrong. */
 function singleTopLevelDir(extractDir: string): string | null {
   const entries = fs.readdirSync(extractDir, { withFileTypes: true });
   if (entries.length !== 1 || !entries[0]!.isDirectory()) return null;
   return path.join(extractDir, entries[0]!.name);
 }
 
-/** Windows 上杀毒软件扫描刚解压的 exe 时，rename 常短暂报 EPERM / EBUSY；重试几次。 */
+/** On Windows, while antivirus scans a freshly extracted exe, rename often briefly fails with EPERM / EBUSY; retry a few times. */
 async function renameWithRetry(from: string, to: string): Promise<void> {
   for (let attempt = 0; ; attempt += 1) {
     try {
@@ -169,7 +169,7 @@ async function renameWithRetry(from: string, to: string): Promise<void> {
   }
 }
 
-/** 清掉上次中断留下的临时目录。 */
+/** Cleans up temp directories left by a previous interruption. */
 function cleanStaging(root: string): void {
   let entries: fs.Dirent[];
   try {
@@ -182,7 +182,7 @@ function cleanStaging(root: string): void {
   }
 }
 
-/** 装好（或已装好）并登记，返回运行时 ID。report 的进度在 0–100 之间。 */
+/** Installs (or finds it already installed) and registers it, returning the runtime ID. The progress passed to report is between 0 and 100. */
 async function installJava(
   major: JavaMajor,
   signal: AbortSignal,
@@ -194,12 +194,12 @@ async function installJava(
   fs.mkdirSync(root, { recursive: true, mode: 0o700 });
   const finalDir = path.join(root, installDirName(major));
 
-  // 已经装过（例如上次装完但页面没刷新）：确认能运行就直接登记，不重复下载。
+  // Already installed (for example the last install finished but the page was not refreshed): confirm it runs and register directly, without downloading again.
   if (fs.existsSync(javaExecutable(finalDir))) {
     report(95, { key: 'server.jvm.javaInstall.verifying', params: { major } });
     const existing = await registerPanelJavaRuntime(javaExecutable(finalDir));
     if (existing) return existing.id;
-    // 目录坏了：删掉重装。
+    // The directory is broken: delete it and reinstall.
     fs.rmSync(finalDir, { recursive: true, force: true });
   }
 
@@ -209,7 +209,7 @@ async function installJava(
   const archivePath = path.join(staging, `${asset.archive}.partial`);
   const extractDir = path.join(staging, 'extract');
   try {
-    // 文案里不再单写下载百分比：进度条右边已有整体进度，两个数对不上反而让人困惑。
+    // The text no longer spells out a download percentage: overall progress is already shown to the right of the progress bar, and two numbers that disagree only confuse people.
     report(2, { key: 'server.jvm.javaInstall.downloading', params: { major } });
     try {
       const acquire = hooks.acquire ?? defaultAcquire;
@@ -224,7 +224,7 @@ async function installJava(
       }
       throw failure('server.jvm.javaInstall.downloadFailed', major, error);
     }
-    // 下载器已按摘要校验；替身或以后换下载方式时这里再守一层。
+    // The downloader has already verified the digest; this is one more guard for stubs or a future change of download method.
     if (await sha256File(archivePath) !== asset.sha256) throw failure('server.jvm.javaInstall.checksumMismatch', major);
 
     report(82, { key: 'server.jvm.javaInstall.extracting', params: { major } });
@@ -254,7 +254,7 @@ async function installJava(
   }
 }
 
-/** 排进后台任务。同一主版本已有任务在排队或运行时，返回那个任务。 */
+/** Queues a background task. When the same major version already has a task queued or running, that task is returned. */
 export async function startJavaInstall(major: number): Promise<TaskInfo> {
   if (!isJavaInstallMajor(major)) {
     throw new PanelError('server.jvm.javaInstall.unsupportedMajor', { major }, { statusCode: 400 });
@@ -287,8 +287,8 @@ export async function startJavaInstall(major: number): Promise<TaskInfo> {
 }
 
 /**
- * 用户取消一键安装。只认本进程里还在排队或运行的 Java 安装任务，部署、导入等别的任务一律不认。
- * 运行中的任务要等下载或解压停下、临时目录删掉后才变成已取消，返回的任务可能还是 running。
+ * The user cancels a one-click install. Only Java install tasks still queued or running in this process are accepted; deploy, import and other tasks never are.
+ * A running task becomes cancelled only after the download or extraction stops and the temp directory is deleted, so the returned task may still be running.
  */
 export function cancelJavaInstall(taskId: string): TaskInfo {
   const isJavaInstall = [...inFlight.values()].includes(taskId);

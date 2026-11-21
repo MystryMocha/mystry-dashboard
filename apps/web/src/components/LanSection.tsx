@@ -33,15 +33,15 @@ function statusTone(status: LanStatus): StatusTone {
   return 'stopped';
 }
 
-/** 文本框里一行一个节点；空行忽略，格式由服务端校验。 */
+/** One peer per line in the text box; blank lines are ignored, and the format is validated by the server. */
 function parsePeers(text: string): string[] {
   return text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length > 0);
 }
 
 /**
- * 实例虚拟局域网。只开关官方 EasyTier 和中继节点，不提供原始配置或可执行路径。
- * 主栏顺序：安装 → 开关（立即生效）→ 让玩家加入（三步）→ 中继节点（默认收起）→ 直连端口和版本。
- * 开关和中继节点各自保存：开关带上服务端已保存的节点，节点保存带上服务端当前的开关，互不覆盖。
+ * Instance virtual LAN. Only toggles the official EasyTier and relay peers; raw config or executable paths are not offered.
+ * Main column order: install → switch (takes effect immediately) → let players join (three steps) → relay peers (collapsed by default) → direct connection port and version.
+ * The switch and relay peers are saved separately: the switch carries the peers saved on the server, and saving peers carries the server's current switch state, so neither overwrites the other.
  */
 export function LanSection({ instanceId, guide }: { instanceId: string; guide: GuideControl }) {
   const { t, tm } = useI18n();
@@ -55,9 +55,9 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  // 复制加入说明 / 玩家配置的结果显示在按钮下面。
+  // The result of copying the join instructions / player config is shown below the button.
   const [copied, showCopied] = useFlash();
-  // 用户改过的中继节点不被轮询结果覆盖，保存后才重新跟随服务端。
+  // Relay peers the user has edited are not overwritten by polling results, and follow the server again only after saving.
   const peersTouched = useRef(false);
   const relayInitialized = useRef(false);
 
@@ -69,7 +69,7 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
     }
   }, []);
 
-  // 改过中继节点（填了自己的节点或不用社区节点）时默认展开，收起的地方不藏着已生效的设置。
+  // When relay peers have been changed (own peers entered, or community peers turned off) it is expanded by default, so a collapsed area does not hide settings already in effect.
   useEffect(() => {
     if (!lan || relayInitialized.current) return;
     relayInitialized.current = true;
@@ -93,7 +93,7 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
 
   const peers = parsePeers(peersText);
   const tooManyPeers = peers.length > LAN_CUSTOM_PEER_LIMIT;
-  // 节点格式与服务端一致；不合规时保存按钮不可点，并指出是哪一个。
+  // The peer format matches the server; when non-compliant the save button is disabled and the offending one is pointed out.
   const peersIssue = lanPeersIssue(peers);
 
   async function toggle(next: boolean) {
@@ -117,7 +117,7 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
       const saved = await saveInstanceLan(instanceId, { enabled: lan.enabled, peers, useSharedPeers });
       peersTouched.current = false;
       apply(saved);
-      // 节点写进加入说明里，开着的时候改了就要重新发。
+      // Peers are written into the join instructions, so a change while it is on means they have to be sent again.
       setNotice(t(saved.enabled ? 'multiplayer.lan.peers.savedResend' : 'multiplayer.lan.peers.saved'));
       setError('');
     } catch (err) {
@@ -223,7 +223,7 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
         />
       )}
 
-      {/* 没装 EasyTier 时只留安装提示，开关和中继节点等装好再出现；已经开着的仍然可以关掉。 */}
+      {/* Without EasyTier installed only the install prompt is left, and the switch and relay peers appear once it is installed; one that is already on can still be turned off. */}
       {lan && ready && (
         <OpenSwitch
           checked={lan.enabled}

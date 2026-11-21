@@ -1,4 +1,4 @@
-/** 服务端返回给用户的消息：从其他设备访问面板、面板自带网络和公网地址。值为英文模板，`{name}` 为参数占位；其他语言由 Web 文案表按键翻译。 */
+/** User-facing server messages: accessing the panel from other devices, the panel's built-in network and the public address. Values are English templates with `{name}` placeholders; the Web string tables translate other languages by key. */
 export const REMOTE_ACCESS_MESSAGES = {
   'server.remoteAccess.invalidRequest': 'The access settings are malformed.',
   'server.remoteAccess.managedByConfig': 'Access is set by HOST in the configuration file, so it cannot be changed here.',

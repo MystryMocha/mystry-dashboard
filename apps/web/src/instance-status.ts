@@ -3,7 +3,7 @@ import type { MessageKey } from './i18n';
 
 type InstanceStatus = InstanceInfo['status'];
 
-/** 实例状态对应的术语表键；未知状态返回 null，由调用方原样显示。 */
+/** Glossary key for an instance status; returns null for an unknown status, and the caller displays it as is. */
 export function instanceStatusKey(status: string): MessageKey | null {
   switch (status) {
     case 'stopped': return 'instance.status.stopped';
@@ -27,7 +27,7 @@ export function isLifecycleBusy(status: InstanceStatus): boolean {
   return status === 'starting' || status === 'stopping';
 }
 
-/** 进程仍可能存活：允许强制停止，不允许删除。 */
+/** The process may still be alive: force stop is allowed, delete is not. */
 export function isProcessAlive(status: InstanceStatus): boolean {
   return status === 'running' || status === 'starting' || status === 'stopping';
 }

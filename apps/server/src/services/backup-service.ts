@@ -42,33 +42,33 @@ import {
 } from './task-staging-service.js';
 import { isUploadTooLargeError, removeUploadTemp, streamToUploadTemp } from './upload-service.js';
 
-/** 备份 ID：UTC 时间 + 6 位随机后缀，同时是文件名主体。 */
+/** Backup ID: UTC time + a 6-character random suffix, also the file name stem. */
 const BACKUP_ID_PATTERN = /^\d{8}-\d{6}-[A-Za-z0-9_-]{6}$/;
 const ARCHIVE_SUFFIX = '.tar.gz';
 const META_SUFFIX = '.json';
 const TEMP_PREFIX = '.tmp-';
-/** 还原换目录期间写在 .mystry-staging/<taskId>/ 下的标记与旧目录，供崩溃后回滚或收尾。 */
+/** The marker and old directory written under .mystry-staging/<taskId>/ during a restore directory swap, for rollback or finishing up after a crash. */
 const RESTORE_SWAP_MARKER = '.mystry-restore-swap.json';
 const RESTORE_PREVIOUS_DIR = '.mystry-restore-previous';
-/** 还原前要求的额外可用空间，留给数据库和日志。 */
+/** Extra free space required before a restore, reserved for the database and logs. */
 const RESTORE_FREE_SPACE_MARGIN_BYTES = 64 * 1024 * 1024;
 /**
- * save-all flush 完成后服务端自己输出的消息：1.13 起为 Saved the game，1.12 及更早为 Saved the world。
- * 只与日志前缀之后的整条消息比较，玩家聊天（`<Steve> Saved the game`）不会被当成保存完成。
+ * The message the server itself prints once save-all flush completes: Saved the game since 1.13, Saved the world in 1.12 and earlier.
+ * Only the whole message after the log prefix is compared, so player chat (`<Steve> Saved the game`) is not taken as save complete.
  */
 const SAVE_CONFIRM_MESSAGE = /^(?:Saved the (?:game|world)|All dimensions are saved)\.?$/i;
-/** 日志行前缀与消息之间的分隔：Vanilla/Forge `[..] [Server thread/INFO]: `，Paper `[.. INFO]: `。 */
+/** Separator between the log line prefix and the message: Vanilla/Forge `[..] [Server thread/INFO]: `, Paper `[.. INFO]: `. */
 const LOG_MESSAGE_SEPARATOR = ']: ';
 const ANSI_ESCAPE = /\x1b\[[0-9;?]*[A-Za-z]/g;
 const MAX_PENDING_LINE_CHARS = 4096;
 const defaultSaveConfirmTimeoutMs = 60_000;
-/** 服务端运行时被 JVM 独占锁住的文件（Windows 上无法读取）；启动时会重新生成，不进入备份。 */
+/** Files exclusively locked by the JVM while the server runs (unreadable on Windows); they are regenerated at startup and do not go into backups. */
 const SKIPPED_FILE_NAMES = new Set(['session.lock']);
 const PROGRESS_REPORT_INTERVAL_MS = 250;
 
 type ReportProgress = (progress: number, message: PanelMessage) => void;
 
-/** 正在被还原任务使用的备份，禁止删除。键为 `<实例 ID>/<备份 ID>`。 */
+/** Backups in use by a restore task, which must not be deleted. The key is `<instance ID>/<backup ID>`. */
 const backupsInUse = new Set<string>();
 
 function getSaveConfirmTimeoutMs(): number {
@@ -78,17 +78,17 @@ function getSaveConfirmTimeoutMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultSaveConfirmTimeoutMs;
 }
 
-/** 判断一行控制台输出是否为服务端自己打印的保存完成消息。 */
+/** Tells whether a line of console output is the save-complete message printed by the server itself. */
 export function isSaveConfirmationLine(line: string): boolean {
   const text = line.replace(ANSI_ESCAPE, '').trim();
   const separator = text.indexOf(LOG_MESSAGE_SEPARATOR);
-  // 没有日志前缀的裸输出只可能来自服务端进程本身（聊天、/say 都带前缀）。
+  // Bare output without a log prefix can only come from the server process itself (chat and /say both carry a prefix).
   const message = separator === -1 ? text : text.slice(separator + LOG_MESSAGE_SEPARATOR.length).trim();
   return SAVE_CONFIRM_MESSAGE.test(message);
 }
 
 function archiveLimits(): BackupArchiveLimits {
-  // 与本机目录交接共用条目数和总大小配额：两者都是把整份服务端复制进托管目录。
+  // Shares the entry count and total size quotas with the local directory handoff: both copy a whole server into the managed directory.
   return { maxEntries: config.maxExistingImportEntries, maxBytes: config.maxExistingImportBytes };
 }
 
@@ -102,7 +102,7 @@ function isWithin(root: string, target: string): boolean {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
-/** 备份根目录：不得位于实例、交接、上传或任务临时目录内，也不得包含整个数据根。 */
+/** Backup root: must not be inside the instance, handoff, upload or task temp directories, nor contain the whole data root. */
 export function backupRoot(): string {
   const root = path.resolve(config.backupDir);
   const managed = [
@@ -119,7 +119,7 @@ export function backupRoot(): string {
 }
 
 function instanceBackupDir(instanceId: string, create: boolean): string | null {
-  // 复用实例 ID 校验，避免把任意字符串拼进路径。
+  // Reuse instance ID validation, so arbitrary strings are not joined into a path.
   defaultInstanceDir(instanceId);
   const dir = path.join(backupRoot(), instanceId);
   if (create) fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -159,7 +159,7 @@ function toCoreType(value: unknown): CoreType | null {
 
 const BACKUP_SOURCES: readonly BackupSource[] = ['manual', 'pre-restore', 'upload'];
 
-/** 读取元数据；内容损坏、字段不符或压缩包缺失时返回 null（列表中不显示）。 */
+/** Reads the metadata; returns null when the content is corrupted, the fields do not match or the archive is missing (it is not shown in the list). */
 function readBackupMeta(dir: string, instanceId: string, backupId: string): BackupInfo | null {
   let parsed: Partial<BackupInfo> & { version?: unknown };
   let archiveStat: fs.Stats;
@@ -223,7 +223,7 @@ export function listBackups(instanceId: string): BackupInfo[] {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }
 
-/** 已校验的备份记录及其压缩包绝对路径，供下载、还原与删除使用。 */
+/** A verified backup record with the absolute path of its archive, for download, restore and delete. */
 export function getBackupWithArchive(instanceId: string, backupId: string): { info: BackupInfo; archive: string } {
   requireManagedInstance(instanceId);
   assertBackupId(backupId);
@@ -243,7 +243,7 @@ export function deleteBackup(instanceId: string, backupId: string): void {
     throw new PanelError('server.backups.inUse', undefined, { statusCode: 409 });
   }
   const dir = path.dirname(archive);
-  // 先把压缩包改成临时文件名：之后任何一步失败，留下的都是启动时会清理的临时文件。
+  // Rename the archive to a temp file name first: whatever step fails afterwards, what is left is a temp file that startup cleans up.
   const doomed = path.join(dir, `${TEMP_PREFIX}${path.basename(archive)}`);
   fs.renameSync(archive, doomed);
   try {
@@ -255,13 +255,13 @@ export function deleteBackup(instanceId: string, backupId: string): void {
   try {
     fs.rmSync(doomed, { force: true });
   } catch {
-    // 文件仍被占用时留给下次启动的 recoverInterruptedBackups() 清理。
+    // When the file is still in use, leave it for recoverInterruptedBackups() to clean up on the next start.
   }
 }
 
-/** 删除实例时一并删除它的全部备份。 */
+/** Deletes all of an instance's backups along with the instance. */
 export function deleteInstanceBackups(instanceId: string): void {
-  // 复用实例 ID 校验，避免把任意字符串拼进路径。
+  // Reuse instance ID validation, so arbitrary strings are not joined into a path.
   defaultInstanceDir(instanceId);
   const dir = path.join(backupRoot(), instanceId);
   const stat = fs.lstatSync(dir, { throwIfNoEntry: false });
@@ -270,7 +270,7 @@ export function deleteInstanceBackups(instanceId: string): void {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
-/** 列出实例目录：跳过面板维护的标记文件；遇到符号链接或目录联接直接拒绝。 */
+/** Lists the instance directory: skips marker files maintained by the panel; a symlink or directory junction is rejected outright. */
 function scanInstanceDirectory(root: string): BackupSourceEntry[] {
   const limits = archiveLimits();
   const entries: BackupSourceEntry[] = [];
@@ -296,7 +296,7 @@ function scanInstanceDirectory(root: string): BackupSourceEntry[] {
         totalBytes += stat.size;
         entries.push({ kind: 'file', path: relativePath, absolute, size: stat.size, mtimeMs: stat.mtimeMs });
       } else {
-        // 套接字、管道等特殊文件无法还原，直接跳过。
+        // Special files such as sockets and pipes cannot be restored and are skipped.
         continue;
       }
       if (entries.length > limits.maxEntries) {
@@ -306,7 +306,7 @@ function scanInstanceDirectory(root: string): BackupSourceEntry[] {
         throw new PanelError('server.backups.sourceTooLarge', { limit: limits.maxBytes });
       }
     }
-    // 逆序入栈，使目录按名称顺序深度优先写入归档。
+    // Pushed in reverse order, so directories are written into the archive depth-first in name order.
     for (let index = subdirectories.length - 1; index >= 0; index -= 1) pending.push(subdirectories[index]!);
   }
   return entries;
@@ -324,8 +324,8 @@ function createProgressReporter(report: ReportProgress, from: number, to: number
 }
 
 /**
- * 运行中的服务器：先 save-off 暂停自动保存，再 save-all flush 并等待保存完成提示。
- * 返回的函数恢复自动保存（save-on），可重复调用；失败时已自动恢复。
+ * A running server: save-off first to pause autosave, then save-all flush and wait for the save-complete notice.
+ * The returned function restores autosave (save-on) and can be called repeatedly; on failure it has already been restored.
  */
 async function pauseAutosaveAndFlush(instanceId: string, signal: AbortSignal): Promise<() => void> {
   let resumed = false;
@@ -336,7 +336,7 @@ async function pauseAutosaveAndFlush(instanceId: string, signal: AbortSignal): P
     try {
       processManager.sendCommand(instanceId, 'save-on');
     } catch {
-      // 进程已退出或输入流不可用；重启后服务器默认会开启自动保存。
+      // The process has exited or the input stream is unavailable; after a restart the server turns autosave on by default.
     }
   };
 
@@ -346,7 +346,7 @@ async function pauseAutosaveAndFlush(instanceId: string, signal: AbortSignal): P
   const saved = new Promise<void>((resolve, reject) => {
     const onOutput = (id: string, text: string) => {
       if (id !== instanceId) return;
-      // 输出块可能在行中间断开：只判断完整的行，未结束的部分留到下一块。
+      // An output chunk may break in the middle of a line: only complete lines are checked, and the unfinished part is kept for the next chunk.
       const lines = `${pendingLine}${text}`.split(/\r?\n/);
       pendingLine = lines.pop()!.slice(-MAX_PENDING_LINE_CHARS);
       if (lines.some(isSaveConfirmationLine)) {
@@ -370,7 +370,7 @@ async function pauseAutosaveAndFlush(instanceId: string, signal: AbortSignal): P
     processManager.on('output', onOutput);
     signal.addEventListener('abort', onAbort, { once: true });
   });
-  // 先挂监听再发命令，避免错过很快返回的保存提示。
+  // Attach the listener before sending the command, so a save notice that returns quickly is not missed.
   saved.catch(() => undefined);
 
   try {
@@ -391,8 +391,8 @@ async function pauseAutosaveAndFlush(instanceId: string, signal: AbortSignal): P
 }
 
 /**
- * 把实例目录打包成一份新备份。运行中的服务器会暂停自动保存直到打包结束；
- * 期间服务器启停或崩溃都会取消这次备份。调用方负责持有维护标记。
+ * Packs the instance directory into a new backup. A running server has autosave paused until packing ends;
+ * the server starting, stopping or crashing meanwhile cancels this backup. The caller is responsible for holding the maintenance flag.
  */
 async function createBackup(
   instanceId: string,
@@ -482,7 +482,7 @@ async function createBackup(
   }
 }
 
-/** 在实例锁内检查状态并进入维护；失败时不留下维护标记。 */
+/** Checks the state and enters maintenance inside the instance lock; no maintenance flag is left behind on failure. */
 async function enterMaintenance(
   instanceId: string,
   key: 'server.backups.busyBackingUp' | 'server.backups.busyRestoring',
@@ -498,7 +498,7 @@ async function enterMaintenance(
     try {
       return processManager.beginMaintenance(instanceId, key);
     } catch (error) {
-      // 另一个备份或还原正在进行：统一用 409 返回其消息。
+      // Another backup or restore is in progress: its message is returned uniformly as a 409.
       throw new PanelError(
         processManager.getMaintenance(instanceId) ?? key,
         undefined,
@@ -508,7 +508,7 @@ async function enterMaintenance(
   });
 }
 
-/** 排队一次手动备份；返回任务，完成后 result.backupId 为新备份。 */
+/** Queues a manual backup; returns the task, and on completion result.backupId is the new backup. */
 export async function startBackupTask(instanceId: string): Promise<TaskInfo> {
   requireManagedInstance(instanceId);
   getInstanceDir(instanceId);
@@ -534,7 +534,7 @@ function assertEnoughSpaceForRestore(contentBytes: number): void {
     const stats = fs.statfsSync(config.dataDir);
     available = Number(stats.bavail) * Number(stats.bsize);
   } catch {
-    // 平台不支持 statfs 时不阻止还原，空间不足会在解压时报错并清理 staging。
+    // When the platform does not support statfs the restore is not blocked; running out of space fails during extraction and the staging is cleaned up.
     return;
   }
   const needed = contentBytes + RESTORE_FREE_SPACE_MARGIN_BYTES;
@@ -547,13 +547,13 @@ function removeIfEmpty(dir: string): void {
   try {
     if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
   } catch {
-    /* 忽略 */
+    /* Ignore */
   }
 }
 
 /**
- * 用已校验的 staging 目录整体替换实例目录。先写换目录标记，再把旧目录移到任务临时目录，
- * 新目录就位后才删除旧目录；第二步失败时立即移回旧目录。必须在实例锁内调用。
+ * Replaces the instance directory as a whole with the verified staging directory. The swap marker is written first, then the old directory is moved into the task temp directory,
+ * and the old directory is deleted only after the new one is in place; if the second step fails, the old directory is moved back immediately. Must be called inside the instance lock.
  */
 function swapInstanceDirectory(taskId: string, instanceId: string, staging: string, marker: string): void {
   const instanceDir = assertSafeInstanceRoot(defaultInstanceDir(instanceId));
@@ -581,15 +581,15 @@ function swapInstanceDirectory(taskId: string, instanceId: string, staging: stri
   removeIfEmpty(taskDir);
 }
 
-/** jar_file 指向的启动文件（`@args:` 为 Forge 参数文件）；`@modloader` 表示尚未安装，没有可检查的文件。 */
+/** The launch file jar_file points at (`@args:` is a Forge args file); `@modloader` means not installed yet, so there is no file to check. */
 function launchTargetOf(jarFile: string): string | null {
   if (jarFile === '@modloader') return null;
   return jarFile.startsWith('@args:') ? jarFile.slice('@args:'.length) : jarFile;
 }
 
 /**
- * 还原后让面板记录的启动文件、核心类型和版本跟随备份清单，避免目录换成旧版本后
- * 仍按新 jar 启动。清单里的启动文件不在还原后的目录中时保持原记录。返回是否有改动。
+ * After a restore, makes the launch file, core type and version recorded by the panel follow the backup manifest, so the directory is not switched to an old version
+ * while still launching with the new jar. When the manifest's launch file is not in the restored directory, the existing record is kept. Returns whether anything changed.
  */
 function syncInstanceRecordWithManifest(instanceId: string, manifest: BackupManifest): boolean {
   const row = getInstanceRow(instanceId);
@@ -649,7 +649,7 @@ async function restoreBackup(
         throw new PanelError('server.backups.restoreRunning', undefined, { statusCode: 409 });
       }
       swapInstanceDirectory(taskId, instanceId, staging, row.ownership_marker!);
-      // 文件已经替换成功：同步记录失败不应让整个还原显示为失败，用户仍可在设置里手动改。
+      // The files were already replaced successfully: a failure to sync the record should not make the whole restore show as failed, and the user can still change it manually in settings.
       let instanceRecordUpdated = false;
       try {
         instanceRecordUpdated = syncInstanceRecordWithManifest(instanceId, manifest);
@@ -664,7 +664,7 @@ async function restoreBackup(
   }
 }
 
-/** 排队还原：服务器必须已停止；默认先备份当前文件。 */
+/** Queues a restore: the server must be stopped; the current files are backed up first by default. */
 export async function startRestoreTask(
   instanceId: string,
   backupId: string,
@@ -700,7 +700,7 @@ function moveIntoPlace(source: string, target: string): void {
     fs.renameSync(source, target);
   } catch (error) {
     if (!hasErrorCode(error, 'EXDEV')) throw error;
-    // 备份目录在另一块磁盘上：先复制到同目录临时文件，再原子改名。
+    // The backup directory is on another disk: copy to a temp file in the same directory first, then rename atomically.
     const temp = `${path.join(path.dirname(target), TEMP_PREFIX)}${path.basename(target)}`;
     try {
       fs.copyFileSync(source, temp, fs.constants.COPYFILE_EXCL);
@@ -711,7 +711,7 @@ function moveIntoPlace(source: string, target: string): void {
   }
 }
 
-/** 保存上传的备份文件：完整校验通过后才出现在列表中。 */
+/** Saves an uploaded backup file: it appears in the list only after full verification passes. */
 export async function saveUploadedBackup(instanceId: string, input: Readable): Promise<BackupInfo> {
   requireManagedInstance(instanceId);
   let temp: string;
@@ -724,7 +724,7 @@ export async function saveUploadedBackup(instanceId: string, input: Readable): P
     throw error;
   }
   try {
-    // 校验时顺带算出整个文件的大小与 SHA-256，不再为元数据把文件重读一遍。
+    // The whole file's size and SHA-256 are computed along the way during verification, so the file is not re-read for the metadata.
     const verified = await readBackupArchive({
       archive: temp,
       limits: archiveLimits(),
@@ -767,8 +767,8 @@ export type BackupRecovery = {
 };
 
 /**
- * 面板启动时（任务恢复之前）处理上次进程留下的还原换目录现场与未写完的备份临时文件：
- * 旧目录已移走而新目录未就位时把旧目录移回；两者都在时说明替换已完成，只做收尾。
+ * At panel startup (before task recovery), handles the restore directory swap state and unfinished backup temp files left by the previous process:
+ * when the old directory was moved away and the new one is not in place, the old one is moved back; when both exist the replacement had completed, so only finishing up is done.
  */
 export function recoverInterruptedBackups(): BackupRecovery {
   const result: BackupRecovery = { restoresRolledBack: 0, restoresCompleted: 0, tempFilesRemoved: 0 };
@@ -822,7 +822,7 @@ export function recoverInterruptedBackups(): BackupRecovery {
   return result;
 }
 
-/** 测试专用：清空内存中的备份占用记录。 */
+/** Tests only: clears the in-memory record of backups in use. */
 export function resetBackupRuntimeForTests(): void {
   backupsInUse.clear();
 }

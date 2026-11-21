@@ -3,13 +3,13 @@ import type { RemoteAccessFirewall } from '@mystry/shared';
 import { runNetsh } from './lan-firewall.js';
 
 /**
- * 面板端口的 Windows 防火墙放行规则（从其他设备访问面板时用）。
- * 每种访问方式一条按名字管理的规则：开启时先删同名旧规则再添加，关闭这种方式或关闭面板时按名字删除。
- * 规则名带面板端口：同一台电脑上的两个面板端口必然不同，开关时不会删掉对方的规则。
- * 仍只删本进程加过的规则，不在启动时无条件清扫（同 对实例联机规则的做法）；
- * 面板异常退出留下的规则，在下次用同一端口开启同一种方式时被先删后加覆盖。
- * netsh 添加规则要管理员权限，面板通常不是管理员身份，所以 failed 是常见结果，由界面说明怎么手动放行。
- * 其他系统不处理（skipped），由用户自己的防火墙决定。
+ * Windows firewall allow rules for the panel port (used when accessing the panel from other devices).
+ * One rule per access mode, managed by name: on enable, the old rule of the same name is deleted before adding; on disabling the mode or shutting down the panel, it is deleted by name.
+ * The rule name includes the panel port: two panels on the same computer always have different ports, so toggling never deletes the other's rules.
+ * Still only rules added by this process are deleted, with no unconditional sweep at startup (same as for instance multiplayer rules);
+ * rules left behind by a crashed panel are overwritten by delete-then-add the next time the same mode is enabled on the same port.
+ * Adding a rule with netsh needs admin rights and the panel usually does not run as admin, so failed is a common result, and the UI explains how to allow it manually.
+ * Other systems are not handled (skipped); the user's own firewall decides.
  */
 
 export type PanelFirewallRunner = (args: readonly string[]) => Promise<number>;
@@ -21,7 +21,7 @@ const PANEL_FIREWALL_RULE_PREFIXES: Record<PanelFirewallTarget, string> = {
   panelNetwork: 'MystryDashboard-PanelNet',
 };
 
-/** 规则名：前缀加面板端口。自带网络的 EasyTier 监听端口每次启动都会变，所以也用面板端口而不是它。 */
+/** Rule name: prefix plus the panel port. The built-in network's EasyTier listen port changes on every start, so the panel port is used here too instead of it. */
 export function panelFirewallRuleName(target: PanelFirewallTarget, panelPort: number): string {
   if (!Number.isInteger(panelPort) || panelPort < 1 || panelPort > 65535) throw new Error('invalid port');
   return `${PANEL_FIREWALL_RULE_PREFIXES[target]}-${panelPort}`;
@@ -30,18 +30,18 @@ export function panelFirewallRuleName(target: PanelFirewallTarget, panelPort: nu
 export interface PanelPortFirewallInput {
   target: 'direct' | 'overlay';
   port: number;
-  /** 只监听部分地址时填写；空数组表示不限本机地址 */
+  /** Set when listening on only some addresses; an empty array means no restriction on local addresses */
   localAddresses: readonly string[];
-  /** 开了「只允许同一网段」时填写允许的来源网段（CIDR）；空数组表示不限来源 */
+  /** Set to the allowed source subnets (CIDR) when "same subnet only" is on; an empty array means no restriction on source */
   remoteRanges: readonly string[];
-  /** 面板进程的可执行文件路径；不适合交给 netsh 时不限程序 */
+  /** Executable path of the panel process; no program restriction when it is not suitable to pass to netsh */
   programPath: string | null;
 }
 
 let runner: PanelFirewallRunner = runNetsh;
 let platform: NodeJS.Platform = process.platform;
 
-/** 测试用：替换 netsh 执行器和平台判断；传 null 恢复默认。 */
+/** For tests: replaces the netsh runner and the platform check; pass null to restore the defaults. */
 export function setPanelFirewallForTests(next: { runner: PanelFirewallRunner; platform: NodeJS.Platform } | null): void {
   runner = next?.runner ?? runNetsh;
   platform = next?.platform ?? process.platform;
@@ -51,7 +51,7 @@ export function panelFirewallApplies(): boolean {
   return platform === 'win32';
 }
 
-/** 只接受绝对路径；引号、控制字符和 %（防火墙会把成对的 % 当环境变量展开）都放弃收窄。 */
+/** Only absolute paths are accepted; quotes, control characters and % (the firewall expands paired % as environment variables) all give up narrowing. */
 function usableProgramPath(value: string | null): string | null {
   if (!value || !path.win32.isAbsolute(value) || /["%\u0000-\u001f]/.test(value)) return null;
   return value;
@@ -60,7 +60,7 @@ function usableProgramPath(value: string | null): string | null {
 const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
 const CIDR_RE = /^\d{1,3}(\.\d{1,3}){3}\/\d{1,2}$/;
 
-/** 首选参数带 program=，加不上时退回不限程序的参数。 */
+/** The preferred arguments include program=; when that cannot be added, fall back to arguments without a program restriction. */
 export function panelPortFirewallArgs(input: PanelPortFirewallInput): { args: string[]; fallback: string[] | null } {
   if (!Number.isInteger(input.port) || input.port < 1 || input.port > 65535) throw new Error('invalid port');
   if (!input.localAddresses.every((value) => IPV4_RE.test(value))) throw new Error('invalid local address');
@@ -74,7 +74,7 @@ export function panelPortFirewallArgs(input: PanelPortFirewallInput): { args: st
   if (input.localAddresses.length > 0) broad.push(`localip=${input.localAddresses.join(',')}`);
   if (input.remoteRanges.length > 0) broad.push(`remoteip=${input.remoteRanges.join(',')}`);
   const program = usableProgramPath(input.programPath);
-  // 路径作为单独的数组参数传给 netsh，不拼命令行字符串。
+  // The path is passed to netsh as a separate array argument, not concatenated into a command-line string.
   return program ? { args: [...broad, `program=${program}`], fallback: broad } : { args: broad, fallback: null };
 }
 
@@ -98,8 +98,8 @@ export async function openPanelPortFirewall(input: PanelPortFirewallInput): Prom
 }
 
 /**
- * 面板自带 EasyTier 的监听端口（TCP 与 UDP），供 IPv6 / 局域网直连，做法同实例联机：
- * 限定实际启动的 easytier-core 和它的监听端口；限定程序加不上时退回只限端口。
+ * Listen ports (TCP and UDP) of the panel's built-in EasyTier, for IPv6 / LAN direct connections, done the same way as instance multiplayer:
+ * restricted to the easytier-core actually started and its listen port; when the program restriction cannot be added, fall back to restricting the port only.
  */
 export async function openPanelNetworkFirewall(corePath: string, listenPort: number, panelPort: number): Promise<RemoteAccessFirewall> {
   if (!panelFirewallApplies()) return 'skipped';
@@ -127,7 +127,7 @@ export async function openPanelNetworkFirewall(corePath: string, listenPort: num
   return 'applied';
 }
 
-/** 按名字删掉一种方式的全部规则，可重复调用；规则不存在时 netsh 返回非零，同样算处理过。 */
+/** Deletes all rules of one mode by name; safe to call repeatedly. netsh returns non-zero when the rule does not exist, which also counts as handled. */
 export async function closePanelFirewall(target: PanelFirewallTarget, panelPort: number): Promise<void> {
   if (!panelFirewallApplies()) return;
   let name: string;

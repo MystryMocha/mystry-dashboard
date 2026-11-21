@@ -28,12 +28,12 @@ type EndedTicket = {
   expiresAt: number;
 };
 
-/** 票据失败原因：可翻译消息，或 Node.js 流的原始错误文本。 */
+/** Ticket failure reason: a translatable message, or the raw error text of a Node.js stream. */
 export type DownloadTicketFailure = PanelMessage | string;
 
 /**
- * 已结束票据的短时 tombstone，让前端轮询在票据离开内存池后仍能拿到最终状态：
- * 过期返回 expired、下载完成返回 consumed、失败或取消返回 failed 和原因，而不是误判 404。
+ * Short-lived tombstones for finished tickets, so frontend polling still gets the final state after the ticket leaves the in-memory pool:
+ * expired for expiry, consumed for a completed download, failed with the reason for failure or cancel, instead of being mistaken for 404.
  */
 const endedTickets = new Map<string, EndedTicket>();
 const ENDED_TOMBSTONE_MS = 60_000;
@@ -59,7 +59,7 @@ function failureFields(failure?: DownloadTicketFailure): Pick<EndedTicket, 'erro
   return { error: renderPanelMessage(failure), errorI18n: failure };
 }
 
-/** 释放槽位、移出内存池，并留下 tombstone。 */
+/** Releases the slot, removes it from the in-memory pool, and leaves a tombstone. */
 function endTicket(
   ticket: string,
   record: DownloadTicketRecord,
@@ -104,7 +104,7 @@ function pruneExpired(now = Date.now()): void {
   }
 }
 
-/** POST 签发：预占下载槽并进入 reserved 状态。 */
+/** Issued by POST: pre-claims a download slot and enters the reserved state. */
 export function reserveDownloadTicket(
   userId: string,
   instanceId: string,
@@ -145,7 +145,7 @@ export function getDownloadTicketStatus(
   };
 }
 
-/** GET 开流前：reserved → streaming。 */
+/** Before GET opens the stream: reserved → streaming. */
 export function beginDownloadStream(
   ticket: string,
   instanceId: string,
@@ -164,7 +164,7 @@ export function beginDownloadStream(
   return { userId: value.userId };
 }
 
-/** 仅允许签发该票据的用户在原生 GET 开流前取消预占槽位。 */
+/** Only the user the ticket was issued to may cancel the pre-claimed slot, before the native GET opens the stream. */
 export function cancelReservedDownloadTicket(
   ticket: string,
   userId: string,
@@ -180,7 +180,7 @@ export function cancelReservedDownloadTicket(
   return 'cancelled';
 }
 
-/** 密码修改或重置后作废该用户尚未开流的下载 ticket；已在传输的下载不打断。 */
+/** After a password change or reset, voids that user's download tickets that have not opened a stream yet; downloads already transferring are not interrupted. */
 export function revokeReservedDownloadTickets(userId: string): void {
   for (const [ticket, value] of tickets) {
     if (value.userId !== userId || value.status !== 'reserved') continue;
@@ -200,7 +200,7 @@ export function failDownloadStream(ticket: string, failure: DownloadTicketFailur
   endTicket(ticket, value, 'failed', failure);
 }
 
-/** 测试专用：清空内存票据。 */
+/** Tests only: clears the in-memory tickets. */
 export function resetDownloadTicketsForTests(): void {
   for (const value of tickets.values()) {
     clearReservedExpiry(value);

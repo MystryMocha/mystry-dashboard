@@ -15,7 +15,7 @@ const SOURCE_LABEL: Record<BackupInfo['source'], MessageKey> = {
   upload: 'backups.source.upload',
 };
 
-/** 实例备份：一键备份、上传、下载、还原与删除。切换实例时由上层重新挂载。 */
+/** Instance backups: one-click backup, upload, download, restore and delete. Remounted by the parent when the instance changes. */
 export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; onRestored: () => void }) {
   const { t, fmt } = useI18n();
   const instanceId = instance.id;
@@ -31,7 +31,7 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
   const [backupCurrent, setBackupCurrent] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<BackupInfo | null>(null);
   const [deleting, setDeleting] = useState(false);
-  /** 已点击、服务器还没回复任务时为真；连点或接着点别的操作都要被挡住。 */
+  /** True once clicked and before the server has replied with a task; repeated clicks, or clicking another action right after, must be blocked. */
   const [starting, setStarting] = useState(false);
   const startingRef = useRef(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
@@ -65,13 +65,13 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
     };
   }, []);
 
-  /** 跟踪后台任务直到结束；组件卸载时停止轮询，任务本身仍在任务中心可见。 */
+  /** Tracks a background task until it ends; polling stops when the component unmounts, and the task itself stays visible in the task center. */
   async function follow(
     start: () => Promise<TaskInfo>,
     doneKey: MessageKey | ((result: TaskInfo['result']) => MessageKey),
     after?: () => void,
   ) {
-    // 同一事件循环里的第二次点击还看不到 starting，用 ref 同步拦住。
+    // A second click within the same event loop cannot see starting yet, so a ref blocks it synchronously.
     if (startingRef.current) return;
     startingRef.current = true;
     setStarting(true);

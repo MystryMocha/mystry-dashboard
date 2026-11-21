@@ -13,7 +13,7 @@ import { readZipEntryBuffer } from './zip-service.js';
 const ARCHIVE_BYTE_LIMIT = 32 * 1024 * 1024;
 const BINARY_BYTE_LIMIT = 24 * 1024 * 1024;
 
-/** 手动上传压缩包的上限，与下载上限一致。 */
+/** Limit for a manually uploaded archive, same as the download limit. */
 export const FRPC_ARCHIVE_BYTE_LIMIT = ARCHIVE_BYTE_LIMIT;
 
 interface FrpcAsset {
@@ -48,7 +48,7 @@ function frpcArchiveUrl(asset: FrpcAsset): string {
   return `https://github.com/fatedier/frp/releases/download/v${FRP_CLIENT_VERSION}/${asset.archive}`;
 }
 
-/** 本机平台对应的官方压缩包信息，供连不上 GitHub 时手动下载后上传。 */
+/** Info about the official archive for this machine's platform, for downloading manually and uploading when GitHub is unreachable. */
 export function frpcArchiveInfo(): RuntimeArchiveInfo | null {
   if (!frpcPlatformSupported()) return null;
   const asset = resolveFrpcAsset(process.platform, process.arch);
@@ -80,7 +80,7 @@ export function frpcInstalled(): boolean {
 
 let installing: Promise<void> | null = null;
 
-/** 下载钉死版本的官方 frpc（来源见下载来源设置），校验压缩包摘要后只抽出客户端二进制。 */
+/** Downloads the pinned official frpc (source per the download source setting), verifies the archive digest, and extracts only the client binary. */
 export async function ensureFrpcInstalled(): Promise<void> {
   if (frpcInstalled()) return;
   if (!installing) {
@@ -92,8 +92,8 @@ export async function ensureFrpcInstalled(): Promise<void> {
 }
 
 /**
- * 用用户上传的压缩包安装。只认钉死的官方摘要，所以文件来自哪个镜像都无所谓；
- * 调用方负责删除 source。
+ * Installs from an archive uploaded by the user. Only the pinned official digest is accepted, so it does not matter which mirror the file came from;
+ * the caller is responsible for deleting source.
  */
 export async function installFrpcFromArchive(source: string): Promise<void> {
   if (installing) await installing.catch(() => undefined);
@@ -121,7 +121,7 @@ async function installFrpc(
   const binaryPath = path.join(dir, asset.binaryName);
   const marker = path.join(dir, 'archive.sha256');
   try {
-    // 崩溃可能留下旧文件，而下载不会覆盖已存在的目标。
+    // A crash may leave an old file behind, and the download does not overwrite an existing target.
     fs.rmSync(archivePath, { force: true });
     await acquire(asset, archivePath);
     const digest = createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
@@ -165,7 +165,7 @@ async function downloadArchive(asset: FrpcAsset, destination: string): Promise<v
   forceSecureSensitiveFile(destination);
 }
 
-/** 从压缩包取出 frpc。archivePath 带 .partial 后缀，所以按包含 .zip 判断格式。 */
+/** Extracts frpc from the archive. archivePath has a .partial suffix, so the format is decided by whether it contains .zip. */
 export async function extractMember(archivePath: string, member: string): Promise<Buffer> {
   if (member.includes('..') || member.startsWith('/') || member.includes('\\')) {
     throw new PanelError('server.frp.extractFailed');
@@ -175,7 +175,7 @@ export async function extractMember(archivePath: string, member: string): Promis
     : extractTarMember(archivePath, member);
 }
 
-/** Windows 包是 ZIP，用面板自带的解析：PATH 里可能是 Git 带的 GNU tar，它读不了 zip，还会把 C: 当成远程主机。 */
+/** The Windows package is a ZIP and is parsed with the panel's own parser: the tar on PATH may be the GNU tar shipped with Git, which cannot read zip and also treats C: as a remote host. */
 async function extractZipMember(archivePath: string, member: string): Promise<Buffer> {
   let bytes: Buffer;
   try {

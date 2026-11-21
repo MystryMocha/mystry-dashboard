@@ -40,7 +40,7 @@ test('Linux 上的启动器可直接转发帮助命令', { skip: process.platfor
 });
 
 test('Linux 启动器的 reset-password 在输出不是终端时拒绝并返回非 0', { skip: process.platform !== 'linux' }, async (t) => {
-  // 输出走管道：mystryctl 必须在请求服务端之前拒绝，exec 后退出码原样返回。
+  // Output goes through a pipe: mystryctl must refuse before contacting the server, and after exec the exit code is returned as is.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-reset-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const result = spawnSync('bash', [launcherPath, 'reset-password'], {
@@ -60,7 +60,7 @@ test('Linux 启动器的 reset-password 在输出不是终端时拒绝并返回�
 });
 
 test('Linux 启动器把 remote 的子命令和参数交给控制器', { skip: process.platform !== 'linux' }, async (t) => {
-  // 用隔离的配置和数据目录：面板没在运行，控制器不会请求任何接口。
+  // Uses isolated config and data directories: the panel is not running, so the controller requests no endpoint.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-remote-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const run = (...args) => spawnSync('bash', [launcherPath, ...args], {
@@ -81,13 +81,13 @@ test('Linux 启动器把 remote 的子命令和参数交给控制器', { skip: p
     assert.equal(result.status, 1, `${args.join(' ')}\n${result.stdout}\n${result.stderr}`);
     assert.match(result.stderr, /面板未运行。请先启动面板。/);
   }
-  // 参数太多时由启动器自己拒绝；其他命令仍然不能带参数。
+  // Too many arguments are rejected by the launcher itself; other commands still cannot take arguments.
   assert.equal(run('remote', 'https', 'off', 'extra').status, 1);
   assert.equal(run('status', 'extra').status, 1);
 });
 
 test('Linux 启动器按所选下载源安装依赖', { skip: process.platform !== 'linux' }, async (t) => {
-  // 在临时目录放一份启动器，npm 和控制器都用替身，只看实际传给 npm 的参数。
+  // Puts a copy of the launcher in a temp directory, with npm and the controller both stubbed, and looks only at the arguments actually passed to npm.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-mirror-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await fs.mkdir(path.join(root, 'scripts', 'portable'), { recursive: true });

@@ -11,10 +11,10 @@ import { STAGING_MARKER_FILE } from './task-staging-service.js';
 import { abortError, isPanelError, PanelError, throwIfAborted } from '../utils/errors.js';
 
 /**
- * 实例备份归档：gzip 压缩的 POSIX tar（ustar + pax 扩展头），最后一个条目是清单
- * `.mystry-backup/manifest.json`，记录每个文件的大小与 SHA-256。
- * 不用 ZIP：现有 ZIP 读取器不支持 ZIP64，世界存档很容易超过 4 GiB 或 65535 个条目。
- * 读写都是流式的，只在内存里保留清单。
+ * Instance backup archive: a gzip-compressed POSIX tar (ustar + pax extended headers), whose last entry is the manifest
+ * `.mystry-backup/manifest.json` recording each file's size and SHA-256.
+ * Not ZIP: the existing ZIP reader does not support ZIP64, and world saves easily exceed 4 GiB or 65535 entries.
+ * Both reading and writing are streamed, keeping only the manifest in memory.
  */
 
 export const BACKUP_FORMAT = 'mystry-backup';
@@ -23,7 +23,7 @@ export const BACKUP_MANIFEST_DIR = '.mystry-backup';
 export const BACKUP_MANIFEST_PATH = `${BACKUP_MANIFEST_DIR}/manifest.json`;
 
 const BLOCK = 512;
-/** ustar 头部 size 字段（11 位八进制）能表示的最大值，超过时改用 pax size 记录。 */
+/** Largest value the ustar header size field (11 octal digits) can represent; beyond it a pax size record is used. */
 const MAX_USTAR_SIZE = 0o77777777777;
 const MAX_PAX_HEADER_BYTES = 1024 * 1024;
 const MAX_MANIFEST_BYTES = 64 * 1024 * 1024;
@@ -48,7 +48,7 @@ export type BackupManifest = {
 
 export type BackupManifestHeader = Omit<BackupManifest, 'format' | 'version' | 'directories' | 'files'>;
 
-/** 待归档条目：相对实例根目录的 POSIX 路径；文件带上扫描时的大小与绝对路径。 */
+/** An entry to archive: a POSIX path relative to the instance root; files carry the size at scan time and the absolute path. */
 export type BackupSourceEntry =
   | { kind: 'dir'; path: string; mtimeMs: number }
   | { kind: 'file'; path: string; absolute: string; size: number; mtimeMs: number };
@@ -59,7 +59,7 @@ function comparableKey(relativePath: string): string {
   return process.platform === 'win32' ? relativePath.toLowerCase() : relativePath;
 }
 
-/** 归档内路径规范化：拒绝绝对路径、盘符、`..`、NUL 和空路径，统一为不带首尾斜杠的 POSIX 路径。 */
+/** Normalizes paths inside the archive: rejects absolute paths, drive letters, `..`, NUL and empty paths, and unifies to POSIX paths without leading or trailing slashes. */
 export function normalizeArchivePath(name: string): string {
   if (!name || name.includes('\0')) throw new PanelError('server.backups.archive.unsafePath', { name: name.replace(/\0/g, '') });
   const normalized = name.replace(/\\/g, '/');
@@ -72,7 +72,7 @@ export function normalizeArchivePath(name: string): string {
   return parts.join('/');
 }
 
-/** 面板自己维护的文件不进入备份，也不允许从备份写回。 */
+/** Files the panel maintains itself do not go into backups, and may not be written back from a backup either. */
 export function isReservedArchivePath(relativePath: string): boolean {
   const key = comparableKey(relativePath);
   const reserved = [OWNERSHIP_MARKER_FILE, STAGING_MARKER_FILE].map(comparableKey);
@@ -82,7 +82,7 @@ export function isReservedArchivePath(relativePath: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// 写入
+// Writing
 
 function writeString(block: Buffer, offset: number, length: number, value: string | Buffer): void {
   const bytes = typeof value === 'string' ? Buffer.from(value, 'utf8') : value;
@@ -90,7 +90,7 @@ function writeString(block: Buffer, offset: number, length: number, value: strin
 }
 
 function writeOctal(block: Buffer, offset: number, length: number, value: number): void {
-  // 末尾保留一个 NUL；值已由调用方保证不超过字段宽度。
+  // One trailing NUL is kept; the caller guarantees the value does not exceed the field width.
   const digits = Math.floor(value).toString(8).padStart(length - 1, '0');
   writeString(block, offset, length, `${digits}\0`);
 }
@@ -126,7 +126,7 @@ function paddingFor(size: number): Buffer {
   return remainder === 0 ? Buffer.alloc(0) : Buffer.alloc(BLOCK - remainder);
 }
 
-/** 条目头：路径超过 100 字节或文件超过 8 GiB 时先写 pax 扩展头。 */
+/** Entry header: a pax extended header is written first when the path exceeds 100 bytes or the file exceeds 8 GiB. */
 function entryHeaders(relativePath: string, size: number, type: '0' | '5', mtimeMs: number): Buffer[] {
   const name = type === '5' ? `${relativePath}/` : relativePath;
   const nameBytes = Buffer.from(name, 'utf8');
@@ -138,7 +138,7 @@ function entryHeaders(relativePath: string, size: number, type: '0' | '5', mtime
     const pax = Buffer.concat(records);
     headers.push(tarHeader(Buffer.from('PaxHeader', 'utf8'), pax.length, 'x', mtimeMs), pax, paddingFor(pax.length));
   }
-  // pax 记录优先；ustar name 字段只放前 100 字节作为兼容提示。
+  // The pax record takes precedence; the ustar name field holds only the first 100 bytes as a compatibility hint.
   headers.push(tarHeader(nameBytes.subarray(0, 100), size, type, mtimeMs));
   return headers;
 }
@@ -191,7 +191,7 @@ async function* archiveChunks(
       }
     }
     if (read !== entry.size) {
-      // 文件在扫描后被截短：头部大小已写出，只能放弃这次备份。
+      // The file was truncated after the scan: the header size is already written, so this backup can only be abandoned.
       throw new PanelError('server.backups.fileChanged', { name: entry.path });
     }
     yield paddingFor(entry.size);
@@ -210,14 +210,14 @@ async function* archiveChunks(
   yield* entryHeaders(BACKUP_MANIFEST_PATH, manifestBytes.length, '0', Date.parse(header.createdAt) || Date.now());
   yield manifestBytes;
   yield paddingFor(manifestBytes.length);
-  // 归档结束标记：两个全零块。
+  // End-of-archive marker: two all-zero blocks.
   yield Buffer.alloc(BLOCK * 2);
   manifestOut.value = manifest;
 }
 
 export type WrittenBackupArchive = { sizeBytes: number; sha256: string; manifest: BackupManifest };
 
-/** 把条目写成 .tar.gz；output 必须是尚不存在的临时文件，失败时由调用方删除。 */
+/** Writes entries as a .tar.gz; output must be a temp file that does not exist yet, and the caller deletes it on failure. */
 export async function writeBackupArchive(options: {
   output: string;
   entries: readonly BackupSourceEntry[];
@@ -237,7 +237,7 @@ export async function writeBackupArchive(options: {
   const manifestOut: { value: BackupManifest | null } = { value: null };
   await pipeline(
     Readable.from(archiveChunks(options.entries, options.header, options.signal, options.onProgress ?? (() => {}), manifestOut)),
-    // 世界区块文件本身已压缩，用最快级别换取速度；配置和日志等文本仍能明显变小。
+    // World region files are already compressed, so the fastest level trades ratio for speed; text such as config and logs still shrinks noticeably.
     createGzip({ level: zlibConstants.Z_BEST_SPEED }),
     hashCounter,
     fs.createWriteStream(options.output, { flags: 'wx', mode: 0o600 }),
@@ -248,9 +248,9 @@ export async function writeBackupArchive(options: {
 }
 
 // ---------------------------------------------------------------------------
-// 读取与校验
+// Reading and verification
 
-/** 顺序字节队列：tar 头部按块取，文件数据按可用量流式取出。 */
+/** Sequential byte queue: tar headers are taken by block, and file data is streamed out as much as is available. */
 class ByteQueue {
   private chunks: Buffer[] = [];
   length = 0;
@@ -294,7 +294,7 @@ function readString(block: Buffer, offset: number, length: number): string {
 function readNumeric(block: Buffer, offset: number, length: number): number {
   const field = block.subarray(offset, offset + length);
   if ((field[0]! & 0x80) !== 0) {
-    // GNU base-256：首字节最高位为 1，其余为大端整数。
+    // GNU base-256: the top bit of the first byte is 1, and the rest is a big-endian integer.
     let value = field[0]! & 0x7f;
     for (let index = 1; index < field.length; index += 1) value = value * 256 + field[index]!;
     if (!Number.isSafeInteger(value)) throw new PanelError('server.backups.archive.corrupted');
@@ -430,14 +430,14 @@ export type ReadBackupArchiveResult = {
   manifest: BackupManifest;
   fileCount: number;
   contentBytes: number;
-  /** 备份文件本身（压缩后）的字节数与 SHA-256。 */
+  /** Byte count and SHA-256 of the backup file itself (after compression). */
   archiveBytes: number;
   archiveSha256: string;
 };
 
 /**
- * 流式读取并校验备份：路径安全、条目类型、数量与大小配额、逐文件 SHA-256 与清单一致。
- * 传入 destination 时同时把文件解压到该目录（必须是新建的空 staging 目录）；不传只校验。
+ * Stream-reads and verifies a backup: path safety, entry types, count and size quotas, and per-file SHA-256 matching the manifest.
+ * When destination is given, files are also extracted into that directory (it must be a newly created empty staging directory); without it, only verification is done.
  */
 export async function readBackupArchive(options: {
   archive: string;
@@ -467,7 +467,7 @@ export async function readBackupArchive(options: {
   const seen = new Map<string, { path: string; size: number; sha256: string | null; directory: boolean }>();
   type ReaderState = 'header' | 'data' | 'pax' | 'padding' | 'end';
   let state: ReaderState = 'header';
-  // 状态在回调里被修改，TypeScript 无法跟踪，读取时统一经过这个函数。
+  // The state is modified inside callbacks, which TypeScript cannot track, so reads all go through this function.
   const currentState = (): ReaderState => state;
   let pendingPax: { path?: string; size?: number } | null = null;
   let paxRemaining = 0;
@@ -509,7 +509,7 @@ export async function readBackupArchive(options: {
       return;
     }
     if (manifestRaw) {
-      // 清单必须是最后一个条目，之后出现的内容无法被清单覆盖。
+      // The manifest must be the last entry; anything appearing after it could not be covered by the manifest.
       throw new PanelError('server.backups.archive.corrupted');
     }
     verifyHeaderChecksum(block);
@@ -573,7 +573,7 @@ export async function readBackupArchive(options: {
     if (destination) {
       target = resolveSafePath(destination, relativePath);
       await fsp.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-      // 只解压到全新的 staging 目录，重名在上面已拒绝，这里用 wx 防止意外覆盖。
+      // Extraction goes only into a brand-new staging directory and duplicates were rejected above; wx here prevents accidental overwrites.
       output = fs.createWriteStream(target, { flags: 'wx', mode: 0o600 });
       output.on('error', () => {});
     }
@@ -588,7 +588,7 @@ export async function readBackupArchive(options: {
       queue.push(chunk);
       while (queue.length > 0) {
         if (currentState() === 'end') {
-          // 结束块之后的填充（通常为零）不再解析。
+          // Padding after the end blocks (usually zeros) is not parsed further.
           queue.take(queue.length);
           break;
         }
@@ -637,7 +637,7 @@ export async function readBackupArchive(options: {
     gunzip.destroy();
     if (signal.aborted) throw abortError(signal);
     if (isPanelError(error)) throw error;
-    // zlib 的数据错误、截断等底层异常统一视为文件损坏。
+    // Low-level failures such as zlib data errors and truncation are all treated as a corrupted file.
     throw new PanelError('server.backups.archive.corrupted', undefined, { cause: error });
   }
 
@@ -658,7 +658,7 @@ export async function readBackupArchive(options: {
       throw new PanelError('server.backups.archive.unexpectedFile', { name: record.path });
     }
   }
-  // gunzip 读完时输入已全部流过计数器，此时的摘要覆盖整个文件。
+  // By the time gunzip finishes, all input has passed through the counter, so the digest covers the whole file.
   return {
     manifest,
     fileCount: manifest.files.length,

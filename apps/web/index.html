@@ -7,8 +7,8 @@
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
     <title>Mystry Dashboard</title>
     <script>
-      // 渲染前确定外观，避免闪烁。强调色已固定为墨紫，不再读取 mystry_accent。
-      // 优先读取 mystry_appearance；没有时从旧版 mystry_theme 六主题迁移外观；都没有则跟随系统。
+      // Decide the appearance before rendering, to avoid a flash. The accent color is fixed to ink purple, and mystry_accent is no longer read.
+      // mystry_appearance is read first; without it the appearance is migrated from the six themes of the legacy mystry_theme; with neither, follow the system.
       (function () {
         var root = document.documentElement;
         var appearance = 'auto';
@@ -36,9 +36,9 @@
         root.dataset.appearancePreference = appearance;
         root.dataset.appearance = dark ? 'dark' : 'light';
       })();
-      // 渲染前确定界面语言并写入 <html lang>，规则与 src/i18n/locale.ts 的 detectLocale 一致：
-      // 读取 mystry_locale（auto / en / zh-CN / zh-TW），自动时按浏览器语言列表取第一个 zh* 或 en*：
-      // 繁体（Hant，或未写 Hans 且地区为 TW/HK/MO）用繁體中文，其他 zh* 用简体中文，en* 或都没有用英文。
+      // Decide the UI language before rendering and write it to <html lang>, with the same rules as detectLocale in src/i18n/locale.ts:
+      // read mystry_locale (auto / en / zh-CN / zh-TW), and for auto take the first zh* or en* from the browser's language list:
+      // Traditional (Hant, or a region of TW/HK/MO when Hans is not written) uses Traditional Chinese, other zh* use Simplified Chinese, and en* or neither uses English.
       (function () {
         var root = document.documentElement;
         var preference = 'auto';

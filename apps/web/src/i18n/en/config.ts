@@ -1,4 +1,4 @@
-/** 参数配置（server.properties）文案（英文主表）。 */
+/** Config editor (server.properties) strings (English primary table). */
 export default {
   'config.lead': 'These settings are saved to server.properties and take effect after you restart the instance.',
   'config.loading': 'Loading properties…',
@@ -11,19 +11,19 @@ export default {
   'config.unsaved.savingTitle': 'Saving properties…',
   'config.unsaved.description': 'If you leave this page, your unsaved server.properties changes will be lost.',
 
-  // 分组
+  // Groups
   'config.group.basic': 'General',
   'config.group.multiplayer': 'Multiplayer & Permissions',
   'config.group.world': 'World',
   'config.group.performance': 'Performance',
-  // 这个游戏版本已改成游戏规则的项不再显示，在组末尾说明去哪里设置
+  // Items that became game rules in this game version are no longer shown, and the end of the group says where to set them
   'config.group.multiplayer.gameRuleNote': 'In this Minecraft version, PvP is a game rule. Set it with <code>/gamerule</code> in the console.',
   'config.group.world.gameRuleNote': 'In this Minecraft version, Nether access and monster spawning are game rules. Set them with <code>/gamerule</code> in the console.',
 
-  // 这个游戏版本直接去掉、没有变成游戏规则的项，隐藏后在组末尾说明
+  // Items removed outright in this game version without becoming game rules; explained at the end of the group after hiding
   'config.group.world.animalsNote': 'Minecraft 1.21.2 removed the "Spawn Animals" setting, so it isn\'t shown for this version.',
 
-  // 属性说明（键名本身是技术名，不翻译）
+  // Property descriptions (the key names themselves are technical names and not translated)
   'config.field.motd.label': 'Server Description',
   'config.field.motd.desc': 'The message shown in the multiplayer server list.',
   'config.field.serverPort.label': 'Server Port',
@@ -66,7 +66,7 @@ export default {
   'config.field.networkCompressionThreshold.label': 'Network Compression Threshold',
   'config.field.networkCompressionThreshold.desc': 'Packets larger than this many bytes are compressed. -1 turns compression off.',
 
-  // 下拉选项；游戏默认的那一项在名称后标出
+  // Dropdown options; the game default is marked after its name
   'config.option.default': '{label} (Default)',
   'config.option.difficulty.peaceful': 'Peaceful',
   'config.option.difficulty.easy': 'Easy',

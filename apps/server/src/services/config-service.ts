@@ -8,7 +8,7 @@ export type PropertiesMap = Record<string, string>;
 
 type PropertyEntryLine = {
   kind: 'entry';
-  /** 原始行文本（不含换行） */
+  /** Raw line text (without the line break) */
   raw: string;
   key: string;
   separator: '=' | ':';
@@ -37,9 +37,9 @@ const DEFAULT_PROPERTIES: PropertiesMap = {
 };
 
 /**
- * 1.13 及更早的服务端只认数字形式的难度和模式，写单词会被静默重置成默认值。
- * 1.14 起文件里改存单词，但仍接受数字，所以数字是新旧版本都能读的写法。
- * 下标就是游戏里的数字编号。
+ * Servers at 1.13 and earlier accept only the numeric form of difficulty and gamemode, and writing a word gets it silently reset to the default.
+ * Since 1.14 the file stores words but still accepts numbers, so numbers are the form both old and new versions can read.
+ * The index is the numeric ID used in the game.
  */
 const NUMERIC_ENUM_PROPERTIES: Record<string, readonly string[]> = {
   difficulty: ['peaceful', 'easy', 'normal', 'hard'],
@@ -55,7 +55,7 @@ function isNumericValue(value: string | undefined): boolean {
   return value !== undefined && /^\d+$/.test(value);
 }
 
-/** 接口和表单只用单词；超出范围的数字保持原样，让用户看到文件里的真实内容。 */
+/** The API and forms use words only; out-of-range numbers are kept as is, so the user sees what is really in the file. */
 function withNamedEnumValues(properties: PropertiesMap): PropertiesMap {
   const result = { ...properties };
   for (const [key, names] of Object.entries(NUMERIC_ENUM_PROPERTIES)) {
@@ -66,7 +66,7 @@ function withNamedEnumValues(properties: PropertiesMap): PropertiesMap {
   return result;
 }
 
-/** 把单词换回文件该用的写法：文件原来是数字，或实例版本只认数字时写数字。 */
+/** Converts a word back to the form the file should use: a number when the file originally had a number, or the instance version accepts only numbers. */
 function withFileEnumValues(
   properties: PropertiesMap,
   current: PropertiesMap,
@@ -132,7 +132,7 @@ function unescapePropertyValue(value: string): string {
   return result;
 }
 
-/** 找到第一个未被反斜杠转义的 = 或 :，key 中的 \= 不算分隔符。 */
+/** Finds the first = or : not escaped by a backslash; \= inside a key is not a separator. */
 function findSeparatorIndex(raw: string): number {
   for (let index = 0; index < raw.length; index += 1) {
     const char = raw[index]!;
@@ -161,7 +161,7 @@ function parseEntryLine(raw: string): PropertyEntryLine | null {
   return { kind: 'entry', raw, key, separator, value };
 }
 
-/** 将已合并续行的逻辑行解析为文档行 */
+/** Parses logical lines (continuations already merged) into document lines */
 function parseLogicalLines(logicalLines: string[]): PropertyLine[] {
   const lines: PropertyLine[] = [];
   for (const raw of logicalLines) {
@@ -202,7 +202,7 @@ export function parsePropertiesDocument(content: string): PropertiesDocument {
   };
 }
 
-/** 读取有效键值（重复键取最后一次定义） */
+/** Reads the effective key-value pairs (for duplicate keys the last definition wins) */
 export function propertiesMapFromDocument(document: PropertiesDocument): PropertiesMap {
   const result: PropertiesMap = {};
   for (const line of document.lines) {
@@ -213,7 +213,7 @@ export function propertiesMapFromDocument(document: PropertiesDocument): Propert
   return result;
 }
 
-/** 解析为有效键值映射（重复键取最后一次定义） */
+/** Parses into a map of effective key-value pairs (for duplicate keys the last definition wins) */
 export function parseProperties(content: string): PropertiesMap {
   return propertiesMapFromDocument(parsePropertiesDocument(content));
 }
@@ -229,9 +229,9 @@ function replaceEntryValue(line: PropertyEntryLine, value: string): PropertyEntr
 }
 
 /**
- * Java properties 转义：反斜杠与 \t \r \n \f 必须转义，否则写出后会被当作语法而非值。
- * 非 ASCII 字符写成 \uXXXX：旧版服务端按 Latin-1 读取，直接写 UTF-8 会变成乱码，
- * 服务端随后把乱码存回文件，原文就找不回来了。emoji 按 UTF-16 拆成两段，Java 读取时会合并。
+ * Java properties escaping: backslash and \t \r \n \f must be escaped, or once written they would be taken as syntax rather than value.
+ * Non-ASCII characters are written as \uXXXX: old servers read the file as Latin-1, so writing UTF-8 directly would turn into mojibake,
+ * the server would then save the mojibake back to the file, and the original text could not be recovered. Emoji are split into two parts as UTF-16, which Java merges when reading.
  */
 function escapePropertyValue(value: string): string {
   return value
@@ -249,7 +249,7 @@ function escapePropertyValue(value: string): string {
 }
 
 /**
- * 将引导表单/高级选项提交的键值合并进文档，仅修改每个 key 的最后一次定义。
+ * Merges key-value pairs submitted by the guided form / advanced options into the document, modifying only the last definition of each key.
  */
 export function applyPropertiesPatch(document: PropertiesDocument, patch: PropertiesMap): PropertiesDocument {
   const lastIndexByKey = new Map<string, number>();
@@ -291,7 +291,7 @@ export function stringifyPropertiesDocument(document: PropertiesDocument): strin
   return `${body}${document.eol}`;
 }
 
-/** 新建文件时使用（无历史注释/顺序可保留） */
+/** Used when creating a new file (no existing comments/order to preserve) */
 export function stringifyProperties(map: PropertiesMap): string {
   const lines = Object.entries(map).map(([key, value]) => `${key}=${value}`);
   return `${lines.join('\n')}\n`;
@@ -316,13 +316,13 @@ export function readServerProperties(instanceId: string): PropertiesMap {
   return withNamedEnumValues(parseProperties(fs.readFileSync(file, 'utf8')));
 }
 
-/** 游戏在 server.properties 没写端口、或端口留空时使用的端口。 */
+/** The port the game uses when server.properties has no port or the port is left empty. */
 const DEFAULT_GAME_PORT = 25565;
 
 /**
- * 从 server.properties 的键值里取游戏端口，供组网、穿透和直连地址使用。
- * 没有 server-port 这个键、或值留空时，游戏用 25565（留空已在 1.21.10 服务端上实测），这里同样处理；
- * 写了但不是 1–65535 的整数时返回 null，由调用方报端口无效。
+ * Takes the game port from the server.properties key-value pairs, for the virtual network, tunneling and direct connection addresses.
+ * When there is no server-port key, or the value is left empty, the game uses 25565 (empty was verified on a 1.21.10 server), and the same is done here;
+ * when something is written that is not an integer in 1–65535, null is returned and the caller reports an invalid port.
  */
 export function gamePortFromProperties(properties: PropertiesMap): number | null {
   const text = (properties['server-port'] ?? '').trim();
@@ -331,7 +331,7 @@ export function gamePortFromProperties(properties: PropertiesMap): number | null
   return Number.isInteger(port) && port >= 1 && port <= 65535 ? port : null;
 }
 
-/** 首次启动前写入面板默认配置；已有 server.properties 保持不变。 */
+/** Writes the panel's default config before the first start; an existing server.properties is left unchanged. */
 export function ensureServerPropertiesDefaults(instanceId: string, mcVersion?: string | null): void {
   const root = getInstanceDir(instanceId);
   const file = resolveSafePath(root, 'server.properties');
@@ -346,8 +346,8 @@ export function previewServerPropertiesWrite(
 ): string {
   const root = getInstanceDir(instanceId);
   const file = resolveSafePath(root, 'server.properties');
-  // 默认文档不混入 patch：先解析纯默认值，再统一经 applyPropertiesPatch 转义应用，
-  // 避免未转义值（换行、尾随反斜杠）在解析阶段被拆成额外属性或吞并下一行。
+  // The default document does not mix in the patch: parse the pure defaults first, then apply everything through applyPropertiesPatch with escaping,
+  // so unescaped values (line breaks, trailing backslashes) are not split into extra properties or made to swallow the next line during parsing.
   const baseDocument = fs.existsSync(file)
     ? parsePropertiesDocument(fs.readFileSync(file, 'utf8'))
     : parsePropertiesDocument(stringifyProperties(withFileEnumValues(DEFAULT_PROPERTIES, {}, mcVersion)));

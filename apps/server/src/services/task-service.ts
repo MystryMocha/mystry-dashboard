@@ -53,7 +53,7 @@ type QueuedTask = {
 };
 
 export type BackgroundTaskOptions = {
-  /** 单个任务的运行时限（从开始运行算起，不含排队），默认 TASK_TIMEOUT_MS。 */
+  /** Time limit for a single task (counted from when it starts running, excluding queue time), TASK_TIMEOUT_MS by default. */
   timeoutMs?: number;
 };
 
@@ -62,7 +62,7 @@ let runningTasks = 0;
 let shuttingDown = false;
 const runningControllers = new Map<string, AbortController>();
 const runningExecutions = new Map<string, Promise<void>>();
-/** 用户要求取消、正在等 worker 收尾的任务；结束时据此记成「你取消了这个任务」，不当成普通失败。 */
+/** Tasks the user asked to cancel that are waiting for the worker to finish up; on ending they are recorded as "you cancelled this task" based on this, not as ordinary failures. */
 const userCancelled = new Set<string>();
 
 type TaskResultPayload = {
@@ -70,7 +70,7 @@ type TaskResultPayload = {
   stagingToken?: string;
 };
 
-/** 读取多语言消息列；内容损坏或键已不存在时忽略，退回显示原文。 */
+/** Reads the localized message column; ignored when the content is corrupted or the key no longer exists, falling back to showing the original text. */
 function parseMessageColumn(value: string | null): PanelMessage | undefined {
   if (!value) return undefined;
   try {
@@ -81,7 +81,7 @@ function parseMessageColumn(value: string | null): PanelMessage | undefined {
   }
 }
 
-/** 任务文本：可翻译消息同时写英文原文与键；纯文本（原始错误或旧调用）只写原文。 */
+/** Task text: translatable messages write both the English text and the key; plain text (raw errors or legacy calls) writes only the original text. */
 export type TaskText = PanelMessage | string;
 
 function textColumns(value: TaskText): [text: string, i18n: string | null] {
@@ -90,7 +90,7 @@ function textColumns(value: TaskText): [text: string, i18n: string | null] {
     : [renderPanelMessage(value), JSON.stringify(value)];
 }
 
-/** 失败原因：可翻译错误保留键，其余取英文或原始文本。 */
+/** Failure reason: translatable errors keep the key, the rest use the English or raw text. */
 function failureText(error: unknown): TaskText {
   return toPanelMessage(error) ?? errorMessage(error);
 }
@@ -139,7 +139,7 @@ export function getTask(id: string): TaskInfo | null {
   return row ? rowToTask(row) : null;
 }
 
-/** 任务中心列表：按创建时间倒序返回最近的任务，limit 由服务端固定边界。 */
+/** Task center list: returns recent tasks in descending creation time, with limit bounded by the server. */
 export function listTasks(limit = 50): TaskInfo[] {
   const safeLimit = Math.min(Math.max(1, Math.floor(limit)), 200);
   const rows = getDb()
@@ -150,7 +150,7 @@ export function listTasks(limit = 50): TaskInfo[] {
 
 export type TaskPatch = Partial<Pick<TaskInfo, 'status' | 'progress' | 'result'>> & {
   message?: TaskText;
-  /** null 表示清除失败原因。 */
+  /** null clears the failure reason. */
   error?: TaskText | null;
 };
 
@@ -199,7 +199,7 @@ export function updateTask(
   return getTask(id)!;
 }
 
-/** 记录任务 staging 资源，供崩溃后仅清理半成品目录。 */
+/** Records task staging resources, so only half-finished directories are cleaned up after a crash. */
 export function recordTaskStaging(taskId: string, instanceId: string, stagingToken: string): TaskInfo {
   return updateTask(
     taskId,
@@ -209,7 +209,7 @@ export function recordTaskStaging(taskId: string, instanceId: string, stagingTok
 }
 
 /**
- * @deprecated 保留兼容旧调用；新任务应使用 recordTaskStaging，且不得在文件落地前写入最终实例。
+ * @deprecated Kept for compatibility with legacy calls; new tasks should use recordTaskStaging, and must not write to the final instance before the files have landed.
  */
 export function recordTaskInstance(taskId: string, instanceId: string): TaskInfo {
   return updateTask(taskId, { result: { instanceId } }, { phase: 'staging' });
@@ -251,8 +251,8 @@ function tryCleanInterruptedStaging(row: TaskRow): { cleaned: boolean; cleanupEr
 }
 
 /**
- * 内存 worker 无法跨面板进程恢复；启动时把遗留任务收敛为失败终态。
- * 仅清理可证明位于 .mystry-staging 的半成品，绝不删除已注册实例或最终 instances 目录。
+ * In-memory workers cannot be resumed across panel processes; at startup, leftover tasks are settled into the failed final state.
+ * Only half-finished items provably inside .mystry-staging are cleaned up; registered instances and the final instances directory are never deleted.
  */
 export function recoverInterruptedTasks(): InterruptedTaskRecovery {
   const rows = getDb()
@@ -280,7 +280,7 @@ export function recoverInterruptedTasks(): InterruptedTaskRecovery {
       stagingCleanupFailures += 1;
     }
 
-    // 最终实例目录或数据库记录一律保留，即使任务未完成。
+    // The final instance directory and database record are always kept, even when the task did not complete.
     const cleanupFailed: TaskText | null = stagingCleanup.cleanupError
       ? { key: 'server.tasks.restartCleanupFailed', params: { reason: stagingCleanup.cleanupError } }
       : null;
@@ -336,7 +336,7 @@ async function executeTask(item: QueuedTask, controller: AbortController): Promi
           updateTask(item.task.id, { progress, message: msg, status: 'running' });
         }
       });
-      // worker 正常返回即视为成功。超时/关闭若落在返回之后，不得把已落地实例改写成失败。
+      // A normal return from the worker counts as success. If a timeout/shutdown lands after the return, an instance that has already landed must not be rewritten as failed.
     } catch (error) {
       failure = error;
       failed = true;
@@ -350,7 +350,7 @@ async function executeTask(item: QueuedTask, controller: AbortController): Promi
     ended = true;
   }
 
-  // worker 已经正常返回时取消不算数（见上），这里一并清掉标记。
+  // A cancel does not count once the worker has returned normally (see above), so the flag is cleared here too.
   const cancelledByUser = userCancelled.delete(item.task.id);
   if (failed) {
     const error: TaskText = timedOut
@@ -390,9 +390,9 @@ export async function runBackgroundTask(
 }
 
 /**
- * 用户取消任务。排队中的直接记成已取消；运行中的中止它的 signal，等 worker 自己收尾（清理临时文件）后
- * 由 executeTask 记成已取消，所以返回时任务可能还是 running。已结束、或不在本进程队列里的返回 false。
- * 不是所有任务都能安全中断，调用方要先确认任务类型（目前只开放给一键安装 Java）。
+ * The user cancels a task. A queued one is recorded as cancelled directly; a running one has its signal aborted, and after the worker finishes up on its own (cleaning temp files)
+ * executeTask records it as cancelled, so the task may still be running on return. Returns false for one that has ended or is not in this process's queue.
+ * Not every task can be interrupted safely, so the caller must confirm the task type first (currently only open to one-click Java install).
  */
 export function cancelTask(id: string): boolean {
   const queuedIndex = taskQueue.findIndex((item) => item.task.id === id);
@@ -418,7 +418,7 @@ export function getTaskActivity(): { running: number; queued: number } {
   return { running: runningTasks, queued: taskQueue.length };
 }
 
-/** 停止接收任务，取消排队项并等待运行中的任务完成清理。 */
+/** Stops accepting tasks, cancels queued items and waits for running tasks to finish cleaning up. */
 export async function shutdownTasks(): Promise<void> {
   shuttingDown = true;
 
@@ -440,7 +440,7 @@ export async function shutdownTasks(): Promise<void> {
   await Promise.allSettled([...runningExecutions.values()]);
 }
 
-/** 测试专用：恢复内存队列，避免 shutdownTasks 污染后续用例。 */
+/** Tests only: restores the in-memory queue, so shutdownTasks does not pollute later cases. */
 export function resetTaskRuntimeForTests(): void {
   shuttingDown = false;
   taskQueue.length = 0;

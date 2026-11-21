@@ -1,4 +1,4 @@
-/** 服务端返回给用户的消息：核心元数据、下载与安装。值为英文模板，`{name}` 为参数占位；其他语言由 Web 文案表按键翻译。 */
+/** User-facing server messages: core metadata, download and install. Values are English templates with `{name}` placeholders; the Web string tables translate other languages by key. */
 export const DEPLOY_MESSAGES = {
   'server.deploy.unsupportedCore': "This core type isn't supported.",
   'server.deploy.invalidParams': 'The deploy request has unsupported fields or an invalid format.',
@@ -6,11 +6,11 @@ export const DEPLOY_MESSAGES = {
   'server.deploy.downloadTimeout': 'The core download timed out.',
   'server.deploy.metadataTimeout': 'The core metadata request timed out.',
 
-  // 核心下载
+  // Core download
   'server.deploy.downloadHttpFailed': 'The download failed (HTTP {status}): {url}',
   'server.deploy.downloadTooLarge': 'The core download exceeds the size limit.',
 
-  // 核心元数据
+  // Core metadata
   'server.deploy.metadataTooLarge': 'The core metadata exceeds the size limit.',
   'server.deploy.metadataNoBody': 'The core metadata response has no body.',
   'server.deploy.metadataHttpFailed': 'The request failed (HTTP {status}): {url}',
@@ -24,11 +24,11 @@ export const DEPLOY_MESSAGES = {
   'server.deploy.paperNoDownloadUrl': 'Paper {version}#{build} has no download URL.',
   'server.deploy.fabricNoVersions': 'Fabric {version} has no available Loader or Installer version.',
 
-  // 部署流程
+  // Deploy flow
   'server.deploy.loaderNoVersions': '{coreType} {mcVersion} has no available versions.',
   'server.deploy.launchTargetNotFound': 'The installation finished, but no launchable server jar or launch arguments file was found.',
 
-  // 安装器（Forge / NeoForge）
+  // Installers (Forge / NeoForge)
   'server.deploy.installerExitCode': 'The installer exited with code {exitCode}.\n{output}',
   'server.deploy.installerExitUnknown': 'The installer exited with an unknown code.\n{output}',
   'server.deploy.installerDownloadFailed': "The installer couldn't download its dependencies ({detail}). {libraries}Check your network, proxy, or firewall, and then deploy again.",
@@ -40,7 +40,7 @@ export const DEPLOY_MESSAGES = {
   'server.deploy.installerReason.dnsFailed': 'DNS lookup failed',
   'server.deploy.installerReason.tlsFailed': 'TLS connection failed',
 
-  // 部署任务进度
+  // Deploy task progress
   'server.deploy.progress.deploying': 'Deploying {coreType} {mcVersion}',
   'server.deploy.progress.resolvingLoader': 'Resolving the Forge/NeoForge version…',
   'server.deploy.progress.usingCachedInstaller': 'Using the cached installer…',

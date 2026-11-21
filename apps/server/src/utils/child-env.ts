@@ -1,5 +1,5 @@
 /**
- * 子进程只继承 Java/Minecraft 所需的运行环境，避免把 JWT_SECRET、DATA_DIR 等面板配置传给第三方程序。
+ * Child processes inherit only the environment Java/Minecraft needs, so panel config such as JWT_SECRET and DATA_DIR is not passed to third-party programs.
  */
 export function getMinecraftChildEnv(): NodeJS.ProcessEnv {
   const keys = process.platform === 'win32'

@@ -36,7 +36,7 @@ export function jvmConfigFileFingerprint(root: string): string {
   }
 }
 
-/** 只读取实例根目录中的普通 user_jvm_args.txt，不跟随链接。 */
+/** Reads only a regular user_jvm_args.txt in the instance root, without following links. */
 export function detectJvmConfigFile(
   root: string,
   coreType?: CoreType | null,

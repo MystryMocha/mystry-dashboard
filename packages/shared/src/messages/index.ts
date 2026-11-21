@@ -1,7 +1,7 @@
 /**
- * 服务端面向用户的消息契约：服务端只返回稳定的消息键与参数，并附带渲染好的英文文本；
- * Web 按当前界面语言用同一个键翻译，缺键或旧数据没有键时显示英文文本。
- * 键统一以 `server.<区域>.` 开头，避免与 Web 自身文案键重名。
+ * Contract for user-facing server messages: the server returns only a stable message key and params, plus the rendered English text;
+ * Web translates by the same key in the current UI language, and shows the English text when the key is missing or legacy data has no key.
+ * All keys start with `server.<area>.` so they do not collide with Web's own string keys.
  */
 import { AUTH_MESSAGES } from './auth.js';
 import { BACKUPS_MESSAGES } from './backups.js';
@@ -51,7 +51,7 @@ export const SERVER_MESSAGES = {
 
 export type ServerMessageKey = keyof typeof SERVER_MESSAGES;
 
-/** 参数可以是文本、数字，或另一条可翻译消息（例如「清理失败：{reason}」里的原因）。 */
+/** A param can be text, a number, or another translatable message (for example the reason in "Cleanup failed: {reason}"). */
 export type PanelMessageParam = string | number | PanelMessage;
 export type PanelMessageParams = Record<string, PanelMessageParam>;
 
@@ -60,7 +60,7 @@ export interface PanelMessage {
   params?: PanelMessageParams;
 }
 
-/** 错误响应体：`error` 始终是英文文本，供脚本与旧客户端直接显示；`code` / `params` 供 Web 翻译。 */
+/** Error response body: `error` is always English text, for scripts and older clients to show directly; `code` / `params` are for Web to translate. */
 export interface ApiErrorBody {
   error: string;
   code?: ServerMessageKey;
@@ -77,7 +77,7 @@ export function isPanelMessage(value: unknown): value is PanelMessage {
     && isServerMessageKey((value as { key?: unknown }).key);
 }
 
-/** 按模板填入参数；嵌套消息先用同一个 lookup 渲染。lookup 返回 undefined 时回落英文模板。 */
+/** Fills params into the template; nested messages are rendered first with the same lookup. Falls back to the English template when lookup returns undefined. */
 export function renderPanelMessage(
   message: PanelMessage,
   lookup: (key: string) => string | undefined = () => undefined,

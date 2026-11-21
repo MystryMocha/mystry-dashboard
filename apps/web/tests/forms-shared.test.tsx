@@ -13,7 +13,7 @@ beforeEach(setupFormTestEnv);
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-/** 一个必填、最少 3 个字符的字段，加一个不相干的字段用来把焦点移走。 */
+/** One required field with a minimum of 3 characters, plus an unrelated field used to move focus away. */
 function Sample() {
   const [name, setName] = useState('');
   const feedback = useFormFeedback();
@@ -39,11 +39,11 @@ test('字段：错误在失焦后才显示，改对了马上消失，并和输�
   render(<Sample />);
   const input = screen.getByLabelText('名称');
   expect(screen.getByLabelText('别名（可选）')).toBeTruthy();
-  // 说明一直关联着输入框。
+  // The description is always associated with the input.
   expect(document.getElementById(input.getAttribute('aria-describedby')!)!.textContent).toBe('会显示在列表里');
 
   await user.type(input, 'ab');
-  // 还在输入：不打断。
+  // Still typing: no interruption.
   expect(screen.queryByText('至少 3 个字符')).toBeNull();
   expect(input.getAttribute('aria-invalid')).toBeNull();
 
@@ -52,7 +52,7 @@ test('字段：错误在失焦后才显示，改对了马上消失，并和输�
   expect(input.getAttribute('aria-invalid')).toBe('true');
   expect(input.getAttribute('aria-describedby')!.split(' ')).toContain(error.id);
 
-  // 已经在报错的字段每次按键重新检查。
+  // A field already showing an error is rechecked on every keystroke.
   await user.type(input, 'c');
   expect(screen.queryByText('至少 3 个字符')).toBeNull();
   expect(input.getAttribute('aria-invalid')).toBeNull();
@@ -62,13 +62,13 @@ test('字段：要求全部显示时跳到第一个出错的字段，重置后�
   const user = userEvent.setup();
   render(<Sample />);
   const input = screen.getByLabelText('名称');
-  // 空的必填项不标红，也找不到要跳的字段。
+  // An empty required item is not marked red, and no field to jump to is found.
   await user.click(screen.getByRole('button', { name: '检查' }));
   expect(input.getAttribute('aria-invalid')).toBeNull();
 
   await user.click(screen.getByRole('button', { name: '放弃' }));
   await user.click(screen.getByRole('button', { name: '填错' }));
-  // 没失焦过、也没要求显示：不报。
+  // Never blurred and not asked to show: nothing is reported.
   expect(screen.queryByText('至少 3 个字符')).toBeNull();
   await user.click(screen.getByRole('button', { name: '检查' }));
   expect(screen.getByText('至少 3 个字符')).toBeTruthy();
@@ -110,7 +110,7 @@ test('数字框：是带数字键盘的文本框，能删空，传进来的脏�
   const input = screen.getByRole('textbox') as HTMLInputElement;
   expect(input.type).toBe('text');
   expect(input.inputMode).toBe('numeric');
-  // 单位通过 aria-describedby 读给读屏。
+  // The unit is read out to screen readers through aria-describedby.
   expect(document.getElementById(input.getAttribute('aria-describedby')!)!.textContent).toBe('GB');
   await user.clear(input);
   expect(input.value).toBe('');
@@ -151,9 +151,9 @@ test('改密码：只输一遍新密码，太短时失焦后说明原因，按 E
   await user.tab();
   expect(next.getAttribute('aria-invalid')).toBe('true');
   const describedBy = next.getAttribute('aria-describedby')!.split(' ').map((id) => document.getElementById(id)!.textContent ?? '');
-  // 错误说的就是长度，原来那句说明不再重复。
+  // The error is about the length itself, so the original description is not repeated.
   expect(describedBy).toEqual(['密码至少 12 个字符']);
-  // 焦点在别处时按 Enter：提交不了，回到要改的字段。
+  // Pressing Enter while focus is elsewhere: it cannot submit, and goes back to the field to fix.
   current.focus();
   await user.keyboard('{Enter}');
   expect(document.activeElement).toBe(next);

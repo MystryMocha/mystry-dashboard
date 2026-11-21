@@ -17,8 +17,8 @@ type Placement = 'topbar' | 'login';
 const POPOVER_WIDTH = 240;
 
 /**
- * 语言选择器：自动（跟随浏览器）或固定某种语言，选择保存在本机浏览器。
- * 语言名称用该语言自身书写并标注 lang，读屏软件按对应语言朗读；交互方式与外观弹层一致。
+ * Language picker: auto (follow the browser) or a fixed language, with the choice saved in the local browser.
+ * Language names are written in the language itself and tagged with lang, so screen readers read them in the matching language; the interaction matches the appearance popover.
  */
 export function LanguageToggle({ placement = 'topbar' }: { placement?: Placement }) {
   const { t, locale } = useI18n();
@@ -50,7 +50,7 @@ export function LanguageToggle({ placement = 'topbar' }: { placement?: Placement
         <Languages size={18} aria-hidden="true" />
       </button>
 
-      {/* 与外观弹层相同：工具栏毛玻璃会成为 fixed 定位的包含块，面板挂到 body。 */}
+      {/* Same as the appearance popover: the toolbar's frosted glass becomes the containing block for fixed positioning, so the panel is attached to body. */}
       {popover.open && createPortal(
         <div
           id={popover.panelId}

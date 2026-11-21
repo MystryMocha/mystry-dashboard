@@ -1,6 +1,6 @@
 /**
- * 安装路径含符号链接或 junction 时的入口判断与数据目录解析回归。
- * 只使用随机临时目录，禁止触碰仓库 data/。
+ * Regression for entry-module detection and data directory resolution when the install path contains a symlink or junction.
+ * Uses only random temp directories; touching the repo's data/ is forbidden.
  */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -13,11 +13,11 @@ import { isMainModule, resolveRealPath } from './real-path.js';
 
 const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-/** 建一个真实目录和指向它的目录链接；Windows 用 junction，不需要管理员权限。 */
+/** Creates a real directory and a directory link pointing to it; on Windows a junction is used, which needs no admin rights. */
 function prepareLinkedRoot(t: test.TestContext): { real: string; link: string } {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-real-path-test-'));
   t.after(() => {
-    // 先单独删链接本身，避免递归删除时顺着链接删到目标。
+    // Remove the link itself separately first, so a recursive delete does not follow the link into the target.
     fs.rmSync(path.join(base, 'link'), { force: true });
     fs.rmSync(base, { recursive: true, force: true });
   });
@@ -76,14 +76,14 @@ test('数据目录只解析上级路径中的链接，目录本身和内部的�
   const { config } = await import('../config.js');
   const { assertSafeInstanceRoot, defaultInstanceDir } = await import('./path.js');
 
-  // 安装位置在链接下：数据目录换成真实路径，实例目录检查通过。
+  // Install location under a link: the data directory is switched to the real path, and the instance directory check passes.
   process.env.MYSTRY_DATA_DIR = path.join(link, 'data');
   assert.equal(config.dataDir, path.join(real, 'data'));
   assert.equal(config.backupDir, path.join(real, 'data', 'backups'));
   fs.mkdirSync(path.join(real, 'data', 'instances', 'abc'), { recursive: true });
   assert.equal(assertSafeInstanceRoot(defaultInstanceDir('abc')), path.join(real, 'data', 'instances', 'abc'));
 
-  // 数据目录本身是链接：保持原名，实例目录检查照旧拒绝。
+  // The data directory itself is a link: it keeps its name, and the instance directory check still rejects it.
   const dataLink = path.join(real, 'data-link');
   fs.symlinkSync(path.join(real, 'data'), dataLink, process.platform === 'win32' ? 'junction' : 'dir');
   t.after(() => fs.rmSync(dataLink, { force: true }));

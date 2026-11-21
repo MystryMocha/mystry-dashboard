@@ -23,7 +23,7 @@ import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { safeExtract } from './zip-service.js';
 import { PanelError, throwIfAborted } from '../utils/errors.js';
 
-/** 若解压后只有一层目录，则上移内容到实例根目录。 */
+/** If there is only a single directory level after extraction, moves its content up into the instance root. */
 function flattenSingleRoot(
   dir: string,
   signal: AbortSignal,
@@ -103,7 +103,7 @@ export async function importZipPackage(options: {
         throwIfAborted(signal);
         report(85, { key: 'server.imports.progress.writingInstance' });
         promoteTaskStagingToInstance(taskId, instanceId);
-        // promote 之后目录已在 instances/<id>，不得再因超时/关闭中止，必须继续注册。
+        // After promote the directory is already in instances/<id>; it must no longer be aborted by timeout/shutdown, and registration must continue.
         const dir = path.join(config.instancesDir, instanceId);
         assertSafeInstanceRoot(dir);
 
@@ -130,25 +130,25 @@ export async function importZipPackage(options: {
           try {
             removeTaskStagingTree(taskId, instanceId);
           } catch {
-            /* 清理失败不覆盖原始错误 */
+            /* A cleanup failure does not override the original error */
           }
         }
         if (fs.existsSync(zipPath)) {
           try {
             removeUploadTemp(zipPath);
           } catch {
-            /* 清理失败不覆盖原始错误 */
+            /* A cleanup failure does not override the original error */
           }
         }
       }
     });
   } catch (err) {
-    // 任务未进入队列（队列满/面板关闭中）时任务回调不会执行，兜底清理上传临时文件。
+    // When the task does not enter the queue (queue full / panel shutting down) the task callback never runs, so the uploaded temp file is cleaned up here as a fallback.
     if (!options.preserveUploadOnEnqueueFailure && fs.existsSync(zipPath)) {
       try {
         removeUploadTemp(zipPath);
       } catch {
-        /* 清理失败不覆盖原始错误 */
+        /* A cleanup failure does not override the original error */
       }
     }
     throw err;

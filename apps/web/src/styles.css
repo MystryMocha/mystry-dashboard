@@ -1,20 +1,20 @@
 /*
- * Mystry Dashboard 界面样式：参照 Apple 人机界面指南（HIG）与 Liquid Glass 设计语言。
- * - 外观：data-appearance = light | dark（「自动」由脚本解析为二者之一）；
- * - 强调色：固定为墨紫（取自标志渐变末端），只在下方一处定义，不再由用户选择；
- * - 导航层（侧栏、工具栏、标签栏、菜单、弹层）使用毛玻璃材质；页面内容不放卡片，用标题、分隔线和留白分层次，
- *   弹窗里的表单和列表仍是实色底（见「页面内容不放卡片」一节）。
+ * Mystry Dashboard UI styles: modeled on Apple's Human Interface Guidelines (HIG) and the Liquid Glass design language.
+ * - Appearance: data-appearance = light | dark ("auto" is resolved to one of the two by script);
+ * - Accent color: fixed to ink purple (taken from the end of the logo gradient), defined in one place below and no longer chosen by the user;
+ * - Navigation layers (sidebar, toolbar, tab bar, menus, popovers) use the frosted-glass material; page content is not put in cards and is layered with headings, dividers and whitespace,
+ *   while forms and lists inside dialogs keep a solid background (see the "Page content is not put in cards" section).
  */
 
-/* ========== 设计令牌：通用 ========== */
+/* ========== Design tokens: common ========== */
 :root {
-  /* 系统字体栈：不依赖外部字体服务，离线或国内网络下首屏不被阻塞；中文回落到系统中文字体。 */
+  /* System font stack: no dependence on external font services, so the first paint is not blocked offline or on networks in China; Chinese falls back to the system Chinese fonts. */
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'PingFang SC', 'Hiragino Sans GB',
     system-ui, 'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans CJK SC',
     'Noto Sans SC', sans-serif;
   --mono: 'SF Mono', ui-monospace, Menlo, 'Cascadia Mono', 'Cascadia Code', Consolas, 'DejaVu Sans Mono', monospace;
 
-  /* 同心圆角：外层越大，内层按内边距递减。 */
+  /* Concentric corner radii: the larger the outer one, the inner ones decrease by the padding. */
   --radius-xl: 22px;
   --radius-lg: 18px;
   --radius-md: 14px;
@@ -22,22 +22,22 @@
   --radius-xs: 7px;
   --radius-pill: 999px;
 
-  /* 字号只用这几档，按用途取，不写半像素或零散的 px（见 docs/design-system.md「Type」）。 */
-  --text-micro: 11px;     /* 手机标签栏文字、角标 */
-  --text-footnote: 12px;  /* 元信息、代码、路径、小徽章 */
-  --text-small: 13px;     /* 说明、表单标签、次要文字、小按钮 */
-  --text-body: 15px;      /* 正文、按钮、导航、列表标题、输入框 */
-  --text-input: 16px;     /* 触屏输入框：小于 16px 时 iOS 聚焦会放大页面 */
-  --text-headline: 17px;  /* 卡片和对话框标题、服务器名、大按钮 */
-  --text-title: 22px;     /* 区块标题、总览状态句 */
-  --text-large: 30px;     /* 每页一个的大标题、实例名、登录标题 */
+  /* Font sizes use only these steps, picked by purpose, with no half pixels or stray px values (see "Type" in docs/design-system.md). */
+  --text-micro: 11px;     /* Phone tab bar text, badges */
+  --text-footnote: 12px;  /* Metadata, code, paths, small badges */
+  --text-small: 13px;     /* Descriptions, form labels, secondary text, small buttons */
+  --text-body: 15px;      /* Body text, buttons, navigation, list titles, inputs */
+  --text-input: 16px;     /* Touch inputs: below 16px iOS zooms the page on focus */
+  --text-headline: 17px;  /* Card and dialog titles, server names, large buttons */
+  --text-title: 22px;     /* Section titles, the overview status sentence */
+  --text-large: 30px;     /* The one large title per page, instance names, the login title */
 
   --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
 
   --sidebar-width: 256px;
   --toolbar-height: 60px;
-  /* 纵向间距：矮屏桌面档（见响应式部分）整体收紧这几个值。 */
+  /* Vertical spacing: the short-desktop tier (see the responsive section) tightens these values as a whole. */
   --content-top-gap: 6px;
   --page-gap: 24px;
   --instance-page-gap: 20px;
@@ -50,7 +50,7 @@
   --check-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
 }
 
-/* 繁體中文：繁体字体排在简体字体之前，否则部分字会以简体字形显示。 */
+/* Traditional Chinese: Traditional fonts come before Simplified fonts, or some characters would render with Simplified glyphs. */
 :root:lang(zh-TW) {
   --font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'PingFang TC', 'Microsoft JhengHei UI',
     'Microsoft JhengHei', 'Noto Sans TC', 'Noto Sans CJK TC', 'PingFang SC', 'Hiragino Sans GB', system-ui,
@@ -58,7 +58,7 @@
     sans-serif;
 }
 
-/* ========== 浅色外观 ========== */
+/* ========== Light appearance ========== */
 :root {
   --bg: #f5f5f7;
   --surface: #ffffff;
@@ -73,7 +73,7 @@
   --glass-edge: inset 0 0 0 0.5px rgba(255, 255, 255, 0.7), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
 
   --label: #1d1d1f;
-  /* 次要文字在 bg、fill 和 15% 色调的状态标签上都需 ≥4.5:1。 */
+  /* Secondary text needs ≥4.5:1 on bg, fill and status labels with a 15% tint. */
   --label-2: #636366;
   --label-3: #8e8e93;
   --separator: rgba(60, 60, 67, 0.17);
@@ -93,8 +93,8 @@
   --float-shadow: 0 10px 36px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.05);
   --sheet-shadow: 0 30px 90px rgba(0, 0, 0, 0.25), 0 0 0 0.5px rgba(0, 0, 0, 0.1);
 
-  /* 语义色：文字用加深变体保证对比度，填充用系统色。
-     文字变体按最差底色取值：bg 上叠 11–16% 同色调（状态标签、色调按钮、提示框）仍 ≥4.5:1。 */
+  /* Semantic colors: text uses darkened variants to guarantee contrast, fills use the system colors.
+     Text variants are chosen for the worst background: bg with an 11–16% tint of the same hue (status labels, tinted buttons, notices) is still ≥4.5:1. */
   --ok: #1a7431;
   --warn: #a84a00;
   --danger: #c70012;
@@ -111,7 +111,7 @@
   color-scheme: light;
 }
 
-/* ========== 深色外观 ========== */
+/* ========== Dark appearance ========== */
 :root[data-appearance='dark'] {
   --bg: #0a0a0b;
   --surface: #1c1c1e;
@@ -147,7 +147,7 @@
 
   --ok: #30d158;
   --warn: #ff9f0a;
-  /* 深色下红色文字取浅一档、实色危险按钮取深一档，分别保证在红色调底和白字上 ≥4.5:1。 */
+  /* In dark mode red text goes one step lighter and solid danger buttons one step darker, guaranteeing ≥4.5:1 on a red-tinted background and with white text respectively. */
   --danger: #ff6961;
   --danger-fill: #d93229;
   --c-green: #30d158;
@@ -162,10 +162,10 @@
   color-scheme: dark;
 }
 
-/* ========== 强调色：墨紫（--accent 用于填充，--accent-text 用于文字） ==========
- * 运行、启动中、故障已占用绿、橙、红，紫色与它们都分得开，尤其不会和每行旁边的红色「停止」混淆。
- * 对比度：浅色白字在填充上 6.6:1，文字在 bg 上 6.9:1、在 20% 自身色调上 5.0:1；
- * 深色白字在填充上 5.7:1，文字在 bg 上 8.2:1；控制台焦点色在 #161618 上 ≥5.6:1。 */
+/* ========== Accent color: ink purple (--accent for fills, --accent-text for text) ==========
+ * Running, starting and failed already take green, orange and red, and purple is distinct from all of them; in particular it is not confused with the red "Stop" beside each row.
+ * Contrast: in light mode white text on the fill is 6.6:1, text on bg is 6.9:1 and on a 20% tint of itself 5.0:1;
+ * in dark mode white text on the fill is 5.7:1 and text on bg is 8.2:1; the console focus color on #161618 is ≥5.6:1. */
 :root { --accent: #6439e0; --accent-text: #5a30d4; --on-accent: #ffffff; }
 :root[data-appearance='dark'] { --accent: #6a48e6; --accent-text: #ab98ff; --on-accent: #ffffff; }
 
@@ -173,11 +173,11 @@
   --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
   --accent-soft-strong: color-mix(in srgb, var(--accent) 20%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 45%, transparent);
-  /* 控制台始终深色：强调色混入白色提亮，任一强调色与外观下对控制台底色都 ≥3:1。 */
+  /* The console is always dark: the accent color is brightened by mixing in white, giving ≥3:1 against the console background for any accent color and appearance. */
   --console-focus: color-mix(in srgb, var(--accent) 65%, #ffffff);
 }
 
-/* ========== 基础 ========== */
+/* ========== Base ========== */
 * {
   box-sizing: border-box;
   scrollbar-width: thin;
@@ -234,7 +234,7 @@ h1, h2, h3 { letter-spacing: -0.015em; }
   outline-offset: 2px;
 }
 
-/* 换页后脚本把焦点移到页面主标题（见 useRouteFocus），标题不是可操作控件，不画焦点环。 */
+/* After a page change the script moves focus to the page's main heading (see useRouteFocus); the heading is not an actionable control, so no focus ring is drawn. */
 h1[tabindex="-1"]:focus { outline: none; }
 
 .visually-hidden {
@@ -254,7 +254,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 .error { margin: 0; color: var(--danger); font-size: var(--text-small); line-height: 1.5; }
 .field-warn { margin: 0; color: var(--warn); font-size: var(--text-small); line-height: 1.5; }
 
-/* Java 选择器下方一行：实际要用的 Java 的状态、推荐版本、「安装 Java N」和手动下载链接，放不下时自动换行；进度条在下方。 */
+/* The row below the Java picker: the status of the Java that will actually be used, the recommended version, "Install Java N" and the manual download link, wrapping automatically when they do not fit; the progress bar is below. */
 .java-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
 .java-recommended { color: var(--label); font-size: var(--text-small); font-weight: 600; }
 
@@ -293,7 +293,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 }
 .spinner-sm { width: 14px; height: 14px; border-width: 2px; vertical-align: -2px; }
 
-/* ========== 应用框架 ========== */
+/* ========== App frame ========== */
 .app-shell {
   display: flex;
   width: 100%;
@@ -388,7 +388,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 }
 
 .user-profile { display: flex; align-items: center; gap: 10px; min-width: 0; }
-/* 正在看面板设置页时，齿轮按钮保持选中。 */
+/* While the panel settings page is being viewed, the gear button stays selected. */
 .btn.sidebar-settings.active { --btn-bg: var(--fill); --btn-fg: var(--accent-text); }
 
 .user-avatar {
@@ -417,8 +417,8 @@ h1[tabindex="-1"]:focus { outline: none; }
 }
 
 /*
- * 工具栏叠在滚动内容上方，本身不画底色：标题和按钮各是一枚悬浮的玻璃胶囊，与侧栏、底部操作栏一致。
- * 内容滚入后在胶囊后面出现向下渐隐的模糊边缘（滚动边缘效果），不再用整条直角横条切开页面。
+ * The toolbar sits on top of the scrolling content and draws no background itself: the title and the buttons are each a floating glass capsule, consistent with the sidebar and the bottom action bar.
+ * Once content scrolls in, a blurred edge fading downward appears behind the capsules (the scroll edge effect), instead of cutting the page with a full-width square bar.
  */
 .topbar {
   position: absolute;
@@ -433,7 +433,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   gap: 12px;
   padding: 0 20px 0 28px;
 }
-/* 滚动边缘：模糊层只叠一层很淡的底色并用遮罩向下渐隐，不会盖住带强调色的背景渐变。遮罩只放在伪元素上，弹出菜单不会被裁掉。 */
+/* Scroll edge: the blur layer adds only a very faint background and fades downward with a mask, so it does not cover the background gradient that carries the accent color. The mask is only on the pseudo-element, so popup menus are not clipped. */
 .topbar::before {
   content: '';
   position: absolute;
@@ -453,7 +453,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 .topbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .topbar-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
-/* 页面标题胶囊：高度与右侧按钮组相同（36px 按钮 + 上下 3px 内边距）。 */
+/* Page title capsule: the same height as the button group on the right (36px buttons + 3px padding top and bottom). */
 .toolbar-title {
   margin: 0;
   min-width: 0;
@@ -543,8 +543,8 @@ h1[tabindex="-1"]:focus { outline: none; }
 }
 
 /*
- * 滚动容器的上下内边距只留给工具栏和底部标签栏：粘性元素的偏移是相对容器内容区计算的，
- * 页面末尾的留白放在 .content-inner 上，避免悬浮操作栏被多抬高一截。
+ * The scroll container's top and bottom padding is reserved only for the toolbar and the bottom tab bar: the offset of sticky elements is computed relative to the container's content box,
+ * so the whitespace at the end of the page goes on .content-inner, to avoid lifting the floating action bar higher than needed.
  */
 .content-container {
   height: 100%;
@@ -562,10 +562,10 @@ h1[tabindex="-1"]:focus { outline: none; }
   padding-bottom: 40px;
 }
 
-/* 底部标签栏只在窄屏显示（见响应式部分）。 */
+/* The bottom tab bar is shown only on narrow screens (see the responsive section). */
 .tab-bar { display: none; }
 
-/* ========== 页面结构 ========== */
+/* ========== Page structure ========== */
 .page { display: flex; flex-direction: column; gap: var(--page-gap); min-width: 0; }
 
 .page-header {
@@ -672,9 +672,9 @@ h1[tabindex="-1"]:focus { outline: none; }
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
 
 /*
- * 长表单在宽屏分两栏，减少上下翻页：.form-columns 里每个 .form-column 是一栏纵向分区，
- * 参数配置的分组（.config-groups）同理。按页面内容区宽度判断，不看视口，侧栏开合都对。
- * 窄时按原顺序上下排列，读屏和 Tab 顺序不变。
+ * Long forms split into two columns on wide screens to reduce scrolling: each .form-column inside .form-columns is one column of vertical sections,
+ * and the config editor's groups (.config-groups) work the same way. It is decided by the width of the page content area, not the viewport, so it is right with the sidebar open or closed.
+ * When narrow they stack in the original order, and the screen reader and Tab order are unchanged.
  */
 .page { container: page / inline-size; }
 .form-columns,
@@ -686,13 +686,13 @@ h1[tabindex="-1"]:focus { outline: none; }
   .form-columns > :only-child { grid-column: 1 / -1; }
 
   .config-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 26px 24px; }
-  /* 半栏里说明文字要留出位置，控件收窄，免得控件被挤到下一行。 */
+  /* In a half column the description text needs room, so the control narrows, keeping the control from being pushed to the next line. */
   .config-groups .list-row-text { flex-basis: 160px; }
   .config-groups :is(.config-row-text, .config-row-select) .list-row-control { flex-basis: 190px; }
   .config-groups .config-row-number .list-row-control { flex-basis: 110px; }
 }
 
-/* 页面底部的悬浮操作栏：滚动时保持可见。 */
+/* The floating action bar at the bottom of the page: stays visible while scrolling. */
 .action-bar {
   position: sticky;
   bottom: 16px;
@@ -710,16 +710,16 @@ h1[tabindex="-1"]:focus { outline: none; }
   box-shadow: var(--glass-edge), var(--float-shadow);
 }
 .action-bar-status { flex: 1 1 220px; min-width: 0; font-size: var(--text-small); color: var(--label-2); }
-/* 部署页第 4 节紧挨着吸底操作栏：滚进视口时下沿让出操作栏的高度（窄屏操作栏换成两行，按两行留）。 */
+/* Section 4 of the deploy page sits right against the sticky bottom action bar: when it scrolls into view the bottom edge clears the height of the action bar (on narrow screens the action bar becomes two rows, so two rows are reserved). */
 .deploy-confirm { scroll-margin-bottom: 140px; }
-/* 操作栏里唯一允许放的输入：一个必需的同意项（部署页的 EULA），短文案，链接仍可点。 */
+/* The only input allowed in the action bar: one required acceptance (the EULA on the deploy page), with short text, and the link still clickable. */
 .action-bar-check { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-small); color: var(--label); }
 .action-bar-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
 @media (pointer: coarse) {
   .action-bar-check { position: relative; min-height: 44px; }
 }
 
-/* ========== 按钮 ========== */
+/* ========== Buttons ========== */
 .btn {
   --btn-bg: var(--fill);
   --btn-fg: var(--label);
@@ -785,7 +785,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 .chip-mono { font-family: var(--mono); font-size: var(--text-footnote); font-weight: 600; }
 .chip-desc { color: var(--label-2); }
 
-/* ========== 分段控件 ========== */
+/* ========== Segmented control ========== */
 .segmented {
   display: inline-flex;
   align-items: center;
@@ -824,7 +824,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 }
 .segmented-item:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ========== 表单控件 ========== */
+/* ========== Form controls ========== */
 .field { display: flex; flex-direction: column; gap: 7px; min-width: 0; margin: 0; }
 .field > label { font-size: var(--text-small); font-weight: 600; color: var(--label-2); }
 .field-help { margin: 0; font-size: var(--text-small); line-height: 1.5; color: var(--label-2); }
@@ -846,7 +846,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   width: 100%;
   min-height: 38px;
   padding: 8px 12px;
-  /* 框内右侧有单位、按钮时由 .input-affix 设 --affix-space 留位（见下）；这条规则优先级高，得在这里读它。 */
+  /* When there is a unit or button on the right inside the box, .input-affix sets --affix-space to reserve room (see below); this rule has high specificity, so it has to be read here. */
   padding-inline-end: var(--affix-space, 12px);
   border: 0;
   border-radius: var(--radius-sm);
@@ -867,7 +867,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--focus-ring);
 }
 
-/* 填了但不合规的字段：红色描边，和下方的红字说明对应；聚焦时也保持红色。 */
+/* A field filled in but non-compliant: a red outline, matching the red text below; it stays red when focused too. */
 .field :is(input, select, textarea)[aria-invalid='true'],
 .input[aria-invalid='true'] { box-shadow: 0 0 0 1px var(--danger); }
 .field :is(input, select, textarea)[aria-invalid='true']:focus,
@@ -880,8 +880,8 @@ h1[tabindex="-1"]:focus { outline: none; }
 .field :is(input, textarea)::placeholder,
 .input::placeholder { color: var(--label-3); }
 
-/* 原生下拉的弹出列表由系统绘制，会沿用选择框的半透明底色，在深色下变成浅灰底配白字；
-   这里给选项实底和文字色，两种外观都清楚。 */
+/* The popup list of a native dropdown is drawn by the system and inherits the select's translucent background, which in dark mode becomes light grey with white text;
+   options are given a solid background and text color here, so both appearances are clear. */
 select option,
 select optgroup {
   background-color: var(--surface-raised);
@@ -913,12 +913,12 @@ select.input,
 .input-row > input { flex: 1; min-width: 0; }
 .input-row > .btn { flex-shrink: 0; height: auto; min-height: 38px; }
 
-/* 输入框里靠右的附加内容：密码的显示/隐藏按钮、数字的单位。外壳占满一行，输入框在右侧留出位置。 */
+/* Content attached at the right inside an input: the password show/hide button, a number's unit. The shell takes the full row, and the input reserves room on the right. */
 .input-affix { position: relative; display: block; min-width: 0; }
 .input-affix > input { width: 100%; }
 /*
- * 右侧留位写在 --affix-space 里：.field 里的输入框吃上面 .field :is(input:not(...)...) 的 padding，
- * 那条优先级比这里高，直接写 padding-inline-end 会被压回 12px，所以那条也读这个变量。
+ * The reserved room on the right is written in --affix-space: an input inside .field takes its padding from .field :is(input:not(...)...) above,
+ * which has higher specificity than here, so writing padding-inline-end directly would be forced back to 12px, which is why that rule reads this variable too.
  */
 .input-affix:is(.has-affix-button, .has-suffix-text, .has-stepper) > input { padding-inline-end: var(--affix-space); }
 .input-affix.has-affix-button > input { --affix-space: 44px; }
@@ -950,7 +950,7 @@ select.input,
 .input-affix-button:hover:not(:disabled) { color: var(--label); }
 .input-affix-button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 .input-affix-button:disabled { opacity: 0.5; cursor: not-allowed; }
-/* 数字框的上下箭头：两个小按钮竖排贴在框内最右侧，单位往左让出位置。 */
+/* Up/down arrows of the number box: two small buttons stacked against the far right inside the box, with the unit moving left to make room. */
 .input-affix.has-stepper > input { --affix-space: 36px; }
 .input-affix.has-suffix-text.has-stepper > input { --affix-space: 66px; }
 .input-affix.has-stepper .input-affix-text { inset-inline-end: 34px; }
@@ -978,7 +978,7 @@ select.input,
 .input-stepper > button:hover:not(:disabled) { background: var(--fill); color: var(--label); }
 .input-stepper > button:active:not(:disabled) { background: var(--fill-strong); }
 .input-stepper > button:disabled { opacity: 0.5; cursor: not-allowed; }
-/* 触屏上 17px 高的按钮点不准，和原生数字框一样不显示箭头，改用下面的常用档位。 */
+/* On touch screens a 17px-high button cannot be hit accurately, so like native number boxes no arrows are shown, and the common presets below are used instead. */
 @media (pointer: coarse) {
   .input-stepper { display: none; }
   .input-affix.has-stepper > input { --affix-space: 12px; }
@@ -986,32 +986,32 @@ select.input,
   .input-affix.has-stepper .input-affix-text { inset-inline-end: 12px; }
 }
 
-/* 只为拿到一组字段的容器引用（跳到第一个出错的字段），不参与排版。 */
+/* Only for getting a reference to the container of a group of fields (to jump to the first failing field); it takes no part in layout. */
 .form-fields { display: contents; }
 
-/* 以下五段各归一个表单页，新样式只加在自己那一段里，互不相邻，合并时不会撞在一起。 */
-/* -- 表单：登录与初始化 -- */
-/* 初始化令牌：等宽显示，右侧给「61 / 64」留出位置。选择器要压过后面 .float-field input 的 padding 简写。 */
+/* The five sections below each belong to one form page; new styles go only in their own section and they are not adjacent, so merges do not collide. */
+/* -- Forms: login and setup -- */
+/* Setup token: shown in monospace, with room reserved on the right for "61 / 64". The selector has to beat the padding shorthand of .float-field input later on. */
 .float-field .input-affix > input.token-input { padding-inline-end: 84px; font-family: var(--mono); }
-/* 浮动标签的框里文字偏下（上 24px、下 8px 内边距），计数跟着下移才和令牌在同一行。 */
+/* Text in a floating-label box sits low (24px top, 8px bottom padding), so the count moves down with it to be on the same line as the token. */
 .float-field .input-affix-text { padding-top: 16px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
-/* 字段的错误行排在整组输入框下面：放进 .float-field 会把按 50% 定位的浮动标签挤歪。 */
+/* A field's error row goes below the whole group of inputs: putting it inside .float-field would push the floating label, positioned at 50%, out of place. */
 .login-form > .error { padding: 0 6px; }
-/* 错误行在整组下面，出错的那一格自己也描红，才对得上是哪一项。 */
+/* The error row is below the whole group, so the failing cell is outlined red itself too, to show which item it is. */
 .float-field input[aria-invalid='true'],
 .float-field input[aria-invalid='true']:focus { box-shadow: inset 0 0 0 1.5px var(--danger); }
 
-/* -- 表单：内存与 JVM -- */
-/* 内存输入框下面的常用档位：窄栏里自动换行。 */
+/* -- Forms: memory and JVM -- */
+/* Common presets below the memory inputs: wrap automatically in a narrow column. */
 .jvm-memory-tiers { display: flex; flex-wrap: wrap; gap: 6px; }
 .jvm-memory-tiers .chip.is-selected { background-color: var(--accent-soft-strong); color: var(--accent-text); }
 .jvm-memory-tiers .chip.is-selected .chip-desc { color: inherit; }
 
-/* -- 表单：参数配置与实例设置（含保存栏） -- */
+/* -- Forms: config editor and instance settings (including the save bar) -- */
 /*
- * 保存栏只在有修改（或刚保存完）时出现。占位容器一直在、高度固定，吸在页面底部：
- * 栏出现和消失时内容不跳，滚到底时最后一行落在占位之上，不会被栏挡住。
- * 容器本身不接收点按，空着的时候不会挡住下面的内容。
+ * The save bar appears only when there are changes (or right after saving). The placeholder container is always there with a fixed height, stuck to the bottom of the page:
+ * content does not jump when the bar appears and disappears, and when scrolled to the bottom the last row lands above the placeholder and is not covered by the bar.
+ * The container itself takes no pointer events, so while empty it does not block the content below.
  */
 .save-bar-slot {
   --save-bar-space: 52px;
@@ -1036,19 +1036,19 @@ select.input,
 @media (prefers-reduced-motion: reduce) {
   .save-bar-slot > .save-bar { animation: none; }
 }
-/* 状态文字里点名要改的字段：字段名可能很长，允许换行。 */
+/* The field to fix named in the status text: field names can be long, so wrapping is allowed. */
 .save-bar .link-button { white-space: normal; text-align: start; }
-/* 「已保存」那一态始终一行：文字放不下就自己换行，按钮不被拉宽。 */
+/* The "saved" state is always one row: the text wraps on its own when it does not fit, and the button is not stretched. */
 .save-bar.is-notice { flex-wrap: nowrap; }
 .save-bar.is-notice > .action-bar-status { flex: 1 1 0; }
 .save-bar.is-notice > .btn { flex: 0 0 auto; }
-/* 只有一句提示、没有按钮时，和有按钮时一样高。 */
+/* With only a sentence of notice and no button, the height is the same as with a button. */
 .save-bar.is-notice > .action-bar-status:only-child { padding-block: 7px; }
 @media (pointer: coarse) {
   .save-bar-slot { --save-bar-space: 62px; }
 }
 @media (max-width: 480px) {
-  /* 手机上状态文字单独一行，「放弃修改」和「保存」在第二行并排、等宽。 */
+  /* On phones the status text gets its own row, with "Discard Changes" and "Save" side by side at equal width on the second row. */
   .save-bar-slot { --save-bar-space: 88px; }
   .save-bar:not(.is-notice) > .action-bar-status { flex: 1 1 100%; }
   .save-bar:not(.is-notice) > .btn { flex: 1 1 0; }
@@ -1057,16 +1057,16 @@ select.input,
   .save-bar-slot { --save-bar-space: 98px; }
 }
 
-/* -- 表单：联机 -- */
-/* 折叠区里的穿透设置表单：字段之间的间距和原来直接放在折叠区里时一样。 */
+/* -- Forms: multiplayer -- */
+/* The tunnel settings form inside the collapsible section: spacing between fields is the same as when it sat directly in the section. */
 .multiplayer-settings > .multiplayer-settings-form { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
-/* 主按钮旁「先填写 / 先修正某一项」的那句话，和按钮垂直居中。 */
+/* The "fill in / fix this item first" sentence beside the primary button, vertically centered with the button. */
 .multiplayer-form-hint { align-self: center; font-size: var(--text-small); text-align: start; white-space: normal; }
 
-/* -- 表单：部署 -- */
-/* 包住 Java 选择框和 JVM 配置器的定位容器：只用来让「跳到要改的字段」找到里面的控件，不参与布局。 */
+/* -- Forms: deploy -- */
+/* The positioning container wrapping the Java picker and the JVM configurator: used only so "jump to the field to fix" can find the controls inside, taking no part in layout. */
 .deploy-field-anchor { display: contents; }
-/* 操作栏里可点的状态文字：换行时靠起始侧对齐，字号跟着状态文字。 */
+/* The clickable status text in the action bar: aligned to the start side when wrapping, with the font size following the status text. */
 .action-bar-status .link-button { text-align: start; font-size: inherit; }
 
 input[type='checkbox']:not(.switch),
@@ -1091,7 +1091,7 @@ input[type='radio'] {
 }
 .checkbox-field input { margin-top: 2px; }
 
-/* 开关：原生复选框 + role=switch，旋钮用径向渐变绘制，兼容不支持 input 伪元素的浏览器。 */
+/* Switch: a native checkbox + role=switch, with the knob drawn by a radial gradient, compatible with browsers that do not support pseudo-elements on input. */
 .switch {
   appearance: none;
   -webkit-appearance: none;
@@ -1111,7 +1111,7 @@ input[type='radio'] {
 .switch:checked { background-color: var(--accent); background-position: 18px center; }
 .switch:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* ========== 分组列表（iOS 设置风格） ========== */
+/* ========== Grouped lists (iOS Settings style) ========== */
 .list-group {
   margin: 0;
   padding: 0;
@@ -1159,7 +1159,7 @@ input[type='radio'] {
 .config-row .list-row-control > .input { width: 100%; }
 .config-row-error { flex: 1 1 100%; margin-top: -6px; text-align: end; }
 
-/* ========== 折叠区 ========== */
+/* ========== Collapsible sections ========== */
 .disclosure > summary {
   display: inline-flex;
   align-items: center;
@@ -1188,7 +1188,7 @@ input[type='radio'] {
 .disclosure > summary:hover { background: var(--fill-2); }
 .disclosure > :not(summary) { margin-top: 12px; }
 
-/* ========== 提示条 ========== */
+/* ========== Notice bars ========== */
 .callout {
   --tone: var(--accent);
   display: flex;
@@ -1218,7 +1218,7 @@ input[type='radio'] {
 .runtime-upload a.btn { text-decoration: none; }
 .runtime-upload-hash code { overflow-wrap: anywhere; word-break: break-all; }
 
-/* ========== 状态 ========== */
+/* ========== Status ========== */
 .status-pill {
   --tone: var(--c-gray);
   display: inline-flex;
@@ -1251,14 +1251,14 @@ input[type='radio'] {
 }
 
 /*
- * 只有过渡中的状态（启动中、停止中）闪烁，提示「还在变」；运行中是稳定状态、不需要处理，圆点保持静止，
- * 同时开着几台服务器时列表也不会一直闪。
+ * Only transitional states (starting, stopping) blink, signaling "still changing"; running is a stable state that needs no action, so the dot stays still,
+ * and the list does not keep blinking when several servers are running at once.
  */
 .status-pill.starting .status-dot,
 .status-pill.stopping .status-dot { animation: blink 1.2s var(--ease) infinite; }
 @keyframes blink { 50% { opacity: 0.3; } }
 
-/* ========== 加载、空态、启动画面 ========== */
+/* ========== Loading, empty states, splash screen ========== */
 .page-loading {
   display: flex;
   align-items: center;
@@ -1318,7 +1318,7 @@ input[type='radio'] {
 .splash-title { margin: 0; font-size: var(--text-title); font-weight: 700; }
 .splash-text { margin: 0 0 8px; color: var(--label-2); overflow-wrap: anywhere; }
 
-/* ========== 进度 ========== */
+/* ========== Progress ========== */
 .progress {
   height: 6px;
   border-radius: var(--radius-pill);
@@ -1342,13 +1342,13 @@ input[type='radio'] {
   color: var(--label-2);
 }
 .task-progress-value { color: var(--label); font-weight: 600; font-variant-numeric: tabular-nums; }
-/* 文案占满左边，百分比和可选的按钮（如「取消安装」）靠右。 */
+/* The text fills the left, with the percentage and the optional button (such as "Cancel install") on the right. */
 .task-progress-text > :first-child { flex: 1 1 auto; min-width: 0; }
 
-/* ========== 页面内容不放卡片 ==========
- * 页面里的表单分区和分组列表直接放在页面背景上，用分隔线和标题分层次，和总览的服务器列表一致：
- * 分区是「标题 → 一条分隔线 → 内容」，分组列表首尾各一条分隔线、行间细线。
- * 弹窗（原生 <dialog>）里的同名组件保留实色底，不受这里影响。 */
+/* ========== Page content is not put in cards ==========
+ * Form sections and grouped lists on a page sit directly on the page background, layered with dividers and headings, consistent with the overview's server list:
+ * a section is "heading → one divider → content", and a grouped list has one divider at each end and hairlines between rows.
+ * Components of the same name inside dialogs (native <dialog>) keep a solid background and are not affected here. */
 .page :is(.form-card, .list-group):not(dialog *) {
   background: transparent;
   box-shadow: none;
@@ -1364,11 +1364,11 @@ input[type='radio'] {
 }
 .page .list-group:not(dialog *) > .list-row { padding-inline: 0; }
 .page .list-group:not(dialog *) > .list-row + .list-row::before { left: 0; }
-/* 分区标题下已有分隔线时，列表自己的上边线不再重复。 */
+/* When there is already a divider under the section heading, the list's own top border is not repeated. */
 .page .form-card:not(dialog *) > .list-group:first-child { border-top: 0; }
 
-/* 空状态、本机信息、部署指引和总览的「三种添加方式」同样不放卡片：
-   空状态夹在首尾两条分隔线之间，像一个空列表；部署指引用左侧一条竖线和表单分开。 */
+/* Empty states, local info, the deploy guide and the overview's "three ways to add" are likewise not put in cards:
+   an empty state sits between two dividers like an empty list; the deploy guide is separated from the form by a vertical line on its left. */
 .page :is(.empty-state.card, .about-card, .start-paths.card, .deploy-guide):not(dialog *) {
   background: transparent;
   box-shadow: none;
@@ -1376,7 +1376,7 @@ input[type='radio'] {
 }
 .page .empty-state.card:not(dialog *) { border-block: 0.5px solid var(--separator-strong); }
 .page :is(.about-card, .start-paths.card):not(dialog *) { padding: 0; }
-/* 去掉卡片后，「暂无实例」小标题紧贴在「Minecraft 实例」大标题下面，降一级字号免得两个标题一样大。 */
+/* With cards removed, the small "No instances yet" heading sits right under the large "Minecraft Instances" heading, so it drops one size to keep the two headings from being the same size. */
 .page .start-paths.card .start-paths-head h3 { font-size: var(--text-headline); font-weight: 600; letter-spacing: -0.01em; }
 .page .start-path-list:not(dialog *) {
   background: transparent;
@@ -1387,9 +1387,9 @@ input[type='radio'] {
   padding: 4px 0 4px 24px;
   border-inline-start: 0.5px solid var(--separator-strong);
 }
-/* 本机信息列表下面紧跟「在其他设备上打开」入口，两条分隔线挨得太近，入口不再画上边线。 */
+/* The "Open on other devices" entry follows right below the local info list, and two dividers would be too close, so the entry draws no top border. */
 .page .about-card + .remote-entry-section .list-group { border-top: 0; }
-/* 指引移到表单下方时改为上边线。 */
+/* Becomes a top border when the guide moves below the form. */
 @media (max-width: 1180px) {
   .page .deploy-guide:not(dialog *) {
     padding: 20px 0 0;
@@ -1398,8 +1398,8 @@ input[type='radio'] {
   }
 }
 
-/* ========== 总览：页头状态句 ========== */
-/* 总览的说明行就是当前状态，用大一号的字代替单独的统计卡；需要处理的数量接在后面并标红。 */
+/* ========== Overview: page header status sentence ========== */
+/* The overview's description line is the current status, using one size larger text in place of separate stat cards; the count needing attention follows it in red. */
 .overview-status {
   display: block;
   margin-top: 6px;
@@ -1412,8 +1412,8 @@ input[type='radio'] {
 }
 .overview-status-issues { color: var(--danger); }
 
-/* ========== 总览：本机资源条 ========== */
-/* 本机资源只是背景信息：不加底板，三条细占用条排成一行，夹在页头和实例列表之间，不和列表抢视线。 */
+/* ========== Overview: local resource bars ========== */
+/* Local resources are only background information: no backing panel, three thin usage bars in one row, between the page header and the instance list, without competing with the list for attention. */
 .host-strip {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) minmax(0, max-content);
@@ -1478,22 +1478,22 @@ input[type='radio'] {
 }
 .host-strip-warning svg { flex-shrink: 0; }
 
-/* ========== 总览：实例列表 ========== */
+/* ========== Overview: instance list ========== */
 .server-filter .segmented-item { padding: 0 14px; }
 .segmented-count { color: var(--label-2); font-weight: 500; font-variant-numeric: tabular-nums; }
 .segmented-count.is-danger { color: var(--danger); font-weight: 600; }
 
-/* 每台服务器一行：身份 | 状态与实时数据 | 操作。各行用 subgrid 共用列表的列，状态列在所有行里对齐；
-   列表所在区块宽度不足时（容器查询）改为每行上下堆叠。 */
+/* One row per server: identity | status and live data | actions. Rows share the list's columns through subgrid, so the status column lines up across all rows;
+   when the section holding the list is not wide enough (container query) each row stacks vertically instead. */
 .server-section { container: servers / inline-size; }
 .server-list {
   display: grid;
-  /* 首尾两列用 auto：subgrid 行的左右内边距会计入边缘列，固定宽度会让图标溢出到间距里。 */
+  /* The first and last columns use auto: the left and right padding of a subgrid row counts toward the edge columns, and a fixed width would make the icon overflow into the gap. */
   grid-template-columns: auto minmax(150px, 0.8fr) minmax(0, 1.4fr) auto;
   column-gap: 18px;
   position: relative;
-  /* 不用卡片底色：列表直接放在页面背景上，首尾各一条分隔线。左右各向外让出 12px，
-     让行悬停底色有余量，而图标仍和上方标题左对齐。 */
+  /* No card background: the list sits directly on the page background, with one divider at each end. It extends 12px outward on each side,
+     giving the row hover background some margin while the icons still left-align with the heading above. */
   margin: 0 -12px;
   padding: 0;
   list-style: none;
@@ -1522,7 +1522,7 @@ input[type='radio'] {
   padding: 16px 12px;
   border-radius: var(--radius-md);
 }
-/* 行间分隔线从名称列开始（12px 内边距 + 42px 图标 + 18px 间距），到行尾 12px 处止，与首尾线对齐。 */
+/* The divider between rows starts at the name column (12px padding + 42px icon + 18px gap) and ends 12px before the row end, lining up with the end dividers. */
 .server-row + .server-row::before {
   content: '';
   position: absolute;
@@ -1530,7 +1530,7 @@ input[type='radio'] {
   inset-inline: 72px 12px;
   border-top: 0.5px solid var(--separator);
 }
-/* 悬停的行和它下一行之间不画线，底色块看起来是完整的一块。 */
+/* No line is drawn between the hovered row and the row after it, so the background block looks like one whole piece. */
 .server-row:hover::before,
 .server-row:hover + .server-row::before { opacity: 0; }
 .server-row > .core-icon { grid-area: icon; }
@@ -1544,7 +1544,7 @@ input[type='radio'] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 整行可点：名称链接的伪元素铺满整行（.server-row 是定位容器）；按钮和菜单抬到它上面，各自照常响应。 */
+/* The whole row is clickable: the name link's pseudo-element covers the entire row (.server-row is the positioning container); buttons and menus are raised above it and each respond as usual. */
 .server-name::after { content: ''; position: absolute; inset: 0; }
 .server-name:focus-visible { outline: none; }
 .server-row:has(.server-name:focus-visible) { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
@@ -1554,7 +1554,7 @@ input[type='radio'] {
 .server-row:hover .server-name { color: var(--accent-text); }
 .server-row:hover:has(.btn:hover) .server-name { color: inherit; }
 .server-chevron { flex-shrink: 0; margin-inline-start: 2px; color: var(--label-3); }
-/* 带说明的数据标签也抬到整行链接上面，悬停仍能看到说明。 */
+/* Data labels with a description are raised above the whole-row link too, so hover still shows the description. */
 .server-figure dt[title] { position: relative; z-index: 1; cursor: help; }
 .server-core {
   overflow: hidden;
@@ -1581,9 +1581,9 @@ input[type='radio'] {
 .server-figure-memory .meter { flex: 1 1 48px; min-width: 40px; }
 
 .server-actions { grid-area: actions; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-/* 宽屏一行排开时，行内的启动、停止和更多操作平时不带底色，只留颜色和图标，悬停时才显出底色；
-   下一步按钮（邀请朋友、查看 EULA 等）保留浅底，是每行唯一突出的操作。
-   堆叠后按钮在行首单独成行，保留浅底，否则文字缩进对不齐、也不像能点的按钮。 */
+/* When laid out in one row on wide screens, the in-row start, stop and more actions normally have no background, only color and icon, and show a background only on hover;
+   the next-step button (invite friends, view EULA, etc.) keeps a light background and is the only prominent action per row.
+   Once stacked the buttons get their own line at the start of the row and keep the light background, or the text indent would not line up and they would not look like clickable buttons. */
 .server-actions .action-menu-trigger { --btn-bg: transparent; }
 @container servers (min-width: 821px) {
   .server-actions :is(.btn-ok, .btn-danger) { --btn-bg: transparent; }
@@ -1603,17 +1603,17 @@ input[type='radio'] {
   }
   .server-row + .server-row::before { inset-inline-start: 12px; }
   .server-actions { justify-content: flex-start; flex-wrap: wrap; }
-  /* 堆叠时箭头放到名称那一行的右侧，不占操作按钮那一行。 */
+  /* When stacked the arrow goes to the right side of the name row, not taking up the action button row. */
   .server-row { padding-inline-end: 44px; }
   .server-chevron { position: absolute; top: 28px; inset-inline-end: 16px; }
 }
 
-/* 手机宽度：操作按钮平分一行，更好点。 */
+/* Phone width: action buttons share one row equally, making them easier to tap. */
 @container servers (max-width: 520px) {
   .server-actions > .btn:not(.action-menu-trigger) { flex: 1 1 auto; }
 }
 
-/* ========== 总览：还没有实例时的三种添加方式 ========== */
+/* ========== Overview: the three ways to add when there are no instances yet ========== */
 .start-paths { display: flex; flex-direction: column; gap: 18px; padding: 24px; }
 .start-paths-head h3 { margin: 0; font-size: var(--text-title); font-weight: 700; letter-spacing: -0.015em; }
 .start-paths-head p { margin: 4px 0 0; color: var(--label-2); }
@@ -1658,7 +1658,7 @@ input[type='radio'] {
 .start-path-desc { font-size: var(--text-small); line-height: 1.45; color: var(--label-2); }
 .start-path-chevron { flex-shrink: 0; color: var(--label-3); }
 
-/* 核心图标是纯色块，不用渐变和彩色投影；每种核心一个颜色，白色图形对底色至少 3:1。 */
+/* Core icons are solid color blocks, without gradients or colored shadows; one color per core, with the white glyph at least 3:1 against the background. */
 .core-icon {
   --core: #6a5ae6;
   display: grid;
@@ -1678,7 +1678,7 @@ input[type='radio'] {
 .core-vanilla { --core: #2f9e44; }
 .core-custom { --core: #6a5ae6; }
 
-/* ========== 实例工作台 ========== */
+/* ========== Instance workspace ========== */
 .instance-page { gap: var(--instance-page-gap); }
 .instance-header { display: flex; flex-direction: column; gap: 12px; }
 
@@ -1695,7 +1695,7 @@ input[type='radio'] {
   font-weight: 500;
 }
 .back-link:hover { background: var(--accent-soft); }
-/* 侧栏常驻时（与侧栏变抽屉的断点一致）侧栏里已有「实例总览」，实例页头不再放返回链接。 */
+/* While the sidebar is permanent (same breakpoint as where the sidebar becomes a drawer) it already has "Instance Overview", so the instance page header no longer has a back link. */
 @media (min-width: 1025px) {
   .instance-header .back-link { display: none; }
 }
@@ -1714,8 +1714,8 @@ input[type='radio'] {
 }
 .instance-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
-/* 实例标签栏：一条通栏分隔线，当前页文字加粗并在下方压一条 2px 强调色线；
-   放不下时横向滚动，不换行。 */
+/* Instance tab bar: one full-width divider, with the current page's text in bold and a 2px accent line beneath it;
+   it scrolls horizontally when it does not fit, without wrapping. */
 .hub-tabs {
   display: flex;
   gap: 4px;
@@ -1776,13 +1776,13 @@ input[type='radio'] {
   overflow-wrap: anywhere;
 }
 
-/* 服务端就绪提示：控制台上方一行，绿色只用在图标上，文字保持正文色。 */
+/* Server ready hint: one row above the console, with green used only on the icon and the text kept in the body color. */
 .ready-strip {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 6px 12px;
-  /* 和控制台之间留出与启动问题提示相同的 12px。 */
+  /* Leaves the same 12px to the console as the start issue notice. */
   margin-bottom: 12px;
   padding: 8px 8px 8px 14px;
   border-radius: var(--radius-md);
@@ -1792,7 +1792,7 @@ input[type='radio'] {
 .ready-strip-text { flex: 1 1 200px; min-width: 0; margin: 0; font-size: var(--text-small); line-height: 1.45; }
 .ready-strip-text strong { font-weight: 600; }
 
-/* ========== 控制台（终端区域固定深色） ========== */
+/* ========== Console (the terminal area is always dark) ========== */
 .console-panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 
 .console-window {
@@ -1889,10 +1889,10 @@ input[type='radio'] {
 .console-input::placeholder { color: #8e8e93; font-family: var(--font); }
 
 .quick-cmd-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-/* 窄屏命令栏不换行横向滚动时，标签和命令按钮一样不收缩，避免中文被挤成竖排。 */
+/* When the command bar scrolls horizontally without wrapping on narrow screens, the label does not shrink, same as the command buttons, so Chinese text is not squeezed into a vertical column. */
 .quick-cmd-label { flex-shrink: 0; margin-right: 2px; font-size: var(--text-small); font-weight: 600; color: var(--label-2); white-space: nowrap; }
 
-/* ========== 文件管理 ========== */
+/* ========== File management ========== */
 .files-workspace { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 
 .files-toolbar {
@@ -1976,7 +1976,7 @@ button.file-main:hover { background: var(--fill-2); }
 .file-actions { flex-shrink: 0; }
 .file-actions .action-menu-trigger { --btn-bg: transparent; --btn-fg: var(--label-2); }
 
-/* ========== 弹出菜单与弹层 ========== */
+/* ========== Popup menus and popovers ========== */
 @keyframes menu-in {
   from { opacity: 0; transform: scale(0.96) translateY(-4px); }
   to { opacity: 1; transform: none; }
@@ -1991,7 +1991,7 @@ button.file-main:hover { background: var(--fill-2); }
   box-shadow: var(--glass-edge), var(--float-shadow);
 }
 
-/* 更多操作面板挂在 body 上并由 ActionMenu 计算 fixed 坐标，不受卡片 overflow 裁剪。 */
+/* The more-actions panel is attached to body with fixed coordinates computed by ActionMenu, so it is not clipped by the card's overflow. */
 .action-menu-panel {
   position: fixed;
   z-index: 90;
@@ -2048,7 +2048,7 @@ button.file-main:hover { background: var(--fill-2); }
 .popover-title { padding: 0; margin: 0 0 10px; font-size: var(--text-small); font-weight: 600; color: var(--label-2); }
 .popover-footnote { margin: 8px 0 0; font-size: var(--text-footnote); color: var(--label-2); }
 
-/* 外观选择器 */
+/* Appearance picker */
 .appearance-picker { position: relative; flex-shrink: 0; }
 .appearance-picker-login .toolbar-button {
   background: var(--material);
@@ -2100,7 +2100,7 @@ button.file-main:hover { background: var(--fill-2); }
 .appearance-option input:checked + .appearance-thumb { box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 4.5px var(--accent); }
 .appearance-option input:focus-visible + .appearance-thumb { outline: 3px solid var(--focus-ring); outline-offset: 5px; }
 
-/* 语言选择器：列表式单选，选中项右侧打勾 */
+/* Language picker: list-style radios, with a check mark to the right of the selected item */
 .language-options { clear: both; display: flex; flex-direction: column; gap: 1px; }
 .language-option {
   display: flex;
@@ -2119,7 +2119,7 @@ button.file-main:hover { background: var(--fill-2); }
 .language-option:has(input:focus-visible) { outline: 3px solid var(--focus-ring); outline-offset: 1px; }
 .language-option svg { flex-shrink: 0; color: var(--accent-text); }
 
-/* ========== 懒加载下拉框 ========== */
+/* ========== Lazy-loading dropdown ========== */
 .lazy-select { position: relative; width: 100%; }
 .lazy-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; cursor: pointer; }
 .lazy-select-trigger:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -2175,7 +2175,7 @@ button.file-main:hover { background: var(--fill-2); }
 }
 .lazy-select-more { padding: 8px 12px; font-size: var(--text-small); text-align: center; color: var(--label-2); }
 
-/* ========== 对话框（底层为原生 dialog） ========== */
+/* ========== Dialogs (native dialog underneath) ========== */
 @keyframes sheet-in {
   from { opacity: 0; transform: translateY(14px) scale(0.97); }
   to { opacity: 1; transform: none; }
@@ -2286,7 +2286,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   border-top: 0.5px solid var(--separator);
 }
 
-/* ========== 任务中心（类似通知中心，从右侧浮出） ========== */
+/* ========== Task center (like a notification center, floating out from the right) ========== */
 @keyframes drawer-in {
   from { opacity: 0; transform: translateX(28px); }
   to { opacity: 1; transform: none; }
@@ -2351,7 +2351,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .task-card.status-pending { --tone: var(--c-orange); }
 .task-card.status-completed { --tone: var(--c-green); }
 .task-card.status-failed { --tone: var(--c-red); }
-/* 被取消的任务不是出错：图标用中性灰，状态词保持默认的次级文字色。 */
+/* A cancelled task is not an error: the icon uses neutral grey, and the status word keeps the default secondary text color. */
 .task-card.status-cancelled { --tone: var(--label-3); }
 
 .task-card-head { display: flex; align-items: center; gap: 10px; }
@@ -2375,7 +2375,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .task-card-error { margin: 0; font-size: var(--text-small); line-height: 1.45; color: var(--danger); overflow-wrap: anywhere; }
 .task-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--text-footnote); color: var(--label-2); }
 
-/* ========== 一键部署 ========== */
+/* ========== One-click deploy ========== */
 .deploy-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 300px;
@@ -2405,7 +2405,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 12px;
 }
-/* 表单主栏够宽时五种核心排成一行，省掉第二排；不够五个时仍按 3+2 排，避免 4+1。 */
+/* When the form's main column is wide enough the five cores sit in one row, saving the second row; when five do not fit they are still arranged 3+2, avoiding 4+1. */
 .deploy-layout .form-stack { container: deploy-main / inline-size; }
 @container deploy-main (min-width: 640px) {
   .core-select-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
@@ -2427,7 +2427,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   transition: background-color 0.15s var(--ease);
 }
 .core-option .core-icon { margin-bottom: 10px; }
-/* 悬停只叠一层和按钮相同的浅色，不上浮、不加深阴影：一看就能点，不需要动作来提示。 */
+/* Hover adds only one layer of the same light color as buttons, with no lift and no deeper shadow: it already looks clickable and needs no motion to hint at it. */
 .core-option:hover:not(:disabled) { background-image: linear-gradient(var(--hover-overlay), var(--hover-overlay)); }
 .core-option.selected {
   background: color-mix(in srgb, var(--accent) 6%, var(--surface));
@@ -2453,24 +2453,24 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 }
 .core-option.selected .core-check { opacity: 1; transform: none; }
 
-/* ========== JVM 与 Java 设置 ========== */
+/* ========== JVM and Java settings ========== */
 .jvm-settings { container: jvm / inline-size; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .jvm-basic-grid { gap: 16px; }
 /*
-  初始内存和最大内存并排，各自的档位排在自己下面。两组档位各要约 190px 才放得进一行，
-  所以配置器够宽（部署页 1366 宽时约 680px）才把优化方案放到右边，内存占 3 份、优化方案占 2 份；
-  再窄（导入页、实例设置的右栏，创建空实例对话框）优化方案排到内存下面。
+  Initial and max memory sit side by side, each with its presets below it. Each group of presets needs about 190px to fit in one row,
+  so only when the configurator is wide enough (about 680px on the deploy page at 1366 wide) does the optimization profile go to the right, with memory taking 3 parts and the profile 2;
+  when narrower (the import page, the right column of instance settings, the create empty instance dialog) the profile goes below memory.
 */
 .jvm-memory-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; min-width: 0; }
 @container jvm (min-width: 660px) {
   .jvm-basic-grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
 }
-/* 手机宽度：档位收紧一点，两组都还能各占一行。 */
+/* Phone width: presets are tightened a little, so both groups can still each take one row. */
 @container jvm (max-width: 400px) {
   .jvm-memory-tiers { gap: 4px; }
   .jvm-memory-tiers .chip { padding: 0 9px; }
 }
-/* 检测到 user_jvm_args.txt 的一行提示：取消按钮跟在文字后面。 */
+/* The one-line notice for a detected user_jvm_args.txt: the cancel button follows the text. */
 .jvm-detected { align-items: center; }
 
 .jvm-args-preview {
@@ -2515,12 +2515,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .environment-status.is-missing { background: color-mix(in srgb, var(--c-orange) 13%, transparent); color: var(--warn); }
 .environment-status.is-missing .status-dot { background: var(--c-orange); }
 
-/* ========== 导入 ========== */
+/* ========== Import ========== */
 .import-mode-switch,
 .multiplayer-mode-switch { align-self: flex-start; }
 
-/* ========== 联机 ==========
- * 实例选择和方式切换同一行，指引栏可关闭（关闭后主栏占满）。两栏沿用一键部署页的 deploy-layout。 */
+/* ========== Multiplayer ==========
+ * Instance selection and the mode switcher share one row, and the guide column can be closed (the main column then takes the full width). The two columns reuse deploy-layout from the one-click deploy page. */
 .multiplayer-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px; }
 .multiplayer-instance { flex: 0 1 320px; min-width: 200px; }
 .multiplayer-toolbar .multiplayer-mode-switch { align-self: flex-end; }
@@ -2529,14 +2529,14 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .multiplayer-guide-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -6px 0 -2px; }
 .multiplayer-guide-head h2 { margin: 0; font-size: var(--text-headline); font-weight: 600; letter-spacing: -0.01em; color: var(--label); }
 .multiplayer-guide p { margin: 0; }
-/* 总开关是这一页的起点：标题放大一档，状态跟在标题后面，开关留在右侧不换行。 */
+/* The master switch is the starting point of this page: the heading goes up one size, the status follows the heading, and the switch stays on the right without wrapping. */
 .multiplayer-open-row { align-items: center; flex-wrap: nowrap; cursor: pointer; }
 .multiplayer-open-row .list-row-text { flex: 1 1 0; }
 .multiplayer-open-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .multiplayer-open .list-row-title { font-size: var(--text-headline); font-weight: 600; }
-/* 下面紧跟「让玩家加入」的标题线，开关自己的下边线不再重复。 */
+/* The heading line of "let players join" follows right below, so the switch's own bottom border is not repeated. */
 .page .multiplayer-open:not(dialog *) { border-bottom: 0; }
-/* 让玩家加入：编号是真实先后顺序，每步一句话，按钮和地址跟在那一步下面。 */
+/* Let players join: the numbering is the real order, one sentence per step, with buttons and addresses under that step. */
 .page .multiplayer-steps {
   display: flex;
   flex-direction: column;
@@ -2551,7 +2551,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .multiplayer-step > p { margin: 0; }
 .multiplayer-step > p:not(.field-help) { font-size: var(--text-body); color: var(--label); }
 .page .multiplayer-step-single { padding-top: 16px; border-top: 0.5px solid var(--separator-strong); }
-/* 加入地址是玩家真正要填的东西，比正文大一档；框只包住地址，复制按钮紧跟在后面。 */
+/* The join address is what players actually have to enter, so it is one size larger than body text; the box wraps only the address, with the copy button right after it. */
 .multiplayer-join-address { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; min-width: 0; }
 .multiplayer-join-address .direct-address { flex: 0 1 auto; padding: 8px 14px; font-size: var(--text-headline); font-weight: 600; font-variant-numeric: tabular-nums; }
 .multiplayer-relay > .field,
@@ -2563,18 +2563,18 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .multiplayer-relay > .field-help { margin-top: 6px; }
 .multiplayer-settings > .multiplayer-add { margin-top: 22px; padding-top: 18px; border-top: 0.5px solid var(--separator); }
 .multiplayer-meta { margin-top: 0; }
-/* 局域网地址的适用范围：比其他帮助行重一级（正文色 + 中粗），不做成提示条，避免和顶部的状态提示抢注意力。 */
+/* The scope of the LAN address: one level heavier than other help rows (body color + medium weight), but not made a notice bar, so it does not compete for attention with the status notice at the top. */
 .direct-scope { color: var(--label); font-weight: 500; }
-/* 出路紧跟在范围说明后面，和帮助行同一字号。 */
+/* The way out follows right after the scope note, at the same font size as help rows. */
 .direct-elsewhere { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .direct-elsewhere p { margin: 0; font-size: var(--text-small); color: var(--label-2); }
-/* 客户端未安装：状态和下载按钮一行，下载来源和手动安装入口在下面，同在一个提示条里。 */
+/* Client not installed: the status and download button in one row, with the download source and the manual install entry below, all in the same notice bar. */
 .callout.runtime-install { flex-direction: column; align-items: stretch; gap: 6px; }
 .runtime-install-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .runtime-upload-panel { display: grid; gap: 8px; }
 .remote-host-row select { flex: 1; min-width: 0; }
 
-/* 同一网络直连：地址用等宽字体，一行一个，右侧是复制按钮 */
+/* Same-network direct connection: addresses in monospace, one per row, with a copy button on the right */
 .direct-block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .direct-address-list { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .direct-address-list li { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -2603,12 +2603,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   user-select: all;
 }
 
-/* 在其他设备上打开：弹窗内容较多，比确认弹窗宽一些；二维码固定黑码白底，不跟随主题 */
+/* Open on other devices: the dialog has more content and is a bit wider than a confirmation dialog; the QR code is always dark on white and does not follow the theme */
 .remote-dialog { width: min(560px, calc(100vw - 32px)); }
 .remote-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-shrink: 0; padding-right: 18px; }
 .remote-dialog-header .btn { margin-top: 18px; }
 .remote-dialog-body { gap: 14px; }
-/* 正文是可滚动的纵向弹性容器：内容超出时子项不能被压扁，否则分段控件会被裁掉 */
+/* The body is a scrollable vertical flex container: children must not be squashed when content overflows, or the segmented control would be clipped */
 .remote-dialog-body > *,
 .remote-section > * { flex-shrink: 0; }
 .remote-tabs { align-self: flex-start; }
@@ -2642,7 +2642,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .remote-url[aria-pressed='true'] { font-weight: 600; }
 .remote-security .list-group { background: var(--fill-2); box-shadow: none; }
 .remote-switch-row { align-items: center; flex-wrap: nowrap; cursor: pointer; }
-/* 窄屏下开关留在右侧，不换到说明文字下面 */
+/* On narrow screens the switch stays on the right and does not wrap below the description */
 .remote-switch-row .list-row-text { flex: 1 1 0; }
 .remote-host-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .remote-host-row .input { flex: 1; min-width: 0; }
@@ -2656,12 +2656,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .remote-entry-chevron { flex-shrink: 0; color: var(--label-2); }
 .is-spinning { animation: spin 0.9s linear infinite; }
 
-/* 启动失败原因提示：标题、说明和操作按钮上下排列 */
+/* Start failure reason notice: the title, description and action buttons are stacked vertically */
 .start-issue { margin-bottom: 12px; }
 .start-issue-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .start-issue-actions .btn { align-self: auto; }
-/* 从 imports 文件夹复制：路径和「复制路径」在一行，路径很长时自己换行，按钮不被挤走；
-   来源列表每一行整行可点，不能导入的行写原因、不能选。 */
+/* Copy from the imports folder: the path and "Copy Path" are in one row, the path wraps on its own when long, and the button is not pushed away;
+   each row of the source list is clickable as a whole, and rows that cannot be imported show the reason and cannot be selected. */
 .import-dir-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .import-dir-row .btn,
 .import-source-head .btn { flex-shrink: 0; }
@@ -2704,17 +2704,17 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 
 .import-meta-grid { gap: 16px; }
 
-/* 导入设置里面板识别出的设置：左列名称、右列值，值下面可以跟一行提醒或说明。 */
+/* The settings the panel recognized in the import settings: name in the left column, value in the right, and a line of reminder or note can follow under the value. */
 .import-summary { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: 10px 20px; margin: 0; }
 .import-summary-row { display: contents; }
 .import-summary dt { color: var(--label-2); font-size: var(--text-small); line-height: 1.5; }
 .import-summary dd { display: flex; flex-direction: column; gap: 2px; margin: 0; font-size: var(--text-body); line-height: 1.5; overflow-wrap: anywhere; }
 .import-summary-note { color: var(--label-2); font-size: var(--text-small); }
 .import-summary-warn { color: var(--warn); font-size: var(--text-small); }
-/* 「修改设置」展开后的核心、版本、Java 和 JVM 配置，间距和卡片里其他控件一致。 */
+/* The core, version, Java and JVM config shown when "Edit Settings" is expanded, with the same spacing as other controls in the card. */
 .import-settings-body { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 
-/* ========== 本机环境 ========== */
+/* ========== Local environment ========== */
 .about-card {
   display: flex;
   flex-direction: column;
@@ -2722,34 +2722,34 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   max-width: 760px;
   padding: 28px;
 }
-/* 本机环境页各块同宽：本机信息和「在其他设备上打开」入口都不超过 760px。 */
+/* Blocks on the local environment page share one width: neither the local info nor the "Open on other devices" entry exceeds 760px. */
 .remote-entry-section { max-width: 760px; }
 
-/* ========== 面板设置 ========== */
-/* 每组设置：组名和一句适用范围在前，设置行在后。设置行都是「左边名称和说明、右边控件」的短行，
-   最宽 720px，再宽控件就离名称太远；页面够宽时组名移到左边一列，整页最宽 200 + 40 + 720。 */
+/* ========== Panel settings ========== */
+/* Each settings group: the group name and a sentence on its scope first, then the setting rows. Setting rows are all short rows of "name and description on the left, control on the right",
+   at most 720px wide, beyond which the control gets too far from the name; when the page is wide enough the group name moves to a column on the left, for a page maximum of 200 + 40 + 720. */
 .page.settings-page { max-width: 960px; }
 .settings-section-head { display: grid; gap: 4px; min-width: 0; }
 .settings-section-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 720px; }
-/* 说明有好几行时，控件对齐名称那一行，不跟着垂直居中。 */
+/* When the description spans several lines, the control aligns with the name row instead of centering vertically. */
 .settings-row { align-items: flex-start; }
 .settings-row .list-row-text { gap: 4px; }
 .settings-row-notes { display: grid; gap: 4px; }
 .settings-row-select { flex: 0 1 220px; }
 .settings-row-select > .input { width: 100%; }
-/* 读取失败：原因后面跟「重试」。 */
+/* Read failure: "Retry" follows the reason. */
 .settings-load-error { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
 .settings-info dt,
 .settings-info dd { margin: 0; }
 .settings-info .list-row-value { min-width: 0; }
-/* 地址和路径用等宽字体，整段可一次选中复制；路径很长时在任意位置换行。 */
+/* Addresses and paths use monospace and can be selected and copied in one go; a long path wraps at any position. */
 .settings-path { font-family: var(--mono); font-size: var(--text-small); overflow-wrap: anywhere; user-select: all; }
-/* 路径比一行长得多，放在名称下面、靠左，换行后仍从同一条左边线开始。 */
+/* A path is far longer than one row, so it goes under the name, left-aligned, still starting from the same left edge after wrapping. */
 .settings-path-row { flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: center; gap: 2px; }
 .settings-path-row .settings-path { text-align: start; }
 
 @container page (min-width: 820px) {
-  /* 两列：左边组名，右边设置行。一条横线贯穿两列分开各组，列表自己的上下边线不再画。 */
+  /* Two columns: the group name on the left, setting rows on the right. One horizontal line runs across both columns to separate groups, and the list's own top and bottom borders are not drawn. */
   .page.settings-page .settings-section {
     display: grid;
     grid-template-columns: 200px minmax(0, 720px);
@@ -2757,12 +2757,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
     column-gap: 40px;
     border-top: 0.5px solid var(--separator-strong);
   }
-  /* 组名和右边第一行的名称大致落在同一条线上（设置行上内边距 12px，单行内容垂直居中时约 15px）。 */
+  /* The group name and the name in the first row on the right fall roughly on the same line (setting rows have 12px top padding, about 15px when single-line content is vertically centered). */
   .page.settings-page .settings-section-head { padding-top: 14px; }
   .page.settings-page .settings-section-head .section-lead { font-size: var(--text-small); line-height: 1.45; }
   .page.settings-page .settings-section .list-group { border-block: 0; }
 }
-/* 下载入口旁的来源提示：就地展开切换控件，不离开当前页面 */
+/* The source hint beside a download entry: the switch control expands in place, without leaving the current page */
 .download-source-hint { display: grid; gap: 10px; min-width: 0; }
 .download-source-hint-panel {
   display: grid;
@@ -2790,7 +2790,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .about-specs dd { margin: 0; }
 .node-row .list-row-control { flex-wrap: wrap; }
 
-/* ========== 登录 ========== */
+/* ========== Login ========== */
 .login-page {
   position: relative;
   min-height: 100dvh;
@@ -2812,7 +2812,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .login-stack > .callout { width: 100%; text-align: left; }
 .login-title { margin: 0; font-size: var(--text-large); font-weight: 700; letter-spacing: -0.026em; }
 .login-subtitle { margin: 0 0 14px; font-size: var(--text-body); color: var(--label-2); }
-/* 登录页没有说明行，标题和表单之间补上同样的间距。 */
+/* The login page has no description line, so the same spacing is added between the title and the form. */
 .login-title + .login-form { margin-top: 10px; }
 
 .login-form { display: flex; flex-direction: column; gap: 14px; width: 100%; text-align: left; }
@@ -2866,10 +2866,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .login-notes p { margin: 0; }
 .login-footer { margin: 28px 0 0; font-size: var(--text-footnote); color: var(--label-2); }
 
-/* ========== 响应式 ========== */
+/* ========== Responsive ========== */
 /*
- * 矮屏桌面（笔记本高缩放、浏览器网页区不到 820px 高）：收紧顶栏和纵向间距，大标题保持 30px。
- * 必须同时限定桌面宽度，否则手机横屏、平板和软键盘弹起时也会命中，布局来回跳。
+ * Short desktops (laptops at high scaling, with the browser's page area under 820px high): tighten the top bar and vertical spacing, keeping the large title at 30px.
+ * The desktop width must be required as well, or phones in landscape, tablets and a raised on-screen keyboard would match too and the layout would jump back and forth.
  */
 @media (max-height: 820px) and (min-width: 1025px) {
   :root {
@@ -2885,7 +2885,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 @media (max-width: 1180px) {
   .deploy-layout { grid-template-columns: minmax(0, 1fr); }
   .deploy-guide { position: static; }
-  /* 本机资源条：标题和更新时间占第一行，三条占用条整行铺开。这段宽度侧栏还在，内容区只剩 760–900px，三条挤在一行会被截断。 */
+  /* Local resource bars: the title and update time take the first row, and the three usage bars spread across a full row. At this width the sidebar is still there and the content area is only 760–900px, so three bars squeezed into one row would be truncated. */
   .host-strip { grid-template-columns: minmax(0, 1fr) auto; }
   .host-meters { grid-column: 1 / -1; grid-row: 2; }
   .metrics-status { flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 2px 10px; max-width: none; }
@@ -2898,7 +2898,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .toolbar-button-labeled { padding: 0 9px; }
   .content-container { padding-left: 28px; padding-right: 28px; }
 
-  /* 菜单展开时工具栏浮到遮罩之上、侧栏从工具栏下方展开，关闭按钮始终可见可点。 */
+  /* When the menu is open the toolbar floats above the backdrop and the sidebar expands from below the toolbar, so the close button is always visible and clickable. */
   .app-shell.sidebar-open .topbar { z-index: 75; }
 
   .sidebar {
@@ -2922,7 +2922,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 @media (max-width: 768px) {
   :root { --toolbar-height: 56px; --tab-bar-space: calc(72px + env(safe-area-inset-bottom)); }
 
-  /* 窄屏顶栏不放「在其他设备上打开」，入口在「本机」页 */
+  /* On narrow screens the top bar does not hold "Open on other devices"; the entry is on the "Local" page */
   .toolbar-remote-access { display: none; }
   .remote-qr { flex-direction: column; align-items: flex-start; }
   .remote-host-row { flex-wrap: wrap; }
@@ -2966,8 +2966,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .tab-bar-item.active { background: var(--fill); color: var(--accent-text); }
 
   /*
-   * 窄屏只让底部标签栏保留背景模糊：工具栏、工具栏按钮组、侧栏抽屉、悬浮操作栏、任务抽屉和对话框
-   * 会与标签栏叠在同一块屏幕上，逐层模糊在手机 GPU 上开销很大，改用近实色或已有的半透明底。
+   * On narrow screens only the bottom tab bar keeps its backdrop blur: the toolbar, toolbar button group, sidebar drawer, floating action bar, task drawer and dialogs
+   * overlap the tab bar on the same patch of screen, and blurring layer upon layer is very costly on phone GPUs, so near-solid colors or the existing translucent backgrounds are used instead.
    */
   .topbar::before,
   .toolbar-title,
@@ -2987,16 +2987,16 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .topbar .sidebar-toggle,
   .sidebar,
   .action-bar { background: var(--material-flat); }
-  /* 没有模糊时滚动边缘改用接近页面底色的渐隐，内容文字不会从胶囊之间和胶囊下沿透出来，也不会多出一条灰带。 */
+  /* Without blur the scroll edge uses a fade close to the page background color instead, so content text does not show through between the capsules or under their bottom edge, and no extra grey band appears. */
   .topbar::before { background: color-mix(in srgb, var(--bg) 94%, transparent); }
   .task-drawer { background: var(--sheet-bg); }
-  /* 对话框变成底部面板后没有模糊，半透明底会透出后面的文字，改用实色。 */
+  /* Once a dialog becomes a bottom sheet there is no blur, and a translucent background would show the text behind it, so a solid color is used. */
   .confirm-dialog,
   .file-edit-dialog,
   .error-dialog { background: var(--sheet-bg-solid); }
 
-  /* 总览：底部标签栏已有「部署」「导入」，页头不再重复，只留「创建空实例」并和标题排在同一行；
-     本机资源排到实例列表后面，首屏先看到实例。 */
+  /* Overview: the bottom tab bar already has "Deploy" and "Import", so the page header does not repeat them, keeping only "Create Empty Instance" on the same row as the title;
+     local resources go after the instance list, so instances are seen first on the first screen. */
   .overview-page .overview-nav-action { display: none; }
   .overview-page .page-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 12px; }
   .overview-page .page-header-text { display: contents; }
@@ -3021,10 +3021,10 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .action-bar { border-radius: var(--radius-lg); padding: 10px 10px 10px 16px; }
   .action-bar > .btn { flex: 1 1 auto; }
 
-  /* 510px 是手机上控制台上下固定占掉的高度（工具栏、实例页头、标签、控制台标题栏、命令输入栏和底部标签栏）：
-     留够了，命令输入栏才落在底部标签栏上方，不被它盖住。 */
+  /* 510px is the height permanently taken above and below the console on phones (toolbar, instance page header, tabs, console title bar, command input bar and bottom tab bar):
+     with enough reserved, the command input bar lands above the bottom tab bar and is not covered by it. */
   .console-output { height: clamp(200px, calc(100dvh - 510px), 520px); }
-  /* 服务器启动完成后上方多一条「可以进服了」提示（手机上折成几行，约 150px）：这时正要输入命令，再让出它的高度。 */
+  /* After the server finishes starting there is an extra "ready to join" hint above (wrapping to several lines on phones, about 150px): commands are about to be typed at this point, so its height is given up as well. */
   .ready-strip + .console-panel .console-output { height: clamp(200px, calc(100dvh - 660px), 520px); }
   .console-output .xterm { padding: 8px 4px 4px 10px; }
   .quick-cmd-bar { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; scrollbar-width: none; }
@@ -3044,7 +3044,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .about-card { padding: 22px 18px; }
   .about-icon { width: 64px; height: 64px; border-radius: 17px; }
 
-  /* 窄屏对话框改为底部弹出的面板。 */
+  /* On narrow screens dialogs become sheets that slide up from the bottom. */
   .confirm-dialog,
   .file-edit-dialog,
   .error-dialog {
@@ -3074,51 +3074,51 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 }
 
 @media (max-width: 560px) {
-  /* 面板设置：选择框换到说明下面时占满一行。 */
+  /* Panel settings: when the select moves below the description it takes the full row. */
   .settings-row-select { flex: 1 1 100%; }
-  /* 手机上三条占用条各占一行，数值不被截断。 */
+  /* On phones the three usage bars each take one row, so values are not truncated. */
   .host-meters { grid-template-columns: minmax(0, 1fr); }
   .start-paths { padding: 20px 16px; }
 }
 
 @media (max-width: 480px) {
-  /* 实例标签在手机上去掉图标、降到小号字，375px 宽时英文五个标签也能一行放下；更窄时横向滚动。 */
+  /* On phones the instance tabs drop their icons and go down to the small font size, so the five English tabs also fit in one row at 375px wide; narrower than that, they scroll horizontally. */
   .hub-tabs { gap: 0; }
   .hub-tab { gap: 0; padding: 0 7px; font-size: var(--text-small); }
   .hub-tab svg { display: none; }
   .hub-tab.active::after { inset-inline: 7px; }
-  /* 英文标签较长，窄屏下导入和联机方式切换同样去掉图标。 */
+  /* English labels are longer, so on narrow screens the import and multiplayer mode switchers likewise drop their icons. */
   .import-mode-switch .segmented-item,
   .multiplayer-mode-switch .segmented-item { gap: 0; padding: 0 10px; }
-  /* 导入页有三种方式，再收窄一点，英文在 390 宽度下三项也放得下。 */
+  /* The import page has three modes, tightened a bit more so the three items fit in English at 390 width too. */
   .import-mode-switch .segmented-item { padding: 0 8px; }
   .import-mode-switch .segmented-item svg,
   .multiplayer-mode-switch .segmented-item svg { display: none; }
   .page-header-actions { width: 100%; }
   .page-header-actions > .btn { flex: 1 1 auto; }
-  /* 总览页头只剩一个按钮，留在标题右侧，不拉成整行。 */
+  /* The overview page header has only one button left, which stays to the right of the title and is not stretched to a full row. */
   .overview-page .page-header-actions { width: auto; }
   .overview-page .page-header-actions > .btn { flex: 0 0 auto; }
   .instance-actions { width: 100%; }
-  /* 「⋯」保持图标按钮的大小，其余按钮平分一行。 */
+  /* "⋯" keeps the size of an icon button, and the other buttons share the row equally. */
   .instance-actions > .btn:not(.action-menu-trigger) { flex: 1 1 auto; }
 }
 
 /*
- * 触屏或窄屏：iOS Safari 在聚焦字号小于 16px 的输入框时会自动放大页面，这里统一抬到 16px。
- * 各输入类的选择器优先级不一（.field :is(...) 很高），用 !important 一次覆盖；桌面宽屏不受影响。
+ * Touch or narrow screens: iOS Safari zooms the page automatically when focusing an input with a font size below 16px, so everything is raised to 16px here.
+ * Selector specificity varies across input classes (.field :is(...) is very high), so !important overrides them in one go; wide desktop screens are unaffected.
  */
 @media (pointer: coarse), (max-width: 768px) {
   input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
   select,
   textarea { font-size: var(--text-input) !important; }
-  /* 懒加载下拉框的触发器是按钮，不会触发缩放，但与相邻输入框同排，字号保持一致。 */
+  /* The trigger of the lazy-loading dropdown is a button and does not trigger zooming, but it sits in the same row as neighboring inputs, so the font size is kept consistent. */
   .lazy-select-trigger { font-size: var(--text-input); }
 }
 
 /*
- * 粗指针（触屏）：可点区域至少 44×44。行内或列表型控件直接加高；
- * 小号按钮、行内链接和返回链接保持原有外观，用透明伪元素向外扩出热区，不改变排版。
+ * Coarse pointers (touch screens): tappable areas are at least 44×44. Inline or list-type controls are simply made taller;
+ * small buttons, inline links and the back link keep their look, with a transparent pseudo-element extending the hit area outward without changing layout.
  */
 @media (pointer: coarse) {
   .btn:not(.btn-sm):not(.btn-lg) { height: 44px; }
@@ -3148,12 +3148,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .back-link::after {
     content: '';
     position: absolute;
-    /* 上下按自身高度、左右按自身宽度各补到 44px；已够大的方向不收缩。 */
+    /* Padded up to 44px vertically by its own height and horizontally by its own width; a direction already large enough does not shrink. */
     inset: min(0px, calc(50% - 22px));
   }
 }
 
-/* 减少动态效果：保留加载指示，取消入场动画、悬浮位移和呼吸闪烁。 */
+/* Reduced motion: loading indicators are kept, while entrance animations, hover shifts and the breathing blink are removed. */
 @media (prefers-reduced-motion: reduce) {
   .confirm-dialog[open],
   .file-edit-dialog[open],

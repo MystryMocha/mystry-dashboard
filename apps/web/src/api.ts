@@ -55,7 +55,7 @@ export function setToken(token: string | null): void {
 
 export class ApiError extends Error {
   status: number;
-  /** 服务端返回的消息键与参数；errorMessage() 据此按界面语言显示，缺失时显示英文原文。 */
+  /** Message key and params returned by the server; errorMessage() uses them to display in the UI language, and shows the English text when missing. */
   messageI18n?: PanelMessage;
   constructor(status: number, message: string, messageI18n?: PanelMessage) {
     super(message);
@@ -64,7 +64,7 @@ export class ApiError extends Error {
   }
 }
 
-/** 从错误响应体读取消息键（{ error, code, params }）；未知键忽略，只显示英文原文。 */
+/** Reads the message key from an error response body ({ error, code, params }); unknown keys are ignored and only the English text is shown. */
 function responseMessage(data: unknown): PanelMessage | undefined {
   if (typeof data !== 'object' || !data || !('code' in data) || !isServerMessageKey(data.code)) return undefined;
   const params = 'params' in data && typeof data.params === 'object' && data.params
@@ -73,16 +73,16 @@ function responseMessage(data: unknown): PanelMessage | undefined {
   return params ? { key: data.code, params } : { key: data.code };
 }
 
-/** 登录态失效事件：auth.tsx 监听后清空用户并自动跳回登录页。 */
+/** Session-expired event: auth.tsx listens for it, clears the user and redirects back to the login page automatically. */
 export const UNAUTHORIZED_EVENT = 'mystry:unauthorized';
 
-/** 这些路径的 401 是业务结果（如密码错误），不能当作会话失效处理。 */
+/** A 401 on these paths is a business result (such as a wrong password) and must not be handled as an expired session. */
 const AUTH_EXEMPT_PATHS = ['/api/auth/login', '/api/auth/setup', '/api/auth/status'];
 
 function handleUnauthorized(path: string, usedToken: string | null): void {
   if (AUTH_EXEMPT_PATHS.some((exempt) => path.startsWith(exempt))) return;
   if (!getToken()) return;
-  // 请求发出后令牌已被换发（例如本页刚改完密码）：旧令牌的 401 不能清掉新令牌。
+  // The token was reissued after the request was sent (for example the password was just changed on this page): a 401 for the old token must not clear the new one.
   if (getToken() !== usedToken) return;
   setToken(null);
   window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
@@ -125,7 +125,7 @@ export async function api<T>(
   return data as T;
 }
 
-/** 实例接口路径；实例 ID 统一编码后再拼进路径。 */
+/** Instance API path; the instance ID is always encoded before being put into the path. */
 export function instanceApi(instanceId: string, suffix = ''): string {
   return `/api/instances/${encodeURIComponent(instanceId)}${suffix}`;
 }
@@ -138,7 +138,7 @@ function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) throw abortError();
 }
 
-/** 等待指定毫秒；signal 中止时立即以 AbortError 结束并清理定时器。 */
+/** Waits the given milliseconds; when signal aborts, ends immediately with AbortError and clears the timer. */
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(abortError());
   return new Promise((resolve, reject) => {
@@ -167,7 +167,7 @@ export function createConsoleTicket(
 const DOWNLOAD_STATUS_POLL_INTERVAL_MS = 3_000;
 const DOWNLOAD_STATUS_RATE_LIMIT_MAX_DELAY_MS = 15_000;
 
-/** Abort 信号已经触发时，取消请求不能复用该信号，否则浏览器会在发出前直接终止请求。 */
+/** When the abort signal has already fired, the cancel request cannot reuse it, or the browser terminates the request before it is sent. */
 function cancelReservedDownloadTicket(instanceId: string, ticket: string): void {
   void api<unknown>(
     instanceApi(instanceId, `/files/download-ticket/${encodeURIComponent(ticket)}`),
@@ -176,9 +176,9 @@ function cancelReservedDownloadTicket(instanceId: string, ticket: string): void 
 }
 
 /**
- * 在用户手势里打开同源下载窗。
- * 不能把 noopener/noreferrer 放进 window.open 的 feature：现代浏览器会因此返回 null，
- * 前端会误判为弹窗拦截，ticket 都来不及申请。改为打开后再断开 opener。
+ * Opens a same-origin download window within a user gesture.
+ * noopener/noreferrer cannot go into the window.open features: modern browsers return null because of it,
+ * the frontend would mistake that for a blocked popup, and the ticket would never even be requested. Instead the opener is detached after opening.
  */
 export function openDownloadPopup(): Window {
   const popup = window.open('about:blank', '_blank');
@@ -188,14 +188,14 @@ export function openDownloadPopup(): Window {
   try {
     popup.opener = null;
   } catch {
-    // 部分浏览器清空 opener 时可能抛错，不影响随后导航到同源下载地址。
+    // Some browsers may throw when opener is cleared; it does not affect the navigation to the same-origin download URL that follows.
   }
   return popup;
 }
 
 /**
- * 认证下载：同步打开空白下载窗，再申请 ticket 并导航至流式 GET；轮询状态把失败回传 SPA。
- * 禁止使用 res.blob() / ArrayBuffer 整体缓冲文件体。
+ * Authenticated download: opens a blank download window synchronously, then requests a ticket and navigates to the streaming GET; status polling reports failures back to the SPA.
+ * Buffering the whole file body with res.blob() / ArrayBuffer is forbidden.
  */
 export async function downloadAuthenticated(
   instanceId: string,
@@ -216,7 +216,7 @@ export async function downloadAuthenticated(
   );
 }
 
-/** 下载实例备份压缩包；与文件下载共用 ticket 状态与取消接口。 */
+/** Downloads an instance backup archive; shares the ticket status and cancel endpoints with file downloads. */
 export async function downloadBackup(
   instanceId: string,
   backupId: string,
@@ -262,7 +262,7 @@ async function downloadWithTicket(
         );
       } catch (error) {
         if (signal?.aborted || isAbortError(error)) throw error;
-        // 票据被服务端清理（过期等）时返回 404：关闭空白下载窗并明确报错。
+        // 404 is returned when the server has cleaned up the ticket (expiry, etc.): close the blank download window and report the error clearly.
         if (error instanceof ApiError && error.status === 404) {
           throw new Error(t('request.download.ticketExpiredRetry'));
         }
@@ -280,7 +280,7 @@ async function downloadWithTicket(
         try {
           popup.close();
         } catch {
-          // 下载窗可能已被浏览器改成文件保存对话框。
+          // The download window may already have been turned into a file save dialog by the browser.
         }
         return;
       }
@@ -301,25 +301,25 @@ async function downloadWithTicket(
   }
 }
 
-/** 实例备份列表，按创建时间从新到旧。 */
+/** Instance backup list, newest first by creation time. */
 export async function listBackups(instanceId: string, signal?: AbortSignal) {
   const res = await api<BackupListResult>(instanceApi(instanceId, '/backups'), { signal });
   return res.backups;
 }
 
-/** 创建一键备份任务；运行中的服务端会先暂停自动保存并刷盘。 */
+/** Creates a one-click backup task; a running server first pauses autosave and flushes to disk. */
 export async function createBackup(instanceId: string) {
   return api<TaskInfo>(instanceApi(instanceId, '/backups'), { method: 'POST' });
 }
 
-/** 上传备份压缩包；服务端校验通过后才会出现在列表中。 */
+/** Uploads a backup archive; it appears in the list only after server-side verification passes. */
 export async function uploadBackup(instanceId: string, file: File, signal?: AbortSignal) {
   const form = new FormData();
   form.append('file', file);
   return api<BackupInfo>(instanceApi(instanceId, '/backups/upload'), { method: 'POST', body: form, signal });
 }
 
-/** 用指定备份覆盖实例目录；backupCurrent 为 true 时先把当前文件备份一份。 */
+/** Overwrites the instance directory with the given backup; when backupCurrent is true the current files are backed up first. */
 export async function restoreBackup(instanceId: string, backupId: string, backupCurrent: boolean) {
   return api<TaskInfo>(instanceApi(instanceId, `/backups/${encodeURIComponent(backupId)}/restore`), {
     method: 'POST',
@@ -331,13 +331,13 @@ export async function deleteBackup(instanceId: string, backupId: string) {
   await api<unknown>(instanceApi(instanceId, `/backups/${encodeURIComponent(backupId)}`), { method: 'DELETE' });
 }
 
-/** 任务中心：拉取最近的任务列表（含排队/进行中和已结束任务）。 */
+/** Task center: fetches the recent task list (including queued/running and finished tasks). */
 export async function listTasks() {
   const res = await api<TaskListResult>('/api/tasks');
   return res.tasks;
 }
 
-/** Java 运行时清单和面板能自动安装的主版本；refresh=true 强制重新扫描本机安装目录。 */
+/** The Java runtime list and the major versions the panel can install automatically; refresh=true forces a rescan of local install directories. */
 export async function listJavaRuntimes(refresh = false): Promise<JavaRuntimeListResult> {
   const res = await api<JavaRuntimeListResult>(
     `/api/system/java-runtimes${refresh ? '?refresh=1' : ''}`,
@@ -345,32 +345,32 @@ export async function listJavaRuntimes(refresh = false): Promise<JavaRuntimeList
   return { runtimes: res.runtimes, installable: res.installable ?? [] };
 }
 
-/** 让面板下载并安装指定主版本的 Java（后台任务，完成后 result.javaRuntimeId 是新运行时）。 */
+/** Has the panel download and install the given Java major version (a background task; on completion result.javaRuntimeId is the new runtime). */
 export async function installJavaRuntime(major: number) {
   return api<TaskInfo>('/api/system/java-runtimes/install', { method: 'POST', json: { major } satisfies InstallJavaRequest });
 }
 
-/** 取消一键安装 Java。运行中的任务要等服务端停下下载、清掉临时文件才结束，调用方继续轮询到结束。 */
+/** Cancels a one-click Java install. A running task ends only after the server stops the download and cleans up temp files, so the caller keeps polling until it ends. */
 export async function cancelJavaInstall(taskId: string) {
   return api<TaskInfo>(`/api/system/java-runtimes/install/${encodeURIComponent(taskId)}/cancel`, { method: 'POST' });
 }
 
-/** PATH 中默认 Java 的探测结果。 */
+/** Detection result for the default Java on PATH. */
 export async function detectDefaultJava() {
   return api<JavaDetectResult>('/api/system/java');
 }
 
-/** 面板运行信息：监听地址、数据目录、备份目录和配置文件路径，只读。 */
+/** Panel runtime info: listen address, data directory, backup directory and config file path, read-only. */
 export async function getPanelInfo() {
   return api<PanelInfo>('/api/system/panel-info');
 }
 
-/** 面板当前的下载来源设置。 */
+/** The panel's current download source setting. */
 export async function getDownloadSource() {
   return api<DownloadSourceSetting>('/api/system/download-source');
 }
 
-/** 保存下载来源；之后发起的下载立即使用新来源。 */
+/** Saves the download source; downloads started afterwards use the new source immediately. */
 export async function saveDownloadSource(source: DownloadSource) {
   return api<DownloadSourceSetting>('/api/system/download-source', { method: 'PUT', json: { source } });
 }
@@ -379,24 +379,24 @@ export async function getSessionDuration() {
   return api<SessionDurationSetting>('/api/auth/session-duration');
 }
 
-/** 保存登录有效期；面板按新有效期给这台设备换发令牌，这里直接换上，改长也马上生效。 */
+/** Saves the session duration; the panel reissues this device's token with the new duration and it is swapped in right here, so a longer one takes effect immediately too. */
 export async function saveSessionDuration(duration: SessionDuration) {
   const result = await api<UpdateSessionDurationResult>('/api/auth/session-duration', { method: 'PUT', json: { duration } });
   setToken(result.token);
   return result;
 }
 
-/** 从其他设备访问面板的状态：网卡、网址、安全选项和面板自带网络。每次读取都会重新枚举网卡。 */
+/** Status of accessing the panel from other devices: interfaces, URLs, security options and the panel's built-in network. Interfaces are re-enumerated on every read. */
 export async function getRemoteAccess() {
   return api<RemoteAccessStatus>('/api/system/remote-access');
 }
 
-/** 开启、关闭或修改「直接访问」或「已装的组网软件」。 */
+/** Enables, disables or modifies "direct access" or "installed virtual networking software". */
 export async function saveAccessMode(mode: 'direct' | 'overlay', input: UpdateDirectAccessRequest) {
   return api<RemoteAccessStatus>(`/api/system/remote-access/${mode}`, { method: 'PUT', json: input });
 }
 
-/** 重新生成面板的 HTTPS 证书；指纹会变，浏览器要再确认一次。 */
+/** Regenerates the panel's HTTPS certificate; the fingerprint changes and the browser has to confirm once more. */
 export async function renewPanelCertificate() {
   return api<RemoteAccessStatus>('/api/system/remote-access/certificate', { method: 'POST' });
 }
@@ -405,7 +405,7 @@ export async function savePanelNetwork(input: UpdatePanelNetworkRequest) {
   return api<PanelNetworkStatus>('/api/system/remote-access/panel-network', { method: 'PUT', json: input });
 }
 
-/** 手机加入面板自带网络要填的内容，含密钥；只在用户要看时请求。 */
+/** What to enter on a phone to join the panel's built-in network, including the secret; requested only when the user wants to see it. */
 export async function getPanelNetworkJoinInfo() {
   return api<PanelNetworkJoinInfo>('/api/system/remote-access/panel-network/join');
 }
@@ -414,12 +414,12 @@ export async function resetPanelNetworkSecret() {
   return api<PanelNetworkStatus>('/api/system/remote-access/panel-network/reset-secret', { method: 'POST' });
 }
 
-/** 保存这台电脑的公网 IP 或域名；传 null 清除。 */
+/** Saves this computer's public IP or domain; pass null to clear. */
 export async function savePublicHost(host: string | null) {
   return api<PublicHostSetting>('/api/system/public-host', { method: 'PUT', json: { host } });
 }
 
-/** 当前节点清单；第一阶段只使用内置本机节点的主机内存。 */
+/** The current node list; phase one uses only the host memory of the built-in local node. */
 export async function listNodes() {
   return api<NodeInfo[]>('/api/nodes');
 }
@@ -444,7 +444,7 @@ export async function installFrpRuntime() {
   return api<FrpRuntimeInfo>('/api/frp/runtime', { method: 'POST' });
 }
 
-/** 连不上 GitHub 时上传自己下载的官方 frp 压缩包；服务端只按钉死的 SHA-256 接受。 */
+/** Uploads an official frp archive you downloaded yourself when GitHub is unreachable; the server accepts it only by the pinned SHA-256. */
 export async function uploadFrpRuntime(file: File) {
   const form = new FormData();
   form.append('file', file);
@@ -459,7 +459,7 @@ export async function installLanRuntime() {
   return api<LanRuntimeInfo>('/api/lan/runtime', { method: 'POST' });
 }
 
-/** 连不上 GitHub 时上传自己下载的官方 EasyTier 压缩包；服务端只按钉死的 SHA-256 接受。 */
+/** Uploads an official EasyTier archive you downloaded yourself when GitHub is unreachable; the server accepts it only by the pinned SHA-256. */
 export async function uploadLanRuntime(file: File) {
   const form = new FormData();
   form.append('file', file);
@@ -491,13 +491,13 @@ export async function saveInstanceTunnel(instanceId: string, input: InstanceTunn
   return api<InstanceTunnel>(instanceApi(instanceId, '/tunnel'), { method: 'PUT', json: input });
 }
 
-/** 朋友配置只有几 KB，走普通文本响应；大文件下载仍必须用票据流。 */
+/** The friend config is only a few KB and uses a plain text response; large file downloads must still use the ticket stream. */
 export async function fetchFriendTunnelConfig(instanceId: string): Promise<string> {
   const text = await api<string>(instanceApi(instanceId, '/tunnel/friend-config'));
   return typeof text === 'string' ? text : '';
 }
 
-/** 固定 DATA_DIR/imports 交接区中的已有服务端候选，以及这个文件夹在面板电脑上的路径。 */
+/** Existing server candidates in the fixed DATA_DIR/imports handoff area, plus the path of this folder on the panel's computer. */
 export async function listExistingServerSources() {
   return api<ExistingServerSourceListResult>('/api/import/sources');
 }
@@ -531,7 +531,7 @@ export async function cancelImportPreview(id: string) {
   });
 }
 
-/** 浏览器上传文件夹里的一个文件：relativePath 是去掉最外层文件夹名后的相对路径，用 / 分隔。 */
+/** One file in a browser-uploaded folder: relativePath is the relative path with the outermost folder name removed, separated by /. */
 export type FolderUploadFile = { file: File; relativePath: string };
 
 function folderUploadApi(id: string, suffix = '') {
@@ -542,7 +542,7 @@ export async function createFolderUpload(input: CreateFolderUploadInput, signal?
   return api<FolderUploadInfo>('/api/import/folder-uploads', { method: 'POST', json: input, signal });
 }
 
-/** 发送一批文件：每个文件前面先放它的相对路径。File 由浏览器流式读取，不整体读进内存。 */
+/** Sends a batch of files: each file is preceded by its relative path. File is read by the browser as a stream and not loaded into memory whole. */
 export async function uploadFolderBatch(id: string, files: FolderUploadFile[], signal?: AbortSignal) {
   const form = new FormData();
   for (const { file, relativePath } of files) {
@@ -570,7 +570,7 @@ export async function cancelFolderUpload(id: string) {
 
 export type InstanceAction = 'start' | 'stop' | 'restart';
 
-/** 启动、停止或重启实例；服务端仍在保存时按错误提示用户等待或强制停止。 */
+/** Starts, stops or restarts an instance; while the server is still saving, the error tells the user to wait or force stop. */
 export async function controlInstance(
   instanceId: string,
   action: InstanceAction,
@@ -589,7 +589,7 @@ export async function controlInstance(
 const TASK_POLL_INTERVAL_MS = 2_000;
 const TASK_RATE_LIMIT_BACKOFF_MS = 5_000;
 
-/** 轮询任务直到完成或失败，返回任务结果；signal 中止时以 AbortError 结束。 */
+/** Polls a task until it completes or fails and returns the task result; ends with AbortError when signal aborts. */
 export async function pollTask(
   taskId: string,
   onUpdate?: (task: TaskInfo) => void,
@@ -601,7 +601,7 @@ export async function pollTask(
     try {
       task = await api<TaskInfo>(`/api/tasks/${encodeURIComponent(taskId)}`, { signal });
     } catch (error) {
-      // 任务可能仍在排队，服务端限流不代表任务失败，退避后继续轮询。
+      // The task may still be queued, and server rate limiting does not mean the task failed; back off and keep polling.
       if (error instanceof ApiError && error.status === 429) {
         await delay(TASK_RATE_LIMIT_BACKOFF_MS, signal);
         continue;
@@ -613,7 +613,7 @@ export async function pollTask(
     onUpdate?.(task);
     if (task.status === 'completed') return task.result;
     if (task.status === 'failed') {
-      // 失败原因带消息键时由 errorMessage() 按界面语言显示。
+      // When the failure reason carries a message key, errorMessage() displays it in the UI language.
       throw Object.assign(new Error(task.error || t('request.taskFailed')), { messageI18n: task.errorI18n });
     }
     await delay(TASK_POLL_INTERVAL_MS, signal);

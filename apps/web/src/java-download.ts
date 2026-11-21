@@ -1,8 +1,8 @@
-/** Eclipse Temurin 提供安装包的 Java 长期支持版本。 */
+/** Java long-term support versions for which Eclipse Temurin provides installers. */
 const TEMURIN_MAJORS = new Set([8, 11, 17, 21, 25]);
 const TEMURIN_RELEASES_URL = 'https://adoptium.net/temurin/releases/';
 
-/** Java 安装包下载页；不是 Temurin 提供的版本或版本未知时给出不带筛选的下载页。 */
+/** Java installer download page; for a version Temurin does not provide, or an unknown version, the download page without filters. */
 export function javaDownloadUrl(major: number | null | undefined): string {
   return major != null && TEMURIN_MAJORS.has(major)
     ? `${TEMURIN_RELEASES_URL}?version=${major}`

@@ -33,8 +33,8 @@ const statusLabel: Record<TaskInfo['status'], MessageKey> = {
 };
 
 /**
- * 被取消的任务在数据里仍是 failed，靠进度消息的键认出来：自己取消的和面板关闭时取消的都算。
- * 取消不是出错，卡片用「已取消」和中性色，不用红色的「失败」。
+ * A cancelled task is still failed in the data and is recognized by the key of its progress message: both ones the user cancelled and ones cancelled at panel shutdown count.
+ * A cancel is not an error, so the card uses "Cancelled" and a neutral color, not the red "Failed".
  */
 function isCancelled(task: TaskInfo): boolean {
   return task.status === 'failed' && task.messageI18n?.key === 'server.tasks.cancelled';
@@ -42,7 +42,7 @@ function isCancelled(task: TaskInfo): boolean {
 
 const TASK_TIME_FORMAT: Intl.DateTimeFormatOptions = { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' };
 
-/** 顶栏的任务中心按钮，点击后像通知中心一样从右侧浮出任务列表与进度。 */
+/** The task center button in the top bar; clicking it floats out the task list and progress from the right, like a notification center. */
 export function TaskCenter() {
   const { t, tp, tm, fmt } = useI18n();
   const { tasks, error, loading, activeCount, lastSuccessAt, retry } = useTaskCenter();
@@ -82,7 +82,7 @@ export function TaskCenter() {
       >
         <ListChecks size={18} aria-hidden="true" />
         <span className="toolbar-label">{t('tasks.center.title')}</span>
-        {/* 数字只表示正在进行的任务；没有任务在跑时不显示，历史记录条数不是要处理的事。 */}
+        {/* The number means only tasks in progress; it is not shown when no task is running, since the number of history records is not something to deal with. */}
         {activeCount > 0 && <span className="toolbar-badge is-active" aria-hidden="true">{activeCount}</span>}
       </button>
 
@@ -92,7 +92,7 @@ export function TaskCenter() {
         className="task-drawer"
         onCancel={(event) => { event.preventDefault(); closeDrawer(); }}
         onClose={() => {
-          // 忽略快速重开或严格模式清理留下的旧关闭事件。
+          // Ignore old close events left by a quick reopen or strict mode cleanup.
           if (drawerRef.current?.open) return;
           setOpen(false);
           toggleRef.current?.focus();
@@ -160,7 +160,7 @@ export function TaskCenter() {
           {tasks.map((task) => {
             const Icon = typeIcon[task.type] ?? Package;
             const active = task.status === 'pending' || task.status === 'running';
-            // 任务结束后的消息常常和状态词一样（都是「已完成」），重复的那条不显示。
+            // The message after a task ends is often the same as the status word (both "Completed"), and the duplicate one is not shown.
             const cancelled = isCancelled(task);
             const statusText = t(cancelled ? 'task.status.cancelled' : statusLabel[task.status]);
             const message = task.message ? tm(task.messageI18n, task.message) : '';
@@ -184,7 +184,7 @@ export function TaskCenter() {
                 )}
 
                 {showMessage && <p className="task-card-message">{message}</p>}
-                {/* 取消的原因（自己取消的、面板关闭时取消的）是说明，不是报错，不用红字。 */}
+                {/* The reason for a cancel (cancelled by the user, cancelled at panel shutdown) is an explanation, not an error, so no red text. */}
                 {task.status === 'failed' && task.error && (
                   <p className={cancelled ? 'task-card-message' : 'task-card-error'}>{tm(task.errorI18n, task.error)}</p>
                 )}

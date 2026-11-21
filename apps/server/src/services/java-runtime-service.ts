@@ -11,20 +11,20 @@ import { getMinecraftChildEnv } from '../utils/child-env.js';
 import { PanelError } from '../utils/errors.js';
 
 /**
- * Java 运行时注册表：
- * - 候选路径只来自面板自身扫描（JAVA_HOME、常见安装目录、面板自己装 Java 的数据目录），绝不接受请求提交的路径。
- * - 每个候选必须文件名是 java/java.exe，且执行 -version 输出能解析出版本号，
- *   两关都通过才写入注册表——确保“确定是 java”。
- * - 实例只能按 ID 引用注册表中的运行时；NULL 表示使用 PATH 中的 java。
+ * Java runtime registry:
+ * - Candidate paths come only from the panel's own scan (JAVA_HOME, common install directories, the data directory where the panel installs Java itself); paths submitted in requests are never accepted.
+ * - Each candidate's file name must be java/java.exe, and running -version must produce output from which a version number can be parsed;
+ *   it is written to the registry only after passing both checks, ensuring it "definitely is java".
+ * - Instances can only reference runtimes in the registry by ID; NULL means use the java on PATH.
  */
 
 const execFileAsync = promisify(execFile);
 
-/** 单个候选的 -version 验证超时；避免异常二进制拖慢扫描 */
+/** Timeout for verifying a single candidate with -version; keeps abnormal binaries from slowing down the scan */
 const VERIFY_TIMEOUT_MS = 4_000;
-/** 扫描结果缓存，避免前端频繁触发全盘扫描 */
+/** Scan result cache, so the frontend does not trigger full scans frequently */
 const SCAN_CACHE_MS = 60_000;
-/** 手动刷新允许的最短间隔，避免认证请求反复启动大量子进程 */
+/** Minimum interval allowed between manual refreshes, so authenticated requests cannot keep spawning large numbers of child processes */
 const FORCE_SCAN_COOLDOWN_MS = 30_000;
 
 let lastScanAt = 0;
@@ -44,7 +44,7 @@ const runJavaVersion: JavaVersionRunner = async (javaPath, args, options) => {
 
 let versionRunner: JavaVersionRunner = runJavaVersion;
 
-/** 测试用：替换 java -version 的执行（扫描、登记、启动前复验都走它）；传 null 恢复真实执行并清空扫描缓存。 */
+/** For tests: replaces the execution of java -version (scan, registration and pre-start re-verification all go through it); pass null to restore real execution and clear the scan cache. */
 export function setJavaVersionRunnerForTests(runner: JavaVersionRunner | null): void {
   versionRunner = runner ?? runJavaVersion;
   lastScanAt = 0;
@@ -53,7 +53,7 @@ export function setJavaVersionRunnerForTests(runner: JavaVersionRunner | null): 
 
 type RuntimeSource = JavaRuntimeRow['source'];
 
-/** 面板自动安装的 Java 都放在这里（java-install-service.ts），每个版本一个子目录。 */
+/** Java installed automatically by the panel all goes here (java-install-service.ts), one subdirectory per version. */
 export function panelJavaRoot(): string {
   return path.join(config.dataDir, 'runtimes', 'java');
 }
@@ -63,7 +63,7 @@ function runtimeId(javaPath: string): string {
   return createHash('sha256').update(normalized).digest('hex').slice(0, 16);
 }
 
-/** 验证候选确实是 Java：文件名必须是 java/java.exe，且 -version 输出可解析出版本号。 */
+/** Verifies that a candidate really is Java: the file name must be java/java.exe, and a version number must be parseable from the -version output. */
 export async function verifyJavaExecutable(
   javaPath: string,
   run: JavaVersionRunner = versionRunner,
@@ -74,14 +74,14 @@ export async function verifyJavaExecutable(
     const { stdout, stderr } = await run(javaPath, ['-version'], {
       windowsHide: true,
       timeout: VERIFY_TIMEOUT_MS,
-      // 候选可执行文件属于第三方程序，绝不能继承面板密钥和数据目录配置。
+      // Candidate executables are third-party programs and must never inherit panel secrets or data directory config.
       env: getMinecraftChildEnv(),
     });
     const text = `${stderr}\n${stdout}`;
     const match = text.match(/version\s+"([^"]+)"/i) || text.match(/version\s+(\S+)/i);
     if (!match) return null;
     const version = match[1];
-    // "1.8.0_202" → 8；"17.0.2" / "21" → 17 / 21
+    // "1.8.0_202" → 8; "17.0.2" / "21" → 17 / 21
     const majorVersion = version.startsWith('1.')
       ? Number(version.split('.')[1])
       : Number(version.split('.')[0]);
@@ -92,20 +92,20 @@ export async function verifyJavaExecutable(
   }
 }
 
-/** 收集候选路径（不去重、不验证，验证在 scan 中统一做）。 */
+/** Collects candidate paths (no deduplication or verification; verification is done together in scan). */
 function collectCandidates(): Array<{ path: string; source: RuntimeSource }> {
   const exe = process.platform === 'win32' ? 'java.exe' : 'java';
   const candidates: Array<{ path: string; source: RuntimeSource }> = [];
 
-  // 面板装的 Java 必须每次都扫到，否则下次扫描会把它标成不可用。
+  // Java installed by the panel must be found on every scan, or the next scan would mark it unavailable.
   try {
     for (const entry of fs.readdirSync(panelJavaRoot(), { withFileTypes: true })) {
-      // 只认面板自己建的版本目录；.staging-* 是安装中的临时目录。
+      // Only version directories the panel itself created are accepted; .staging-* are temp directories of installs in progress.
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
       candidates.push({ path: path.join(panelJavaRoot(), entry.name, 'bin', exe), source: 'panel' });
     }
   } catch {
-    // 还没装过任何 Java：目录不存在。
+    // No Java has been installed yet: the directory does not exist.
   }
 
   const javaHome = process.env.JAVA_HOME;
@@ -178,8 +178,8 @@ function markRuntimeUnavailable(id: string): void {
 }
 
 /**
- * 解析实例实际应执行的 Java。已绑定的条目会在每次执行前重新验证，
- * 避免扫描后路径被删除或替换时继续运行未知程序。
+ * Resolves the Java an instance should actually execute. A bound entry is re-verified before every execution,
+ * so an unknown program is not run when the path was deleted or replaced after the scan.
  */
 export async function resolveJavaRuntimeCommand(javaRuntimeId: string | null | undefined): Promise<string> {
   if (javaRuntimeId === null || javaRuntimeId === undefined) return 'java';
@@ -284,8 +284,8 @@ async function performScan(): Promise<JavaRuntimeInfo[]> {
 }
 
 /**
- * 登记面板刚装好的 Java：路径必须在面板安装目录里，且 -version 能通过验证。
- * 返回登记的条目；验证不过返回 null。
+ * Registers Java the panel has just installed: the path must be inside the panel install directory, and -version must pass verification.
+ * Returns the registered entry; returns null when verification fails.
  */
 export async function registerPanelJavaRuntime(javaPath: string): Promise<JavaRuntimeInfo | null> {
   let realPath: string;
@@ -306,8 +306,8 @@ export async function registerPanelJavaRuntime(javaPath: string): Promise<JavaRu
 }
 
 /**
- * 扫描并验证候选，upsert 进注册表。最近一次扫描未发现的条目会标记不可用，
- * 保留实例绑定以便界面提示用户重新选择。
+ * Scans and verifies candidates and upserts them into the registry. Entries not found by the latest scan are marked unavailable,
+ * keeping instance bindings so the UI can prompt the user to choose again.
  */
 export async function scanJavaRuntimes(force = false): Promise<JavaRuntimeInfo[]> {
   const now = Date.now();

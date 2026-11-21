@@ -19,7 +19,7 @@ test.after(() => fs.rmSync(dataRoot, { recursive: true, force: true }));
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** 用这张证书起一个真的 HTTPS 服务，再用只信任它的客户端按默认规则（含主机名校验）握手。 */
+/** Starts a real HTTPS server with this certificate, then handshakes with a client that trusts only it, under the default rules (including hostname verification). */
 async function handshake(certPem: string, keyPem: string, servername: string | undefined, host = '127.0.0.1'): Promise<string> {
   const server = https.createServer({ cert: certPem, key: keyPem }, (_req, res) => res.end('ok'));
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -52,7 +52,7 @@ test('生成的证书能被解析，内容符合设计', async () => {
   assert.deepEqual(x509.keyUsage, ['1.3.6.1.5.5.7.3.1']);
   assert.equal(x509.publicKey.asymmetricKeyType, 'ec');
   assert.equal(x509.publicKey.asymmetricKeyDetails?.namedCurve, 'prime256v1');
-  // 自签名：用证书自己的公钥能验过签名，私钥和证书配对。
+  // Self-signed: the signature verifies with the certificate's own public key, and the private key matches the certificate.
   assert.equal(x509.verify(x509.publicKey), true);
   assert.equal(x509.checkPrivateKey(crypto.createPrivateKey(keyPem)), true);
   assert.equal(new Date(x509.validTo).getTime() - now.getTime(), CERTIFICATE_VALID_DAYS * DAY_MS);
@@ -83,7 +83,7 @@ test('真实 TLS 握手：信任这张证书的客户端按 IP 和域名都能�
   assert.match(await handshake(certPem, keyPem, undefined, '127.0.0.1'), /^TLSv1\.[23]$/);
   assert.match(await handshake(certPem, keyPem, undefined, '192.168.2.163'), /^TLSv1\.[23]$/);
   assert.match(await handshake(certPem, keyPem, 'panel.example.com', 'panel.example.com'), /^TLSv1\.[23]$/);
-  // SAN 里没有的地址必须被拒绝。
+  // Addresses not in the SAN must be rejected.
   await assert.rejects(handshake(certPem, keyPem, undefined, '10.0.0.1'), /altnames|IP: 10\.0\.0\.1/i);
 });
 
@@ -119,12 +119,12 @@ test('已有证书复用；快过期、损坏、私钥不配对或要求重新�
   if (process.platform !== 'win32') assert.equal(fs.statSync(paths.key).mode & 0o777, 0o600);
   assert.equal(readPanelCertificateInfo(dataDir)?.fingerprint256, first.info.fingerprint256);
 
-  // 地址变了也不重新生成：指纹不变，浏览器不用再确认。
+  // Not regenerated when addresses change: the fingerprint stays the same, so the browser does not need to confirm again.
   const reused = loadOrCreatePanelCertificate(['10.0.0.9'], { now, dataDir });
   assert.equal(reused.info.fingerprint256, first.info.fingerprint256);
   assert.deepEqual(reused.info.addresses, ['192.168.1.2']);
 
-  // 还剩 31 天时复用，还剩 29 天时重新生成。
+  // Reused with 31 days left, regenerated with 29 days left.
   const day = (days: number) => new Date(now.getTime() + days * DAY_MS);
   assert.equal(loadOrCreatePanelCertificate([], { now: day(800 - 31), dataDir }).info.fingerprint256, first.info.fingerprint256);
   const renewed = loadOrCreatePanelCertificate(['10.0.0.9'], { now: day(800 - 29), dataDir });

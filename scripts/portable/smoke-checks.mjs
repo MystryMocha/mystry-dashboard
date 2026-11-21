@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 
 /**
- * 发布冒烟只认与语言无关的证据：退出码、文件、HTTP 和日志内容。
- * 界面语言只决定提示文字，不能决定发布能否通过。
+ * The release smoke test accepts only language-independent evidence: exit codes, files, HTTP and log content.
+ * The UI language decides only the wording of prompts, and must not decide whether a release passes.
  */
 
-/** 取日志里最后一行非空内容，作为 logs 命令必须显示的样本。 */
+/** Takes the last non-empty line of the log, as the sample the logs command must display. */
 export function lastLogLine(logPath) {
   const lines = fs.existsSync(logPath)
     ? fs.readFileSync(logPath, 'utf8').split(/\r?\n/).filter((line) => line.trim())
@@ -16,21 +16,21 @@ export function lastLogLine(logPath) {
   return lines.at(-1);
 }
 
-/** 只看日志里的真实内容，不看 logs 命令自己的标题文字。 */
+/** Looks only at the real content of the log, not at the logs command's own heading text. */
 export function assertLogsShowLine(logsOutput, expectedLine) {
   if (!logsOutput.includes(expectedLine)) {
     throw new Error(`日志命令未返回面板输出，缺少：${expectedLine}\n实际输出：\n${logsOutput}`);
   }
 }
 
-// mystryctl 显示账号密码时的分隔线和密码行（两种界面语言都算）。
-// 单元测试用控制器的真实终端输出验证这里能认出来，格式改了会先在那里失败。
+// The separator and password line mystryctl shows with the account and password (both UI languages count).
+// Unit tests verify with the controller's real terminal output that it is recognized here, so a format change fails there first.
 const CREDENTIAL_DIVIDER = /^={64}\r?$/m;
 const PASSWORD_LINE = /^[ \t]*(?:Password:|密码：)/m;
 
 /**
- * 输出不是终端时不得写出管理员密码。只认密码块的标记，不比对密码本身；
- * 出错时也不回显内容，避免把可能存在的密码再打印一遍。
+ * The admin password must not be written when output is not a terminal. Only the password block's markers are recognized, without comparing the password itself;
+ * on failure the content is not echoed either, to avoid printing a password that might be there once more.
  */
 export function assertNoCredentialsShown(content, source) {
   if (CREDENTIAL_DIVIDER.test(content) || PASSWORD_LINE.test(content)) {
@@ -38,7 +38,7 @@ export function assertNoCredentialsShown(content, source) {
   }
 }
 
-/** 从服务端 JSON 请求日志中取出请求路径（去掉查询参数）。 */
+/** Extracts the request path (without query parameters) from a server JSON request log. */
 export function loggedRequestPaths(content) {
   const paths = new Set();
   for (const line of content.split(/\r?\n/)) {
@@ -55,8 +55,8 @@ export function loggedRequestPaths(content) {
 }
 
 /**
- * 证明某个接口没有被请求过。对照路径必须出现在日志里：
- * 服务端不记请求日志时「没看到」不能说明「没请求」，这时直接判失败。
+ * Proves that an endpoint was never requested. The control path must appear in the log:
+ * when the server keeps no request log, "not seen" does not show "not requested", and that case fails outright.
  */
 export function assertRequestNotLogged(content, forbiddenPath, controlPath) {
   const paths = loggedRequestPaths(content);

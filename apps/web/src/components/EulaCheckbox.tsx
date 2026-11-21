@@ -2,7 +2,7 @@ import { useI18n } from '../i18n';
 
 export const MINECRAFT_EULA_URL = 'https://aka.ms/MinecraftEULA';
 
-/** 部署、导入、空实例和实例设置共用的 EULA 同意勾选框；默认不勾选，必须由用户主动同意。 */
+/** The EULA acceptance checkbox shared by deploy, import, empty instance and instance settings; unchecked by default, and the user must accept it themselves. */
 export function EulaCheckbox({
   checked,
   disabled,

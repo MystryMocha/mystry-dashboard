@@ -6,9 +6,9 @@ import { isMainModule } from './is-main-module.mjs';
 import { NPM_MIRRORS, OFFICIAL_REGISTRY } from './npm-mirror.mjs';
 
 /**
- * 锁文件是公开内容，只能记录官方地址。npm 在配置了镜像的机器上安装新依赖时，
- * 会把镜像地址写进 resolved，其他人安装时就会被固定到这个镜像，所以要在 verify 里拦住。
- * 按文本处理，修复时不改动锁文件的其他内容。
+ * The lockfile is public content and may record only official URLs. When npm installs a new dependency on a machine configured with a mirror,
+ * it writes the mirror URL into resolved, pinning everyone else's installs to that mirror, so verify has to block it.
+ * Handled as text, so a fix does not touch the rest of the lockfile.
  */
 const RESOLVED_PATTERN = /"resolved": "(https?:\/\/[^"]+)"/g;
 
@@ -18,7 +18,7 @@ export function findForeignResolved(lockText) {
     .filter((url) => !url.startsWith(OFFICIAL_REGISTRY));
 }
 
-/** 只改写已知镜像；未知地址可能是私有源，留给维护者判断。 */
+/** Only known mirrors are rewritten; an unknown URL may be a private registry and is left for the maintainer to judge. */
 export function replaceKnownMirrors(lockText) {
   return lockText.replace(RESOLVED_PATTERN, (entry, url) => {
     const mirror = NPM_MIRRORS.find((candidate) => candidate.url && url.startsWith(candidate.url));

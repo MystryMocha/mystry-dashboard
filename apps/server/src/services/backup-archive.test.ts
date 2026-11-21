@@ -1,5 +1,5 @@
 /**
- * 备份归档读写回归：往返一致、篡改检测、不安全路径与保留路径拒绝。
+ * Backup archive read/write regression: round-trip consistency, tamper detection, and rejection of unsafe and reserved paths.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -25,7 +25,7 @@ function tempRoot(t: test.TestContext): string {
   return root;
 }
 
-/** 手写一个 ustar 头，用于构造写入器不会生成的恶意归档。 */
+/** Hand-writes a ustar header, to build malicious archives the writer would never produce. */
 function tarHeader(name: string, size: number, type = '0'): Buffer {
   const block = Buffer.alloc(512);
   block.write(name, 0, 100, 'utf8');
@@ -93,7 +93,7 @@ test('备份归档往返后文件内容、空文件与超长路径保持一致',
   fs.mkdirSync(destination);
   const result = await readBackupArchive({ archive, limits, signal: new AbortController().signal, destination });
   assert.equal(result.fileCount, 3);
-  // 读取时顺带算出的整包摘要应与写入时一致，也与文件本身一致。
+  // The whole-archive digest computed along the way while reading should match the one from writing, and the file itself.
   assert.equal(result.archiveBytes, written.sizeBytes);
   assert.equal(result.archiveSha256, written.sha256);
   assert.equal(result.archiveBytes, fs.statSync(archive).size);

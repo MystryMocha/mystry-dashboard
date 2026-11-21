@@ -11,7 +11,7 @@ const CORE_GLYPHS: Record<CoreType, LucideIcon> = {
   custom: Package,
 };
 
-// 核心名是技术名词不翻译；自定义 jar 没有固定名称，用文案键。
+// Core names are technical terms and not translated; a custom jar has no fixed name and uses a string key.
 const CORE_NAMES: Record<Exclude<CoreType, 'custom'>, string> = {
   paper: 'Paper',
   fabric: 'Fabric',
@@ -20,12 +20,12 @@ const CORE_NAMES: Record<Exclude<CoreType, 'custom'>, string> = {
   vanilla: 'Vanilla',
 };
 
-/** 核心显示名：总览列表和实例页头共用，避免一处写「自定义 Jar」、另一处显示原始的 custom。 */
+/** Core display name: shared by the overview list and the instance page header, so one does not say "Custom Jar" while the other shows the raw custom. */
 export function coreDisplayName(coreType: CoreType, t: I18n['t']): string {
   return coreType === 'custom' ? t('dashboard.row.core.custom') : CORE_NAMES[coreType] ?? coreType;
 }
 
-/** 核心类型图标：每种核心固定一种渐变色，便于在列表里一眼区分。 */
+/** Core type icon: each core has one fixed gradient color, making them easy to tell apart in a list at a glance. */
 export function CoreIcon({ coreType, size = 'md' }: { coreType: CoreType; size?: 'md' | 'lg' }) {
   const Glyph = CORE_GLYPHS[coreType] ?? Package;
   return (

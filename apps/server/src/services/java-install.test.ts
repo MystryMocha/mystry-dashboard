@@ -1,7 +1,7 @@
 /**
- * 一键安装 Java 回归：接口认证与参数校验、平台不支持、同一主版本重复点击复用任务、
- * 安装后登记为 panel 来源且重新扫描不丢、已装好时不重复下载、摘要不符 / 下载失败 / 压缩包结构不对时
- * 不留下目录。不联网、不真跑 java：下载和 java -version 都换成替身。
+ * One-click Java install regression: endpoint authentication and parameter validation, unsupported platform, repeated clicks on the same major version reusing the task,
+ * registered with the panel source after install and kept across rescans, no repeated download when already installed, and no directory left behind on a digest mismatch / download failure / wrong archive structure.
+ * No network and no real java: the download and java -version are both stubbed.
  */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -17,7 +17,7 @@ process.env.LAUNCHER_TOKEN = 'c'.repeat(64);
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-java-install-test-'));
 process.env.MYSTRY_DATA_DIR = dataRoot;
 
-/** 手写只含「存储」方式条目的最小 ZIP。 */
+/** Hand-writes a minimal ZIP containing only entries with the "stored" method. */
 function storedZip(files: Record<string, string>): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
@@ -55,7 +55,7 @@ function storedZip(files: Record<string, string>): Buffer {
 
 const sha256 = (data: Buffer) => createHash('sha256').update(data).digest('hex');
 
-/** 官方 JRE 包的样子：一个顶层目录，里面 bin/java(.exe)。两种文件名都放，测试在哪个系统上都能跑。 */
+/** What an official JRE package looks like: one top-level directory with bin/java(.exe) inside. Both file names are included so the tests run on any OS. */
 function fakeJre(top: string): Buffer {
   return storedZip({ [`${top}/bin/java`]: 'fake', [`${top}/bin/java.exe`]: 'fake', [`${top}/release`]: 'JAVA_VERSION="x"' });
 }
@@ -69,7 +69,7 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
   const { panelJavaRoot, resolveJavaRuntimeCommand, setJavaVersionRunnerForTests } = await import('./java-runtime-service.js');
   const app = await buildApp({ skipDataLock: true });
 
-  // 只有数据目录里的「java」能通过验证；机器上真装的 Java 一律当成不是 Java，不会被执行。
+  // Only the "java" in the data directory passes verification; any Java really installed on the machine is treated as not Java and is never executed.
   setJavaVersionRunnerForTests(async (javaPath) => {
     if (!path.resolve(javaPath).startsWith(path.resolve(dataRoot))) throw new Error('not in test data dir');
     if (fs.readFileSync(javaPath, 'utf8') === 'broken') throw new Error('broken java');
@@ -89,7 +89,7 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
     platformKey: () => TEST_PLATFORM,
     acquire: async (major, _asset, destination, onProgress, signal) => {
       downloads += 1;
-      // 和真下载器一样响应取消。
+      // Responds to cancellation like the real downloader.
       await Promise.race([gate, new Promise<never>((_resolve, reject) => {
         if (signal.aborted) reject(signal.reason);
         signal.addEventListener('abort', () => reject(signal.reason), { once: true });
@@ -132,7 +132,7 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
   };
   const leftovers = () => (fs.existsSync(panelJavaRoot()) ? fs.readdirSync(panelJavaRoot()) : []);
 
-  // 未登录不能装；只接受钉死的主版本。
+  // Cannot install without signing in; only pinned major versions are accepted.
   const anonymous = await app.inject({ method: 'POST', url: '/api/system/java-runtimes/install', payload: { major: 21 } });
   assert.equal(anonymous.statusCode, 401);
   for (const bad of [{ major: 11 }, { major: 'latest' }, { major: 21, path: 'C:/evil/java.exe' }, {}]) {
@@ -141,7 +141,7 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
     assert.equal(response.json<{ code: string }>().code, 'server.jvm.javaInstall.unsupportedMajor');
   }
 
-  // 这台「电脑」只有 8 和 21 的安装包。
+  // This "computer" has installers only for 8 and 21.
   const listed = await app.inject({ method: 'GET', url: '/api/system/java-runtimes', headers: authorization });
   assert.equal(listed.statusCode, 200);
   assert.deepEqual(listed.json<JavaRuntimeListResult>().installable, [8, 21]);
@@ -149,7 +149,7 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
   assert.equal(unsupported.statusCode, 409);
   assert.equal(unsupported.json<{ code: string }>().code, 'server.jvm.javaInstall.platformUnsupported');
 
-  // 下载卡住时重复点击：拿到同一个任务，不会并发写同一个目录。
+  // Repeated clicks while the download is stalled: the same task is returned, with no concurrent writes to the same directory.
   let release!: () => void;
   gate = new Promise((resolve) => { release = resolve; });
   const first = await install({ major: 21 });
@@ -164,7 +164,7 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
   assert.ok(runtimeId);
   assert.deepEqual(leftovers(), ['temurin-jdk-21.0.13_9'], '临时目录必须清掉');
 
-  // 登记为面板安装；强制重新扫描后仍可用，实例启动前复验也能通过。
+  // Registered as installed by the panel; still usable after a forced rescan, and the re-verification before instance start passes too.
   const afterScan = await app.inject({ method: 'GET', url: '/api/system/java-runtimes?refresh=1', headers: authorization });
   const runtime = afterScan.json<JavaRuntimeListResult>().runtimes.find((item) => item.id === runtimeId);
   assert.ok(runtime);
@@ -174,13 +174,13 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
   const command = await resolveJavaRuntimeCommand(runtimeId);
   assert.equal(fs.realpathSync(command), fs.realpathSync(runtime.path));
 
-  // 已经装好：不重复下载，返回同一个运行时。
+  // Already installed: no repeated download, and the same runtime is returned.
   const again = await waitForTask((await install({ major: 21 })).json<TaskInfo>().id);
   assert.equal(again.status, 'completed', again.error);
   assert.equal(again.result?.javaRuntimeId, runtimeId);
   assert.equal(downloads, 1);
 
-  // 下载中取消：任务记成「你取消了这个任务」，临时目录清掉；别的任务和已结束的任务不能取消。
+  // Cancel during download: the task is recorded as "you cancelled this task" and the temp directory is cleaned up; other tasks and finished tasks cannot be cancelled.
   const cancelUrl = (id: string) => `/api/system/java-runtimes/install/${encodeURIComponent(id)}/cancel`;
   const anonymousCancel = await app.inject({ method: 'POST', url: cancelUrl(done.id) });
   assert.equal(anonymousCancel.statusCode, 401);
@@ -206,21 +206,21 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
   assert.equal(late.statusCode, 409);
   gate = Promise.resolve();
 
-  // 下载内容与钉死的摘要不符：丢弃，不留目录。
+  // Downloaded content does not match the pinned digest: discarded, no directory left behind.
   serve = () => fakeJre('jdk8u512-b09-jre-tampered');
   const tampered = await waitForTask((await install({ major: 8 })).json<TaskInfo>().id);
   assert.equal(tampered.status, 'failed');
   assert.equal(tampered.errorI18n?.key, 'server.jvm.javaInstall.checksumMismatch');
   assert.deepEqual(leftovers(), ['temurin-jdk-21.0.13_9']);
 
-  // 下载失败：提示可以换下载来源。
+  // Download failure: hints that the download source can be changed.
   serve = () => new Error('network down');
   const offline = await waitForTask((await install({ major: 8 })).json<TaskInfo>().id);
   assert.equal(offline.status, 'failed');
   assert.equal(offline.errorI18n?.key, 'server.jvm.javaInstall.downloadFailed');
   assert.deepEqual(leftovers(), ['temurin-jdk-21.0.13_9']);
 
-  // 压缩包结构不对（两个顶层目录）：解压失败，不留目录。
+  // Wrong archive structure (two top-level directories): extraction fails, no directory left behind.
   const twoTops = Buffer.concat([storedZip({ 'a/bin/java': 'x', 'b/bin/java': 'x' })]);
   TEMURIN_RELEASES[8].assets[TEST_PLATFORM] = { archive: 'fake-8.zip', sha256: sha256(twoTops) };
   serve = () => twoTops;
@@ -229,7 +229,7 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
   assert.equal(malformed.errorI18n?.key, 'server.jvm.javaInstall.extractFailed');
   assert.deepEqual(leftovers(), ['temurin-jdk-21.0.13_9']);
 
-  // 解压出来的 java 跑不起来：不登记，删掉目录。
+  // The extracted java does not run: not registered, and the directory is deleted.
   const broken = storedZip({ 'jdk8u512-b09-jre/bin/java': 'broken', 'jdk8u512-b09-jre/bin/java.exe': 'broken' });
   TEMURIN_RELEASES[8].assets[TEST_PLATFORM] = { archive: 'fake-8.zip', sha256: sha256(broken) };
   serve = () => broken;
@@ -238,7 +238,7 @@ test('一键安装 Java：接口、复用任务、登记与失败清理', async 
   assert.equal(unusable.errorI18n?.key, 'server.jvm.javaInstall.verifyFailed');
   assert.deepEqual(leftovers(), ['temurin-jdk-21.0.13_9']);
 
-  // 正常的 Java 8 能装上，和 21 并存。
+  // A normal Java 8 installs fine and coexists with 21.
   TEMURIN_RELEASES[8].assets[TEST_PLATFORM] = { archive: 'fake-8.zip', sha256: sha256(good8) };
   serve = (major) => (major === 21 ? good21 : good8);
   const java8 = await waitForTask((await install({ major: 8 })).json<TaskInfo>().id);

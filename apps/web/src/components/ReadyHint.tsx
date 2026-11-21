@@ -9,14 +9,14 @@ function readDismissed(): boolean {
   try {
     return localStorage.getItem(DISMISSED_KEY) === '1';
   } catch {
-    // 隐私模式等读不到本地存储时照常显示提示。
+    // When local storage cannot be read, such as in private mode, the hint is shown as usual.
     return false;
   }
 }
 
 /**
- * 服务端完成启动后显示在控制台上方的一行：告诉用户可以进服了，并指向「联机」。
- * 点过「不再提示」后在这个浏览器里不再出现。
+ * A line shown above the console once the server finishes starting: tells the user the server can be joined, and points to "Multiplayer".
+ * After "Don't show again" is clicked it no longer appears in this browser.
  */
 export function ReadyHint({ instanceId }: { instanceId: string }) {
   const { t } = useI18n();
@@ -28,11 +28,11 @@ export function ReadyHint({ instanceId }: { instanceId: string }) {
     try {
       localStorage.setItem(DISMISSED_KEY, '1');
     } catch {
-      // 存不下时只在本次打开期间隐藏。
+      // When it cannot be stored it is hidden only for this open.
     }
   }
 
-  // 一行提示条而不是大块提示框：控制台才是这一页的主体，提示只占它上方一行，窄屏时自动折行。
+  // A one-line hint bar rather than a large notice box: the console is the main content of this page, and the hint takes only one line above it, wrapping automatically on narrow screens.
   return (
     <div className="ready-strip" role="status">
       <CircleCheck size={16} aria-hidden="true" className="ready-strip-icon" />

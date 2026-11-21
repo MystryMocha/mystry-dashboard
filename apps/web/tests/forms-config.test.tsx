@@ -20,20 +20,20 @@ function json(data: unknown): Response {
   return new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
-/** 单独挂载参数配置（没有重启入口，相当于实例没在运行），记下保存时提交的内容。 */
+/** Mounts the config editor alone (no restart entry, as if the instance is not running) and records what is submitted on save. */
 function mountConfigTab(fileProps: Record<string, string>, mcVersion?: string) {
   const saves: Record<string, string>[] = [];
   vi.stubGlobal('fetch', vi.fn(async (_url: string, options?: RequestInit) => {
     if (options?.method === 'PUT') saves.push(JSON.parse(String(options.body)) as Record<string, string>);
     return json(fileProps);
   }));
-  // useBlocker 需要数据路由，这里不能用 MemoryRouter。
+  // useBlocker needs a data router, so MemoryRouter cannot be used here.
   const router = createMemoryRouter([{ path: '/', element: <ConfigTab instanceId="test" mcVersion={mcVersion} /> }]);
   render(<RouterProvider router={router} />);
   return saves;
 }
 
-/** 挂载整个实例页，记下所有写请求；参数配置和实例设置的重启入口都要经过它。 */
+/** Mounts the whole instance page and records all write requests; the restart entries of both the config editor and instance settings go through it. */
 function mountInstancePage(tab: 'config' | 'settings', status: 'running' | 'stopped', fileProps: Record<string, string> = {}) {
   const calls: string[] = [];
   const instance = {
@@ -70,12 +70,12 @@ test('参数配置：数字项是带数字键盘的文本框，文件里的脏�
   await waitFor(() => expect(view.value).toBe('abc'));
   expect(view.type).toBe('text');
   expect(view.inputMode).toBe('numeric');
-  // 脏值不标红、不出现保存栏。
+  // A dirty value is not marked red and the save bar does not appear.
   expect(view.getAttribute('aria-invalid')).toBeNull();
   expect(view.closest('.config-row')!.hasAttribute('data-field-invalid')).toBe(false);
   expect(saveButton()).toBeNull();
 
-  // 改别的项仍然能保存，脏值原样带回。
+  // Changing another item can still be saved, and the dirty value is sent back as is.
   const motd = screen.getByRole('textbox', { name: '服务器简介' });
   await user.clear(motd);
   await user.type(motd, 'New');
@@ -83,7 +83,7 @@ test('参数配置：数字项是带数字键盘的文本框，文件里的脏�
   await user.click(saveButton()!);
   await waitFor(() => expect(saves).toEqual([{ 'view-distance': 'abc', motd: 'New' }]));
 
-  // 只能输数字：字母、小数点和不允许的负号直接被滤掉。
+  // Digits only: letters, decimal points and a disallowed minus sign are filtered out directly.
   const maxPlayers = screen.getByRole('textbox', { name: '最大在线人数' }) as HTMLInputElement;
   await user.type(maxPlayers, '-1e2.5');
   expect(maxPlayers.value).toBe('125');
@@ -99,7 +99,7 @@ test('参数配置：只输了「-」算没输完，不会被当成清空保存�
   await user.type(threshold, '-');
   expect(threshold.value).toBe('-');
   const row = threshold.closest('.config-row')!;
-  // 不合法马上拦住保存，行容器带标记；红字等失焦后才显示。
+  // An invalid value blocks saving right away and the row container is flagged; the red text shows only after blur.
   expect(saveButton()!.disabled).toBe(true);
   expect(row.hasAttribute('data-field-invalid')).toBe(true);
   expect(threshold.getAttribute('aria-invalid')).toBeNull();
@@ -111,7 +111,7 @@ test('参数配置：只输了「-」算没输完，不会被当成清空保存�
   expect(threshold.getAttribute('aria-describedby')!.split(' ')).toContain(error.id);
   expect(saves).toEqual([]);
 
-  // 已经在报错的字段每次按键重算：补成 -1 马上消失，可以保存。
+  // A field already showing an error is recomputed on every keystroke: completing it to -1 clears it at once, and it can be saved.
   await user.type(threshold, '1');
   expect(threshold.value).toBe('-1');
   expect(threshold.getAttribute('aria-invalid')).toBeNull();
@@ -126,7 +126,7 @@ test('参数配置保存栏：有修改才出现并写明几项，状态文字�
 
   const motd = await screen.findByRole('textbox', { name: '服务器简介' }) as HTMLInputElement;
   await waitFor(() => expect(motd.value).toBe('Old'));
-  // 没改动：没有保存栏，占位容器一直在。
+  // No changes: no save bar, and the placeholder container is always there.
   expect(document.querySelector('.save-bar-slot')).toBeTruthy();
   expect(document.querySelector('.save-bar')).toBeNull();
   expect(screen.queryByRole('button', { name: '放弃修改' })).toBeNull();
@@ -136,14 +136,14 @@ test('参数配置保存栏：有修改才出现并写明几项，状态文字�
   const onlineMode = screen.getByRole('switch', { name: '正版验证（在线模式）' }) as HTMLInputElement;
   await user.click(onlineMode);
   expect(screen.getByRole('status').textContent).toBe('2 项修改未保存');
-  // 页首已经说过要重启，栏里不再重复。
+  // The page header already said a restart is needed, so the bar does not repeat it.
   expect(screen.getAllByText(/重启实例后生效/)).toHaveLength(1);
-  // 主按钮是提交按钮，其余按钮都明确写了 type="button"。
+  // The primary button is the submit button, and every other button explicitly has type="button".
   expect(saveButton()!.type).toBe('submit');
   expect(document.querySelectorAll('form button:not([type])')).toHaveLength(0);
   expect((screen.getByRole('button', { name: '放弃修改' }) as HTMLButtonElement).type).toBe('button');
 
-  // 填错一项：保存禁用，状态文字点名这一项并且可以点。
+  // One item filled in wrong: save is disabled, and the status text names this item and is clickable.
   const view = screen.getByRole('textbox', { name: '视距（区块）' }) as HTMLInputElement;
   await user.clear(view);
   await user.type(view, '99');
@@ -157,7 +157,7 @@ test('参数配置保存栏：有修改才出现并写明几项，状态文字�
   expect(screen.getByText('填写 3–32 之间的整数')).toBeTruthy();
   expect(view.getAttribute('aria-invalid')).toBe('true');
 
-  // 放弃修改：回到加载时的值，红字和「碰过」的记录一起清掉。
+  // Discard changes: back to the values at load time, with the red text and the "touched" records cleared together.
   await user.click(screen.getByRole('button', { name: '放弃修改' }));
   expect(motd.value).toBe('Old');
   expect(view.value).toBe('12');
@@ -179,7 +179,7 @@ test('参数配置：在输入框里按 Enter，合法就保存，不合法跳�
   await user.type(motd, '{Enter}');
   expect(saves).toEqual([]);
 
-  // 不合法：不保存，显示原因并跳过去。
+  // Invalid: not saved, the reason is shown and focus jumps there.
   const view = screen.getByRole('textbox', { name: '视距（区块）' }) as HTMLInputElement;
   await user.clear(view);
   await user.type(view, '2');
@@ -189,15 +189,15 @@ test('参数配置：在输入框里按 Enter，合法就保存，不合法跳�
   expect(view.getAttribute('aria-invalid')).toBe('true');
   expect(screen.getByText('填写 3–32 之间的整数')).toBeTruthy();
 
-  // 输入法选词的 Enter 不提交。
+  // The Enter that confirms an IME candidate does not submit.
   await user.type(view, '0');
   fireEvent.keyDown(view, { key: 'Enter', isComposing: true });
   expect(saves).toEqual([]);
 
-  // 改对了再按 Enter 就保存。
+  // Pressing Enter again after fixing it saves.
   await user.type(view, '{Enter}');
   await waitFor(() => expect(saves).toEqual([{ motd: 'Old!', 'view-distance': '20', 'server-port': '25565' }]));
-  // 实例没在运行（没有重启入口）：只提示已保存，没有重启按钮。
+  // The instance is not running (no restart entry): only a saved notice, no restart button.
   expect((await screen.findByRole('status')).textContent).toBe('已保存，重启实例后生效。');
   expect(screen.queryByRole('button', { name: '重启实例' })).toBeNull();
   expect(saveButton()).toBeNull();
@@ -216,18 +216,18 @@ test('参数配置：实例在运行时保存后给出「重启实例」，走�
   expect(within(bar).getByRole('status').textContent).toBe('已保存，重启实例后生效');
   expect(within(bar).getByRole('button', { name: '重启实例' })).toBeTruthy();
 
-  // 再次修改：提示收起，换回「N 项修改未保存」。
+  // Edited again: the notice collapses, replaced by "N unsaved changes".
   await user.type(motd, '2');
   expect(screen.queryByText('已保存，重启实例后生效')).toBeNull();
   expect(screen.getByText('1 项修改未保存')).toBeTruthy();
   await user.click(saveButton()!);
   expect(await screen.findByText('已保存，重启实例后生效')).toBeTruthy();
 
-  // 关闭按钮只收起提示。
+  // The close button only collapses the notice.
   await user.click(within(document.querySelector('.save-bar') as HTMLElement).getByRole('button', { name: '关闭' }));
   expect(document.querySelector('.save-bar')).toBeNull();
 
-  // 重启入口打开的是页头那个确认框，确认后才发重启请求，提示随之收起。
+  // The restart entry opens the confirmation dialog in the page header; the restart request is sent only after confirming, and the notice collapses with it.
   await user.type(motd, '3');
   await user.click(saveButton()!);
   await user.click(await screen.findByRole('button', { name: '重启实例' }));
@@ -245,7 +245,7 @@ test('参数配置：1.18 之前的版本不显示模拟距离，旧值保存时
   const motd = await screen.findByRole('textbox', { name: '服务器简介' }) as HTMLInputElement;
   await waitFor(() => expect(motd.value).toBe('Old'));
   expect(screen.queryByRole('textbox', { name: '模拟距离（区块）' })).toBeNull();
-  // 藏起来的键也不出现在「高级选项」里。
+  // Hidden keys do not appear in "Advanced Options" either.
   expect(screen.queryByLabelText('simulation-distance')).toBeNull();
   expect(screen.getByRole('textbox', { name: '视距（区块）' })).toBeTruthy();
   await user.type(motd, '!');
@@ -268,7 +268,7 @@ test('参数配置：「生成动物」被隐藏的版本在世界分组末尾�
   expect(screen.queryByText('/gamerule')).toBeNull();
   cleanup();
 
-  // 还有这一项的版本和版本未知时不显示这句话。
+  // This sentence is not shown for versions that still have this item, or when the version is unknown.
   for (const version of ['1.21.1', undefined]) {
     mountConfigTab({ motd: 'Old' }, version);
     expect(await screen.findByRole('switch', { name: '生成动物' })).toBeTruthy();
@@ -287,7 +287,7 @@ test('实例设置：保存栏有修改才出现，清空名称时点名并可�
   expect(findSave()).toBeNull();
   expect(document.querySelector('.save-bar-slot')).toBeTruthy();
 
-  // 清空名称：保存禁用，状态文字点名「名称」；红字等点了状态文字或失焦后才显示。
+  // Clear the name: save is disabled and the status text names "Name"; the red text shows only after clicking the status text or blur.
   await user.clear(name);
   expect(findSave()!.disabled).toBe(true);
   expect(findSave()!.type).toBe('submit');
@@ -295,7 +295,7 @@ test('实例设置：保存栏有修改才出现，清空名称时点名并可�
   expect(screen.queryByText('填写实例名称')).toBeNull();
   const jarFile = screen.getByRole('textbox', { name: 'Jar 文件名' }) as HTMLInputElement;
   jarFile.focus();
-  // 失焦过的字段直接显示原因；这里再验证状态文字能把焦点带回去。
+  // A field that has been blurred shows the reason directly; this also verifies the status text can bring focus back.
   fireEvent.click(within(screen.getByRole('status')).getByRole('button', { name: '先修正「名称」' }));
   expect(document.activeElement).toBe(name);
   const error = screen.getByText('填写实例名称');
@@ -306,7 +306,7 @@ test('实例设置：保存栏有修改才出现，清空名称时点名并可�
   expect(findSave()).toBeNull();
   expect(screen.queryByText('填写实例名称')).toBeNull();
 
-  // 多行文本框里的 Enter 是换行，不提交。
+  // Enter in a multi-line text box is a line break and does not submit.
   await user.type(name, '2');
   expect(screen.getByRole('status').textContent).toBe('1 项修改未保存');
   const textarea = document.querySelector('form textarea') as HTMLTextAreaElement;
@@ -314,7 +314,7 @@ test('实例设置：保存栏有修改才出现，清空名称时点名并可�
   fireEvent.keyDown(textarea, { key: 'Enter' });
   expect(calls).toEqual([]);
 
-  // 输入框里按 Enter 保存；只改了名称不需要重启，短暂提示已保存。
+  // Pressing Enter in the input saves; changing only the name needs no restart, and a saved notice shows briefly.
   await user.type(name, '{Enter}');
   await waitFor(() => expect(calls).toHaveLength(1));
   expect(calls[0]).toContain('PATCH /api/instances/test ');
@@ -337,7 +337,7 @@ test('实例设置：实例在运行时，改了启动才读取的设置保存�
   const jarFile = screen.getByRole('textbox', { name: 'Jar 文件名' }) as HTMLInputElement;
   await user.clear(jarFile);
   await user.type(jarFile, 'paper.jar');
-  // 再次修改时上一条提示收起。
+  // The previous notice collapses on the next edit.
   expect(screen.queryByText('设置已保存。')).toBeNull();
   await user.click(screen.getByRole('button', { name: '保存设置' }));
   const bar = await waitFor(() => {
@@ -359,10 +359,10 @@ test('参数配置：下拉和开关上的 Enter 带出来的隐式提交不保�
   await waitFor(() => expect(difficulty.value).toBe('easy'));
   await user.selectOptions(difficulty, 'hard');
   const form = difficulty.closest('form')!;
-  // jsdom 不模拟隐式提交，这里手动补上浏览器紧跟在 Enter 之后发出的 submit 事件。
+  // jsdom does not simulate implicit submission, so the submit event the browser fires right after Enter is added manually here.
   for (const control of [difficulty, screen.getByRole('switch', { name: '启用白名单' })]) {
     const notPrevented = fireEvent.keyDown(control, { key: 'Enter' });
-    // 不拦默认行为，控件自己的键盘操作不受影响。
+    // The default behavior is not prevented, so the control's own keyboard handling is unaffected.
     expect(notPrevented).toBe(true);
     fireEvent.submit(form);
   }
@@ -390,7 +390,7 @@ test('参数配置：保存后实例停止再启动，「重启实例后生效�
   await user.click(saveButton()!);
   expect(await screen.findByText('已保存，重启实例后生效')).toBeTruthy();
 
-  // 在页头停止实例：提示收起；再启动后配置已经生效，提示不该回来。
+  // Stop the instance in the page header: the notice collapses; after starting again the config is already in effect, so the notice should not come back.
   act(() => setRunning(false));
   expect(screen.queryByText('已保存，重启实例后生效')).toBeNull();
   act(() => setRunning(true));

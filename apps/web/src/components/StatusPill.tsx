@@ -4,7 +4,7 @@ import { instanceStatusKey } from '../instance-status';
 
 export type StatusTone = 'running' | 'stopped' | 'starting' | 'stopping' | 'crashed' | 'warning';
 
-/** 状态胶囊：圆点 + 文字，颜色按语义区分（运行绿、过渡橙、异常红、停止灰）。 */
+/** Status pill: a dot + text, with colors by meaning (running green, transitional orange, abnormal red, stopped grey). */
 export function StatusPill({
   tone,
   icon,

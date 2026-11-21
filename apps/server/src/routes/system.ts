@@ -43,7 +43,7 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
   const metrics = new MetricsService(config.dataDir, () => processManager.getMetricTargets());
   app.get('/api/system/metrics', () => metrics.get());
 
-  // 面板运行信息：给「面板设置」页展示监听地址和目录。只读，只返回配置文件里的非密钥项。
+  // Panel runtime info: shows the listen address and directories on the "Panel Settings" page. Read-only, returning only non-secret items from the config file.
   app.get('/api/system/panel-info', (): PanelInfo => ({
     host: config.host,
     port: config.port,
@@ -70,7 +70,7 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // ---- 从其他设备访问面板：登录即可开关，不限本机 ----
+  // ---- Access the panel from other devices: any signed-in user can toggle it, not limited to this machine ----
 
   app.get('/api/system/remote-access', async (_req, reply) => {
     try {
@@ -121,7 +121,7 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // 含网络密钥：只在用户进到「让手机加入」那一步时请求，响应不缓存。
+  // Contains the network secret: requested only when the user reaches the "join from a phone" step, and the response is not cached.
   app.get('/api/system/remote-access/panel-network/join', async (_req, reply) => {
     try {
       reply.header('Cache-Control', 'no-store');
@@ -176,8 +176,8 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // 一键安装 Java：只接受面板钉死了安装包的主版本，返回后台任务；
-  // 同一主版本已在安装时返回那个任务。
+  // One-click Java install: only accepts major versions whose installer the panel has pinned, and returns a background task;
+  // when the same major version is already being installed, that task is returned.
   app.post<{ Body: InstallJavaRequest }>(
     '/api/system/java-runtimes/install',
     { attachValidation: true, schema: { body: installJavaBodySchema } },
@@ -194,8 +194,8 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // 取消一键安装：只接受还在进行中的 Java 安装任务（别的任务 ID 一律 409），返回任务当前状态；
-  // 运行中的任务要等下载停下、临时目录清掉后才变成已取消，前端继续轮询到结束。
+  // Cancel a one-click install: only accepts a Java install task still in progress (any other task ID gets 409) and returns the task's current state;
+  // a running task becomes cancelled only after the download stops and the temp directory is cleaned up, so the frontend keeps polling until it ends.
   app.post<{ Params: { taskId: string } }>(
     '/api/system/java-runtimes/install/:taskId/cancel',
     async (req, reply) => {

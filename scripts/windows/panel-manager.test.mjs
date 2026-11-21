@@ -18,7 +18,7 @@ function cleanEnvironment() {
   for (const name of ['JWT_SECRET', 'SETUP_TOKEN', 'LAUNCHER_TOKEN', 'DATA_DIR', 'MYSTRY_DATA_DIR', 'MYSTRY_CONFIG_PATH', 'PORT', 'HOST']) {
     delete environment[name];
   }
-  // 下面按中文输出断言，不随系统语言变化。
+  // The assertions below are on the Chinese output, regardless of the system language.
   environment.MYSTRY_LANG = 'zh-CN';
   return environment;
 }
@@ -47,7 +47,7 @@ test('PanelManager 把 .env 交给 mystryctl，数据目录按其中的 DATA_DIR
     const envPath = path.join(testRoot, '.env');
     const launcherDirectory = path.join(testRoot, 'data', 'launcher');
     fs.mkdirSync(launcherDirectory, { recursive: true });
-    // 用一个必然不通的端口：状态里的 PID 仍存活但健康检查失败，mystryctl 会报出该 PID。
+    // A port that is certain to be unreachable is used: the PID in the state is still alive but the health check fails, and mystryctl reports that PID.
     fs.writeFileSync(envPath, `PORT=1\r\nDATA_DIR=${path.join(testRoot, 'data')}\r\n`, 'utf8');
     fs.writeFileSync(
       path.join(launcherDirectory, 'state.json'),
@@ -89,7 +89,7 @@ test('PanelManager 拒绝未知命令和多余参数', { skip: process.platform 
 });
 
 test('PanelManager reset-password 在输出不是终端时拒绝并返回非 0', { skip: process.platform !== 'win32' }, () => {
-  // 输出走管道：mystryctl 必须在请求服务端之前拒绝，退出码经 PowerShell 原样返回。
+  // Output goes through a pipe: mystryctl must refuse before contacting the server, and the exit code is returned as is through PowerShell.
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-reset-'));
   try {
     const result = spawnSync(
@@ -113,12 +113,12 @@ test('PanelManager reset-password 在输出不是终端时拒绝并返回非 0',
 });
 
 test('PanelManager.cmd 调用 Windows PowerShell 前清空 PSModulePath', () => {
-  // 从 pwsh 7 里运行时会继承 7.x 的模块路径，5.1 加载到不兼容的模块后找不到 Get-FileHash。
+  // When run from pwsh 7 the 7.x module path is inherited, and after 5.1 loads incompatible modules Get-FileHash cannot be found.
   const launcher = fs.readFileSync(path.resolve(scriptDirectory, '../../PanelManager.cmd'), 'utf8');
   const clearIndex = launcher.indexOf('set "PSModulePath="');
   assert.ok(clearIndex >= 0, 'PanelManager.cmd 应清空 PSModulePath');
   assert.ok(clearIndex < launcher.indexOf('powershell.exe'), '应在调用 powershell.exe 之前清空');
-  // chcp 65001 之后 cmd 按错位的字节继续读 LF 行尾的批处理，非 ASCII 字符会被当成命令执行。
+  // After chcp 65001, cmd keeps reading an LF-ending batch file at misaligned bytes, and non-ASCII characters get executed as commands.
   assert.match(launcher, /^[\x00-\x7f]*$/, 'PanelManager.cmd 只能包含 ASCII 字符');
 });
 
@@ -171,7 +171,7 @@ test('只有 mirror 和 remote 可以带参数，无效的下载源名称不写�
 });
 
 test('PanelManager 把 remote 的子命令和参数交给控制器', { skip: process.platform !== 'win32' }, () => {
-  // 用隔离的配置和数据目录：面板没在运行，控制器不会请求任何接口。
+  // Uses isolated config and data directories: the panel is not running, so the controller requests no endpoint.
   const testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-panel-manager-remote-'));
   try {
     const run = (...args) => spawnSync(

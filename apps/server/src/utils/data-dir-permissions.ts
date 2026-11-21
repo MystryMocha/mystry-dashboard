@@ -16,7 +16,7 @@ export class DataDirPermissionError extends Error {
 let windowsAclWarningShown = false;
 const startupNotices: string[] = [];
 
-/** 取走启动期提示，由面板写入日志文件；这类提示每次启动都一样，不占用前台窗口。 */
+/** Takes the startup notices so the panel can write them to the log file; these notices are the same on every start and should not occupy the foreground window. */
 export function takeStartupNotices(): string[] {
   return startupNotices.splice(0);
 }
@@ -89,7 +89,7 @@ function tightenOrReject(
   );
 }
 
-/** 确保目录存在且 Unix 上为 0700；校验已有路径不过宽。 */
+/** Ensures the directory exists and is 0700 on Unix; verifies an existing path is not too permissive. */
 export function ensureSecureDirectory(dirPath: string): void {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true, mode: DIR_MODE });
@@ -107,7 +107,7 @@ export function ensureSecureDirectory(dirPath: string): void {
   }
 }
 
-/** 敏感文件（数据库、WAL、SHM 等）在 Unix 上应为 0600。 */
+/** Sensitive files (database, WAL, SHM, etc.) should be 0600 on Unix. */
 export function ensureSecureSensitiveFile(filePath: string): void {
   if (!fs.existsSync(filePath)) return;
   warnWindowsAclBoundary(path.dirname(filePath));
@@ -119,7 +119,7 @@ export function ensureSecureSensitiveFile(filePath: string): void {
   }
 }
 
-/** 初始化数据根及子目录权限；在 initDb 创建数据库后调用 finalizeSensitiveDataFiles。 */
+/** Initializes permissions of the data root and its subdirectories; call finalizeSensitiveDataFiles after initDb has created the database. */
 export function prepareSecureDataLayout(dataDir: string, subdirectories: string[]): void {
   ensureSecureDirectory(dataDir);
   for (const relative of subdirectories) {
@@ -127,14 +127,14 @@ export function prepareSecureDataLayout(dataDir: string, subdirectories: string[
   }
 }
 
-/** SQLite 主库与 WAL/SHM companion 文件的权限校验。 */
+/** Permission check for the SQLite main database and its WAL/SHM companion files. */
 export function finalizeSensitiveDataFiles(dbPath: string): void {
   ensureSecureSensitiveFile(dbPath);
   ensureSecureSensitiveFile(`${dbPath}-wal`);
   ensureSecureSensitiveFile(`${dbPath}-shm`);
 }
 
-/** 立即把刚创建的文件收紧为 0600（SQLite 以默认 mode 建库后调用）。 */
+/** Tightens a just-created file to 0600 right away (called after SQLite creates the database with the default mode). */
 export function forceSecureSensitiveFile(filePath: string): void {
   if (!isUnix() || !fs.existsSync(filePath)) return;
   fs.chmodSync(filePath, FILE_MODE);

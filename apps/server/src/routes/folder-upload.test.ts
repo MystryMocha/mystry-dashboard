@@ -1,6 +1,6 @@
 /**
- * 浏览器上传文件夹接口回归：认证、配额、相对路径校验、分批接收、预检、确认导入（整个搬进实例目录）、
- * 取消和启动时清理残留临时目录。
+ * Browser folder upload endpoint regression: authentication, quotas, relative path validation, batched receiving, precheck, confirming the import (the whole folder is moved into the instance directory),
+ * cancel, and cleaning up leftover temp directories at startup.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -17,7 +17,7 @@ process.env.MAX_EXISTING_IMPORT_BYTES = String(1024 * 1024);
 
 type Part = { path: string; content: string | Buffer } | { rawField: string; value: string } | { rawFile: string; content: string };
 
-/** 按浏览器 FormData 的样子拼 multipart：每个文件前面先放一个 path 字段。 */
+/** Builds multipart the way browser FormData does: a path field comes before each file. */
 function multipart(parts: Part[]) {
   const boundary = 'mystry-folder-upload-test-boundary';
   const chunks: Buffer[] = [];
@@ -44,8 +44,8 @@ function multipart(parts: Part[]) {
 test('浏览器上传文件夹接口', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-folder-upload-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;
-  // 上次进程留下的上传临时目录：启动时应被清掉。
-  // 目录按面板自己建的权限（700）来建：Linux 下默认的 755 会在启动时被数据目录权限检查拒绝。
+  // An upload temp directory left by the previous process: it should be cleaned up at startup.
+  // The directory is created with the permissions the panel itself uses (700): on Linux the default 755 would be rejected by the data directory permission check at startup.
   const orphan = path.join(dataRoot, 'uploads', '.tmp-folder-upload-orphan');
   fs.mkdirSync(path.join(orphan, 'world'), { recursive: true, mode: 0o700 });
   fs.writeFileSync(path.join(orphan, 'world', 'level.dat'), 'old');
@@ -116,7 +116,7 @@ test('浏览器上传文件夹接口', async (t) => {
     for (const reserved of ['.mystry-instance.json', '.MYSTRY-STAGING-MARKER.json']) {
       assert.throws(() => normalizeUploadRelativePath(reserved), (error: { messageKey?: string }) => error.messageKey === 'server.imports.folder.reservedName');
     }
-    // 只有根目录的保留名会撞上面板文件，子目录里同名不要紧。
+    // Only reserved names in the root collide with panel files; the same name inside a subdirectory does not matter.
     assert.equal(normalizeUploadRelativePath('config/.mystry-instance.json'), 'config/.mystry-instance.json');
     if (process.platform === 'win32') {
       for (const bad of ['con.txt', 'world/aux', 'a:b', 'trailing.', 'space ']) {
@@ -189,7 +189,7 @@ test('浏览器上传文件夹接口', async (t) => {
     assert.equal(instance.json<{ name: string; jarFile: string }>().name, '上传的服务器');
     assert.equal(instance.json<{ jarFile: string }>().jarFile, 'server.jar');
 
-    // 会话已交给任务：再确认或查询都是 404。
+    // The session has been handed to the task: confirming or querying again both return 404.
     assert.equal((await get(upload.id)).statusCode, 404);
   });
 

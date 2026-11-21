@@ -1,6 +1,6 @@
-/** 服务端返回给用户的消息：实例文件、上传、下载与 ZIP 解压。值为英文模板，`{name}` 为参数占位；其他语言由 Web 文案表按键翻译。 */
+/** User-facing server messages: instance files, upload, download and ZIP extraction. Values are English templates with `{name}` placeholders; the Web string tables translate other languages by key. */
 export const FILES_MESSAGES = {
-  // 实例目录与路径校验
+  // Instance directory and path validation
   'server.files.instanceNotFound': 'Instance not found.',
   'server.files.instanceIdInvalid': 'Invalid instance ID.',
   'server.files.legacyInstallPath': 'This legacy instance must be migrated to a panel-managed directory.',
@@ -12,7 +12,7 @@ export const FILES_MESSAGES = {
   'server.files.path.linkTraversal': "Invalid path: you can't access files outside the instance directory through a symbolic link or directory junction.",
   'server.files.path.linkEscapes': 'Invalid path: the path points outside the instance directory through a symbolic link or directory junction.',
 
-  // 文件管理
+  // File management
   'server.files.rootImmutable': "You can't modify the instance root directory.",
   'server.files.markerImmutable': "You can't modify the instance ownership marker.",
   'server.files.dirNotFound': 'Directory not found.',
@@ -28,7 +28,7 @@ export const FILES_MESSAGES = {
   'server.files.rename.conflict': "The target path already exists, so it can't be renamed.",
   'server.files.serverProperties.tooLarge': 'server.properties exceeds the size limit ({limit} bytes).',
 
-  // 请求参数校验
+  // Request parameter validation
   'server.files.validation.path': 'The file path is too long or has an invalid format.',
   'server.files.validation.dirPath': 'The directory path is too long or has an invalid format.',
   'server.files.validation.pathBody': 'The file path is too long or the request has unsupported fields.',
@@ -37,7 +37,7 @@ export const FILES_MESSAGES = {
   'server.files.validation.textBody': 'The text file path or content is too long, or the request has unsupported fields.',
   'server.files.validation.serverProperties': 'server.properties has too many keys, text that is too long, or an invalid format.',
 
-  // 上传
+  // Upload
   'server.files.upload.missing': 'No file was uploaded.',
   'server.files.upload.capacity': 'Too many uploads are in progress. Try again later.',
   'server.files.upload.tooLarge': 'The uploaded file exceeds the size limit.',
@@ -48,7 +48,7 @@ export const FILES_MESSAGES = {
   'server.files.upload.invalidTemp': 'Invalid temporary upload file.',
   'server.files.upload.invalidPreviewTemp': 'Invalid temporary ZIP preview file.',
 
-  // 下载与下载票据
+  // Download and download tickets
   'server.files.download.capacity': 'Too many file downloads are in progress. Try again later.',
   'server.files.download.aborted': 'The file download connection was aborted.',
   'server.files.download.idleTimeout': 'The file download timed out while idle.',
@@ -61,7 +61,7 @@ export const FILES_MESSAGES = {
   'server.files.download.ticketNotFoundCancel': 'This download doesn\'t exist, or you don\'t have permission to cancel it.',
   'server.files.download.ticketNotFoundView': 'This download doesn\'t exist, or you don\'t have permission to view it.',
 
-  // ZIP 解析与解压
+  // ZIP parsing and extraction
   'server.files.zip.corrupted': 'The ZIP file is corrupted.',
   'server.files.zip.entryNameInvalid': 'A ZIP entry has an invalid name.',
   'server.files.zip.entryNameEmpty': 'A ZIP entry has an empty name.',

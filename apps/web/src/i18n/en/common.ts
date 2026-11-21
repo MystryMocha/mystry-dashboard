@@ -1,4 +1,4 @@
-/** 跨页面共用的术语表文案（英文主表）：状态词、通用动作和导航名称只在这里定义，各页面不得另行改写。 */
+/** Glossary strings shared across pages (English primary table): status words, common actions and navigation names are defined only here, and pages must not reword them. */
 export default {
   'instance.status.stopped': 'Stopped',
   'instance.status.starting': 'Starting',
@@ -73,7 +73,7 @@ export default {
   'common.latest': 'Latest',
   'common.default': 'Default',
 
-  // 表单本地校验：操作栏和字段下方说明缺什么。
+  // Local form validation: the action bar and the text under fields say what is missing.
   'validation.instanceName.required': 'Enter an instance name',
   'validation.instanceName.tooLong': 'The instance name can be at most {max} characters',
   'validation.jarFile.required': 'Enter the jar file name',

@@ -1,6 +1,6 @@
-/** JVM 参数配置器、EULA 勾选与 Java 运行时选择文案（英文主表）。 */
+/** JVM argument configurator, EULA checkbox and Java runtime picker strings (English primary table). */
 export default {
-  // JVM 参数配置器
+  // JVM argument configurator
   'jvm.section.ariaLabel': 'JVM Settings',
   'jvm.detected.applied': 'Found {source} and applied its settings.',
   'jvm.detected.ignored': 'Not using {source}.',
@@ -41,7 +41,7 @@ export default {
   'jvm.preview.title': 'Final Arguments',
   'jvm.preview.empty': 'No parsable arguments',
 
-  // Java 运行时选择
+  // Java runtime picker
   'java.runtime.label': 'Java Runtime',
   'java.runtime.recommended': 'Recommended: Java {java}',
   'java.runtime.systemDefault': 'System Default Java',
@@ -77,11 +77,11 @@ export default {
   'java.install.cancelling': 'Cancelling…',
   'java.install.progress': 'Java {java} Installation Progress',
 
-  // EULA 勾选
+  // EULA checkbox
   'eula.agree': 'I have read and agree to the <link>Minecraft EULA</link>. The panel writes eula.txt based on this choice.',
   'eula.agree.short': 'Agree to the <link>Minecraft EULA</link>',
 
-  // 懒加载下拉框
+  // Lazy-loading dropdown
   'select.placeholder': 'Select an Option',
   'select.empty': 'No options',
   'select.loadMore': 'Scroll down to load more…',

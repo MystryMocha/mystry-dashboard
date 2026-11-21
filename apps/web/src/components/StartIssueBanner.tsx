@@ -6,8 +6,8 @@ import { useI18n } from '../i18n';
 import { javaDownloadUrl } from '../java-download';
 
 /**
- * 启动失败且原因可识别，或选的 Java 已不可用时显示在控制台上方：说明原因并给出下一步。
- * 未同意 EULA 时可以在这里同意并启动；Java 版本不符时给出下载和切换入口；Java 不可用时带去设置里重新选。
+ * Shown above the console when a start failed for a recognizable reason, or the chosen Java is no longer available: explains the reason and gives the next step.
+ * With the EULA not accepted it can be accepted and started here; on a Java version mismatch download and switch entries are given; when Java is unavailable it leads to settings to choose again.
  */
 export function StartIssueBanner({
   issue,
@@ -48,7 +48,7 @@ export function StartIssueBanner({
     );
   }
 
-  // 选的 Java 已不可用：不是版本问题，不给下载入口，只带去设置里重新选。
+  // The chosen Java is no longer available: not a version problem, so no download entry, only a link to settings to choose again.
   if (issue.kind === 'java-unavailable') {
     return (
       <div className="callout callout-warning start-issue" role="alert">

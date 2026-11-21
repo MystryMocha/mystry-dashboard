@@ -1,4 +1,4 @@
-/** 服务端返回给用户的消息：通用（认证失效、内部错误、请求校验）。值为英文模板，`{name}` 为参数占位；其他语言由 Web 文案表按键翻译。 */
+/** User-facing server messages: common (expired authentication, internal errors, request validation). Values are English templates with `{name}` placeholders; the Web string tables translate other languages by key. */
 export const COMMON_MESSAGES = {
   'server.common.internal': 'Internal server error.',
   'server.common.requestFailed': 'Request failed.',

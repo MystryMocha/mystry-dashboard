@@ -8,7 +8,7 @@ import { useI18n, type MessageKey } from '../i18n';
 import { ActionMenu, type ActionMenuItem } from './ActionMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 
-/** 与服务端默认 MAX_TEXT_FILE_BYTES 对齐，用于判断是否显示「编辑」。 */
+/** Aligned with the server's default MAX_TEXT_FILE_BYTES, used to decide whether to show "Edit". */
 const MAX_EDITABLE_FILE_BYTES = 1_048_576;
 
 function canEditFile(file: FileEntry): boolean {
@@ -21,7 +21,7 @@ function parentOf(relativePath: string): string {
   return parts.join('/');
 }
 
-/** 校验同目录名称，返回错误文案键；folder 为 true 时使用「文件夹名称」的提示。 */
+/** Validates a name within the same directory and returns the error string key; when folder is true the "folder name" messages are used. */
 function validateEntryName(name: string, folder = false): MessageKey | null {
   const trimmed = name.trim();
   if (!trimmed) return folder ? 'files.validation.folderNameEmpty' : 'files.validation.nameEmpty';
@@ -33,7 +33,7 @@ function validateEntryName(name: string, folder = false): MessageKey | null {
 
 type FileRowProps = {
   file: FileEntry;
-  /** 该文件正在准备下载。 */
+  /** This file is being prepared for download. */
   busy: boolean;
   deleting: boolean;
   renaming: boolean;
@@ -44,7 +44,7 @@ type FileRowProps = {
   onDelete: (file: FileEntry) => void;
 };
 
-/** 刷新列表时服务端返回的是新对象；内容相同就视为同一行，不必重新渲染。 */
+/** On a list refresh the server returns new objects; rows with the same content are treated as the same row and need no re-render. */
 function sameFileRowProps(prev: FileRowProps, next: FileRowProps): boolean {
   for (const key of Object.keys(next) as (keyof FileRowProps)[]) {
     if (key !== 'file' && prev[key] !== next[key]) return false;
@@ -56,8 +56,8 @@ function sameFileRowProps(prev: FileRowProps, next: FileRowProps): boolean {
 }
 
 /**
- * 单个文件行。用 memo 隔离：编辑器、重命名、新建文件夹输入框每次按键都会让 FilesTab 重新渲染，
- * 回调稳定时只有 props 真正变化的行（如正在下载的那一行）才会重新渲染。
+ * A single file row. Isolated with memo: every keystroke in the editor, rename or new-folder input re-renders FilesTab,
+ * and with stable callbacks only rows whose props really changed (such as the one being downloaded) re-render.
  */
 const FileRow = memo(function FileRow({
   file: f,
@@ -146,7 +146,7 @@ const FileRow = memo(function FileRow({
   );
 }, sameFileRowProps);
 
-/** 实例文件管理。切换实例时由上层按实例 ID 重新挂载，这里不处理实例变化。 */
+/** Instance file management. Remounted by the parent per instance ID when the instance changes, so instance changes are not handled here. */
 export function FilesTab({ instanceId }: { instanceId: string }) {
   const { t } = useI18n();
   const [path, setPath] = useState('');
@@ -155,7 +155,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   const [loading, setLoading] = useState(true);
   const [editPath, setEditPath] = useState<string | null>(null);
   const [content, setContent] = useState('');
-  /** 读取成功时的原始内容；null 表示还没读到或读取失败，此时不显示编辑框也不能保存，避免用空内容覆盖原文件。 */
+  /** The original content on a successful read; null means not read yet or the read failed, in which case no edit box is shown and saving is not possible, so the original file is not overwritten with empty content. */
   const [editOriginal, setEditOriginal] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [editError, setEditError] = useState('');
@@ -179,9 +179,9 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   const renameDialogRef = useDialogOpen(renameTarget !== null);
   const newDirDialogRef = useDialogOpen(newDirOpen);
   const uploadInputRef = useRef<HTMLInputElement>(null);
-  /** 编辑代次：关闭编辑器或打开新文件时递增，用于丢弃慢响应到达的旧文件内容。 */
+  /** Edit generation: incremented when the editor is closed or a new file is opened, used to discard old file content arriving in a slow response. */
   const editGenerationRef = useRef(0);
-  /** 文件列表请求代次：切换目录后丢弃迟到的旧列表，避免覆盖当前视图。 */
+  /** File list request generation: late old lists are discarded after a directory change, so they do not overwrite the current view. */
   const loadGenerationRef = useRef(0);
   const downloadControllersRef = useRef(new Set<AbortController>());
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -200,7 +200,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       setError('');
     } catch (err) {
       if (generation !== loadGenerationRef.current) return;
-      // 刷新失败时保留上一份成功列表，避免把暂时的网络问题误显示为目录为空。
+      // When a refresh fails the last successful list is kept, so a temporary network problem is not shown as an empty directory.
       setError(errorMessage(err));
     } finally {
       if (generation === loadGenerationRef.current) setLoading(false);
@@ -248,7 +248,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setDeleteError('');
   }
 
-  // 以下传给 FileRow 的回调保持引用稳定，避免输入框每次按键都让整个列表重新渲染。
+  // The callbacks passed to FileRow below keep stable references, so not every keystroke in an input re-renders the whole list.
   const changePath = useCallback((nextPath: string) => {
     loadGenerationRef.current += 1;
     setFiles([]);
@@ -271,7 +271,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       const res = await api<{ content: string }>(
         instanceApi(instanceId, `/files/content?path=${encodeURIComponent(file.path)}`),
       );
-      // 期间可能已关闭编辑器或打开其他文件，过期响应必须丢弃，否则会把 A 内容存进 B 文件。
+      // The editor may have been closed or another file opened in the meantime; stale responses must be discarded, or A's content would be saved into file B.
       if (generation !== editGenerationRef.current) return;
       setContent(res.content);
       setEditOriginal(res.content);
@@ -351,7 +351,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setRenameError('');
   }, []);
 
-  // 名称不合规或没改时确认按钮不可点；只有填了内容但不合规才在输入框下说明，空着时不提前报错。
+  // The confirm button is disabled when the name does not comply or is unchanged; an explanation shows under the input only when something non-compliant is filled in, with no early error while empty.
   const renameIssue = renameTarget ? validateEntryName(renameName) : null;
   const renameUnchanged = renameTarget !== null && renameName.trim() === renameTarget.name;
   const newDirIssue = validateEntryName(newDir, true);

@@ -28,7 +28,7 @@ import { errorParam, PanelError } from '../utils/errors.js';
 
 const DEFAULT_JVM_ARGS = '-Xms1G -Xmx2G';
 
-/** 校验运行时引用：只能引用注册表中已验证的运行时，null 表示 PATH 中的 java。 */
+/** Validates a runtime reference: only verified runtimes in the registry may be referenced; null means the java on PATH. */
 function assertValidJavaRuntime(javaRuntimeId: string | null | undefined): void {
   if (javaRuntimeId === null || javaRuntimeId === undefined) return;
   const runtime = getJavaRuntime(javaRuntimeId);
@@ -38,8 +38,8 @@ function assertValidJavaRuntime(javaRuntimeId: string | null | undefined): void 
 }
 
 /**
- * 启动前就能判断的问题：绑定的 Java 已标记为不可用，或已不在登记表里。
- * 只查登记表，不碰磁盘；文件被删、被替换这类情况仍由启动前的复验发现。
+ * Problems that can be told before starting: the bound Java is marked unavailable, or is no longer in the registry.
+ * Only the registry is checked and the disk is not touched; cases such as the file being deleted or replaced are still caught by the re-verification before start.
  */
 function boundJavaUnavailable(row: InstanceRow): boolean {
   if (row.java_runtime_id === null || row.java_runtime_id === undefined) return false;
@@ -65,7 +65,7 @@ function rowToInfo(row: InstanceRow): InstanceInfo {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     acceptEula: Boolean(row.accept_eula),
-    // 选的 Java 用不了时怎么启动都会失败，排在上次启动留下的原因前面。
+    // When the chosen Java is unusable every start will fail, so this ranks ahead of the reason left by the previous start.
     startIssue: boundJavaUnavailable(row)
       ? { kind: 'java-unavailable', requiredJava: null }
       : processManager.getStartIssue(row.id),
@@ -90,7 +90,7 @@ function cleanupCreatedDirectory(
       fs.rmdirSync(dir);
     }
   } catch {
-    // 清理失败不能覆盖原始数据库/文件系统错误，也不能冒险删除非空目录。
+    // A cleanup failure must not override the original database/filesystem error, nor risk deleting a non-empty directory.
   }
 }
 
@@ -117,7 +117,7 @@ export function getInstanceRow(id: string): InstanceRow | null {
 
 type PreparedInstanceInput = { nodeId: string; jvmArgs: string };
 
-/** 新建和注册实例共用的输入校验：节点、Java 运行时和 JVM 参数。 */
+/** Input validation shared by creating and registering instances: node, Java runtime and JVM arguments. */
 function prepareInstanceInput(input: CreateInstanceInput): PreparedInstanceInput {
   const nodeId = input.nodeId?.trim() || LOCAL_NODE_ID;
   if (!nodeExists(nodeId)) {
@@ -203,7 +203,7 @@ export function createInstance(input: CreateInstanceInput): InstanceInfo {
   return getInstance(id)!;
 }
 
-/** 将已 promote 到 instances/<id> 的目录注册进数据库（部署/导入任务完成时调用）。 */
+/** Registers a directory already promoted to instances/<id> in the database (called when a deploy/import task completes). */
 export function registerPromotedInstance(id: string, input: CreateInstanceInput): InstanceInfo {
   const prepared = prepareInstanceInput(input);
   const dir = defaultInstanceDir(id);
@@ -240,14 +240,14 @@ export function updateInstance(id: string, input: UpdateInstanceInput): Instance
       ? existing.java_runtime_id
       : input.javaRuntimeId,
   });
-  // 未提交 JVM 参数时只做校验，不静默改写旧实例中的原始文本。
+  // When no JVM arguments are submitted, only validate; the raw text in a legacy instance is not silently rewritten.
   const jvmArgs = input.jvmArgs === undefined ? existing.jvm_args : normalizedJvmArgs;
 
-  // 启动时只在同意时写 eula=true。从同意改成不同意时要把文件改回来，否则之前写进去的同意一直有效。
-  // 只看这一次变化：从没勾选过的实例（例如导入时自带同意记录）不碰原有的 eula.txt。
-  // 旧版绑定外部目录的实例迁移前不能启动，也解析不到实例目录，只改数据库，和以前一样能保存。
+  // On start, eula=true is written only when accepted. When acceptance is withdrawn the file has to be changed back, or the acceptance written earlier would stay in effect.
+  // Only this change is considered: an instance where it was never checked (for example one imported with its own acceptance record) keeps its existing eula.txt untouched.
+  // A legacy instance bound to an external directory cannot start before migration and its instance directory cannot be resolved, so only the database is changed, and it can be saved as before.
   if (existing.accept_eula && input.acceptEula === false && existing.install_path === null) {
-    // 还原备份会整体替换目录，这时写进去的文件会丢，数据库和文件对不上。
+    // Restoring a backup replaces the whole directory, so files written now would be lost and the database and files would disagree.
     processManager.assertNotInMaintenance(id);
     const dir = assertSafeInstanceRoot(resolveDirFromRow(existing));
     fs.writeFileSync(resolveSafePath(dir, 'eula.txt'), 'eula=false\n', 'utf8');
@@ -281,9 +281,9 @@ export function updateInstance(id: string, input: UpdateInstanceInput): Instance
 }
 
 /**
- * 实例设置的保存入口（PATCH）。取消同意 EULA 时会改实例目录里的 eula.txt，
- * 这时和启动、还原替换目录用同一把实例锁，不会和它们交错。
- * 其他保存不拿锁：停止实例会在等进程退出期间一直占着锁，改个名不能跟着等。
+ * Save entry point for instance settings (PATCH). Withdrawing EULA acceptance changes eula.txt in the instance directory,
+ * and in that case the same instance lock as start and the restore directory swap is used, so it does not interleave with them.
+ * Other saves take no lock: stopping an instance holds the lock the whole time it waits for the process to exit, and a rename must not have to wait along with it.
  */
 export async function updateInstanceSettings(id: string, input: UpdateInstanceInput): Promise<InstanceInfo> {
   if (input.acceptEula === false && getInstanceRow(id)?.accept_eula) {
@@ -292,7 +292,7 @@ export async function updateInstanceSettings(id: string, input: UpdateInstanceIn
   return updateInstance(id, input);
 }
 
-/** 还原备份后同步面板记录的启动文件、核心类型与版本；调用方负责持有实例锁。 */
+/** Syncs the launch file, core type and version recorded by the panel after a backup restore; the caller is responsible for holding the instance lock. */
 export function updateInstanceServerFiles(
   id: string,
   input: { jarFile: string; coreType: string; mcVersion: string | null },
@@ -317,7 +317,7 @@ export async function deleteInstance(id: string): Promise<void> {
     }
     const dir = defaultInstanceDir(row.id);
     const canRemoveDirectory = hasValidOwnershipMarker(row);
-    // 保持先删目录后删 DB 行的顺序：安全自检 R1 断言「目录删除失败时数据库记录必须保留」。
+    // Keep the order of deleting the directory before the DB row: security self-test R1 asserts "the database record must be kept when deleting the directory fails".
     if (canRemoveDirectory && fs.existsSync(dir)) {
       assertSafeInstanceRoot(dir);
       fs.rmSync(dir, { recursive: true, force: true });
@@ -330,7 +330,7 @@ export async function deleteInstance(id: string): Promise<void> {
   });
 }
 
-/** 接管同一实例 ID 对应的默认目录，不读取或操作旧的外部目录。 */
+/** Takes over the default directory for the same instance ID, without reading or operating on the old external directory. */
 export async function adoptManagedDirectory(id: string): Promise<InstanceInfo> {
   return processManager.runExclusive(id, async () => adoptManagedDirectoryWithinLock(id));
 }

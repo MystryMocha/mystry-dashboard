@@ -24,7 +24,7 @@ export function isUsableCoreCache(filePath: string): boolean {
   }
 }
 
-/** 流式计算文件摘要，核心文件有几十 MB，不整体读进内存。 */
+/** Computes a file digest by streaming; core files are tens of MB and are not read into memory whole. */
 async function hashFile(filePath: string, algorithm: ExpectedDigest['algorithm'], signal?: AbortSignal): Promise<string> {
   const hash = createHash(algorithm);
   for await (const chunk of fs.createReadStream(filePath, { signal })) hash.update(chunk as Buffer);
@@ -44,9 +44,9 @@ function isSameFile(a: fs.Stats, b: fs.Stats): boolean {
 }
 
 /**
- * 核心缓存能否直接使用：非空文件，且计划带校验值时内容与之相符。缓存只按核心类型和版本命名、不分来源，
- * 旧版面板或别的来源都可能留下它，所以每次使用前按本次计划的校验值重新核对，不符的删掉，交给调用方重新下载。
- * 计划没有校验值时（例如离线取不到官方校验文件）只能按非空判断，与以前一致。
+ * Whether a core cache can be used directly: a non-empty file whose content matches the checksum when the plan carries one. The cache is named only by core type and version, not by source,
+ * and an older panel or another source may have left it, so before every use it is re-checked against this plan's checksum; a mismatch is deleted and left for the caller to download again.
+ * When the plan has no checksum (for example the official checksum file cannot be fetched offline), only non-emptiness can be checked, same as before.
  */
 export async function verifyCoreCache(
   filePath: string,
@@ -66,22 +66,22 @@ export async function verifyCoreCache(
   if (actual === expected.hex.toLowerCase()) return true;
   const now = statOrNull(filePath);
   if (!now) return false;
-  // 计算摘要期间文件可能已被别的下载替换成核对过的新文件，这时核对新文件，不能把它删掉。
+  // While the digest was being computed the file may have been replaced by another download with a newly verified file; in that case verify the new file, it must not be deleted.
   if (!isSameFile(before, now)) return verifyCoreCache(filePath, expected, signal);
   fs.rmSync(filePath, { force: true });
   return false;
 }
 
 export type DownloadOptions = {
-  /** 写入最终路径前核对的校验值；不符时丢弃文件。 */
+  /** Checksum verified before writing to the final path; the file is discarded on mismatch. */
   expected?: ExpectedDigest;
-  /** 单文件大小上限，默认 MAX_CORE_DOWNLOAD_BYTES。 */
+  /** Per-file size limit, MAX_CORE_DOWNLOAD_BYTES by default. */
   maxBytes?: number;
-  /** 等待响应头的时限；还有后备来源时用它，避免卡死的镜像耗尽整段下载超时。 */
+  /** Time limit for waiting for response headers; used when fallback sources remain, so a stalled mirror does not use up the whole download timeout. */
   responseTimeoutMs?: number;
 };
 
-/** 请求文件并等待响应头；时限只覆盖这一段，正文仍受外层下载超时约束。 */
+/** Requests the file and waits for response headers; the time limit covers only this part, and the body is still bound by the outer download timeout. */
 async function fetchDownload(url: string, signal: AbortSignal, responseTimeoutMs?: number): Promise<Response> {
   const init = { headers: { 'User-Agent': USER_AGENT } };
   if (responseTimeoutMs === undefined) return fetch(url, { ...init, signal });
@@ -142,8 +142,8 @@ export async function downloadToFile(
       throw new PanelError('server.system.downloadChecksumMismatch');
     }
 
-    // 只把完整 part 文件提升为最终缓存文件；最终路径不会被用作下载中的暂存区。
-    // 带校验值时 part 已核对过，总是替换已有文件：已有文件未经本次核对，不能优先保留。
+    // Only a complete part file is promoted to the final cache file; the final path is never used as a staging area for a download in progress.
+    // With a checksum the part has been verified and always replaces the existing file: the existing file was not verified this time and must not be preferred.
     if (!options.expected && isUsableCoreCache(dest)) {
       fs.rmSync(part, { force: true });
       renamed = true;
@@ -156,7 +156,7 @@ export async function downloadToFile(
     try {
       if (!renamed) fs.rmSync(part, { force: true });
     } catch {
-      /* 清理失败不覆盖原始错误 */
+      /* A cleanup failure does not override the original error */
     }
     throw timeout.errorFor(error);
   } finally {
@@ -164,18 +164,18 @@ export async function downloadToFile(
   }
 }
 
-/** 进度回调：比例和当前正在使用的来源名。 */
+/** Progress callback: the ratio and the name of the source currently in use. */
 export type PlanProgress = (ratio: number, source: string) => void;
 
 export type PlanDownloadOptions = {
-  /** 所有来源都失败时显示在错误里的文件名称。 */
+  /** File name shown in the error when every source fails. */
   name: string;
   onProgress?: PlanProgress;
   signal?: AbortSignal;
   maxBytes?: number;
 };
 
-/** 按顺序尝试计划里的来源，成功即止。只有一个来源时保留它自己的错误，文案与切换来源前一致。 */
+/** Tries the sources in the plan in order and stops at the first success. With only one source its own error is kept, with the same wording as before source switching existed. */
 export async function downloadFromPlan(plan: DownloadPlan, dest: string, options: PlanDownloadOptions): Promise<void> {
   const failures: SourceFailure[] = [];
   const { candidates, expected } = plan;
@@ -205,7 +205,7 @@ export async function downloadFromPlan(plan: DownloadPlan, dest: string, options
   });
 }
 
-/** 运行时压缩包的下载错误：多来源汇总错误原样抛出，单一来源映射成该运行时自己的文案。 */
+/** Download errors for runtime archives: an aggregated multi-source error is thrown as is, and a single source is mapped to that runtime's own wording. */
 export function toRuntimeDownloadError(
   error: unknown,
   keys: {
@@ -261,8 +261,8 @@ function waitForCacheDownload(flight: CacheDownloadFlight, signal?: AbortSignal)
 }
 
 /**
- * 按最终缓存路径合并并发下载，避免多个任务同时覆盖同一个核心文件。
- * 已有缓存按计划的校验值核对后才复用，不符时删掉重新下载。
+ * Merges concurrent downloads by final cache path, so multiple tasks do not overwrite the same core file at once.
+ * An existing cache is reused only after being checked against the plan's checksum; a mismatch is deleted and downloaded again.
  */
 export async function ensureCoreCache(
   plan: DownloadPlan,
@@ -273,11 +273,11 @@ export async function ensureCoreCache(
 ): Promise<void> {
   if (signal?.aborted) throw abortError(signal);
 
-  // 同一路径正在下载时直接加入，不去核对（或删除）下载完成前的旧文件。
+  // When the same path is already downloading, join it directly without checking (or deleting) the old file from before the download completes.
   let flight = cacheDownloadFlights.get(cachePath);
   if (!flight) {
     if (await verifyCoreCache(cachePath, plan.expected, signal)) return;
-    // 核对是异步的，期间可能已有别的调用发起了下载。
+    // The check is asynchronous, and another call may have started a download in the meantime.
     flight = cacheDownloadFlights.get(cachePath);
   }
   if (!flight) {
@@ -311,7 +311,7 @@ export async function ensureCoreCache(
     if (onProgress) flight.callbacks.delete(onProgress);
     flight.waiters -= 1;
     if (flight.waiters === 0 && !flight.finished && !flight.controller.signal.aborted) {
-      // 先从表中移除再中止：旧下载收尾期间新来的调用会重新下载，而不是拿到别人的取消原因。
+      // Remove from the table before aborting: calls arriving while the old download finishes up start a fresh download instead of receiving someone else's cancel reason.
       if (cacheDownloadFlights.get(cachePath) === flight) cacheDownloadFlights.delete(cachePath);
       flight.controller.abort(signal?.reason);
     }

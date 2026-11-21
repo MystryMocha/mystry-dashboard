@@ -67,15 +67,15 @@ const EMPTY_ENDPOINT: EndpointDraft = {
   token: '',
 };
 
-/** 主按钮不可点的原因：第一个要改或要填的字段。 */
+/** Why the primary button is disabled: the first field to fix or fill in. */
 interface Blocker {
   id: string;
   label: string;
-  /** fix：填了但不合规；fill：必填项还空着。 */
+  /** fix: filled in but non-compliant; fill: a required item is still empty. */
   kind: 'fix' | 'fill';
 }
 
-/** 先找填错的（和 focusFirstInvalidField 找到的是同一个），没有再找空着的必填项。checks 按页面上字段的先后排。 */
+/** Looks for one filled in wrong first (the same one focusFirstInvalidField finds), then for an empty required item. checks are in the order of the fields on the page. */
 function firstBlocker(checks: { id: string; label: string; invalid: boolean; empty: boolean }[]): Blocker | null {
   const invalid = checks.find((check) => check.invalid);
   if (invalid) return { id: invalid.id, label: invalid.label, kind: 'fix' };
@@ -84,14 +84,14 @@ function firstBlocker(checks: { id: string; label: string; invalid: boolean; emp
 }
 
 /**
- * 在输入框里按 Enter 等同于点主按钮。主按钮禁用时浏览器不会触发 submit，所以表单自己接；
- * 只管输入框，不拦按钮和下拉框，输入法选词时的 Enter 也不算。
+ * Pressing Enter in an input equals clicking the primary button. While the primary button is disabled the browser does not trigger submit, so the form handles it itself;
+ * only inputs are handled, buttons and dropdowns are not intercepted, and the Enter that confirms an IME candidate does not count either.
  */
 function submitOnEnter(event: KeyboardEvent<HTMLFormElement>, submit: () => void): void {
-  // Safari 确认候选词的那次 Enter 不带 isComposing，只能靠 keyCode 229 认出来。
+  // Safari's Enter that confirms a candidate does not carry isComposing and can only be recognized by keyCode 229.
   if (event.key !== 'Enter' || event.nativeEvent.isComposing || event.keyCode === 229) return;
   if (!(event.target instanceof HTMLInputElement)) return;
-  // 勾选框上的 Enter 不算提交。
+  // Enter on a checkbox does not count as a submit.
   if (event.target.type === 'checkbox' || event.target.type === 'radio') return;
   event.preventDefault();
   submit();
@@ -107,9 +107,9 @@ function tunnelDraft(tunnel: InstanceTunnel, endpoints: FrpEndpoint[]): TunnelDr
 }
 
 /**
- * 实例 frp 穿透：只配置官方 frpc，不提供原始配置或可执行路径。
- * 还没有 frp 服务器时先显示添加表单；有了以后按「开关 → 让玩家加入 → 穿透设置 → 添加服务器」排。
- * 第一次要先选好服务器和穿透模式并保存，开关才能用，免得用没看过的默认值在 frp 服务器上开端口。
+ * Instance frp tunneling: only configures the official frpc; raw config or executable paths are not offered.
+ * When there is no frp server yet the add form is shown first; once there is one, the order is "switch → let players join → tunnel settings → add server".
+ * The first time, a server and tunnel mode have to be chosen and saved before the switch can be used, so a port is not opened on the frp server with defaults nobody looked at.
  */
 export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guide: GuideControl }) {
   const { t, tm } = useI18n();
@@ -120,18 +120,18 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
   const [draft, setDraft] = useState<TunnelDraft | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  // 复制加入说明 / 玩家配置的结果显示在按钮下面。
+  // The result of copying the join instructions / player config is shown below the button.
   const [copied, showCopied] = useFlash();
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [adding, setAdding] = useState(false);
-  // 穿透设置折叠区：第一次读到时，已经开放就收起，没开放就展开。
+  // The tunnel settings collapsible section: on the first read, collapsed if already open to players, expanded if not.
   const [settingsOpen, setSettingsOpen] = useState<boolean | null>(null);
   useEffect(() => {
     if (tunnel && settingsOpen === null) setSettingsOpen(!tunnel.enabled);
   }, [tunnel, settingsOpen]);
-  // 两张表单各有一份「错误显没显示」的状态，互不影响。
+  // The two forms each have their own "are errors showing" state and do not affect each other.
   const endpointFeedback = useFormFeedback();
   const tunnelFeedback = useFormFeedback();
   const endpointFormRef = useRef<HTMLFormElement>(null);
@@ -160,8 +160,8 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
 
   usePolling(refresh);
 
-  // 添加 frp 服务器：名称、地址、端口、令牌必填，端口和地址格式与服务端一致。
-  // 空的必填项不算填错（不标红），只让主按钮不可点，并在按钮旁说出要填哪一项。
+  // Add frp server: name, address, port and token are required, and the port and address formats match the server.
+  // An empty required item does not count as filled in wrong (not marked red); it only disables the primary button, with the text beside the button saying which to fill in.
   const endpointIssues = {
     address: frpHostIssue(endpointDraft.serverAddr),
     port: endpointDraft.serverPort.trim() === '' ? null : portIssue(endpointDraft.serverPort),
@@ -175,7 +175,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
     { id: 'frp-port', label: t('multiplayer.endpoint.port'), invalid: endpointIssues.port !== null, empty: endpointDraft.serverPort.trim() === '' },
     { id: 'frp-token', label: t('multiplayer.endpoint.token'), invalid: endpointIssues.token !== null, empty: endpointDraft.token === '' },
   ]);
-  // 穿透设置只校验当前模式用到的那个端口；另一个端口的输入框不在页面上，它的草稿不参与校验也不提交。
+  // Tunnel settings validate only the port the current mode uses; the other port's input is not on the page, and its draft takes no part in validation and is not submitted.
   const tunnelPortText = draft ? (draft.mode === 'public' ? draft.remotePort : draft.visitorBindPort) : '';
   const tunnelPortIssue = tunnelPortText.trim() === '' ? null : portIssue(tunnelPortText);
   const tunnelBlocker = draft ? firstBlocker([
@@ -188,7 +188,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
     },
   ]) : null;
 
-  /** 提交不了时：让所有字段显示原因，并跳到第一个要改的；没有填错、只是空着时跳到第一个要填的。 */
+  /** When it cannot submit: makes all fields show their reasons and jumps to the first one to fix; when nothing is wrong and it is just empty, jumps to the first one to fill in. */
   function showBlocker(blocker: Blocker, feedback: typeof endpointFeedback, form: HTMLFormElement | null) {
     feedback.revealAll();
     if (!focusFirstInvalidField(form)) focusField(blocker.id);
@@ -241,7 +241,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
     try {
       const deletedId = draft.endpointId;
       await deleteFrpEndpoint(deletedId);
-      // 还有别的服务器时改选第一个：下拉框本来就会显示它，值留空的话看着选了却保存不了。
+      // When other servers remain, switch to the first: the dropdown would display it anyway, and with an empty value it would look selected yet fail to save.
       const nextId = endpoints.find((endpoint) => endpoint.id !== deletedId)?.id ?? '';
       setDraft((current) => current ? { ...current, endpointId: nextId } : current);
       setError('');
@@ -258,7 +258,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
     setBusy(true);
     setNotice('');
     try {
-      // 用服务端已保存的穿透设置开关，不带上下面表单里还没保存的改动。
+      // Toggle with the tunnel settings saved on the server, without the unsaved changes in the form below.
       setTunnel(await saveInstanceTunnel(instanceId, {
         enabled: next,
         endpointId: tunnel.endpointId,
@@ -276,16 +276,16 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
 
   async function saveTunnel() {
     if (!draft || !tunnel || tunnelBlocker) return;
-    // 第一次保存（还没选定过服务器）就是「保存并开放」：用户已经看过表单里的端口和模式，不用再回顶部开开关。
+    // The first save (no server chosen yet) is "Save and Open": the user has already seen the port and mode in the form and need not go back to the top to flip the switch.
     const openNow = !tunnel.endpointId && Boolean(runtime?.installed);
     const remotePort = Number(draft.remotePort);
-    // 公网端口模式下「玩家本机端口」的输入框不在页面上：沿用服务端已保存的值，不提交看不见的草稿。
-    // 不能省略这个字段，服务端会把省略当成默认值 25565 覆盖掉已保存的端口。
+    // In public port mode the "player local port" input is not on the page: the value saved on the server is kept, and an invisible draft is not submitted.
+    // This field cannot be omitted; the server treats omission as the default 25565 and would overwrite the saved port.
     const visitorBindPort = draft.mode === 'public' ? tunnel.visitorBindPort : Number(draft.visitorBindPort);
     setBusy(true);
     setNotice('');
     try {
-      // 之后开关单独保存；这里只改穿透设置，开没开沿用服务端当前状态。
+      // Afterwards the switch is saved separately; only the tunnel settings change here, and the open state follows the server's current state.
       const saved = await saveInstanceTunnel(instanceId, {
         enabled: openNow || tunnel.enabled,
         endpointId: draft.endpointId,
@@ -373,11 +373,11 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
   const installed = Boolean(runtime?.installed);
   const serverIsNext = !needsClient && endpoints.length === 0;
   const hasEndpoints = Boolean(draft) && endpoints.length > 0;
-  // 还没有服务器时直接展开添加表单；已有服务器时收起，点「添加 frp 服务器」才展开。
+  // With no server yet the add form is expanded directly; with servers it is collapsed and expands only on "Add frp Server".
   const showEndpointForm = !hasEndpoints || adding;
-  // 穿透设置还没保存过（没有选定服务器）时不显示开关，保存按钮就是「保存并开放」。
+  // When tunnel settings have never been saved (no server chosen) the switch is not shown, and the save button is "Save and Open".
   const configured = Boolean(tunnel?.endpointId);
-  // 第一次读取完成前不知道有没有 frp 服务器，两种排列都先不画，免得添加表单闪一下再换成穿透设置。
+  // Before the first read completes it is unknown whether there are frp servers, so neither layout is drawn yet, so the add form does not flash and then switch to the tunnel settings.
   const loading = tunnel === null && !error;
 
   const guideContent = (
@@ -391,7 +391,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
     </>
   );
 
-  // 公网端口模式玩家直接连地址，只有一步；STCP / XTCP 要先把玩家配置发过去。
+  // In public port mode players connect straight to the address, which is a single step; STCP / XTCP need the player config sent over first.
   const joinSteps = tunnel && (tunnel.mode === 'public'
     ? [<JoinAddressStep address={tunnel.joinAddress} />]
     : [
@@ -408,7 +408,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
       <JoinAddressStep address={tunnel.joinAddress} />,
     ]);
 
-  /** 按钮旁的一句话：主按钮不可点时说出先改哪一项，点了就跳过去并显示原因。 */
+  /** The sentence beside the button: when the primary button is disabled it says which item to fix first, and clicking jumps there and shows the reason. */
   function blockerHint(blocker: Blocker | null, feedback: typeof endpointFeedback, form: { current: HTMLFormElement | null }) {
     if (!blocker || busy) return null;
     return (
@@ -418,7 +418,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
     );
   }
 
-  // 穿透设置的表单：第一次直接展开在页面上，保存过以后放进折叠区，两处只是外层类名不同。
+  // The tunnel settings form: expanded directly on the page the first time, and placed in the collapsible section once saved; the two places differ only in the outer class name.
   const tunnelForm = (className: string) => draft && (
     <FormFeedbackProvider value={tunnelFeedback.value}>
       <form
@@ -430,7 +430,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
       >
         <Field id="frp-endpoint" label={t('multiplayer.section.server')}>
           {(control) => (
-            // 删除的是下拉框里选中的服务器，按钮放在它旁边。
+            // What gets deleted is the server selected in the dropdown, so the button sits next to it.
             <div className="remote-host-row">
               <select {...control} value={draft.endpointId} disabled={busy} onChange={(event) => setDraft({ ...draft, endpointId: event.target.value })}>
                 {endpoints.map((endpoint) => (
@@ -453,7 +453,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
               </select>
             )}
           </Field>
-          {/* 两个端口是不同的字段：各带 key，切换模式时不把「失焦过」带给另一个。 */}
+          {/* The two ports are different fields: each has its own key, so switching modes does not carry "blurred" over to the other. */}
           {draft.mode === 'public' ? (
             <Field key="remote" id="frp-remote" label={t('multiplayer.tunnel.remotePort')} error={tunnelPortIssue ? t(tunnelPortIssue.key) : null}>
               {(control) => <NumberInput {...control} value={draft.remotePort} disabled={busy} onChange={(text) => setDraft({ ...draft, remotePort: text })} />}
@@ -525,7 +525,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
           <button className={serverIsNext ? 'btn btn-primary' : 'btn'} type="submit" disabled={busy || endpointBlocker !== null}>
             {t('multiplayer.endpoint.save')}
           </button>
-          {/* 对话式表单没有操作栏：主按钮不可点时，在按钮旁说先填或先改哪一项。 */}
+          {/* A dialog-style form has no action bar: when the primary button is disabled, the text beside the button says which item to fill in or fix first. */}
           {blockerHint(endpointBlocker, endpointFeedback, endpointFormRef)}
           {hasEndpoints && (
             <button className="btn btn-plain" type="button" disabled={busy} onClick={() => { setAdding(false); setEndpointDraft(EMPTY_ENDPOINT); endpointFeedback.reset(); }}>
@@ -574,7 +574,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
       )}
       {loading && <p className="field-help" role="status">{t('common.loading')}</p>}
 
-      {/* 第一次读取就失败时不知道有没有服务器：不画添加表单（会被当成「一台都没配过」），只给重试。 */}
+      {/* When the very first read fails it is unknown whether there are servers: the add form is not drawn (it would be taken as "none has ever been configured"), and only retry is offered. */}
       {tunnel === null && error && (
         <div className="instance-actions">
           <button className="btn" type="button" onClick={() => void refresh()}>{t('action.retry')}</button>
@@ -595,7 +595,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
 
       {hasEndpoints && tunnel?.enabled && joinSteps && <JoinSteps steps={joinSteps} />}
 
-      {/* 第一次：穿透设置就是这一屏的主任务，直接展开；保存过以后收进折叠区，添加服务器也放在里面。 */}
+      {/* The first time: tunnel settings are the main task of this screen and are expanded directly; once saved they are tucked into the collapsible section, with add server inside too. */}
       {hasEndpoints && !configured && (
         <section className="form-section">
           <h3 className="form-section-title">{t('multiplayer.section.access')}</h3>
@@ -607,7 +607,7 @@ export function MultiplayerTab({ instanceId, guide }: { instanceId: string; guid
         <details className="disclosure multiplayer-settings" open={settingsOpen ?? false} onToggle={(event) => setSettingsOpen(event.currentTarget.open)}>
           <summary>{t('multiplayer.section.access')}</summary>
           {tunnelForm('multiplayer-settings-form')}
-          {/* 添加服务器和上面的保存是两件事，单独成组，展开后有自己的标题；它是另一张表单，不能套在上面那张里。 */}
+          {/* Adding a server and the save above are two separate things, so it is its own group with its own heading once expanded; it is another form and cannot be nested in the one above. */}
           <div className="multiplayer-add">
             {showEndpointForm ? (
               <section className="form-section">

@@ -41,7 +41,7 @@ test('带 hash 的资源长期缓存，并按 Accept-Encoding 发送预压缩副
   assert.equal(compressed.headers['cache-control'], 'public, max-age=31536000, immutable');
   assert.equal(brotliDecompressSync(compressed.rawPayload).toString('utf8'), source);
 
-  // 不支持压缩的客户端回落原文件，缓存策略不变。
+  // Clients without compression support fall back to the original file; the cache policy is unchanged.
   const plain = await app.inject({ method: 'GET', url: '/assets/entry-abc123.js' });
   assert.equal(plain.headers['content-encoding'], undefined);
   assert.equal(plain.body, source);

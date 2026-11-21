@@ -128,7 +128,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     if (req.validationError) {
       return reply.code(400).send(panelErrorBody('server.deploy.invalidParams'));
     }
-    // schema 已保证字段齐全，这里只拦截纯空白名称和空版本号。
+    // The schema already guarantees the fields are present; this only rejects whitespace-only names and empty version numbers.
     if (!req.body.name.trim() || !req.body.mcVersion) {
       return reply.code(400).send(panelErrorBody('server.deploy.missingParams'));
     }
@@ -149,7 +149,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/import/sources', async (_req, reply) => {
     try {
-      // 路径只用来告诉用户把服务端复制到哪里；数据根是相对值时也换成绝对路径再给人看。
+      // The path only tells the user where to copy the server to; when the data root is a relative value it is still turned into an absolute path before being shown.
       const result: ExistingServerSourceListResult = {
         sources: await listExistingServerSources(),
         importDir: path.resolve(config.existingServerImportDir),
@@ -221,7 +221,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
         try {
           removeUploadTemp(zipPath);
         } catch {
-          /* 清理失败不覆盖原始响应。 */
+          /* A cleanup failure does not override the original response. */
         }
       }
     }
@@ -262,7 +262,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // 浏览器里选文件夹上传：开始 → 分批传文件 → 传完预检 → 确认导入或取消。
+  // Folder upload from the browser: start → send files in batches → precheck when done → confirm import or cancel.
   app.post<{ Body: CreateFolderUploadInput }>(
     '/api/import/folder-uploads',
     { attachValidation: true, schema: { body: createFolderUploadBodySchema } },
@@ -280,7 +280,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{ Params: { id: string } }>('/api/import/folder-uploads/:id/files', async (req, reply) => {
     try {
-      // 全局 multipart 上限只允许一个文件；这里按一批的文件数放宽，单个文件不超过文件夹总大小上限。
+      // The global multipart limit allows only one file; here it is relaxed to the number of files in a batch, with no single file exceeding the folder's total size limit.
       const parts = req.parts({
         limits: {
           files: FOLDER_UPLOAD_BATCH_MAX_FILES,

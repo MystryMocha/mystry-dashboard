@@ -37,7 +37,7 @@ test('从启动文件名认出核心类型和 Minecraft 版本', async () => {
   assert.equal(describeJarLaunchTarget('fabric-server-mc.1.20.1-loader.0.15.7-launcher.1.0.0.jar').mcVersion, '1.20.1');
   assert.equal(describeJarLaunchTarget('server.jar').mcVersion, null);
 
-  // Forge args 文件的目录名里带游戏版本；Windows 反斜杠也认。
+  // The directory name of a Forge args file contains the game version; Windows backslashes are recognized too.
   assert.equal(
     inferMcVersionFromLaunchTarget('@args:libraries/net/minecraftforge/forge/1.20.1-47.2.0/win_args.txt', 'forge'),
     '1.20.1',
@@ -46,7 +46,7 @@ test('从启动文件名认出核心类型和 Minecraft 版本', async () => {
     inferMcVersionFromLaunchTarget('@args:libraries\\net\\minecraftforge\\forge\\1.18.2-40.2.0\\win_args.txt', 'forge'),
     '1.18.2',
   );
-  // Forge、NeoForge 自己的版本号和自定义 jar 里的数字不当成游戏版本。
+  // Forge's and NeoForge's own version numbers, and numbers in custom jar names, are not taken as the game version.
   assert.equal(inferMcVersionFromLaunchTarget('forge-14.23.5.2860.jar', 'forge'), null);
   assert.equal(
     inferMcVersionFromLaunchTarget('@args:libraries/net/neoforged/neoforge/21.1.77/win_args.txt', 'neoforge'),
@@ -94,7 +94,7 @@ test('从本机文件夹导入旧版 Forge：预检和导入结果都认出 Forg
     return getInstance(instanceId)!;
   };
 
-  // 表单保持「自动识别」、版本留空：以识别结果为准。
+  // The form stays on "auto-detect" with the version left empty: the detection result wins.
   const auto = await waitFor((await importExistingServerDirectory({
     name: 'auto',
     sourceId: 'old-forge',
@@ -104,7 +104,7 @@ test('从本机文件夹导入旧版 Forge：预检和导入结果都认出 Forg
   assert.equal(auto.coreType, 'forge');
   assert.equal(auto.mcVersion, '1.12.2');
 
-  // 用户自己填的核心类型和版本不被覆盖。
+  // A core type and version the user entered are not overwritten.
   const manual = await waitFor((await importExistingServerDirectory({
     name: 'manual',
     sourceId: 'old-forge',

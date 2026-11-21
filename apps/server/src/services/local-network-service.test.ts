@@ -114,7 +114,7 @@ test('server-ip 决定是否给出公网 IPv6：留空给出，0.0.0.0 或具体
   const write = (serverIp: string) =>
     writeServerProperties(instanceId, { 'server-port': '25570', 'server-ip': serverIp });
 
-  // 所有响应都带的字段：没填公网地址，面板端口和系统类型。
+  // Fields present in every response: no public address set, the panel port and the OS type.
   const common = {
     publicHost: null,
     serverIpIsUnboundPublicHost: false,
@@ -145,7 +145,7 @@ test('server-ip 决定是否给出公网 IPv6：留空给出，0.0.0.0 或具体
     serverIpBlocked: true,
   });
 
-  // 端口留空时游戏用 25565；写了但不是端口号时才是 null。
+  // With the port left empty the game uses 25565; it is null only when something is written that is not a port number.
   writeServerProperties(instanceId, { 'server-port': '', 'server-ip': '' });
   assert.equal(describeLocalNetwork(instanceId, interfaces).port, 25565);
   writeServerProperties(instanceId, { 'server-port': 'abc', 'server-ip': '' });

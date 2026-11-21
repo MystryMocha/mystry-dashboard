@@ -10,13 +10,13 @@ const USERNAME_MAX_LENGTH = 64;
 const PASSWORD_MIN_LENGTH = 12;
 const PASSWORD_MAX_LENGTH = 128;
 
-/** bcrypt 只使用前 72 字节，超出部分静默截断会导致不同密码可互相登录；初始化时即拒绝超长密码。 */
+/** bcrypt uses only the first 72 bytes, and silently truncating the rest would let different passwords sign in as each other; overlong passwords are rejected at setup already. */
 const BCRYPT_MAX_BYTES = 72;
 
-/** 用户不存在时也执行一次 bcrypt 比较，抹平「用户是否存在」的时序差异。 */
+/** Runs one bcrypt comparison even when the user does not exist, to even out the timing difference that reveals "whether the user exists". */
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
 
-/** 签发 JWT 所需的用户信息；tokenVersion 写进令牌，校验时与数据库比对。 */
+/** User info needed to issue a JWT; tokenVersion is written into the token and compared with the database on verification. */
 export type SessionUser = { id: string; username: string; tokenVersion: number };
 
 export function needsSetup(): boolean {
@@ -62,20 +62,20 @@ export function setupAdmin(username: string, password: string): SessionUser {
 }
 
 export function verifyLogin(username: string, password: string): SessionUser | null {
-  // 超过 72 字节的密码必然与任何合法哈希不匹配，直接拒绝可避免截断误匹配。
+  // A password over 72 bytes can never match a valid hash, and rejecting it outright avoids a false match from truncation.
   if (Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) return null;
   const row = getDb().prepare('SELECT * FROM users WHERE username = ?').get(username.trim()) as
     | UserRow
     | undefined;
-  // 用户不存在时也执行一次 bcrypt 比较，避免通过响应时间枚举用户名。
+  // Run one bcrypt comparison even when the user does not exist, so usernames cannot be enumerated through response time.
   if (!bcrypt.compareSync(password, row ? row.password_hash : DUMMY_PASSWORD_HASH)) return null;
   if (!row) return null;
   return { id: row.id, username: row.username, tokenVersion: row.token_version };
 }
 
 /**
- * 写入新密码并把令牌版本加 1：此前签发的 JWT 版本不再匹配，下一次请求即返回 401；
- * 同时作废旧登录签发的控制台、下载 ticket 并断开控制台连接。
+ * Writes the new password and increments the token version: previously issued JWTs no longer match the version, and the next request returns 401;
+ * it also voids the console and download tickets issued by the old sign-in and drops console connections.
  */
 function updatePasswordHash(userId: string, password: string): SessionUser {
   const row = getDb()
@@ -89,7 +89,7 @@ function updatePasswordHash(userId: string, password: string): SessionUser {
   return { id: row.id, username: row.username, tokenVersion: row.token_version };
 }
 
-/** 修改成功返回新的令牌版本，路由据此为当前会话换发令牌。 */
+/** Returns the new token version on success, which the route uses to reissue a token for the current session. */
 export function changePassword(userId: string, currentPassword: string, newPassword: string): SessionUser {
   const row = getDb().prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as
     | Pick<UserRow, 'password_hash'>
@@ -105,7 +105,7 @@ export function changePassword(userId: string, currentPassword: string, newPassw
   return updatePasswordHash(userId, newPassword);
 }
 
-/** 忘记密码时由本机启动器调用，重置最早创建的管理员。 */
+/** Called by the local launcher when the password is forgotten; resets the earliest-created admin. */
 export function resetAdminPassword(password: string): { username: string } {
   assertValidPassword(password);
   const row = getDb().prepare('SELECT id, username FROM users ORDER BY created_at LIMIT 1').get() as
@@ -116,7 +116,7 @@ export function resetAdminPassword(password: string): { username: string } {
   return { username: row.username };
 }
 
-/** 令牌里的版本与数据库一致才算有效；用户不存在返回 false。旧版令牌不带版本，按 0 处理。 */
+/** Valid only when the version in the token matches the database; returns false when the user does not exist. Old tokens carry no version and are treated as 0. */
 export function isTokenVersionCurrent(userId: string, tokenVersion: unknown): boolean {
   const row = getDb().prepare('SELECT token_version FROM users WHERE id = ?').get(userId) as
     | Pick<UserRow, 'token_version'>

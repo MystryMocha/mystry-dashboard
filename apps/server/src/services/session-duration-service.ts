@@ -1,7 +1,7 @@
 /**
- * 登录有效期：登录后多久需要重新输入密码。保存在 panel_settings，面板里随时可改，默认 12 小时。
- * 签发令牌时按当前设置写 exp（不过期则不写）；每次请求再用签发时间 iat 对照当前设置，
- * 所以改短后，登录时间已超过新时长的令牌（包括以前按「不过期」签发的）立即失效。
+ * Session duration: how long after sign-in the password must be entered again. Stored in panel_settings, changeable in the panel at any time, 12 hours by default.
+ * When a token is issued, exp is written from the current setting (not written for never expire); on every request the issue time iat is checked against the current setting again,
+ * so after shortening, tokens whose sign-in is older than the new duration (including ones issued earlier as "never expire") are invalidated immediately.
  */
 import { SESSION_DURATION_ENUM, type SessionDuration } from '@mystry/shared';
 import { getDb } from '../db.js';
@@ -36,14 +36,14 @@ export function setSessionDuration(duration: SessionDuration): void {
   ).run(SETTING_KEY, duration, new Date().toISOString());
 }
 
-/** 签发令牌用的 expiresIn；不过期返回 undefined，令牌不带 exp。 */
+/** expiresIn used when issuing a token; returns undefined for never expire, and the token carries no exp. */
 export function sessionExpiresIn(duration: SessionDuration): string | undefined {
   return duration === 'never' ? undefined : duration;
 }
 
 /**
- * 令牌的签发时间是否仍在当前登录有效期内。不过期时一律通过；
- * 没有 iat 的令牌无法判断登录了多久，按已过期处理（@fastify/jwt 签发的令牌都带 iat）。
+ * Whether a token's issue time is still within the current session duration. Always passes for never expire;
+ * for a token without iat there is no telling how long ago the sign-in was, so it is treated as expired (tokens issued by @fastify/jwt all carry iat).
  */
 export function isWithinSessionDuration(issuedAtSeconds: unknown, now = Date.now()): boolean {
   const duration = getSessionDuration();

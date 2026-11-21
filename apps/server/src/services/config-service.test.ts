@@ -15,7 +15,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
       const { closeDb } = await import('../db.js');
       closeDb();
     } catch {
-      /* 模块可能尚未加载 */
+      /* The module may not be loaded yet */
     }
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
@@ -142,7 +142,7 @@ test('非 ASCII 字符写成 \\uXXXX，读回来还是原文', async (t) => {
   assert.match(content, /^[\x00-\x7f]*$/, '整个文件都应是 ASCII，旧版服务端按 Latin-1 读取也不会乱码');
   assert.equal(readServerProperties(inst.id).motd, motd);
 
-  // 已有文件里的非 ASCII 原样保留在注释中，只有写入的值被转义。
+  // Non-ASCII in the existing file is kept as is in comments; only the written values are escaped.
   fs.writeFileSync(file, '# 中文注释\nmotd=old\n', 'utf8');
   writeServerProperties(inst.id, { motd: '新简介' });
   assert.equal(fs.readFileSync(file, 'utf8'), '# 中文注释\nmotd=\\u65B0\\u7B80\\u4ECB\n');
@@ -202,12 +202,12 @@ test('1.13 及更早的实例：默认配置和保存都用数字', async (t) =>
   assert.equal(defaults.gamemode, '0');
   assert.equal(readServerProperties(inst.id).difficulty, 'normal');
 
-  // 上一版面板可能留下单词写法，旧版服务端不认，保存时要改正。
+  // The previous panel version may have left the word form, which old servers do not accept, so it has to be corrected on save.
   fs.writeFileSync(file, 'difficulty=normal\n', 'utf8');
   writeServerProperties(inst.id, { difficulty: 'hard' }, '1.12.2');
   assert.equal(fs.readFileSync(file, 'utf8'), 'difficulty=3\n');
 
-  // 新版本和无法判断版本的实例继续写单词。
+  // New versions, and instances whose version cannot be determined, keep writing words.
   fs.rmSync(file);
   ensureServerPropertiesDefaults(inst.id, '26.3');
   assert.equal(parseProperties(fs.readFileSync(file, 'utf8')).difficulty, 'normal');

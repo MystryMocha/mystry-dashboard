@@ -1,5 +1,5 @@
 /**
- * 进程互斥与停止语义回归。
+ * Process mutual exclusion and stop semantics regression.
  */
 import assert from 'node:assert/strict';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
@@ -18,7 +18,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
       const { closeDb } = await import('../db.js');
       closeDb();
     } catch {
-      /* 模块可能尚未加载 */
+      /* The module may not be loaded yet */
     }
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
@@ -155,7 +155,7 @@ test('未同意 EULA 退出记为已停止并给出原因；Java 不符记为崩
   assert.equal(manager.getStatus(info.id), 'crashed');
   assert.deepEqual(manager.getStartIssue(info.id), { kind: 'java-too-new', requiredJava: 8 });
 
-  // 用户主动停止后的退出不做诊断。
+  // An exit after the user deliberately stopped it is not diagnosed.
   await manager.start(row);
   children[2].stderr.emit('data', Buffer.from('java.lang.UnsupportedClassVersionError: x (class file version 65.0)\n'));
   await flush();
@@ -181,7 +181,7 @@ test('实例设置取消同意 EULA：eula.txt 改回 false 且之后启动不�
   const importedEula = path.join(defaultInstanceDir(imported.id), 'eula.txt');
   fs.writeFileSync(path.join(defaultInstanceDir(agreed.id), 'server.jar'), 'stub-jar');
   fs.writeFileSync(path.join(defaultInstanceDir(imported.id), 'server.jar'), 'stub-jar');
-  // 导入的服务端自带同意记录，面板里没勾选。
+  // The imported server comes with its own acceptance record, and it is not checked in the panel.
   fs.writeFileSync(importedEula, 'eula=true\n', 'utf8');
 
   const children: ChildProcessWithoutNullStreams[] = [];
@@ -202,14 +202,14 @@ test('实例设置取消同意 EULA：eula.txt 改回 false 且之后启动不�
   assert.equal(fs.readFileSync(agreedEula, 'utf8'), 'eula=false\n', '不同意时启动不写 eula.txt');
   children[1].emit('exit', 0, null);
 
-  // 一直没勾选：保存（哪怕带着 acceptEula: false）不改原有文件，启动也不改。
+  // Never checked: saving (even with acceptEula: false) does not change the existing file, and neither does starting.
   await updateInstanceSettings(imported.id, { name: 'eula-imported-2', acceptEula: false });
   assert.equal(fs.readFileSync(importedEula, 'utf8'), 'eula=true\n');
   await manager.start(getInstanceRow(imported.id)! as InstanceRow);
   assert.equal(fs.readFileSync(importedEula, 'utf8'), 'eula=true\n');
   children[2].emit('exit', 0, null);
 
-  // 还原备份会整体替换目录，这时写进去的文件会丢：拒绝，数据库和文件都不变。
+  // Restoring a backup replaces the whole directory, so files written now would be lost: rejected, with both the database and the files unchanged.
   await updateInstanceSettings(agreed.id, { acceptEula: true });
   fs.writeFileSync(agreedEula, 'eula=true\n', 'utf8');
   const endMaintenance = processManager.beginMaintenance(agreed.id, 'server.backups.busyRestoring');
@@ -217,7 +217,7 @@ test('实例设置取消同意 EULA：eula.txt 改回 false 且之后启动不�
   await assert.rejects(updateInstanceSettings(agreed.id, { acceptEula: false }), InstanceOperationConflictError);
   assert.equal(getInstance(agreed.id)?.acceptEula, true);
   assert.equal(fs.readFileSync(agreedEula, 'utf8'), 'eula=true\n');
-  // 改名之类不碰 eula.txt 的设置照常能存。
+  // Settings that do not touch eula.txt, such as a rename, can still be saved as usual.
   await updateInstanceSettings(agreed.id, { name: 'eula-revoke-renamed' });
   assert.equal(getInstance(agreed.id)?.name, 'eula-revoke-renamed');
   endMaintenance();
@@ -339,7 +339,7 @@ test('删除须等待未完成的 start，启动中不得拆掉目录', async (t
     try {
       await processManager.stop(info.id, true);
     } catch {
-      /* 实例可能已经停掉 */
+      /* The instance may already be stopped */
     }
   });
 
@@ -463,7 +463,7 @@ test('发出的命令写进 stdin，并以「> 命令」回显到控制台历史
   await flush();
 
   manager.sendCommand(info.id, 'list');
-  // 上一块输出停在半行时，回显另起一行。
+  // When the previous output chunk stopped mid-line, the echo starts on a new line.
   children[0].stdout.emit('data', Buffer.from('> '));
   await flush();
   manager.sendCommand(info.id, 'save-all');
@@ -499,13 +499,13 @@ test('打印过完成启动的标志行后标记为可以进服；停止或退�
   assert.equal(manager.isReady(info.id), false);
   await manager.start(row);
   children[0].stdout.emit('data', Buffer.from('[13:23:04] [Server thread/INFO]: Preparing spawn area: 83%\n'));
-  // 玩家聊天里出现同样的字不算。
+  // The same words appearing in player chat do not count.
   children[0].stdout.emit('data', Buffer.from('[13:23:05] [Server thread/INFO]: <Steve> Done (1s)\n'));
   await flush();
   assert.equal(manager.getStatus(info.id), 'running');
   assert.equal(manager.isReady(info.id), false);
 
-  // 标志行被拆在两块输出里也要认出来。
+  // The marker line must be recognized even when split across two output chunks.
   children[0].stdout.emit('data', Buffer.from('[13:23:09] [Server thread/INFO]: Do'));
   children[0].stdout.emit('data', Buffer.from('ne (4.512s)! For help, type "help"\n'));
   await flush();

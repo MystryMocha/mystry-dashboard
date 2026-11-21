@@ -5,7 +5,7 @@ import { isTaskCapacityError, isTaskShuttingDownError } from './services/task-se
 import { isUploadCapacityError, isUploadTooLargeError } from './services/upload-service.js';
 import { errorBody, PanelError } from './utils/errors.js';
 
-/** 服务层已知错误对应的 HTTP 状态码；其余错误使用调用方给的默认状态码。 */
+/** HTTP status codes for known service-layer errors; other errors use the default status code given by the caller. */
 export function routeErrorStatus(error: unknown, fallbackStatus = 400): number {
   if (error instanceof ImportPreviewHttpError) return error.statusCode;
   if (isUploadTooLargeError(error)) return 413;
@@ -17,6 +17,6 @@ export function routeErrorStatus(error: unknown, fallbackStatus = 400): number {
 }
 
 export function sendRouteError(reply: FastifyReply, error: unknown, fallbackStatus = 400) {
-  // 可翻译错误带上消息键与参数，其余只返回原文。
+  // Translatable errors carry the message key and params; the rest return only the original text.
   return reply.code(routeErrorStatus(error, fallbackStatus)).send(errorBody(error));
 }

@@ -1,5 +1,5 @@
 /**
- * 面板运行信息：登录后才能读，只给出监听地址、数据目录、备份目录和配置文件路径，不带任何密钥。
+ * Panel runtime info: readable only after sign-in; gives only the listen address, data directory, backup directory and config file path, with no secrets.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

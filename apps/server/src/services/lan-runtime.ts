@@ -12,7 +12,7 @@ import { listZipEntryNames, readZipEntryBuffer } from './zip-service.js';
 const ARCHIVE_BYTE_LIMIT = 40 * 1024 * 1024;
 const BINARY_BYTE_LIMIT = 40 * 1024 * 1024;
 
-/** 手动上传压缩包的上限，与下载上限一致。 */
+/** Limit for a manually uploaded archive, same as the download limit. */
 export const LAN_ARCHIVE_BYTE_LIMIT = ARCHIVE_BYTE_LIMIT;
 
 interface LanAsset {
@@ -29,8 +29,8 @@ const ASSETS: Record<string, LanAsset> = {
     sha256: '27af91e270e554709b048bd32327fefd2dfce5062ae1e8701af7550c6f525f84',
     coreName: 'easytier-core.exe',
     cliName: 'easytier-cli.exe',
-    // easytier-core.exe 静态导入 Packet.dll，缺了连 --version 都会以 0xC0000135（找不到 DLL）退出；
-    // wintun.dll 只在建虚拟网卡时按需加载。两个都在同一个官方压缩包里。
+    // easytier-core.exe statically imports Packet.dll; without it even --version exits with 0xC0000135 (DLL not found);
+    // wintun.dll is loaded on demand only when the virtual interface is created. Both are in the same official archive.
     extraNames: ['wintun.dll', 'Packet.dll'],
   },
   'linux:x64': {
@@ -52,7 +52,7 @@ function lanArchiveUrl(asset: LanAsset): string {
   return `https://github.com/EasyTier/EasyTier/releases/download/v${EASYTIER_VERSION}/${asset.archive}`;
 }
 
-/** 本机平台对应的官方压缩包信息，供连不上 GitHub 时手动下载后上传。 */
+/** Info about the official archive for this machine's platform, for downloading manually and uploading when GitHub is unreachable. */
 export function lanArchiveInfo(): RuntimeArchiveInfo | null {
   if (!lanPlatformSupported()) return null;
   const asset = resolveLanAsset(process.platform, process.arch);
@@ -90,7 +90,7 @@ export function lanInstalled(): boolean {
 
 let installing: Promise<void> | null = null;
 
-/** 下载钉死版本的官方 EasyTier（来源见下载来源设置），校验压缩包摘要后只抽出核心、命令行和 Windows 上运行必需的 DLL。 */
+/** Downloads the pinned official EasyTier (source per the download source setting), verifies the archive digest, and extracts only the core, the CLI and the DLLs required to run on Windows. */
 export async function ensureLanInstalled(): Promise<void> {
   if (lanInstalled()) return;
   if (!installing) {
@@ -102,8 +102,8 @@ export async function ensureLanInstalled(): Promise<void> {
 }
 
 /**
- * 用用户上传的压缩包安装。只认钉死的官方摘要，所以文件来自哪个镜像都无所谓；
- * 调用方负责删除 source。
+ * Installs from an archive uploaded by the user. Only the pinned official digest is accepted, so it does not matter which mirror the file came from;
+ * the caller is responsible for deleting source.
  */
 export async function installLanFromArchive(source: string): Promise<void> {
   if (installing) await installing.catch(() => undefined);
@@ -130,7 +130,7 @@ async function installLan(
   const archivePath = path.join(dir, `${asset.archive}.partial`);
   const marker = path.join(dir, 'archive.sha256');
   try {
-    // 崩溃可能留下旧文件，而下载不会覆盖已存在的目标。
+    // A crash may leave an old file behind, and the download does not overwrite an existing target.
     fs.rmSync(archivePath, { force: true });
     await acquire(asset, archivePath);
     const digest = createHash('sha256').update(fs.readFileSync(archivePath)).digest('hex');
@@ -180,7 +180,7 @@ async function downloadArchive(asset: LanAsset, destination: string): Promise<vo
   forceSecureSensitiveFile(destination);
 }
 
-/** 用面板自带的 ZIP 解析读取条目名，不依赖系统 tar（GNU tar 读不了 zip）。 */
+/** Reads entry names with the panel's own ZIP parser, without relying on the system tar (GNU tar cannot read zip). */
 function listMembers(archivePath: string, wanted: string[]): Map<string, string> {
   let names: string[];
   try {
@@ -193,7 +193,7 @@ function listMembers(archivePath: string, wanted: string[]): Map<string, string>
     if (member.length === 0 || unsafeMemberName(member)) continue;
     const base = path.posix.basename(member);
     if (!wanted.includes(base)) continue;
-    // 同名文件出现两次时无法确定该用哪一个，直接失败。
+    // When the same file name appears twice there is no telling which one to use, so fail outright.
     if (found.has(base)) throw new PanelError('server.lan.extractFailed');
     found.set(base, member);
   }
@@ -212,7 +212,7 @@ async function extractMember(archivePath: string, member: string): Promise<Buffe
   return bytes;
 }
 
-/** zip-service 已把反斜杠转成 /、并拒绝 .. 与绝对路径；这里再守一层，防止规范化规则日后变化。 */
+/** zip-service already converts backslashes to / and rejects .. and absolute paths; this is one more guard in case the normalization rules change later. */
 function unsafeMemberName(member: string): boolean {
   return member.includes('..') || member.startsWith('/') || member.includes('\\');
 }

@@ -15,11 +15,11 @@ const PORT_ERROR = '端口填写 1–65535 之间的整数';
 interface Backend {
   endpoints: Record<string, unknown>[];
   tunnel: Record<string, unknown>;
-  /** 按顺序记下所有写请求。 */
+  /** Records all write requests in order. */
   writes: { method: string; url: string; body: Record<string, unknown> }[];
 }
 
-/** 只替身 frp 相关的接口，不碰真实网络，也不会运行 frpc。 */
+/** Stubs only the frp-related endpoints, without touching the real network or running frpc. */
 function mountTab(options: { endpoints?: Record<string, unknown>[]; tunnel?: Record<string, unknown> } = {}): Backend {
   const backend: Backend = {
     endpoints: options.endpoints ?? [],
@@ -46,7 +46,7 @@ function mountTab(options: { endpoints?: Record<string, unknown>[]; tunnel?: Rec
         return new Response('{}');
       }
       if (url === '/api/instances/test/tunnel') {
-        // 和服务端一样：不是公网端口模式时远程端口存成空。
+        // Same as the server: the remote port is stored empty when not in public port mode.
         backend.tunnel = { ...backend.tunnel, ...body, remotePort: body.mode === 'public' ? body.remotePort : null };
         return new Response(JSON.stringify(backend.tunnel));
       }
@@ -73,7 +73,7 @@ test('frp 服务器表单：字段保留原来的 id，可选项标「（可选�
   mountTab();
   const name = await screen.findByLabelText('名称');
   expect(name.id).toBe('frp-name');
-  // 只有确实可选的「玩家连接的地址」标了可选，说明仍然关联着输入框。
+  // Only "Address players connect to", which really is optional, is marked optional, and the description is still associated with the input.
   const visit = screen.getByLabelText('玩家连接的地址（可选）');
   expect(visit.id).toBe('frp-visit');
   expect(describedTexts(visit)).toEqual(['和服务器地址相同时留空。']);
@@ -104,13 +104,13 @@ test('frp 服务器表单：错误在失焦后才显示并关联到输入框，�
   mountTab();
   const address = await screen.findByLabelText('服务器地址');
   const save = screen.getByRole('button', { name: '保存 frp 服务器' }) as HTMLButtonElement;
-  // 什么都没填：必填项不标红，按钮旁说先填哪一项。
+  // Nothing filled in: required items are not marked red, and the text beside the button says which to fill in first.
   expect(save.disabled).toBe(true);
   expect(screen.getByRole('button', { name: '先填写「名称」' })).toBeTruthy();
   expect(document.querySelector('[aria-invalid]')).toBeNull();
 
   await user.type(address, 'http://frp.example.com');
-  // 还在输入：不打断；但按钮旁已经指向这一项。
+  // Still typing: no interruption; but the text beside the button already points at this item.
   expect(screen.queryByText(HOST_ERROR)).toBeNull();
   expect(address.getAttribute('aria-invalid')).toBeNull();
   expect(screen.getByRole('button', { name: '先修正「服务器地址」' })).toBeTruthy();
@@ -121,13 +121,13 @@ test('frp 服务器表单：错误在失焦后才显示并关联到输入框，�
   expect(address.getAttribute('aria-describedby')!.split(' ')).toContain(error.id);
   expect(address.getAttribute('aria-invalid')).toBe('true');
 
-  // 已经在报错的字段每次按键重新检查。
+  // A field already showing an error is rechecked on every keystroke.
   await user.clear(address);
   await user.type(address, 'frp.example.com');
   expect(screen.queryByText(HOST_ERROR)).toBeNull();
   expect(address.getAttribute('aria-invalid')).toBeNull();
 
-  // 清空的端口算没填，不标红；填了超出范围的才报错。
+  // A cleared port counts as not filled in and is not marked red; only an out-of-range value reports an error.
   const port = screen.getByLabelText('服务器端口');
   await user.clear(port);
   await user.tab();
@@ -137,7 +137,7 @@ test('frp 服务器表单：错误在失焦后才显示并关联到输入框，�
   expect(screen.getByText(PORT_ERROR).id).toBe('frp-port-error');
   expect(port.getAttribute('aria-describedby')).toBe('frp-port-error');
 
-  // 点按钮旁的那句话：跳到要改的字段。
+  // Click the sentence beside the button: it jumps to the field to fix.
   await user.click(screen.getByRole('button', { name: '先修正「服务器端口」' }));
   expect(document.activeElement).toBe(port);
 });
@@ -150,13 +150,13 @@ test('frp 服务器表单：按 Enter 不合法时显示原因并跳到出错字
   const address = screen.getByLabelText('服务器地址');
   const token = screen.getByLabelText('令牌');
 
-  // 只缺必填项：没有可标红的字段，跳到第一个空着的。
+  // Only required items missing: there is no field to mark red, so it jumps to the first empty one.
   await user.type(address, 'frp.example.com{Enter}');
   expect(document.activeElement).toBe(name);
   expect(document.querySelector('[aria-invalid]')).toBeNull();
   expect(backend.writes).toHaveLength(0);
 
-  // 有填错的：按 Enter 跳到出错的字段，原因和它关联着（按过 Enter 之后整张表单的错误都即时显示）。
+  // Something filled in wrong: Enter jumps to the failing field, with the reason associated with it (after Enter is pressed, errors across the whole form show immediately).
   await user.type(name, 'Hong Kong');
   await user.type(token, 'secret-token');
   await user.type(visit, 'play.example.com:25565');
@@ -166,7 +166,7 @@ test('frp 服务器表单：按 Enter 不合法时显示原因并跳到出错字
   expect(document.activeElement).toBe(visit);
   expect(backend.writes).toHaveLength(0);
 
-  // 改对后在输入框里按 Enter 就提交。
+  // After fixing it, pressing Enter in the input submits.
   await user.clear(visit);
   await user.type(visit, 'play.example.com{Enter}');
   await waitFor(() => expect(backend.writes).toHaveLength(1));
@@ -175,7 +175,7 @@ test('frp 服务器表单：按 Enter 不合法时显示原因并跳到出错字
     url: '/api/frp/endpoints',
     body: { name: 'Hong Kong', serverAddr: 'frp.example.com', serverPort: 7000, visitHost: 'play.example.com', transport: 'tcp', tls: true, token: 'secret-token' },
   });
-  // 保存后换成穿透设置，新服务器已选中。
+  // After saving it switches to the tunnel settings, with the new server selected.
   expect((await screen.findByLabelText('frp 服务器') as HTMLSelectElement).value).toBe('e1');
 });
 
@@ -196,12 +196,12 @@ test('两张表单互不嵌套，各自只有一个提交按钮；取消后回�
   expect(screen.getByRole('button', { name: '删除 frp 服务器' }).getAttribute('type')).toBe('button');
   expect(screen.getByRole('button', { name: '取消' }).getAttribute('type')).toBe('button');
 
-  // 按 Enter 让整张表单显示错误；另一张表单不受影响。
+  // Pressing Enter makes the whole form show errors; the other form is unaffected.
   await user.type(address, 'bad host{Enter}');
   expect(screen.getByText(HOST_ERROR)).toBeTruthy();
   expect(screen.getByLabelText('远程端口').getAttribute('aria-invalid')).toBeNull();
 
-  // 取消后重新打开：草稿清空，再填错也要等失焦才报。
+  // Reopen after cancelling: the draft is cleared, and a new mistake again waits for blur before reporting.
   await user.click(screen.getByRole('button', { name: '取消' }));
   await user.click(screen.getByRole('button', { name: '添加 frp 服务器' }));
   const reopened = screen.getByLabelText('服务器地址') as HTMLInputElement;
@@ -241,7 +241,7 @@ test('穿透设置：端口是数字框，按 Enter 不合法时报错并留在�
   expect(backend.writes[0]!.body).toEqual({ enabled: false, endpointId: 'e1', mode: 'public', remotePort: 25570, visitorBindPort: 25566 });
   expect(await screen.findByText('穿透设置已保存。')).toBeTruthy();
 
-  // 保存成功后重置：再填错要等失焦才报。
+  // Reset after a successful save: a new mistake waits for blur before reporting.
   await user.clear(remote);
   await user.type(remote, '70000');
   expect(screen.queryByText(PORT_ERROR)).toBeNull();
@@ -253,7 +253,7 @@ test('穿透设置：切换模式后，被隐藏的端口既不挡住保存，�
   const mode = await screen.findByLabelText('穿透模式');
   const save = screen.getByRole('button', { name: '保存穿透设置' }) as HTMLButtonElement;
 
-  // 在 STCP 下把「玩家本机端口」删空：当前模式要用它，所以不能保存。
+  // Under STCP, clear "player local port": the current mode needs it, so it cannot be saved.
   await user.selectOptions(mode, 'stcp');
   const visitor = screen.getByLabelText('玩家本机端口') as HTMLInputElement;
   expect(visitor.id).toBe('frp-visitor');
@@ -262,7 +262,7 @@ test('穿透设置：切换模式后，被隐藏的端口既不挡住保存，�
   expect(save.disabled).toBe(true);
   expect(screen.getByRole('button', { name: '先填写「玩家本机端口」' })).toBeTruthy();
 
-  // 切回公网端口：看不见的那个框不再挡住保存，提交的是服务端已保存的 25566，不是删空后的草稿。
+  // Switch back to public port: the invisible box no longer blocks saving, and what is submitted is the 25566 saved on the server, not the cleared draft.
   await user.selectOptions(mode, 'public');
   expect(screen.queryByLabelText('玩家本机端口')).toBeNull();
   expect(save.disabled).toBe(false);
@@ -270,7 +270,7 @@ test('穿透设置：切换模式后，被隐藏的端口既不挡住保存，�
   await waitFor(() => expect(backend.writes).toHaveLength(1));
   expect(backend.writes[0]!.body).toEqual({ enabled: false, endpointId: 'e1', mode: 'public', remotePort: 25565, visitorBindPort: 25566 });
 
-  // 反过来：公网端口填错并且已经报错，切到 XTCP 后错误不跟到另一个字段上，远程端口也不提交。
+  // The other way round: the public port is filled in wrong and already showing an error; after switching to XTCP the error does not follow onto another field, and the remote port is not submitted.
   const remote = await screen.findByLabelText('远程端口');
   await user.clear(remote);
   await user.type(remote, '70000');

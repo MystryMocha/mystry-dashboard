@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
   const { t } = useI18n();
-  // 只保存服务端/网络返回的原始错误，对外暴露时再按当前语言拼成完整提示。
+  // Only the raw error returned by the server/network is stored; it is assembled into a full message in the current language when exposed.
   const [statusErrorDetail, setStatusError] = useState<string | null>(null);
   const statusError = statusErrorDetail === null
     ? null
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  // 任一请求收到 401（token 过期等）时清空登录态，RequireAuth 会自动跳回登录页。
+  // When any request gets a 401 (token expired, etc.) the signed-in state is cleared, and RequireAuth redirects back to the login page automatically.
   useEffect(() => {
     const onUnauthorized = () => {
       setToken(null);

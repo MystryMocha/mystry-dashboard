@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
- * 导入页「上传文件夹」：入口显示条件、选文件夹、分批上传、检查结果、确认导入、取消上传、读不了的文件和刷新后恢复。
- * jsdom 没有 webkitdirectory，也没有真正的文件夹选择框：这里给 input 补上属性、直接塞文件；真实选择框只能人工点。
+ * "Upload Folder" on the import page: when the entry shows, picking a folder, batched upload, check result, confirming the import, cancelling the upload, unreadable files and recovery after a refresh.
+ * jsdom has no webkitdirectory and no real folder picker: here the attribute is added to the input and files are put in directly; the real picker can only be clicked by hand.
  */
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -26,7 +26,7 @@ afterEach(() => {
   delete (HTMLInputElement.prototype as { webkitdirectory?: boolean }).webkitdirectory;
 });
 
-/** 模拟文件夹选择框选中的文件：webkitRelativePath 带最外层文件夹名。 */
+/** Simulates files chosen in the folder picker: webkitRelativePath includes the outermost folder name. */
 function folderFile(path: string, content: string): File {
   const file = new File([content], path.split('/').at(-1)!);
   Object.defineProperty(file, 'webkitRelativePath', { value: path });
@@ -45,7 +45,7 @@ const readyUpload: FolderUploadInfo = {
   check: { launchTarget: 'paper-1.21.1-100.jar', coreType: 'paper', mcVersion: '1.21.1', ready: true },
 };
 
-/** 导入页其它区域（Java、下载源、imports 列表）需要的接口；requests 记下每个上传相关请求。 */
+/** Endpoints needed by the other areas of the import page (Java, download source, imports list); requests records every upload-related request. */
 function stubImportApis(handlers: Record<string, (init?: RequestInit) => Response | Promise<Response>>) {
   const requests: Array<{ url: string; method: string; body?: unknown }> = [];
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
@@ -91,7 +91,7 @@ test('imports 里没有东西时只列上传文件夹和 ZIP，点链接后才�
 
   await user.click(link);
   expect(screen.getByRole('button', { name: '从 imports 文件夹复制' }).getAttribute('aria-pressed')).toBe('true');
-  // 切过去后先说明什么时候用 imports。
+  // After switching over, it first explains when to use imports.
   expect(screen.getByText(/服务端已经在面板所在的电脑上（比如用 SSH 管理的云服务器）时/)).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '上传 ZIP 压缩包' }));
   await user.click(screen.getByRole('button', { name: '上传文件夹' }));
@@ -144,11 +144,11 @@ test('选文件夹 → 分批上传并检查 → 带出核心和版本 → 确�
   const created = requests.find((request) => request.url === '/api/import/folder-uploads')!;
   expect(JSON.parse(String(created.body))).toEqual({ folderName: 'myserver', fileCount: 3, totalBytes: 18 });
   const batch = requests.find((request) => request.url.endsWith('/files'))!.body as FormData;
-  // 上传的路径去掉了最外层文件夹名，每个文件前面跟着它的路径。
+  // Uploaded paths have the outermost folder name removed, and each file is preceded by its path.
   expect(batch.getAll('path')).toEqual(['paper-1.21.1-100.jar', 'world/level.dat', 'eula.txt']);
   expect(batch.getAll('file')).toHaveLength(3);
 
-  // 检查结果带出的核心和版本填进表单。
+  // The core and version from the check result are filled into the form.
   await waitFor(() => expect((screen.getByRole('combobox', { name: '核心类型' }) as HTMLSelectElement).value).toBe('paper'));
   expect((screen.getByRole('textbox', { name: 'Minecraft 版本（可选）' }) as HTMLInputElement).value).toBe('1.21.1');
 
@@ -165,7 +165,7 @@ test('上传中点「取消上传」会中止请求并删掉面板上的临时�
   const user = userEvent.setup();
   const requests = stubImportApis({
     'POST /api/import/folder-uploads': () => json({ ...readyUpload, state: 'uploading', receivedFiles: 0, receivedBytes: 0, check: undefined }),
-    // 这一批一直不回，直到被中止。
+    // This batch never returns until it is aborted.
     'POST /api/import/folder-uploads/up1/files': (init) => new Promise((_, reject) => {
       init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
     }),
@@ -183,7 +183,7 @@ test('上传中点「取消上传」会中止请求并删掉面板上的临时�
 
   await waitFor(() => expect(requests.some((request) => request.method === 'DELETE')).toBe(true));
   await waitFor(() => expect(screen.queryByRole('progressbar', { name: '文件夹上传进度' })).toBeNull());
-  // 取消不是错误；选好的文件夹还在，可以再点上传。
+  // A cancel is not an error; the chosen folder is still there and upload can be clicked again.
   expect(screen.queryByRole('alert')).toBeNull();
   expect(screen.getByRole('button', { name: '上传并检查' })).toBeTruthy();
 });
@@ -193,7 +193,7 @@ test('有文件读不出来时说出是哪个文件，并删掉这次上传', as
   const user = userEvent.setup();
   const requests = stubImportApis({
     'POST /api/import/folder-uploads': () => json({ ...readyUpload, state: 'uploading', receivedFiles: 0, receivedBytes: 0, check: undefined }),
-    // 浏览器读文件失败时 fetch 直接抛 TypeError，拿不到面板的回应。
+    // When the browser fails to read a file, fetch throws a TypeError directly and there is no response from the panel.
     'POST /api/import/folder-uploads/up1/files': () => Promise.reject(new TypeError('Failed to fetch')),
     'DELETE /api/import/folder-uploads/up1': () => json({ ok: true }),
   });
@@ -201,7 +201,7 @@ test('有文件读不出来时说出是哪个文件，并删掉这次上传', as
   await screen.findByRole('button', { name: '上传文件夹' });
   const readable = folderFile('myserver/server.jar', 'jar');
   const locked = folderFile('myserver/world/session.lock', 'lock');
-  // jsdom 的 Blob 没有 arrayBuffer()，读得出的文件也替身一下。
+  // jsdom's Blob has no arrayBuffer(), so readable files are stubbed too.
   readable.slice = () => ({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(1)) }) as unknown as Blob;
   locked.slice = () => ({ arrayBuffer: () => Promise.reject(new DOMException('locked', 'NotReadableError')) }) as unknown as Blob;
   chooseFolder([readable, locked]);
@@ -273,11 +273,11 @@ test('撞上面板请求频率限制时等一会儿重发同一批，不算失�
   await vi.advanceTimersByTimeAsync(5_000);
   await expect(result).resolves.toMatchObject({ state: 'ready' });
   expect(attempts).toBe(2);
-  // 等待重发时告诉页面「暂停中」，这一批发完后恢复正常进度。
+  // While waiting to resend the page is told "paused", and normal progress resumes after this batch is sent.
   expect(waiting).toEqual([false, true, false]);
 });
 
-/** jsdom 的 Blob 没有 arrayBuffer()：读得出的文件替身一下，探测读不读得出时用。 */
+/** jsdom's Blob has no arrayBuffer(): readable files are stubbed, for probing whether a file can be read. */
 function readableFile(name: string, content: string): File {
   const file = new File([content], name);
   file.slice = () => ({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(1)) }) as unknown as Blob;

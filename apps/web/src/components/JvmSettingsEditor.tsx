@@ -32,8 +32,8 @@ const PRESET_DESCRIPTION_KEYS: Record<BuiltinPresetId, MessageKey> = {
 };
 
 /**
- * 把共享包 JVM 诊断翻译为当前语言：诊断带消息键与参数（`server.jvm.issue.*`）时按键翻译，
- * 预设名称等嵌套参数一并翻译；没有键的诊断（其他来源的检测错误或旧数据）回落显示原文。
+ * Translates shared-package JVM diagnostics into the current language: when a diagnostic carries a message key and params (`server.jvm.issue.*`) it is translated by key,
+ * with nested params such as preset names translated along; diagnostics without a key (detection errors from other sources or legacy data) fall back to the original text.
  */
 function translateJvmIssue(item: JvmValidationIssue, tm: I18n['tm']): string {
   return tm(item.key ? { key: item.key, params: item.params } : undefined, item.message);
@@ -71,20 +71,20 @@ function draftFromValue(value: string): Draft {
   };
 }
 
-/** 用户亲手填的内存不能低于这个数（原来输入框的 min=512）；没动过的旧值不受它限制。 */
+/** Memory the user enters by hand cannot be lower than this (the original input's min=512); untouched old values are not bound by it. */
 const MIN_MEMORY_MIB = 512;
-/** 最大内存、初始内存的常用档位（GB），只给开服最常用的几档；超出这台电脑内存的不显示。 */
+/** Common presets (GB) for max and initial memory, giving only the few most used for running a server; those beyond this computer's memory are not shown. */
 const MEMORY_TIERS_GB = [8, 10, 12];
 const INITIAL_MEMORY_TIERS_GB = [2, 4, 6];
 
-/** 这几个方案下初始内存自动和最大内存相同（见 automaticInitialMemoryMiB）。 */
+/** Under these profiles initial memory automatically equals max memory (see automaticInitialMemoryMiB). */
 function xmsFollowsMaximum(presetId: JvmPresetId): boolean {
   return presetId === 'g1-balanced' || presetId === 'paper-aikar';
 }
 
 /**
- * MiB 换成输入框里显示的 GB 文本：整数 GB 显示整数，其余最多两位小数（2500M 显示 2.44）。
- * 这里只用半角数字和小数点，因为输入框的内容还要被解析回去；给人看的档位和说明才走 fmt。
+ * Converts MiB into the GB text shown in the input: whole GB shows an integer, the rest at most two decimals (2500M shows 2.44).
+ * Only ASCII digits and a decimal point are used here, because the input's content has to be parsed back; presets and descriptions shown to people go through fmt.
  */
 function gbText(mib: number): string {
   return String(Math.round((mib / 1024) * 100) / 100);
@@ -93,8 +93,8 @@ function gbText(mib: number): string {
 type MemoryTextError = 'empty' | 'invalid' | 'min';
 
 /**
- * 把用户填的 GB 文本换成 MiB。`keepMiB` 是外面传进来的原值：填回和它显示相同的数时直接用原值，
- * 免得 2.44 × 1024 取整成 2499，把 2500M 改写掉。
+ * Converts the GB text the user entered into MiB. `keepMiB` is the original value passed in from outside: when the number entered displays the same as it, the original value is used directly,
+ * so 2.44 × 1024 is not rounded to 2499 and 2500M is not rewritten.
  */
 function parseMemoryText(text: string, keepMiB: number | null): { mib: number } | { error: MemoryTextError } {
   if (text === '') return { error: 'empty' };
@@ -147,13 +147,13 @@ export function JvmSettingsEditor({
   javaMajor: number | null;
   disabled?: boolean;
   useRecommendedDefault?: boolean;
-  /** 导入来源里检测到的 user_jvm_args.txt。上层检测到就自动沿用，这里只显示提示和「取消」「重新应用」。 */
+  /** The user_jvm_args.txt detected in the import source. The parent adopts it automatically on detection; this only shows the notice with "Cancel" and "Reapply". */
   detectedJvmConfig?: DetectedJvmConfig;
-  /** 当前参数是否沿用了 detectedJvmConfig。 */
+  /** Whether the current arguments adopted detectedJvmConfig. */
   detectedApplied?: boolean;
   onDetectedAppliedChange?: (applied: boolean) => void;
   onValidityChange?: (valid: boolean) => void;
-  /** 有错误、有警告，或检测到的 user_jvm_args.txt 用不了时为 true；导入页据此展开收起的设置。 */
+  /** true when there are errors or warnings, or the detected user_jvm_args.txt is unusable; the import page expands the collapsed settings based on it. */
   onAttentionChange?: (needsAttention: boolean) => void;
 }) {
   const { t, tm, rich, fmt } = useI18n();
@@ -162,14 +162,14 @@ export function JvmSettingsEditor({
   const xmsId = useId();
   const extraId = useId();
   const [draft, setDraft] = useState<Draft>(() => draftFromValue(value));
-  // 两个内存框里用户正在填的文本；null 表示没在编辑，按 draft 里的数显示。
-  // 数值只在用户改这个框时才从文本算出来，其余操作一律用 draft 里的 MiB，所以 2500M 不会被四舍五入改写。
+  // The text the user is typing in the two memory boxes; null means not editing, and the number in draft is displayed.
+  // The number is computed from the text only when the user changes this box; every other operation uses the MiB in draft, so 2500M is not rewritten by rounding.
   const [xmxText, setXmxText] = useState<string | null>(null);
   const [xmsText, setXmsText] = useState<string | null>(null);
-  // 外面传进来的原值，见 parseMemoryText。
+  // The original value passed in from outside; see parseMemoryText.
   const loadedRef = useRef({ xmxMiB: draft.rawMode ? null : draft.xmxMiB, xmsMiB: draft.rawMode ? null : draft.xmsMiB });
-  // 「高级 JVM 参数」折叠区（附加参数和「最终参数」在里面）：挂载时或外部换入的参数里有附加参数就展开；
-  // 参数第一次出现错误时也单向展开一次。不做成完全受控，用户填了自定义参数后仍能收起。
+  // The "Advanced JVM arguments" collapsible section (extra arguments and "Final arguments" are inside): expanded on mount or when externally supplied arguments contain extra arguments;
+  // it also expands once, one-way, the first time the arguments have an error. It is not made fully controlled, so the user can still collapse it after entering custom arguments.
   const [advancedOpen, setAdvancedOpen] = useState(() => draft.extraArgs.trim() !== '');
   const [totalMemoryMiB, setTotalMemoryMiB] = useState<number | null>(null);
   const touchedRef = useRef(false);
@@ -201,7 +201,7 @@ export function JvmSettingsEditor({
     revealCustomParts(next);
   }, [value]);
 
-  /** 换成一份不是用户在内存框里打出来的配置：丢掉两个框里没填完的文本。 */
+  /** Switching to a config the user did not type in the memory boxes: drops unfinished text in the two boxes. */
   function loadDraft(next: Draft) {
     setDraft(next);
     setXmxText(null);
@@ -209,7 +209,7 @@ export function JvmSettingsEditor({
     loadedRef.current = { xmxMiB: next.rawMode ? null : next.xmxMiB, xmsMiB: next.rawMode ? null : next.xmsMiB };
   }
 
-  /** 整份换入的配置（外部传入、沿用检测结果）带附加参数时展开高级区，免得它藏在折叠区里就被提交。 */
+  /** When a config swapped in wholesale (passed from outside, adopting a detection result) has extra arguments, the advanced section expands, so they are not submitted while hidden in the collapsible section. */
   function revealCustomParts(next: Draft) {
     if (next.extraArgs.trim() !== '') setAdvancedOpen(true);
   }
@@ -219,7 +219,7 @@ export function JvmSettingsEditor({
   useEffect(() => {
     if (
       !useRecommendedDefault
-      // 沿用的检测结果碰巧就是 -Xms1G -Xmx2G 时，也不能被推荐值顶掉。
+      // When the adopted detection result happens to be exactly -Xms1G -Xmx2G, it must not be displaced by the recommended value either.
       || detectedApplied
       || recommendedAppliedRef.current
       || touchedRef.current
@@ -250,7 +250,7 @@ export function JvmSettingsEditor({
   );
   const selectedPreset = JVM_PRESETS.find((item) => item.id === draft.presetId) ?? null;
 
-  // 内存框的文本不合法时不外发，value 还是上一个合法值；这里把它并进 valid，上层据此拦住保存。
+  // When the text in a memory box is invalid nothing is emitted and value stays at the previous valid value; it is merged into valid here, and the parent blocks saving based on it.
   const xmxParsed = xmxText === null ? null : parseMemoryText(xmxText, loadedRef.current.xmxMiB);
   const xmsParsed = xmsText === null ? null : parseMemoryText(xmsText, loadedRef.current.xmsMiB);
   const memoryErrorText = (parsed: typeof xmxParsed): string | null => (
@@ -302,8 +302,8 @@ export function JvmSettingsEditor({
   };
 
   /**
-   * 用户在内存框里打字：文本照原样留着（「4.」这类没输完的也是），能算出合法的数才外发。
-   * 改了初始内存就算手动设置，之后改最大内存不再带着它走；换到 G1 均衡或 Paper Aikar 时才回到自动。
+   * The user types in a memory box: the text is kept as is (including unfinished ones like "4."), and it is emitted only when a valid number can be computed.
+   * Changing initial memory counts as setting it manually, and changing max memory afterwards no longer carries it along; it returns to automatic only when switching to G1 Balanced or Paper Aikar.
    */
   const typeMemory = (field: 'xmxMiB' | 'xmsMiB', text: string) => {
     touchedRef.current = true;
@@ -313,9 +313,9 @@ export function JvmSettingsEditor({
     emit(field === 'xmsMiB' ? { ...draft, xmsMiB: parsed.mib, manualXms: true } : { ...draft, xmxMiB: parsed.mib });
   };
   /**
-   * 框里的上下箭头和 ↑ ↓ 键：走到相邻的整数 GB（2.44 往上是 3、往下是 2），不低于下限；
-   * 框里的文本不合法（比如删空了）时从上一个合法值算。和打字走同一条路，所以改初始内存也算手动设置。
-   * 按框里显示的数算，不按 MiB 算：4100M 显示「4」，按 4.004 算往下会得到 4，又被认回原值 4100M，按了没反应。
+   * The up/down arrows in the box and the ↑ ↓ keys: step to the adjacent whole GB (up from 2.44 is 3, down is 2), not below the lower bound;
+   * when the text in the box is invalid (for example cleared), it is computed from the previous valid value. It takes the same path as typing, so changing initial memory also counts as setting it manually.
+   * Computed from the number displayed in the box, not from MiB: 4100M displays "4", and stepping down from 4.004 would give 4, which is then recognized back as the original 4100M, so pressing would do nothing.
    */
   const stepMemory = (field: 'xmxMiB' | 'xmsMiB', direction: 1 | -1) => {
     const parsed = field === 'xmxMiB' ? xmxParsed : xmsParsed;
@@ -323,14 +323,14 @@ export function JvmSettingsEditor({
     const nextGb = Math.max(MIN_MEMORY_MIB / 1024, direction === 1 ? Math.floor(currentGb) + 1 : Math.ceil(currentGb) - 1);
     typeMemory(field, String(nextGb));
   };
-  /** 失焦只整理显示（「4.」变回「4」），不改数值；不合法的文本留着让用户接着改。 */
+  /** Blur only tidies the display ("4." back to "4") without changing the number; invalid text is left for the user to keep editing. */
   const tidyMemory = (field: 'xmxMiB' | 'xmsMiB') => {
     const parsed = field === 'xmxMiB' ? xmxParsed : xmsParsed;
     if (parsed && 'mib' in parsed) (field === 'xmxMiB' ? setXmxText : setXmsText)(null);
   };
 
   const fieldsDisabled = disabled;
-  // 档位：超出这台电脑内存的不给；读不到主机内存时全给。
+  // Presets: those beyond this computer's memory are not offered; all are offered when host memory cannot be read.
   const tiersWithinHost = (gbs: number[]) => gbs
     .map((gb) => gb * 1024)
     .filter((mib) => totalMemoryMiB === null || mib <= totalMemoryMiB);
@@ -339,7 +339,7 @@ export function JvmSettingsEditor({
   const xmxErrorId = `${maximumId}-error`;
   const xmsErrorId = `${xmsId}-error`;
   const xmsHelpId = `${xmsId}-help`;
-  // Paper Aikar 要求初始内存和最大内存相同，自动时锁住；旧数据里两者不同（手动）时仍可改，好让用户改对。
+  // Paper Aikar requires initial memory to equal max memory, so it is locked while automatic; when legacy data has them different (manual) it can still be changed, so the user can correct it.
   const xmsLocked = draft.presetId === 'paper-aikar' && !draft.manualXms;
   const xmsHelpKey: MessageKey | null = draft.presetId === 'paper-aikar'
     ? 'jvm.xms.help.paper'
@@ -364,8 +364,8 @@ export function JvmSettingsEditor({
   return (
     <section className="jvm-settings" aria-label={t('jvm.section.ariaLabel')}>
       {/*
-        检测到的 user_jvm_args.txt 已由上层自动沿用，这里只用一行说明，后面跟「取消」（取消后可「重新应用」）。
-        沿用时文件自带的警告和下面对当前参数的诊断是同一批，不再重复列出；文件用不了时才列出原因。
+        The detected user_jvm_args.txt has already been adopted automatically by the parent, so only one line of explanation is used here, followed by "Cancel" (after which "Reapply" is available).
+        When adopted, the file's own warnings and the diagnostics on the current arguments below are the same set and are not listed again; reasons are listed only when the file is unusable.
       */}
       {detectedJvmConfig && (
         <div className={detectedJvmConfig.canonicalArgs ? 'callout callout-info jvm-detected' : 'callout callout-warning jvm-detected'}>
@@ -415,7 +415,7 @@ export function JvmSettingsEditor({
       ) : (
         <>
           <div className="grid jvm-basic-grid">
-            {/* 初始内存和最大内存并排占左列，优化方案在右列；配置器窄时优化方案排到下面（见 styles.css）。 */}
+            {/* Initial and max memory sit side by side in the left column, with the optimization profile in the right column; when the configurator is narrow the profile moves below (see styles.css). */}
             <div className="jvm-memory-pair">
               <div className="field" data-field-invalid={xmsError ? '' : undefined}>
                 <label htmlFor={xmsId}>{t('jvm.xms.label')}</label>
@@ -450,7 +450,7 @@ export function JvmSettingsEditor({
                           aria-pressed={selected}
                           disabled={fieldsDisabled || xmsLocked}
                           onClick={() => {
-                            // 点档位和在框里填一样，算手动设置。
+                            // Clicking a preset is the same as typing in the box and counts as setting it manually.
                             setXmsText(null);
                             if (draft.xmsMiB !== mib || !draft.manualXms) emit({ ...draft, xmsMiB: mib, manualXms: true });
                           }}
@@ -465,8 +465,8 @@ export function JvmSettingsEditor({
                 {xmsHelpKey && <p className="muted field-help" id={xmsHelpId}>{t(xmsHelpKey)}</p>}
               </div>
               {/*
-                不用 Field 外壳，因为档位要排在输入框和错误之间。错误不能放在档位上面：
-                删空后直接点档位时，输入框失焦让错误行冒出来，档位被顶下去，这一下就点空了。
+                The Field shell is not used, because the presets have to sit between the input and the error. The error cannot go above the presets:
+                when a preset is clicked right after clearing, the input's blur makes the error row pop up, the presets get pushed down, and the click misses.
               */}
               <div className="field" data-field-invalid={xmxError ? '' : undefined}>
                 <label htmlFor={maximumId}>{t('jvm.memory.max.label')}</label>
@@ -492,7 +492,7 @@ export function JvmSettingsEditor({
                 {memoryTiers.length > 0 && (
                   <div className="jvm-memory-tiers" role="group" aria-label={t('jvm.memory.tiers.ariaLabel')}>
                     {memoryTiers.map((mib) => {
-                      // 框里的文本不合法时哪一档都不算选中。
+                      // When the text in the box is invalid no preset counts as selected.
                       const selected = !xmxError && draft.xmxMiB === mib;
                       return (
                         <button
@@ -523,7 +523,7 @@ export function JvmSettingsEditor({
                 disabled={fieldsDisabled}
                 onChange={(event) => {
                   const nextPreset = event.target.value as JvmPresetId;
-                  // 换到 G1 均衡或 Paper Aikar：初始内存回到自动，和最大内存相同；框里没填完的文本不留。
+                  // Switching to G1 Balanced or Paper Aikar: initial memory returns to automatic, equal to max memory; unfinished text in the box is not kept.
                   if (xmsFollowsMaximum(nextPreset)) {
                     setXmsText(null);
                     emit({ ...draft, presetId: nextPreset, manualXms: false });
@@ -575,7 +575,7 @@ export function JvmSettingsEditor({
         </>
       )}
 
-      {/* 原始文本模式没有折叠区，预览照旧放在外面。 */}
+      {/* Raw text mode has no collapsible section, so the preview stays outside as before. */}
       {draft.rawMode && preview}
       {issues.map((item, index) => (
         <p
