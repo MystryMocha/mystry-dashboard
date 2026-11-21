@@ -748,3 +748,23 @@ test('the Windows build of EasyTier also installs Packet.dll, which is required 
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a failed virtual adapter is reported as needing an administrator on a non-English Windows too', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-lan-detail-'));
+  process.env.MYSTRY_DATA_DIR ??= dir;
+  process.env.JWT_SECRET ??= 'a'.repeat(64);
+  process.env.SETUP_TOKEN ??= 'b'.repeat(64);
+  process.env.LAUNCHER_TOKEN ??= 'c'.repeat(64);
+  try {
+    const { lanFailureDetail } = await import('./lan-config.js');
+    // Output of easytier-core 2.6.4 without elevation on a Chinese Windows 11 (captured 2026-11-21).
+    const fatal = 'ERROR CORE::INSTANCE: [6f8473b1] tun device error err=rust tun error Failed to create adapter';
+    const firewallWarning = 'WARN CORE: Failed to add Easytier to firewall allowlist, Subnet proxy and KCP proxy may not work properly. error=拒绝访问。 (0x80070005)';
+    assert.deepEqual(lanFailureDetail(fatal, 'secret'), { key: 'server.lan.needsAdmin' });
+    // The panel's own network runs without a virtual adapter and still prints this warning while working.
+    assert.equal(lanFailureDetail(firewallWarning, 'secret'), null);
+    assert.equal(lanFailureDetail(`${fatal} secret`, 'secret'), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
