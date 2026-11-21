@@ -45,8 +45,9 @@ test('浏览器上传文件夹接口', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-folder-upload-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;
   // 上次进程留下的上传临时目录：启动时应被清掉。
+  // 目录按面板自己建的权限（700）来建：Linux 下默认的 755 会在启动时被数据目录权限检查拒绝。
   const orphan = path.join(dataRoot, 'uploads', '.tmp-folder-upload-orphan');
-  fs.mkdirSync(path.join(orphan, 'world'), { recursive: true });
+  fs.mkdirSync(path.join(orphan, 'world'), { recursive: true, mode: 0o700 });
   fs.writeFileSync(path.join(orphan, 'world', 'level.dat'), 'old');
 
   const { buildApp } = await import('../index.js');
