@@ -4,7 +4,7 @@
 
 ## Our Pledge
 
-To build an open and welcoming community, we as contributors and maintainers pledge that everyone taking part in this project should have a harassment-free experience, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion or sexual orientation.
+To build an open and welcoming community, we as contributors and maintainers pledge to make participation in this project a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion or sexual orientation.
 
 ## Our Standards
 

@@ -2,7 +2,7 @@
 
 **English** · [简体中文](configuration.zh-CN.md)
 
-Which config file is used depends on how you start the panel. Don't mix the two files:
+The config file depends on how you start the panel. Do not mix the two files:
 
 | Launch entry | Default config file | First-time configuration |
 |---|---|---|
@@ -11,23 +11,23 @@ Which config file is used depends on how you start the panel. Don't mix the two 
 | Linux / WSL source `mdash.sh` | `config/panel.env` in the repository root | Generated automatically by the cross-platform controller |
 | Portable `mdash` | `config/panel.env` in the package root | Generated automatically by the cross-platform controller |
 
-The table lists the defaults. For the variables that override these paths, see the environment variable tables below. Keep any configuration you already have. Don't overwrite it with the template again. In Windows PowerShell, use `npm.cmd`.
+The table lists the defaults; the variables that override these paths are in the environment variable tables below. Keep any existing configuration rather than overwriting it with the template again. In Windows PowerShell, use `npm.cmd`.
 
 ## Required Settings for First Start
 
 Before the first start you must configure:
 
 - `JWT_SECRET`: a 64-character hexadecimal string used to sign JWTs.
-- `SETUP_TOKEN`: a 64-character hexadecimal string used in the `X-Setup-Token` header of the first setup request. The launcher generates it automatically and removes it after creating the administrator. You only need to set it yourself when you run the panel by hand.
-- `LAUNCHER_TOKEN`: a separate local shutdown token generated automatically by `mdash`. You can leave it out if you run the panel by hand without a manager.
+- `SETUP_TOKEN`: a 64-character hexadecimal string used in the `X-Setup-Token` header of the first setup request. The launcher generates it automatically and removes it after creating the administrator; you set it yourself only when running the panel by hand.
+- `LAUNCHER_TOKEN`: a separate local shutdown token that `mdash` generates automatically. When you run the panel by hand without a manager, you can leave it out.
 
-Each configured secret must use a different random value. The Node.js command below generates one. The docs and the template don't provide any usable fixed secret:
+Each configured secret must be a different random value. The Node.js command below generates one; neither the docs nor the template provides a usable fixed secret:
 
 ```bash
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-`POST /api/auth/setup` is only available while the user table is empty, and the request must carry `X-Setup-Token: <SETUP_TOKEN>`. For the steps on the page, see [Set Up Administrator](getting-started.md#set-up-administrator). Once the administrator is created, you can remove `SETUP_TOKEN` from the config file your launch entry actually uses, then restart the panel. Existing users don't need it to sign in. If the user table is empty and there is no `SETUP_TOKEN`, the panel doesn't start.
+`POST /api/auth/setup` is available only while the user table is empty, and the request must carry `X-Setup-Token: <SETUP_TOKEN>`. For the steps in the web UI, see [Set Up Administrator](getting-started.md#set-up-administrator). Once the administrator exists, you can remove `SETUP_TOKEN` from the config file your launch entry actually uses and restart the panel; existing users do not need it to sign in. If the user table is empty and `SETUP_TOKEN` is missing, the panel does not start.
 
 ## Environment Variables
 
@@ -39,10 +39,10 @@ Where a limit is measured in bytes or milliseconds, the tables say so. `MiB` is 
 |------|--------|------|
 | `HOST` | `127.0.0.1` | Fastify listen address |
 | `PORT` | `3000` | Listen port |
-| `JWT_SECRET` | None; required before the first start | 64-character hexadecimal JWT signing secret. Don't use a fixed example value |
-| `SETUP_TOKEN` | None; required before the first setup | 64-character hexadecimal setup token. You can remove it after setup is complete |
+| `JWT_SECRET` | None; required before the first start | 64-character hexadecimal JWT signing secret. Do not use a fixed example value |
+| `SETUP_TOKEN` | None; required before the first setup | 64-character hexadecimal setup token. Can be removed once setup is complete |
 | `LAUNCHER_TOKEN` | None; generated automatically when you use `mdash` | 64-character hexadecimal local shutdown token. Usable only from a loopback address |
-| `CORS_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` | Exact CORS origin allowlist, comma-separated. Don't use `*` |
+| `CORS_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` | Exact CORS origin allowlist, comma-separated. Do not use `*` |
 | `RATE_LIMIT_MAX` | `120` | Maximum number of regular requests per rate limit window |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate limit window for regular requests, in milliseconds |
 | `AUTH_RATE_LIMIT_MAX` | `10` | Maximum number of failed sign-ins, setup requests and local shutdown requests per window. A successful sign-in clears the failure count for that username and IP |
@@ -50,7 +50,7 @@ Where a limit is measured in bytes or milliseconds, the tables say so. `MiB` is 
 | `CONSOLE_TICKET_TTL_SECONDS` | `60` | Console ticket lifetime. Each ticket can open only one WebSocket connection |
 | `FILE_DOWNLOAD_TICKET_TTL_SECONDS` | `60` | File download ticket lifetime. Each ticket can be used for only one download |
 
-The sign-in duration is no longer set with `JWT_EXPIRES_IN`. If it's still in the file, it has no effect and the panel mentions it at startup. Choose the duration on the panel's **Panel Settings** page instead. The default is 12 hours. See [Sign-In Duration](user-guide.md#sign-in-duration).
+The sign-in duration is no longer set with `JWT_EXPIRES_IN`; if the variable is still in the file, it has no effect and the panel points this out at startup. Choose the duration on the **Panel Settings** page instead (12 hours by default). See [Sign-In Duration](user-guide.md#sign-in-duration).
 
 ### HTTP, File and Upload Lifecycle
 
@@ -59,7 +59,7 @@ The sign-in duration is no longer set with `JWT_EXPIRES_IN`. If it's still in th
 | `HTTP_REQUEST_TIMEOUT_MS` | `900000` | HTTP request lifecycle timeout, 15 minutes |
 | `HTTP_CONNECTION_TIMEOUT_MS` | `300000` | HTTP connection timeout, 5 minutes |
 | `HTTP_KEEP_ALIVE_TIMEOUT_MS` | `72000` | HTTP keep-alive idle timeout, 72 seconds |
-| `UPLOAD_IDLE_TIMEOUT_MS` | `30000` | Upload idle timeout, 30 seconds. An upload that keeps sending no data is cancelled |
+| `UPLOAD_IDLE_TIMEOUT_MS` | `30000` | Upload idle timeout, 30 seconds. An upload that stops sending data is cancelled |
 | `FILE_DOWNLOAD_IDLE_TIMEOUT_MS` | `60000` | File download idle timeout, 60 seconds. On timeout the download is closed and its concurrency slot is released |
 
 ### JSON, Concurrency and Tasks
@@ -73,12 +73,12 @@ The sign-in duration is no longer set with `JWT_EXPIRES_IN`. If it's still in th
 | `MAX_QUEUED_TASKS` | `2` | Maximum number of tasks waiting to run |
 | `TASK_TIMEOUT_MS` | `1800000` | Timeout for a single task, 30 minutes |
 | `BACKUP_TASK_TIMEOUT_MS` | `21600000` | Timeout for backup and restore tasks, 6 hours. The pre-restore backup and the extraction count as one task |
-| `IMPORT_PREVIEW_TTL_SECONDS` | `1800` | Lifetime of a ZIP import preview waiting for confirmation, 30 minutes by default |
-| `MAX_IMPORT_PREVIEWS` | `2` | Maximum number of ZIP previews waiting for confirmation that are kept at once, panel-wide. Each signed-in user can have at most one |
+| `IMPORT_PREVIEW_TTL_SECONDS` | `1800` | Lifetime of a ZIP import preview awaiting confirmation, 30 minutes by default |
+| `MAX_IMPORT_PREVIEWS` | `2` | Maximum number of ZIP previews awaiting confirmation kept at once, panel-wide. Each signed-in user can have at most one |
 
-Deploy and import tasks are limited by both the concurrency limit and the queue limit. Once `MAX_CONCURRENT_TASKS` is reached, new tasks wait in the queue. When the queue is full, the request returns **429**. A task that runs longer than `TASK_TIMEOUT_MS` after it starts fails and is cleaned up. A panel restart doesn't resume unfinished tasks. On startup the panel marks them as failed and cleans up any half-built instances that were created.
+Deploy and import tasks are limited by both the concurrency limit and the queue limit. Once `MAX_CONCURRENT_TASKS` is reached, new tasks wait in the queue; when the queue is full, the request returns **429**. A task still running `TASK_TIMEOUT_MS` after it starts fails and is cleaned up. A panel restart does not resume unfinished tasks: on startup the panel marks them as failed and cleans up any half-built instances.
 
-File downloads are limited by `MAX_CONCURRENT_FILE_DOWNLOADS`. When all slots are in use, a file download request returns **429**. A download with no data activity for `FILE_DOWNLOAD_IDLE_TIMEOUT_MS` is closed, and the download slot it held is released.
+File downloads are limited by `MAX_CONCURRENT_FILE_DOWNLOADS`; when all slots are in use, a file download request returns **429**. A download with no data activity for `FILE_DOWNLOAD_IDLE_TIMEOUT_MS` is closed, and the download slot it held is released.
 
 ### Cores, Installer and Text/Console
 
@@ -100,7 +100,7 @@ File downloads are limited by `MAX_CONCURRENT_FILE_DOWNLOADS`. When all slots ar
 | `CONSOLE_COMMAND_WINDOW_MS` | `60000` | Console command rate limit window, 60 seconds |
 | `MAX_CONSOLE_STDIN_BYTES` | `65536` | Limit on the buffer of pending input written to the instance's stdin, 64 KiB |
 
-When the connection limit or buffer capacity is exceeded, new connections are rejected or reading is paused. A command that is too long or exceeds the rate limit isn't written to the instance.
+When the connection limit or buffer capacity is exceeded, new connections are rejected or reading is paused. A command that is too long or exceeds the rate limit is not written to the instance.
 
 ### Uploads, ZIP Extraction and Local Folder Import
 
@@ -121,29 +121,29 @@ When the connection limit or buffer capacity is exceeded, new connections are re
 | `MOD_LOADER_SCAN_MAX_ENTRIES` | `50000` | Same as above: maximum number of entries traversed |
 | `MOD_LOADER_SCAN_TIMEOUT_MS` | `30000` | Same as above: maximum time (milliseconds) |
 
-A regular file or zip upload larger than `MAX_UPLOAD_BYTES` returns **413**. When all upload slots are in use, it returns **429**. A ZIP also goes through the entry count, single entry, total extracted size and central directory limit checks.
+A regular file or ZIP upload larger than `MAX_UPLOAD_BYTES` returns **413**; when all upload slots are in use, it returns **429**. A ZIP is also checked against the entry count, single-entry size, total extracted size and central directory limits.
 
-The check result of a ZIP import is held temporarily in `uploads/.tmp-import-preview-*`, isolated per signed-in user. It expires after `IMPORT_PREVIEW_TTL_SECONDS`, and all of them are deleted when the panel restarts. When the panel-wide preview limit is reached, the request returns **429**.
+ZIP import check results are held temporarily in `uploads/.tmp-import-preview-*`, isolated per signed-in user. They expire after `IMPORT_PREVIEW_TTL_SECONDS` and are all deleted when the panel restarts. When the panel-wide preview limit is reached, the request returns **429**.
 
-`MAX_EXISTING_IMPORT_*` limits how much a single folder import can contain, whether the folder is uploaded from the browser or copied from `imports`. For the other checks made before importing, see [Upload a Folder](user-guide.md#upload-a-folder) and [Copy from imports](user-guide.md#copy-from-imports). An uploaded folder waits in `uploads/.tmp-folder-upload-*` until you confirm or cancel. It uses the same `IMPORT_PREVIEW_TTL_SECONDS` lifetime and `MAX_IMPORT_PREVIEWS` limit as ZIP previews, and leftovers are deleted when the panel starts.
+`MAX_EXISTING_IMPORT_*` caps the size of a single folder import, whether the folder is uploaded from the browser or copied from `imports`. For the other checks made before importing, see [Upload a Folder](user-guide.md#upload-a-folder) and [Copy from imports](user-guide.md#copy-from-imports). An uploaded folder waits in `uploads/.tmp-folder-upload-*` until you confirm or cancel; it shares the `IMPORT_PREVIEW_TTL_SECONDS` lifetime and `MAX_IMPORT_PREVIEWS` limit with ZIP previews, and leftovers are deleted when the panel starts.
 
 ### Data Directory
 
 | Variable | Default | Description |
 |------|--------|------|
-| `DATA_DIR` | `data` | Data root directory. A relative value is resolved against the repository root. You can also use an absolute path |
+| `DATA_DIR` | `data` | Data root directory. A relative value is resolved against the repository root; an absolute path also works |
 | `MYSTRY_HOME` | Repository root for source; package root for the portable build | Root of the runtime layout. It must be set in the process environment before Node starts |
 | `MYSTRY_CONFIG_PATH` | `.env` for source; `config/panel.env` for the portable build | Config file path. A relative value is relative to `MYSTRY_HOME` |
 | `MYSTRY_DATA_DIR` | Uses `DATA_DIR` when not set | Takes priority over `DATA_DIR`. A relative value is relative to `MYSTRY_HOME` |
-| `BACKUP_DIR` | `DATA_DIR/backups` | Instance backup directory. A relative value is relative to `MYSTRY_HOME`. You can put it on another disk, but it can't be inside `instances`, `imports`, `uploads` or `.mystry-staging`, and it can't contain the whole data directory |
+| `BACKUP_DIR` | `DATA_DIR/backups` | Instance backup directory. A relative value is relative to `MYSTRY_HOME`. It can be on another disk, but it cannot be inside `instances`, `imports`, `uploads` or `.mystry-staging`, and it cannot contain the whole data directory |
 
 ### Launcher Language
 
-The menus and messages of `mdash.cmd`, `mdash.sh` and `mdash` follow the system language: Chinese when the system language is Chinese, and English for every other language. On Windows it looks at the display language. On Linux / macOS it looks at `LC_ALL`, `LC_MESSAGES` and `LANG`, in that order. This only affects the launcher, not the web interface or the panel logs.
+The menus and messages of `mdash.cmd`, `mdash.sh` and `mdash` follow the system language: Chinese on a Chinese system, English for every other language. Windows uses the display language; Linux / macOS check `LC_ALL`, `LC_MESSAGES` and `LANG`, in that order. This affects only the launcher, not the web interface or the panel logs.
 
 | Variable | Default | Description |
 |------|--------|------|
-| `MYSTRY_LANG` | Follows the system | Set it to `zh-CN` or `en-US` to fix the launcher language. Any value starting with `zh` means Chinese, and everything else is treated as English |
+| `MYSTRY_LANG` | Follows the system | Set to `zh-CN` or `en-US` to fix the launcher language. Any value starting with `zh` means Chinese; anything else means English |
 
 The runtime layout under `DATA_DIR` is:
 
@@ -154,54 +154,54 @@ The runtime layout under `DATA_DIR` is:
 | `instances/<id>/` | All files, the jar and the working directory of that instance |
 | `imports/<folder name>/` | Handoff area for existing servers on the same machine. It is only a copy source, not an instance working directory |
 | `cache/cores/` | Download cache for core jars |
-| `uploads/` | Temporary upload directory. `.tmp-import-preview-*` holds ZIPs waiting for confirmation, which aren't kept across restarts |
-| `backups/<id>/` | Instance backups (when `BACKUP_DIR` isn't set). Each backup is a `.tar.gz` plus a `.json` metadata file with the same name |
+| `uploads/` | Temporary upload directory. `.tmp-import-preview-*` holds ZIPs awaiting confirmation, which are not kept across restarts |
+| `backups/<id>/` | Instance backups (when `BACKUP_DIR` is not set). Each backup is a `.tar.gz` plus a `.json` metadata file with the same name |
 
-Whether the final data directory comes from `MYSTRY_DATA_DIR` or `DATA_DIR`, an instance can only ever live in `instances/<id>` under that directory. Deploying, importing, creating and starting all use this directory. Custom instance install directories aren't supported, and there is no feature for picking a directory from anywhere on the machine. A path in the instance file API is only a logical path relative to that instance's root directory.
+Whether the final data directory comes from `MYSTRY_DATA_DIR` or `DATA_DIR`, an instance can only ever live in `instances/<id>` under that directory. Deploying, importing, creating and starting all use this directory. Custom instance install directories are not supported, and there is no way to pick a directory from elsewhere on the machine. A path in the instance file API is only a logical path relative to that instance's root directory.
 
-**Symbolic links**: if a folder above the data directory or the backup directory is a symbolic link or junction (for example, a Linux distribution where `/home` is itself a link), the panel uses its real location when it reads the configuration. The data directory itself, and everything inside it, must not be a link. Otherwise the panel refuses to work with instances.
+**Symbolic links**: if a folder above the data directory or the backup directory is a symbolic link or junction (for example, on a Linux distribution where `/home` is itself a link), the panel resolves it to its real location when reading the configuration. The data directory itself and everything inside it must not be links; otherwise the panel refuses to work with instances.
 
-**Permissions**: on Linux/macOS, the panel creates the data root and directories such as `instances`, `imports`, `uploads`, `.mystry-staging` and `.mystry-panel-lock` at startup and verifies that they are `0700`, and that `panel.db` and its WAL/SHM files are `0600`. If an existing directory is accessible to group/other, the panel refuses to start by default. Set `MYSTRY_REPAIR_DATA_PERMISSIONS=1` to tighten the permissions automatically at startup. On Windows, Node can't reliably verify ACLs, so the first start prints a blocking-level warning. Make sure `DATA_DIR` can be read and written only by the user who runs the panel (in the portable build, `mdash` creates a user-only directory).
+**Permissions**: on Linux/macOS, the panel creates the data root and directories such as `instances`, `imports`, `uploads`, `.mystry-staging` and `.mystry-panel-lock` at startup and verifies that they are `0700`, and that `panel.db` and its WAL/SHM files are `0600`. If an existing directory is accessible to group/other, the panel refuses to start by default; set `MYSTRY_REPAIR_DATA_PERMISSIONS=1` to tighten the permissions automatically at startup. On Windows, Node cannot reliably verify ACLs, so the first start prints a blocking-level warning: make sure only the user who runs the panel can read and write `DATA_DIR` (in the portable build, `mdash` creates a user-only directory).
 
-`MYSTRY_HOME` and `MYSTRY_CONFIG_PATH` decide where the config file is, so you can't rely on that config file to change where it is loaded from. Set them before startup through `mdash`, the shell, or the process environment. Portable users usually don't need to set these variables by hand.
+`MYSTRY_HOME` and `MYSTRY_CONFIG_PATH` determine where the config file is, so the config file cannot change where it is loaded from. Set them before startup through `mdash`, the shell or the process environment. Portable users usually do not need to set these variables by hand.
 
 ## npm Registry
 
-This is the download address the source launcher uses when it installs dependencies. The portable build ships with its dependencies, so you don't need to set it.
+The source launcher installs dependencies from this registry. The portable build ships with its dependencies, so you don't need to set it.
 
 ```powershell
 .\mdash.cmd mirror
 .\mdash.cmd mirror npmmirror
 ```
 
-The first command shows the current choice and the available options. The second one switches. On Linux / WSL, use `./mdash.sh mirror`. On Windows, you can also choose it in the menu after double-clicking `mdash.cmd`.
+The first command shows the current choice and the available options; the second switches. On Linux / WSL, use `./mdash.sh mirror`. On Windows, you can also choose it from the menu after double-clicking `mdash.cmd`.
 
 | Name | Download address | Description |
 |------|----------|------|
-| `default` | npm's own configuration | The default. The launcher doesn't specify an address |
+| `default` | npm's own configuration | The default. The launcher does not specify an address |
 | `official` | `https://registry.npmjs.org/` | Official npm registry, international |
 | `npmmirror` | `https://registry.npmmirror.com/` | Mainland China |
 | `tencent` | `https://mirrors.cloud.tencent.com/npm/` | Tencent Cloud, mainland China |
 | `huawei` | `https://repo.huaweicloud.com/repository/npm/` | Huawei Cloud, mainland China |
 
-The choice is saved in `config/npm-mirror` in the repository root. This file isn't tracked by Git. A switch takes effect the next time dependencies are installed. To reinstall right away, run `rebuild`.
+The choice is saved in `config/npm-mirror` in the repository root, a file not tracked by Git. A switch takes effect the next time dependencies are installed; to reinstall right away, run `rebuild`.
 
 | Variable | Default | Description |
 |------|--------|------|
 | `MYSTRY_NPM_MIRROR` | Not set | Sets the registry temporarily. It takes priority over the saved choice and accepts the same values as above |
 
-Switching the registry doesn't change what gets installed: `package-lock.json` records only the official addresses, npm swaps in the registry you chose at install time, and downloads are still verified against the `integrity` values in the lockfile.
+Switching the registry does not change what is installed: `package-lock.json` records only the official addresses, npm swaps in the chosen registry at install time, and downloads are still verified against the `integrity` values in the lockfile.
 
 ## Security Recommendations
 
-1. By default the panel binds only to the loopback address, so other devices can't open it. To use it from a phone or another computer, click **Other Devices** in the panel (or run the launcher's `remote on`). You don't change `HOST` and you don't restart. See [Open the Panel on Another Device](user-guide.md#open-the-panel-on-another-device).
-2. Once it's on, any device that can reach this computer can open the sign-in page. The sign-in is the protection, so use a strong password. Two security options are yours to choose:
-   - **Use HTTPS** (on by default): the connection is encrypted. The panel issues its own certificate, so a browser warns that it is not secure the first time. Choose Advanced, then continue to the site. To be sure you reached the right panel, compare the certificate fingerprint shown in the dialog. With it off there is no warning, but anyone who can capture traffic on the same network or the internet can read your password.
+1. By default the panel binds only to the loopback address, so other devices cannot open it. To use it from a phone or another computer, click **Other Devices** in the panel (or run the launcher's `remote on`); this needs no change to `HOST` and no restart. See [Open the Panel on Another Device](user-guide.md#open-the-panel-on-another-device).
+2. Once it is on, any device that can reach this computer can open the sign-in page. Sign-in is what protects the panel, so use a strong password. Two security options are available:
+   - **Use HTTPS** (on by default): the connection is encrypted. The panel issues its own certificate, so the browser warns that the site is not secure on the first visit; choose Advanced, then continue to the site. To confirm you reached the right panel, compare the certificate fingerprint shown in the dialog. With HTTPS off there is no warning, but anyone who can capture traffic on the same network or the internet can read your password.
    - **Only Allow Devices on the Same Network** (off by default): only devices on the same network as this computer can open the panel. If the panel runs on a cloud server, turning it on locks out your own computer too.
-3. If you'd rather not open a port, use **Virtual Network** in the same dialog, or SSH port forwarding (`ssh -L 3000:127.0.0.1:3000 user@server`, then open `http://127.0.0.1:3000` on your own computer). You can also run your own reverse proxy (Nginx / Caddy). When the proxy and the panel are on the same machine, the panel sees every request as coming from `127.0.0.1`, so the sign-in failure limit counts everyone as one source.
+3. To avoid opening a port, use **Virtual Network** in the same dialog, or SSH port forwarding (`ssh -L 3000:127.0.0.1:3000 user@server`, then open `http://127.0.0.1:3000` on your own computer). You can also run your own reverse proxy (Nginx / Caddy); when the proxy and the panel share a machine, the panel sees every request as coming from `127.0.0.1`, so the sign-in failure limit counts everyone as one source.
 4. `JWT_SECRET` and `SETUP_TOKEN` must use different random values. Remove `SETUP_TOKEN` after setup succeeds.
-5. Use a strong administrator password of at least 12 characters. The panel can read and write instance files and run processes.
-6. Instances use the `java` on PATH by default. On the Quick Deploy page or in the instance's Settings, you can also bind a runtime ID that the panel has scanned and verified. Scanning runs `-version` on each candidate, so `JAVA_HOME` and the common install directories must be controlled by a trusted local administrator. Requests can't submit a Java path.
+5. Use a strong administrator password of at least 12 characters: the panel can read and write instance files and run processes.
+6. Instances use the `java` on PATH by default. On the Quick Deploy page or in the instance's Settings, you can also bind a runtime ID that the panel has scanned and verified. Scanning runs `-version` on each candidate, so `JAVA_HOME` and the common install directories must be under the control of a trusted local administrator. Requests cannot submit a Java path.
 7. Paper download requests carry a compliant User-Agent. Follow the terms of use of each core's distributor.
 
 ## Frontend Dev Proxy
@@ -211,6 +211,6 @@ In development mode, `apps/web/vite.config.ts` proxies:
 - `/api` → `http://127.0.0.1:3000`
 - `/ws` → `ws://127.0.0.1:3000`
 
-If port 3000 is reserved by the system or can't be bound on your machine, set the environment variable `MYSTRY_DEV_API_PORT` before running `npm run dev:web` (PowerShell example: `$env:MYSTRY_DEV_API_PORT = "3100"`) so the proxy points at the port the panel is actually listening on. The panel itself must already be listening on that port (set by `PORT`). This variable only affects the target port of the Vite dev proxy. It doesn't affect the panel's own listening or configuration.
+If port 3000 is reserved by the system or cannot be bound on your machine, set the environment variable `MYSTRY_DEV_API_PORT` before running `npm run dev:web` (PowerShell example: `$env:MYSTRY_DEV_API_PORT = "3100"`) to point the proxy at the port the panel actually listens on. The panel itself must already be listening on that port (set by `PORT`). The variable affects only the target port of the Vite dev proxy, not the panel's own listening or configuration.
 
-After a production build, the backend's `@fastify/static` serves the static files and Vite isn't needed. `npm run build -w @mystry/web` generates `.br` / `.gz` precompressed copies of text assets after `vite build`, and the backend sends them directly based on the browser's `Accept-Encoding`. Hashed `/assets/*` files can be cached by the browser for one year, and `index.html` is revalidated every time, so a refresh after an upgrade gets the new version. A reverse proxy doesn't need to compress these assets again.
+After a production build, the backend's `@fastify/static` serves the static files, and Vite is not needed. After `vite build`, `npm run build -w @mystry/web` generates `.br` / `.gz` precompressed copies of text assets, which the backend sends directly according to the browser's `Accept-Encoding`. Browsers may cache hashed `/assets/*` files for one year, while `index.html` is revalidated every time, so a refresh after an upgrade loads the new version. A reverse proxy does not need to compress these assets again.

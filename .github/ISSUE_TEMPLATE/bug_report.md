@@ -8,7 +8,7 @@ assignees: ""
 
 ## Description
 
-Briefly describe what happened.
+Describe what happened.
 
 ## Steps to Reproduce
 
@@ -29,6 +29,6 @@ Briefly describe what happened.
 
 ## Logs / Screenshots
 
-(Please redact sensitive information such as paths and tokens)
+(Redact sensitive information such as paths and tokens.)
 
 ## Additional Information
