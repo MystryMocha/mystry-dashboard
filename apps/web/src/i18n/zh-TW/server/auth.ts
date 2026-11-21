@@ -16,4 +16,5 @@ export default {
   'server.auth.launcherLocalOnly': '啟動器介面僅允許本機存取',
   'server.auth.invalidLauncherToken': '啟動器權杖無效',
   'server.auth.launcherShutdownUnsupported': '目前的執行方式不支援透過啟動器關閉',
+  'server.auth.sessionDurationInvalid': '請從列出的選項中選擇登入有效期限',
 } satisfies Record<keyof typeof AUTH_MESSAGES, string>;

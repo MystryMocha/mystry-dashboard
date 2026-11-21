@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Download, RefreshCw } from 'lucide-react';
-import { recommendedJavaMajor, type JavaDetectResult, type JavaRuntimeInfo, type TaskInfo } from '@mystry/shared';
-import { detectDefaultJava, installJavaRuntime, listJavaRuntimes, pollTask } from '../api';
+import { recommendedJavaMajor, type JavaDetectResult, type JavaRuntimeInfo, type PanelMessage, type TaskInfo } from '@mystry/shared';
+import { cancelJavaInstall, detectDefaultJava, installJavaRuntime, listJavaRuntimes, pollTask } from '../api';
 import { errorMessage } from '../errors';
 import { useI18n } from '../i18n';
 import { javaDownloadUrl } from '../java-download';
+import { ConfirmDialog } from './ConfirmDialog';
 import { TaskProgress } from './TaskProgress';
+
+/** 接口错误或 pollTask 抛出的任务失败带的服务端消息键。 */
+function serverErrorKey(error: unknown): string | undefined {
+  return (error as { messageI18n?: PanelMessage } | null)?.messageI18n?.key;
+}
 
 /**
  * Java 运行时选择器：
@@ -19,6 +25,21 @@ import { TaskProgress } from './TaskProgress';
 /** unknown：Java 列表一次都没读到，不知道装没装、是哪个版本，不能说成「版本不符」。 */
 export type JavaMatchStatus = 'loading' | 'match' | 'mismatch' | 'unknown';
 
+/**
+ * 实际要用的 Java 现在怎么样，给页面做摘要用。
+ * loading：还没读完；unknown：列表一次都没读到；ready：可以用；missing：没装 Java，或所选的已不可用。
+ * matchStatus 在不知道 Minecraft 版本时总是 match，分不出「还在读」和「没有 Java」，所以另给这个。
+ */
+export type JavaResolvedState = {
+  availability: 'loading' | 'unknown' | 'ready' | 'missing';
+  major: number | null;
+  /** 用的是系统默认 Java（PATH 里的 java），不是面板登记的某一个。 */
+  systemDefault: boolean;
+  matchStatus: JavaMatchStatus;
+  /** 当前 Minecraft 版本推荐的主版本；不知道版本时为 null。 */
+  recommended: number | null;
+};
+
 export function JavaRuntimeSelect({
   value,
   onChange,
@@ -28,6 +49,7 @@ export function JavaRuntimeSelect({
   autoSelect = false,
   onInstallingChange,
   onMatchStatusChange,
+  onResolvedChange,
 }: {
   value: string | null;
   onChange: (runtimeId: string | null) => void;
@@ -39,6 +61,8 @@ export function JavaRuntimeSelect({
   onInstallingChange?: (installing: boolean) => void;
   /** 部署页据此在版本不符时禁止开始部署（D-034）。 */
   onMatchStatusChange?: (status: JavaMatchStatus) => void;
+  /** 导入页据此在摘要里写出要用的 Java，有问题时展开设置。 */
+  onResolvedChange?: (state: JavaResolvedState) => void;
 }) {
   const { t } = useI18n();
   const selectId = useId();
@@ -52,6 +76,10 @@ export function JavaRuntimeSelect({
   const [installable, setInstallable] = useState<number[]>([]);
   const [installTask, setInstallTask] = useState<TaskInfo | null>(null);
   const [installError, setInstallError] = useState('');
+  /** 点「安装 Java N」后先弹确认，确认了才开始下载。 */
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  /** 已请求取消、等服务端停下下载；这期间「取消安装」显示「正在取消…」。 */
+  const [cancelling, setCancelling] = useState(false);
   /** 用户在下拉框里亲手选过后，自动选择不再改动。 */
   const manualRef = useRef(false);
   /** 卸载时停止轮询安装任务；任务本身在服务端继续跑。 */
@@ -105,6 +133,16 @@ export function JavaRuntimeSelect({
     onInstallingChange?.(installing);
   }, [installing, onInstallingChange]);
 
+  // 安装中被卸载（页面换了来源、收起了设置）时告诉页面不再安装，否则页面一直以为在装、提交按钮一直灰着。
+  // 服务端的安装任务照常跑完，下次挂载会重新读到装好的 Java。
+  const installingRef = useRef(installing);
+  installingRef.current = installing;
+  const onInstallingChangeRef = useRef(onInstallingChange);
+  onInstallingChangeRef.current = onInstallingChange;
+  useEffect(() => () => {
+    if (installingRef.current) onInstallingChangeRef.current?.(false);
+  }, []);
+
   // 自动选择：默认 Java 正好合适就用默认，否则选已装的同主版本 Java；都没有时回到默认。
   // 加载完成前不动，免得把用户的值先清空再选回来。
   useEffect(() => {
@@ -132,12 +170,27 @@ export function JavaRuntimeSelect({
       if (result?.javaRuntimeId) onChangeRef.current(result.javaRuntimeId);
     } catch (err) {
       if (controller.signal.aborted) return;
-      setInstallError(errorMessage(err));
+      // 自己取消的不算出错，按钮回到「安装 Java N」就够了。
+      if (serverErrorKey(err) !== 'server.tasks.cancelledByUser') setInstallError(errorMessage(err));
     } finally {
       if (installAbortRef.current === controller) {
         installAbortRef.current = null;
         setInstallTask(null);
+        setCancelling(false);
       }
+    }
+  };
+
+  /** 取消正在进行的安装：服务端停下下载、清掉临时文件后任务才结束，轮询会接着收到结果。 */
+  const cancelInstall = async (taskId: string) => {
+    setCancelling(true);
+    try {
+      await cancelJavaInstall(taskId);
+    } catch (err) {
+      // 刚好装完或失败了：轮询会拿到真正的结果，不用再报一次错。
+      if (serverErrorKey(err) === 'server.jvm.javaInstall.notCancellable') return;
+      setCancelling(false);
+      setInstallError(errorMessage(err));
     }
   };
   const selected = value ? runtimes.find((runtime) => runtime.id === value) ?? null : null;
@@ -167,16 +220,38 @@ export function JavaRuntimeSelect({
     onResolvedMajorChange?.(value ? selected?.majorVersion ?? null : defaultJava?.majorVersion ?? null);
   }, [defaultJava?.majorVersion, onResolvedMajorChange, selected?.majorVersion, value]);
 
+  const availability: JavaResolvedState['availability'] = loading ? 'loading'
+    : unknown ? 'unknown'
+      : resolvedAvailable ? 'ready' : 'missing';
+  useEffect(() => {
+    onResolvedChange?.({ availability, major: resolvedMajor, systemDefault: !value, matchStatus, recommended });
+  }, [availability, matchStatus, onResolvedChange, recommended, resolvedMajor, value]);
+
+  // 选项只写主版本，同一个主版本装了不止一个时才带上路径区分；选中的那个的路径放在下拉框的悬停提示里。
+  const versionLabel = (runtime: JavaRuntimeInfo) => String(runtime.majorVersion ?? runtime.version ?? t('java.runtime.unknownVersion'));
+  const labelCounts = new Map<string, number>();
+  for (const runtime of runtimes) labelCounts.set(versionLabel(runtime), (labelCounts.get(versionLabel(runtime)) ?? 0) + 1);
+  const optionLabel = (runtime: JavaRuntimeInfo) => {
+    const params = { version: versionLabel(runtime), path: runtime.path };
+    if ((labelCounts.get(params.version) ?? 0) > 1) {
+      return t(runtime.available ? 'java.runtime.option' : 'java.runtime.optionUnavailable', params);
+    }
+    return t(runtime.available ? 'java.runtime.optionShort' : 'java.runtime.optionShortUnavailable', params);
+  };
+
+  // 推荐版本跟在状态点后面：实际要用的 Java 不是它（含没装 Java，这时没有橙色警告）或列表没读到时才写，对得上就不占位置。
+  const showRecommended = recommended != null && (matchStatus === 'mismatch' || matchStatus === 'unknown');
+  const showInstall = canInstall && !loading;
+  const showStatus = !unknown && (!value || loading || Boolean(selected?.available));
+
   return (
     <div className="field">
-      {/* 推荐版本写进标签：没装 Java 时不出橙色警告，只靠警告会漏掉。 */}
-      <label htmlFor={selectId}>
-        {recommended != null ? t('java.runtime.labelRecommended', { java: recommended }) : t('java.runtime.label')}
-      </label>
+      <label htmlFor={selectId}>{t('java.runtime.label')}</label>
       <div className="input-row">
         <select
           id={selectId}
           value={value ?? ''}
+          title={selected?.path}
           disabled={disabled || loading || installing}
           onChange={(e) => {
             manualRef.current = true;
@@ -192,10 +267,7 @@ export function JavaRuntimeSelect({
           )}
           {runtimes.map((runtime) => (
             <option key={runtime.id} value={runtime.id} disabled={!runtime.available}>
-              {t(runtime.available ? 'java.runtime.option' : 'java.runtime.optionUnavailable', {
-                version: runtime.majorVersion ?? runtime.version ?? t('java.runtime.unknownVersion'),
-                path: runtime.path,
-              })}
+              {optionLabel(runtime)}
             </option>
           ))}
         </select>
@@ -210,16 +282,83 @@ export function JavaRuntimeSelect({
           {refreshing ? t('java.runtime.rescanning') : t('java.runtime.rescan')}
         </button>
       </div>
-      {!unknown && <div className={`environment-status${loading && defaultJava === null ? '' : defaultJava?.available ? ' is-ready' : ' is-missing'}`}>
-        <span className="status-dot" aria-hidden="true" />
-        {loading && defaultJava === null
-          ? t('java.default.checking')
-          : defaultJava?.available
-            ? defaultJava.version
-              ? t('java.default.availableWithVersion', { version: defaultJava.version })
-              : t('java.default.available')
-            : t('java.default.missing')}
-      </div>}
+      {/*
+        状态点、推荐版本、「安装 Java N」和手动下载排成一行，放不下时自动换行。
+        状态点说的是实际要用的那个 Java：选了面板登记的 Java 就说它，没选才说系统默认 Java。
+        选中的已不可用时不放状态点，下方的橙色提示已经说了。
+      */}
+      {(showStatus || showRecommended || showInstall) && (
+        <div className="java-status-row">
+          {showStatus && (value ? (
+            <div className={`environment-status${loading ? '' : ' is-ready'}`}>
+              <span className="status-dot" aria-hidden="true" />
+              {loading
+                ? t('java.selected.checking')
+                : t('java.selected.available', { version: selected?.version ?? versionLabel(selected!) })}
+            </div>
+          ) : (
+            <div className={`environment-status${loading && defaultJava === null ? '' : defaultJava?.available ? ' is-ready' : ' is-missing'}`}>
+              <span className="status-dot" aria-hidden="true" />
+              {loading && defaultJava === null
+                ? t('java.default.checking')
+                : defaultJava?.available
+                  ? defaultJava.version
+                    ? t('java.default.availableWithVersion', { version: defaultJava.version })
+                    : t('java.default.available')
+                  : t('java.default.missing')}
+            </div>
+          ))}
+          {showRecommended && <span className="java-recommended">{t('java.runtime.recommended', { java: recommended })}</span>}
+          {showInstall && (
+            <>
+              {/* 先弹确认（写明下载来源和大小），确认后才开始下载。 */}
+              <button
+                className="btn btn-primary btn-sm"
+                type="button"
+                disabled={disabled || installing}
+                onClick={() => setConfirmOpen(true)}
+              >
+                <Download size={14} aria-hidden="true" />
+                {installing ? t('java.install.running', { java: recommended }) : t('java.install.button', { java: recommended })}
+              </button>
+              <a href={javaDownloadUrl(recommended)} target="_blank" rel="noreferrer" className="link">
+                {t('java.install.manual')}
+              </a>
+            </>
+          )}
+        </div>
+      )}
+      {showInstall && installTask && (
+        <TaskProgress
+          task={installTask}
+          label={t('java.install.progress', { java: recommended })}
+          action={(
+            // 请求还没拿到任务 ID 时没法取消，先灰着。
+            <button
+              className="btn btn-sm btn-plain"
+              type="button"
+              disabled={!installTask.id || cancelling}
+              onClick={() => void cancelInstall(installTask.id)}
+            >
+              {cancelling ? t('java.install.cancelling') : t('java.install.cancel')}
+            </button>
+          )}
+        />
+      )}
+      {showInstall && installError && <p className="error" role="alert">{installError}</p>}
+      {recommended != null && (
+        <ConfirmDialog
+          open={confirmOpen}
+          title={t('java.install.confirm.title', { java: recommended })}
+          description={<p>{t('java.install.confirm.body', { java: recommended })}</p>}
+          confirmLabel={t('java.install.button', { java: recommended })}
+          onConfirm={() => {
+            setConfirmOpen(false);
+            void install(recommended);
+          }}
+          onCancel={() => setConfirmOpen(false)}
+        />
+      )}
       {mismatch && (
         <p className="field-warn" role="alert">
           {t(value ? 'java.warn.mismatch.selected' : 'java.warn.mismatch.default', {
@@ -243,27 +382,6 @@ export function JavaRuntimeSelect({
             {recommended != null ? t('java.download.version', { java: recommended }) : t('java.download.any')}
           </a>
         </p>
-      )}
-      {canInstall && !loading && (
-        <div className="java-install">
-          <p className="field-help">{t('java.install.hint', { java: recommended })}</p>
-          <div className="java-install-actions">
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={disabled || installing}
-              onClick={() => void install(recommended)}
-            >
-              <Download size={14} aria-hidden="true" />
-              {installing ? t('java.install.running', { java: recommended }) : t('java.install.button', { java: recommended })}
-            </button>
-            <a href={javaDownloadUrl(recommended)} target="_blank" rel="noreferrer" className="link">
-              {t('java.install.manual')}
-            </a>
-          </div>
-          {installTask && <TaskProgress task={installTask} label={t('java.install.progress', { java: recommended })} />}
-          {installError && <p className="error" role="alert">{installError}</p>}
-        </div>
       )}
       {value && !loading && !unknown && (!selected || !selected.available) && (
         <p className="field-warn" role="alert">

@@ -307,6 +307,35 @@ export interface ExistingServerSourceInfo {
 
 export interface ExistingServerSourceListResult {
   sources: ExistingServerSourceInfo[];
+  /** imports 交接区在面板电脑上的绝对路径，只显示给登录用户照着复制；面板从不接收客户端提交的路径（D-041）。 */
+  importDir: string;
+}
+
+/** 服务端文件夹的预检结果：imports 来源和浏览器上传的文件夹共用。 */
+export type ServerFolderCheck = Pick<
+  ExistingServerSourceInfo,
+  'launchTarget' | 'coreType' | 'mcVersion' | 'ready' | 'detectedJvmConfig' | 'error' | 'errorI18n'
+>;
+
+/** 开始在浏览器里上传服务端文件夹：先声明文件夹名、文件数和总大小，面板据此检查配额和剩余空间。 */
+export interface CreateFolderUploadInput {
+  folderName: string;
+  fileCount: number;
+  totalBytes: number;
+}
+
+/** 浏览器上传的服务端文件夹。上传中只有计数；全部收到后 state 变成 ready，并带上预检结果 check。 */
+export interface FolderUploadInfo {
+  id: string;
+  /** 用户选的文件夹名，只用于显示。 */
+  folderName: string;
+  fileCount: number;
+  totalBytes: number;
+  receivedFiles: number;
+  receivedBytes: number;
+  state: 'uploading' | 'ready';
+  expiresAt: string;
+  check?: ServerFolderCheck;
 }
 
 /** 从固定交接区复制已有服务端并创建面板托管实例。 */
@@ -494,6 +523,19 @@ export interface AuthUser {
   username: string;
 }
 
+/** 登录有效期，取值见 schemas.ts 的 SESSION_DURATION_ENUM；never 表示不过期（令牌不带 exp）。 */
+export type SessionDuration = '2h' | '12h' | '1d' | '7d' | '30d' | 'never';
+
+/** GET /api/auth/session-duration 响应，也是 PUT 的请求体。 */
+export interface SessionDurationSetting {
+  duration: SessionDuration;
+}
+
+/** 保存登录有效期成功：当前设备改用这里按新有效期换发的令牌，其他设备下次登录后生效。 */
+export interface UpdateSessionDurationResult extends SessionDurationSetting {
+  token: string;
+}
+
 /** 修改密码成功：旧令牌全部失效，当前会话改用这里换发的新令牌继续登录。 */
 export interface ChangePasswordResult {
   ok: true;
@@ -516,6 +558,8 @@ export {
   DEPLOYABLE_CORE_TYPE_ENUM,
   DOWNLOAD_SOURCE_ENUM,
   updateDownloadSourceBodySchema,
+  SESSION_DURATION_ENUM,
+  updateSessionDurationBodySchema,
   JAVA_INSTALL_MAJORS,
   installJavaBodySchema,
   createInstanceBodySchema,
@@ -523,6 +567,7 @@ export {
   deployCoreBodySchema,
   importExistingServerBodySchema,
   confirmZipImportBodySchema,
+  createFolderUploadBodySchema,
   setupBodySchema,
   changePasswordBodySchema,
   resetPasswordBodySchema,

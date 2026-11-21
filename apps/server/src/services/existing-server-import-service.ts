@@ -6,6 +6,7 @@ import {
   type ExistingServerSourceInfo,
   type ImportExistingServerInput,
   type PanelMessage,
+  type ServerFolderCheck,
 } from '@mystry/shared';
 import { nanoid } from 'nanoid';
 import { config } from '../config.js';
@@ -27,12 +28,15 @@ import {
 } from './server-launch-detect.js';
 import { recordTaskStaging, runBackgroundTask } from './task-service.js';
 import {
+  STAGING_MARKER_FILE,
   prepareTaskStaging,
   promoteTaskStagingToInstance,
   removeTaskStagingTree,
+  taskStagingDir,
+  writeTaskStagingMarker,
 } from './task-staging-service.js';
 import { createByteCounter } from '../utils/byte-counter.js';
-import { errorMessage, PanelError, throwIfAborted, toPanelMessage } from '../utils/errors.js';
+import { errorMessage, hasErrorCode, PanelError, throwIfAborted, toPanelMessage } from '../utils/errors.js';
 
 type SourceScan = {
   entries: number;
@@ -95,6 +99,73 @@ export function resolveExistingServerSource(sourceId: string): string {
   return assertSafeInstanceRoot(sourceDir);
 }
 
+/**
+ * 预检一个服务端文件夹：找启动文件、认核心和版本、读 user_jvm_args.txt。
+ * imports 来源和浏览器上传的文件夹共用；读不了文件夹等意外错误照常抛出，由调用方转成不可导入的说明。
+ */
+export async function precheckServerFolder(sourceDir: string): Promise<ServerFolderCheck> {
+  const withJvmConfig = (check: ServerFolderCheck): ServerFolderCheck => {
+    const detectedJvmConfig = detectJvmConfigFile(sourceDir, check.coreType);
+    return detectedJvmConfig ? { ...check, detectedJvmConfig } : check;
+  };
+
+  if (fs.existsSync(resolveSafePath(sourceDir, OWNERSHIP_MARKER_FILE))) {
+    throw new PanelError('server.imports.existing.managedMarker');
+  }
+
+  const jarFile = detectJarFile(sourceDir);
+  if (jarFile) {
+    const described = describeJarLaunchTarget(jarFile);
+    return withJvmConfig({
+      launchTarget: jarFile,
+      coreType: described.coreType,
+      ...(described.mcVersion ? { mcVersion: described.mcVersion } : {}),
+      ready: true,
+    });
+  }
+
+  try {
+    const launchTarget = await detectServerLaunchTarget(sourceDir, modLoaderPrecheckBudget());
+    if (launchTarget) {
+      return withJvmConfig({
+        launchTarget: launchTarget.value,
+        coreType: launchTarget.coreType,
+        ...(launchTarget.mcVersion ? { mcVersion: launchTarget.mcVersion } : {}),
+        ready: true,
+      });
+    }
+  } catch (error) {
+    if (isModLoaderScanLimitError(error)) {
+      return withJvmConfig({
+        launchTarget: null,
+        coreType: 'custom',
+        ready: true,
+        ...sourceError({ key: 'server.imports.existing.precheckIncomplete' }),
+      });
+    }
+    throw error;
+  }
+
+  return withJvmConfig({
+    launchTarget: null,
+    coreType: 'custom',
+    ready: false,
+    ...sourceError({ key: 'server.imports.existing.noLaunchTarget' }),
+  });
+}
+
+/** 预检抛出的意外错误转成「不可导入」的结果，原因随消息键一起返回。 */
+export function failedServerFolderCheck(error: unknown): ServerFolderCheck {
+  const errorI18n = toPanelMessage(error);
+  return {
+    launchTarget: null,
+    coreType: 'custom',
+    ready: false,
+    error: errorMessage(error),
+    ...(errorI18n ? { errorI18n } : {}),
+  };
+}
+
 async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo> {
   try {
     const sourceDir = resolveExistingServerSource(sourceId);
@@ -104,80 +175,12 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
     if (cached && cached.mtimeMs === stat.mtimeMs && cached.jvmFingerprint === jvmFingerprint) {
       return cached.info;
     }
-
-    const completeInfo = (info: ExistingServerSourceInfo): ExistingServerSourceInfo => {
-      const detectedJvmConfig = detectJvmConfigFile(sourceDir, info.coreType);
-      const complete = detectedJvmConfig ? { ...info, detectedJvmConfig } : info;
-      sourcePrecheckCache.set(sourceId, { mtimeMs: stat.mtimeMs, jvmFingerprint, info: complete });
-      return complete;
-    };
-
-    if (fs.existsSync(resolveSafePath(sourceDir, OWNERSHIP_MARKER_FILE))) {
-      throw new PanelError('server.imports.existing.managedMarker');
-    }
-
-    const jarFile = detectJarFile(sourceDir);
-    if (jarFile) {
-      const described = describeJarLaunchTarget(jarFile);
-      const info: ExistingServerSourceInfo = {
-        id: sourceId,
-        launchTarget: jarFile,
-        coreType: described.coreType,
-        ...(described.mcVersion ? { mcVersion: described.mcVersion } : {}),
-        modifiedAt: stat.mtime.toISOString(),
-        ready: true,
-      };
-      return completeInfo(info);
-    }
-
-    try {
-      const launchTarget = await detectServerLaunchTarget(sourceDir, modLoaderPrecheckBudget());
-      if (launchTarget) {
-        const info: ExistingServerSourceInfo = {
-          id: sourceId,
-          launchTarget: launchTarget.value,
-          coreType: launchTarget.coreType,
-          ...(launchTarget.mcVersion ? { mcVersion: launchTarget.mcVersion } : {}),
-          modifiedAt: stat.mtime.toISOString(),
-          ready: true,
-        };
-        return completeInfo(info);
-      }
-    } catch (error) {
-      if (isModLoaderScanLimitError(error)) {
-        const info: ExistingServerSourceInfo = {
-          id: sourceId,
-          launchTarget: null,
-          coreType: 'custom',
-          modifiedAt: stat.mtime.toISOString(),
-          ready: true,
-          ...sourceError({ key: 'server.imports.existing.precheckIncomplete' }),
-        };
-        return completeInfo(info);
-      }
-      throw error;
-    }
-
-    const info: ExistingServerSourceInfo = {
-      id: sourceId,
-      launchTarget: null,
-      coreType: 'custom',
-      modifiedAt: stat.mtime.toISOString(),
-      ready: false,
-      ...sourceError({ key: 'server.imports.existing.noLaunchTarget' }),
-    };
-    return completeInfo(info);
+    const check = await precheckServerFolder(sourceDir);
+    const info: ExistingServerSourceInfo = { id: sourceId, ...check, modifiedAt: stat.mtime.toISOString() };
+    sourcePrecheckCache.set(sourceId, { mtimeMs: stat.mtimeMs, jvmFingerprint, info });
+    return info;
   } catch (error) {
-    const errorI18n = toPanelMessage(error);
-    return {
-      id: sourceId,
-      launchTarget: null,
-      coreType: 'custom',
-      modifiedAt: new Date(0).toISOString(),
-      ready: false,
-      error: errorMessage(error),
-      ...(errorI18n ? { errorI18n } : {}),
-    };
+    return { id: sourceId, ...failedServerFolderCheck(error), modifiedAt: new Date(0).toISOString() };
   }
 }
 
@@ -352,82 +355,155 @@ async function copySourceDirectory(
   await walk('');
 }
 
+/** 导入任务需要的实例设置；jvmArgs 已在入队前规范化。 */
+export type ServerFolderImportInput = Omit<ImportExistingServerInput, 'sourceId' | 'jvmArgs'> & { jvmArgs: string };
+
+/**
+ * 服务端文件夹怎么进 staging：
+ * - copy：imports 交接区的来源只读，逐个文件复制，原文件夹保留。
+ * - move：浏览器上传到面板临时目录的文件夹归面板所有，整个改名搬进 staging，不再多占一份空间。
+ */
+export type ServerFolderTransfer = 'copy' | 'move';
+
+const FOLDER_TASK_TEXT = {
+  copy: {
+    validating: 'server.imports.existing.progress.validating',
+    done: 'server.imports.existing.progress.done',
+  },
+  move: {
+    validating: 'server.imports.folder.progress.validating',
+    done: 'server.imports.folder.progress.done',
+  },
+} as const;
+
+/**
+ * 把上传的文件夹整个改名搬进 staging。先在文件夹里写好 staging 标记再改名，
+ * 面板在改名后退出时，崩溃恢复能凭标记认出并清理它。临时目录和 staging 不在同一个盘上时退回逐个复制。
+ */
+async function moveFolderIntoStaging(
+  sourceRoot: string,
+  taskId: string,
+  instanceId: string,
+  stagingToken: string,
+  signal: AbortSignal,
+  report: (progress: number, message: PanelMessage) => void,
+): Promise<string> {
+  const stagingRoot = taskStagingDir(taskId, instanceId);
+  writeTaskStagingMarker(sourceRoot, { version: 1, taskId, instanceId, token: stagingToken });
+  fs.mkdirSync(path.dirname(stagingRoot), { recursive: true, mode: 0o700 });
+  try {
+    fs.renameSync(sourceRoot, stagingRoot);
+    return stagingRoot;
+  } catch (error) {
+    if (!hasErrorCode(error, 'EXDEV')) throw error;
+  }
+  fs.rmSync(path.join(sourceRoot, STAGING_MARKER_FILE), { force: true });
+  const scan = await scanSourceDirectory(sourceRoot, signal);
+  const copiedRoot = prepareTaskStaging(taskId, instanceId, stagingToken);
+  assertEnoughDiskSpace(copiedRoot, scan.bytes);
+  await copySourceDirectory(sourceRoot, copiedRoot, scan, signal, report);
+  return copiedRoot;
+}
+
+/**
+ * 把一个服务端文件夹导入成面板实例：检查启动文件 → 复制或搬进 staging → 再确认启动文件 → 原子移动并登记。
+ * imports 交接区和浏览器上传的文件夹共用；任务失败时只清理本任务的 staging。
+ */
+export async function runServerFolderImport(
+  taskId: string,
+  signal: AbortSignal,
+  report: (progress: number, message: PanelMessage) => void,
+  input: ServerFolderImportInput,
+  source: { transfer: ServerFolderTransfer; resolveRoot: () => string },
+): Promise<{ instanceId: string }> {
+  const text = FOLDER_TASK_TEXT[source.transfer];
+  let instanceId: string | null = null;
+  let completed = false;
+  try {
+    throwIfAborted(signal);
+    const sourceRoot = assertSafeInstanceRoot(source.resolveRoot());
+    report(5, { key: text.validating });
+    // 复制前先整体扫一遍：链接、特殊文件和配额。浏览器上传的文件夹在接收时已逐个检查过，不再扫。
+    const scan = source.transfer === 'copy' ? await scanSourceDirectory(sourceRoot, signal) : null;
+    const sourceLaunchTarget = await detectServerLaunchTarget(
+      sourceRoot,
+      modLoaderFullScanBudget(signal),
+    );
+    if (!sourceLaunchTarget) {
+      throw new PanelError('server.imports.existing.missingLaunchTarget');
+    }
+
+    throwIfAborted(signal);
+    instanceId = nanoid(12);
+    const stagingToken = nanoid(32);
+    recordTaskStaging(taskId, instanceId, stagingToken);
+    let stagingRoot: string;
+    if (scan) {
+      stagingRoot = prepareTaskStaging(taskId, instanceId, stagingToken);
+      assertEnoughDiskSpace(stagingRoot, scan.bytes);
+      report(20, { key: 'server.imports.existing.progress.copyStart' });
+      await copySourceDirectory(sourceRoot, stagingRoot, scan, signal, report);
+    } else {
+      report(30, { key: 'server.imports.folder.progress.moving' });
+      stagingRoot = await moveFolderIntoStaging(sourceRoot, taskId, instanceId, stagingToken, signal, report);
+    }
+
+    throwIfAborted(signal);
+    report(92, { key: 'server.imports.existing.progress.confirmingLaunch' });
+    const copiedLaunchTarget = await detectServerLaunchTarget(
+      stagingRoot,
+      modLoaderFullScanBudget(signal),
+    );
+    if (!copiedLaunchTarget) {
+      throw new PanelError('server.imports.existing.copiedNoLaunchTarget');
+    }
+
+    report(95, { key: 'server.imports.progress.writingInstance' });
+    throwIfAborted(signal);
+    promoteTaskStagingToInstance(taskId, instanceId);
+    registerPromotedInstance(instanceId, {
+      name: input.name.trim(),
+      coreType: resolveImportedCoreType(input.coreType, copiedLaunchTarget.coreType),
+      mcVersion: input.mcVersion?.trim() || copiedLaunchTarget.mcVersion || undefined,
+      jarFile: copiedLaunchTarget.value,
+      jvmArgs: input.jvmArgs,
+      acceptEula: input.acceptEula,
+      javaRuntimeId: input.javaRuntimeId ?? null,
+    });
+    completed = true;
+    if (input.acceptEula) {
+      const instanceRoot = path.join(config.instancesDir, instanceId);
+      fs.writeFileSync(resolveSafePath(instanceRoot, 'eula.txt'), 'eula=true\n', 'utf8');
+    }
+
+    report(100, { key: text.done });
+    return { instanceId };
+  } finally {
+    if (!completed && instanceId) {
+      try {
+        removeTaskStagingTree(taskId, instanceId);
+      } catch {
+        /* 清理失败不覆盖原始错误 */
+      }
+    }
+  }
+}
+
 export async function importExistingServerDirectory(input: ImportExistingServerInput) {
   // 在占用任务队列前先拒绝路径型或不存在的 sourceId；任务执行时仍会再次校验。
   resolveExistingServerSource(input.sourceId);
-  input = {
-    ...input,
+  const { sourceId, ...settings } = input;
+  const taskInput: ServerFolderImportInput = {
+    ...settings,
     jvmArgs: normalizeAndAssertJvmArgs(input.jvmArgs ?? '-Xms1G -Xmx2G', {
       coreType: input.coreType,
       javaRuntimeId: input.javaRuntimeId,
     }),
   };
 
-  return runBackgroundTask('import', { key: 'server.imports.existing.task.queued' }, async (taskId, signal, report) => {
-    let instanceId: string | null = null;
-    let stagingToken: string | null = null;
-    let completed = false;
-    try {
-      throwIfAborted(signal);
-      const sourceRoot = resolveExistingServerSource(input.sourceId);
-      report(5, { key: 'server.imports.existing.progress.validating' });
-      const scan = await scanSourceDirectory(sourceRoot, signal);
-      const sourceLaunchTarget = await detectServerLaunchTarget(
-        sourceRoot,
-        modLoaderFullScanBudget(signal),
-      );
-      if (!sourceLaunchTarget) {
-        throw new PanelError('server.imports.existing.missingLaunchTarget');
-      }
-
-      throwIfAborted(signal);
-      instanceId = nanoid(12);
-      stagingToken = nanoid(32);
-      recordTaskStaging(taskId, instanceId, stagingToken);
-      const stagingRoot = prepareTaskStaging(taskId, instanceId, stagingToken);
-      assertEnoughDiskSpace(stagingRoot, scan.bytes);
-
-      report(20, { key: 'server.imports.existing.progress.copyStart' });
-      await copySourceDirectory(sourceRoot, stagingRoot, scan, signal, report);
-
-      throwIfAborted(signal);
-      report(92, { key: 'server.imports.existing.progress.confirmingLaunch' });
-      const copiedLaunchTarget = await detectServerLaunchTarget(
-        stagingRoot,
-        modLoaderFullScanBudget(signal),
-      );
-      if (!copiedLaunchTarget) {
-        throw new PanelError('server.imports.existing.copiedNoLaunchTarget');
-      }
-
-      report(95, { key: 'server.imports.progress.writingInstance' });
-      throwIfAborted(signal);
-      promoteTaskStagingToInstance(taskId, instanceId);
-      registerPromotedInstance(instanceId, {
-        name: input.name.trim(),
-        coreType: resolveImportedCoreType(input.coreType, copiedLaunchTarget.coreType),
-        mcVersion: input.mcVersion?.trim() || copiedLaunchTarget.mcVersion || undefined,
-        jarFile: copiedLaunchTarget.value,
-        jvmArgs: input.jvmArgs,
-        acceptEula: input.acceptEula,
-        javaRuntimeId: input.javaRuntimeId ?? null,
-      });
-      completed = true;
-      if (input.acceptEula) {
-        const instanceRoot = path.join(config.instancesDir, instanceId);
-        fs.writeFileSync(resolveSafePath(instanceRoot, 'eula.txt'), 'eula=true\n', 'utf8');
-      }
-
-      report(100, { key: 'server.imports.existing.progress.done' });
-      return { instanceId };
-    } finally {
-      if (!completed && instanceId) {
-        try {
-          removeTaskStagingTree(taskId, instanceId);
-        } catch {
-          /* 清理失败不覆盖原始错误 */
-        }
-      }
-    }
-  });
+  return runBackgroundTask('import', { key: 'server.imports.existing.task.queued' }, (taskId, signal, report) =>
+    runServerFolderImport(taskId, signal, report, taskInput, {
+      transfer: 'copy',
+      resolveRoot: () => resolveExistingServerSource(sourceId),
+    }));
 }

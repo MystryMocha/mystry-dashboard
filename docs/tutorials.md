@@ -43,7 +43,7 @@ Don't send the password, the config file, or screenshots that contain them to an
 2. The page already has **Paper** selected (recommended for beginners, supports plugins) along with the latest release game version. Usually you only need:
    - **Instance Name**: for example `My Survival Server`.
    - **Game Version**: if you and your friends want a different version, pick it in the dropdown. The game client version must match it.
-   - **Java Runtime**: the panel selects an installed Java that matches the game version. If you see **Install Java 21** (or another version), click it and wait for it to finish. The new Java is selected automatically. **Start Deploy** stays unavailable until the Java in use matches the recommended version. If the download fails, switch the download source to the China mirror and try again, or install Java yourself as described in [Step 1](#1-install-java).
+   - **Java Runtime**: the panel selects an installed Java that matches the game version. If you see **Install Java 21** (or another version), click it, confirm, and wait for it to finish. You can cancel while it downloads. The new Java is selected automatically. **Start Deploy** stays unavailable until the Java in use matches the recommended version. If the download fails, switch the download source to the China mirror and try again, or install Java yourself as described in [Step 1](#1-install-java).
    - Check **I have read and agree to the Minecraft EULA**. You can't start deploying without it.
 3. Leave **Paper Build**, memory and the optimization preset at their defaults. An empty build field uses the latest build (stable preferred), and memory is recommended from your computer's total memory.
 4. Click **Start Deploy** and wait for the progress bar to reach 100%. The task may be queued first. The page keeps showing its status until it completes or fails, so don't submit it again. You can also leave the page and follow the progress in the "Task Center" at the top right.
@@ -88,9 +88,9 @@ Best for: you downloaded a complete server package somewhere, or packed `server.
 
 1. In the sidebar, open **Import Server** and switch to **Upload a ZIP**.
 2. Click the selection area and choose the zip file (you can also drag the file onto it), then click **Upload and Check**.
-3. After the check passes, fill in the **Instance Name**, the core and the Minecraft version.
-4. If `user_jvm_args.txt` is detected, explicitly choose **Use Detected Arguments / Use Panel Recommendation / Custom Configuration**. If parsing failed, you can't keep the detected arguments.
-5. Choose the Java runtime and the JVM optimization preset, and check the EULA box if needed (when the package doesn't already contain `eula=true`).
+3. After the check passes, fill in the **Instance Name** in **Import Settings** on the right. A ZIP's core and version are detected only during the import, so the summary says "Detected when importing" and notes that the panel can't tell yet whether the Java fits. If you know the version, open **Change Settings** and enter the core and Minecraft version, and the panel recommends a Java for it.
+4. If `user_jvm_args.txt` is detected, the panel applies its arguments automatically, and the memory line of the summary says "From user_jvm_args.txt". To skip them, open **Change Settings** and click **Cancel** next to the message. If parsing failed, they aren't applied.
+5. Change the Java runtime and the JVM optimization preset in **Change Settings** if needed, and check the EULA box if needed (when the package doesn't already contain `eula=true`).
 6. Click **Confirm and Import** and wait for the background task to finish. If the queue is full, the preview is kept and you can confirm again later.
 
 The panel assigns the instance directory automatically. You can't specify it. The check result is kept for 30 minutes, and you can continue confirming after a refresh in the same tab. Cancelling, expiry, or a panel restart deletes the uploaded temporary file.
@@ -202,7 +202,7 @@ If `panel.db-wal` or `panel.db-shm` still exist after stopping, keep them togeth
 
 ### Take Over an Existing Server Outside the Panel
 
-First run `stop` in the original server's console. Then follow [Import from a Local Folder](user-guide.md#import-from-a-local-folder) to copy it into a panel instance. The panel doesn't delete the original directory.
+First run `stop` in the original server's console. Then follow [Upload a Folder](user-guide.md#upload-a-folder) to copy it into a panel instance. The panel doesn't delete the original directory.
 
 ### Migrate from a Legacy External Directory
 

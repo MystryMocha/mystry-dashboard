@@ -198,7 +198,7 @@ For detailed steps, see [Step-by-Step Tutorials](tutorials.md) and the [User Gui
 1. Install a Java version that meets your server's requirements. You can check the default runtime with `java -version` in the panel's environment, or select a scanned runtime in the panel later.
 2. Make sure `JWT_SECRET` and `SETUP_TOKEN` are set to different 64-character hexadecimal values. The launcher generates them automatically; for a manual run you fill them in yourself.
 3. If you started with the launcher, sign in with the account shown in the window. In manual configuration mode, enter the **Setup Token**, a username and a password on the sign-in page to create the administrator, then remove `SETUP_TOKEN` and restart.
-4. Create your first instance with **Quick Deploy** or **Import an Existing Server**. For a server that already exists on the same machine, follow [Import from a Local Folder](user-guide.md#import-from-a-local-folder).
+4. Create your first instance with **Quick Deploy** or **Import an Existing Server**. For a server you already have, follow [Upload a Folder](user-guide.md#upload-a-folder).
 5. Start the server from the instance details, and view the logs in **Console**.
 6. To change the port, difficulty and so on: Instance → **Properties** → save, then **restart**.
 

@@ -48,6 +48,8 @@ CPU 按整机逻辑核总容量归一至 0–100%；进程内存是驻留内存�
 | POST | `/api/auth/login` | 否 | Body：`{ username, password }` → `{ token, user }` 或 401 |
 | POST | `/api/auth/password` | JWT | Body：`{ currentPassword, newPassword }` → `{ ok: true, token, user }`；当前密码错误返回 400。成功后此前签发的 JWT 全部失效（包括这次请求用的），调用方改用响应里的 `token`，见 [令牌失效](#令牌失效) |
 | GET | `/api/auth/me` | 是 | `{ user }` |
+| GET | `/api/auth/session-duration` | 是 | `{ duration }`，取值 `2h` / `12h` / `1d` / `7d` / `30d` / `never`，默认 `12h`，见 [登录有效期](#登录有效期) |
+| PUT | `/api/auth/session-duration` | 是 | Body：`{ duration }` → `{ duration, token }`；不在列表里的值返回 400（`server.auth.sessionDurationInvalid`）。调用方改用响应里按新有效期签发的 `token` |
 
 ### setup 请求
 
@@ -63,9 +65,17 @@ X-Setup-Token: <SETUP_TOKEN>
 
 用户创建成功后 setup 接口不再可用。`mystryctl` 和 `PanelManager` 会用这个接口自动创建 `admin`，并在成功后移除 `SETUP_TOKEN`。密钥格式要求见 [配置说明](configuration.zh-CN.md#首次启动必需配置)。
 
+### 登录有效期
+
+登录有效期（D-040）保存在 `panel_settings`，在「本机环境」页设置，默认 12 小时，可选 2 小时、12 小时、1 天、7 天、30 天或不过期。`.env` 里的 `JWT_EXPIRES_IN` 已不再生效，启动时如果还写着，终端会提示一句。
+
+- setup、登录、修改密码和保存有效期时按当前设置签发令牌；选「不过期」时令牌不带 `exp`。
+- 每次请求再用令牌的签发时间 `iat` 对照当前设置：改短后，登录时间已超过新时长的令牌（包括按「不过期」签发的）下一次请求即返回 **401**。
+- 改长时，保存请求的响应带按新时长签发的令牌，发起修改的设备马上生效；其他设备的令牌仍按签发时的 `exp` 过期，下次登录后按新时长计算。
+
 ### 令牌失效
 
-`users` 表的 `token_version` 记录令牌版本，签发的 JWT 带上 `tv` 字段。每次请求除了验签和有效期（`JWT_EXPIRES_IN`，默认 2 小时），还要求 `tv` 与数据库一致；用户不存在也返回 **401**（`server.common.unauthorized`）。
+`users` 表的 `token_version` 记录令牌版本，签发的 JWT 带上 `tv` 字段。每次请求除了验签和有效期（见 [登录有效期](#登录有效期)），还要求 `tv` 与数据库一致；用户不存在也返回 **401**（`server.common.unauthorized`）。
 
 修改密码（`POST /api/auth/password`）和本机重置密码（`POST /api/launcher/reset-password`）成功后版本加 1，因此：
 
@@ -83,6 +93,7 @@ X-Setup-Token: <SETUP_TOKEN>
 | GET | `/api/system/java` | 是 | Java 状态对象 |
 | GET | `/api/system/java-runtimes` | 是 | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
 | POST | `/api/system/java-runtimes/install` | 是 | 请求体 `{ major }`（8、17、21、25），返回后台任务 `TaskInfo`；完成后 `result.javaRuntimeId` 是新运行时 |
+| POST | `/api/system/java-runtimes/install/:taskId/cancel` | 是 | 取消还在排队或运行的一键安装 Java 任务，返回任务当前状态；不是进行中的 Java 安装任务时 409（`server.jvm.javaInstall.notCancellable`） |
 | GET | `/api/system/download-source` | 是 | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | 是 | 请求体 `{ source }`，返回保存后的值；其他取值返回 400 |
 | GET | `/api/system/remote-access` | 是 | `RemoteAccessStatus`；每次读取都重新枚举网卡 |
@@ -124,7 +135,7 @@ Java 状态响应准确结构为：
 
 `/api/system/java-runtimes` 返回面板探测并验证过的 Java 运行时注册表；带 `?refresh=1` 请求重新扫描。并发扫描会合并为一个任务，连续强制刷新受 30 秒冷却限制；普通读取默认使用 60 秒缓存。候选路径只来自 `JAVA_HOME`、常见安装目录和面板安装目录（数据根下 `runtimes/java/*`，`source: 'panel'`）扫描，且必须文件名为 `java`/`java.exe`、`-version` 输出可解析出版本号才会入表。实例可通过 `javaRuntimeId` 绑定表内条目（创建、更新、部署请求均接受该可选字段；`null` 表示使用 PATH 中的 `java`），请求不能提交任意可执行路径。绑定运行时在启动或 Forge/NeoForge Installer 执行前会再次验证；最近一次扫描未发现的条目会以 `available: false` 返回。
 
-`installable` 是面板能在这台电脑上自动安装的 Java 主版本（目前 Windows x64 和 Linux x64 上为 `[8, 17, 21, 25]`，其他系统或架构为空）。`POST /api/system/java-runtimes/install` 下载钉死版本的 Eclipse Temurin JRE（来源跟随下载来源设置：GitHub 或公共 GitHub 代理），按钉死的 SHA-256 校验，在数据根 `runtimes/java/.staging-*` 里解压后移到 `runtimes/java/temurin-<版本>`，执行 `-version` 验证后登记；已经装过且能运行时不重复下载。同一主版本已有任务排队或运行时返回那个任务。不在钉死列表里的主版本返回 400（`server.jvm.javaInstall.unsupportedMajor`），这台电脑没有安装包时返回 409（`server.jvm.javaInstall.platformUnsupported`）。任务失败原因：`downloadFailed`、`checksumMismatch`、`extractFailed`、`verifyFailed`（均在 `server.jvm.javaInstall.*` 下）。
+`installable` 是面板能在这台电脑上自动安装的 Java 主版本（目前 Windows x64 和 Linux x64 上为 `[8, 17, 21, 25]`，其他系统或架构为空）。`POST /api/system/java-runtimes/install` 下载钉死版本的 Eclipse Temurin JRE（来源跟随下载来源设置：GitHub 或公共 GitHub 代理），按钉死的 SHA-256 校验，在数据根 `runtimes/java/.staging-*` 里解压后移到 `runtimes/java/temurin-<版本>`，执行 `-version` 验证后登记；已经装过且能运行时不重复下载。同一主版本已有任务排队或运行时返回那个任务。`POST /api/system/java-runtimes/install/:taskId/cancel` 只取消本进程里还在排队或运行的 Java 安装任务（部署、导入等别的任务 ID 一律 409）：排队的立即结束，运行中的中止下载或解压、删掉临时目录后结束，所以返回时任务可能还是 `running`，要继续轮询；结束后 `status` 为 `failed`，`messageI18n` 为 `server.tasks.cancelled`，`errorI18n` 为 `server.tasks.cancelledByUser`。改名到最终目录之后才到的取消不生效，任务照常完成。不在钉死列表里的主版本返回 400（`server.jvm.javaInstall.unsupportedMajor`），这台电脑没有安装包时返回 409（`server.jvm.javaInstall.platformUnsupported`）。任务失败原因：`downloadFailed`、`checksumMismatch`、`extractFailed`、`verifyFailed`（均在 `server.jvm.javaInstall.*` 下）。
 
 `JavaRuntimeInfo` 字段：
 
@@ -262,6 +273,12 @@ Authorization: Bearer <token>
 | GET | `/api/import/previews/:id` | 恢复当前登录用户的待确认预览 |
 | POST | `/api/import/previews/:id/confirm` | Body：`ConfirmZipImportInput`，确认配置并返回 `TaskInfo` |
 | DELETE | `/api/import/previews/:id` | 取消预览并删除临时 ZIP |
+| POST | `/api/import/folder-uploads` | Body：`CreateFolderUploadInput`，开始浏览器上传文件夹，返回 `FolderUploadInfo` |
+| POST | `/api/import/folder-uploads/:id/files` | multipart 上传一批文件（每个文件前有一个 `path` 字段），返回 `FolderUploadInfo` |
+| POST | `/api/import/folder-uploads/:id/complete` | 全部收到后预检，返回带 `check` 的 `FolderUploadInfo` |
+| GET | `/api/import/folder-uploads/:id` | 恢复当前登录用户的上传 |
+| POST | `/api/import/folder-uploads/:id/confirm` | Body：`ConfirmZipImportInput`，确认配置并返回 `TaskInfo` |
+| DELETE | `/api/import/folder-uploads/:id` | 取消上传并删除临时文件夹 |
 | GET | `/api/tasks/:id` | 查询任务进度 `TaskInfo` |
 | GET | `/api/tasks` | 任务中心列表，按创建时间倒序返回最近 50 条 `{ tasks: TaskInfo[] }` |
 
@@ -288,11 +305,12 @@ Authorization: Bearer <token>
         "issues": []
       }
     }
-  ]
+  ],
+  "importDir": "/opt/mystry/data/imports"
 }
 ```
 
-`id` 只是 `DATA_DIR/imports` 下的单层目录名，不是系统路径。`coreType` 按启动文件名判断（`paper`、`fabric`、`neoforge`、`forge`，`server.jar` 与 `minecraft_server*` 为 `vanilla`，其余为 `custom`）。`mcVersion` 是从启动文件名或 Forge args 目录名里认出的 `1.7`–`1.21.x` 版本号，认不出、核心为 `custom` 或 NeoForge 时省略。
+`id` 只是 `DATA_DIR/imports` 下的单层目录名，不是系统路径。`importDir` 是 imports 文件夹在面板电脑上的绝对路径，只用于显示给登录用户照着复制（D-041）；面板不接收客户端提交的任何路径。`coreType` 按启动文件名判断（`paper`、`fabric`、`neoforge`、`forge`，`server.jar` 与 `minecraft_server*` 为 `vanilla`，其余为 `custom`）。`mcVersion` 是从启动文件名或 Forge args 目录名里认出的 `1.7`–`1.21.x` 版本号，认不出、核心为 `custom` 或 NeoForge 时省略。
 
 两种导入的请求里，`coreType` 省略或为 `custom` 都表示自动识别，以面板在复制或解压后的识别结果为准；填了其他类型则照填的来。`mcVersion` 留空时用识别到的版本，认不出就保持为空。创建任务示例：
 
@@ -308,9 +326,9 @@ Authorization: Bearer <token>
 }
 ```
 
-提交前应停止原服务器。复制前的检查与限制见 [从本机文件夹导入](user-guide.zh-CN.md#从本机文件夹导入)。成功或失败都不会删除源目录；失败时会清理新建的半成品实例。
+提交前应停止原服务器。复制前的检查与限制见 [从 imports 文件夹复制](user-guide.zh-CN.md#从-imports-文件夹复制)。成功或失败都不会删除源目录；失败时会清理新建的半成品实例。
 
-目录根部存在普通 `user_jvm_args.txt` 时，来源信息可包含 `detectedJvmConfig`。文件最大 64 KiB；不读取子目录文件，不跟随链接，也不解析或执行 `.bat` / `.sh`。检测到参数后，Web 要求用户明确选择沿用、面板推荐或自定义；解析失败时 `canonicalArgs` 为 `null`，不能沿用。`issues[]` 每项含稳定的 `code`、`severity` 和英文 `message`；共享 JVM 校验产生的诊断另带 `key`（`server.jvm.issue.*`）与 `params` 供界面翻译。
+目录根部存在普通 `user_jvm_args.txt` 时，来源信息可包含 `detectedJvmConfig`。文件最大 64 KiB；不读取子目录文件，不跟随链接，也不解析或执行 `.bat` / `.sh`。检测到参数后，Web 自动把 `canonicalArgs` 填进 JVM 配置器并提示，用户可取消（还原成沿用之前的参数）或重新应用；提交时仍只发送 `jvmArgs`。解析失败时 `canonicalArgs` 为 `null`，不会沿用。`issues[]` 每项含稳定的 `code`、`severity` 和英文 `message`；共享 JVM 校验产生的诊断另带 `key`（`server.jvm.issue.*`）与 `params` 供界面翻译。
 
 ### ZIP 二阶段导入
 
@@ -356,6 +374,21 @@ file=<server.zip>
 预览 ID 绑定登录用户：非所有者和不存在的 ID 返回 **404**，过期返回 **410**，正在确认或重复确认返回 **409**。每个用户最多一个预览，全局容量由 `MAX_IMPORT_PREVIEWS` 控制；新 ZIP 预检成功后才替换旧预览。只有后台任务成功入队才消费预览，任务队列满返回 **429** 且保留预览供重试。预览默认由 `IMPORT_PREVIEW_TTL_SECONDS=1800` 控制，取消、过期、面板关闭或重启都会删除临时 ZIP，不写入数据库也不跨重启恢复。
 
 ZIP 导入只能走上面的预览流程；旧的一阶段 `POST /api/import` 已删除，调用会返回 **404**。
+
+### 浏览器上传文件夹
+
+浏览器读出用户选的服务端文件夹，分批把文件传给面板（D-039）。面板只收到文件内容和它们在文件夹里的相对路径，不接收、也不记录用户电脑上的路径。
+
+1. 开始：`POST /api/import/folder-uploads`，Body `{ "folderName": "survival", "fileCount": 6210, "totalBytes": 2147483648 }`。`folderName` 只用于显示，不能含 `/`、`\` 或控制字符。文件数和总大小沿用 `MAX_EXISTING_IMPORT_ENTRIES` / `MAX_EXISTING_IMPORT_BYTES`，超出返回 **413**；数据盘剩余空间不够返回 **507**。
+2. 分批上传：`POST /api/import/folder-uploads/:id/files`，multipart，每个文件前面先有一个 `path` 字段，值是去掉最外层文件夹名、用 `/` 分隔的相对路径。一次最多 500 个文件，同一会话同一时间只接收一批（否则 **409**）。
+3. 预检：`POST /api/import/folder-uploads/:id/complete`。收到的文件数和字节数必须与开始时声明的一致，否则 **409**。响应的 `state` 变成 `ready`，`check` 与 imports 来源的预检结果字段相同（`launchTarget`、`coreType`、`mcVersion`、`ready`、`detectedJvmConfig`、`error` / `errorI18n`）。
+4. 确认：`POST /api/import/folder-uploads/:id/confirm`，Body 同 ZIP 确认。`check.ready` 为 `false` 时返回 **409**。任务把临时文件夹整个改名搬进 `DATA_DIR/.mystry-staging/<taskId>/<instanceId>`（不在同一个盘上时退回逐个复制），再确认启动文件、原子移动到 `instances/<id>` 并登记。
+
+相对路径必须是普通写法：拒绝空段、`.`、`..`、绝对路径、反斜杠和控制字符；Windows 上还拒绝 `<>:"|?*`、结尾的点或空格，以及 `CON`、`NUL` 这类保留名；根目录不能有面板保留的 `.mystry-instance.json` 和 `.mystry-staging-marker.json`。同一路径出现两次、文件和目录同名、实际字节数超过声明、文件前面缺 `path` 字段都返回 **400**。一批里任何一个文件出错，整个会话作废并删除临时文件夹，需要从头再传，不支持断点续传。
+
+上传文件写在 `DATA_DIR/uploads/.tmp-folder-upload-<id>/`。会话绑定登录用户：非所有者和不存在的 ID 返回 **404**，过期返回 **410**。每个用户只保留一个会话，新开始的上传替换还没确认的旧会话；全局同时存在的会话数沿用 `MAX_IMPORT_PREVIEWS`（满了返回 **429**）。会话空闲期限沿用 `IMPORT_PREVIEW_TTL_SECONDS`，每收到一批或预检一次都重新计时。取消、过期、面板关闭都会删除临时文件夹；面板启动时按前缀清掉上次遗留的临时文件夹。会话只在内存里，不跨重启恢复。
+
+批量上传请求同样受全局请求频率限制（每个路由每分钟 `RATE_LIMIT_MAX` 次）；被限流的那一批还没写任何文件，Web 会等几秒后重发同一批，页面显示「上传暂停」。请求体还没发完面板就回 **429** 并断开时，浏览器往往只报网络错误，Web 会先用 `GET /api/import/folder-uploads/:id` 确认会话还在、`receivedFiles` 没变再重发；会话已不在（如面板重启）则提示上传中断。
 
 ZIP 中的普通文件只支持存储和 Deflate 两种压缩方式；其他方式会使导入任务失败，并清理半成品实例。
 

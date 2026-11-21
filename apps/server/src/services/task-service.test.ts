@@ -138,6 +138,55 @@ test('runBackgroundTask 的 timeoutMs 覆盖全局 TASK_TIMEOUT_MS', async (t) =
   assert.equal(current?.errorI18n?.key, 'server.tasks.timeout');
 });
 
+test('cancelTask：排队的直接取消，运行中的等 worker 收尾后记成用户取消，已结束的不认', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { config } = await import('../config.js');
+  const { runBackgroundTask, getTask, cancelTask, resetTaskRuntimeForTests } = await import('./task-service.js');
+  t.after(() => {
+    resetTaskRuntimeForTests();
+  });
+  initDb();
+
+  let cleanedUp = 0;
+  // worker 被中止时抛自己的错误：任务结果仍要写成「你取消了这个任务」。
+  const blocking = (_taskId: string, signal: AbortSignal) => new Promise<void>((_resolve, reject) => {
+    signal.addEventListener('abort', () => {
+      cleanedUp += 1;
+      reject(new Error('worker 自己的中止错误'));
+    }, { once: true });
+  });
+  const running = [];
+  for (let index = 0; index < config.maxConcurrentTasks; index += 1) {
+    running.push(await runBackgroundTask('download', { key: 'server.tasks.queued' }, blocking));
+  }
+  const queued = await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {
+    throw new Error('取消后的排队任务不该运行');
+  });
+  assert.equal(getTask(queued.id)?.status, 'pending');
+
+  assert.equal(cancelTask(queued.id), true);
+  const queuedAfter = getTask(queued.id);
+  assert.equal(queuedAfter?.status, 'failed');
+  assert.equal(queuedAfter?.messageI18n?.key, 'server.tasks.cancelled');
+  assert.equal(queuedAfter?.errorI18n?.key, 'server.tasks.cancelledByUser');
+
+  const target = running[0]!;
+  assert.equal(cancelTask(target.id), true);
+  let current = getTask(target.id);
+  for (let attempt = 0; attempt < 200 && current?.status !== 'failed'; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    current = getTask(target.id);
+  }
+  assert.equal(current?.status, 'failed');
+  assert.equal(current?.messageI18n?.key, 'server.tasks.cancelled');
+  assert.equal(current?.errorI18n?.key, 'server.tasks.cancelledByUser');
+  assert.equal(cleanedUp, 1, '只中止被取消的那个任务');
+
+  assert.equal(cancelTask(target.id), false);
+  assert.equal(cancelTask('missing-task'), false);
+});
+
 test('任务消息以键和参数存库，旧库自动补列且旧任务原文照常读取', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   // 模拟升级前的 panel.db：tasks 表没有 message_i18n / error_i18n，且已有一条中文旧任务。

@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router-dom';
 import { useState } from 'react';
 import type { DetectedJvmConfig, RemoteAccessStatus } from '@mystry/shared';
 import { JavaRuntimeSelect } from '../src/components/JavaRuntimeSelect';
-import { JvmSettingsEditor, type DetectedJvmChoice } from '../src/components/JvmSettingsEditor';
+import { JvmSettingsEditor } from '../src/components/JvmSettingsEditor';
 import { RemoteAccessMode } from '../src/components/RemoteAccessMode';
 import { ImportPage } from '../src/pages/ImportPage';
 import { InstancePage } from '../src/pages/InstancePage';
@@ -152,37 +152,49 @@ const detectedWithExtra: DetectedJvmConfig = {
   issues: [],
 };
 
-/** 和导入页一样：上层存 jvmArgs 和对检测结果的选择。 */
-function DetectedHost() {
-  const [value, setValue] = useState('-Xms1G -Xmx2G');
-  const [choice, setChoice] = useState<DetectedJvmChoice>(null);
+/** 只看提示条：上层存「是否沿用」，参数本身不动。 */
+function DetectedHost({ detected }: { detected: DetectedJvmConfig }) {
+  const [applied, setApplied] = useState(Boolean(detected.canonicalArgs));
   return (
     <JvmSettingsEditor
-      value={value}
-      onChange={setValue}
+      value="-Xms1G -Xmx2G"
+      onChange={() => {}}
       coreType="forge"
       javaMajor={17}
-      detectedJvmConfig={detectedWithExtra}
-      detectedChoice={choice}
-      onDetectedChoiceChange={setChoice}
+      detectedJvmConfig={detected}
+      detectedApplied={applied}
+      onDetectedAppliedChange={setApplied}
     />
   );
 }
 
-for (const choice of ['沿用检测到的参数', '自定义配置']) {
-  test(`JVM：选「${choice}」后带着附加参数时展开高级区，不把它藏着提交`, async () => {
-    const user = userEvent.setup();
-    vi.stubGlobal('fetch', vi.fn(async () => json([])));
-    render(<DetectedHost />);
-    const advanced = screen.getByText('高级 JVM 参数').closest('details')!;
-    expect(advanced.open).toBe(false);
-    await user.click(screen.getByRole('radio', { name: choice }));
-    expect(advanced.open).toBe(true);
-    expect((screen.getByLabelText('附加参数') as HTMLTextAreaElement).value).toBe('-Dfoo=bar');
-  });
-}
+test('JVM：检测到配置文件时只有一行说明加「取消」，取消后能「重新应用」；文件用不了时说明原因、不给按钮', async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal('fetch', vi.fn(async () => json([])));
+  render(<DetectedHost detected={detectedWithExtra} />);
+  expect(screen.getByText('已检测到配置文件 user_jvm_args.txt，已自动配置。')).toBeTruthy();
+  // 不再有三选一的单选框，也不用先选才能填内存。
+  expect(screen.queryByRole('radio')).toBeNull();
+  expect((screen.getByLabelText('最大内存') as HTMLInputElement).disabled).toBe(false);
 
-test('导入：换到别的文件夹后不再沿用上一个文件夹检测出的 JVM 参数；没用检测结果、自己填的参数换来源后保留', async () => {
+  await user.click(screen.getByRole('button', { name: '取消' }));
+  expect(screen.getByText('没有使用配置文件 user_jvm_args.txt。')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '重新应用' }));
+  expect(screen.getByText('已检测到配置文件 user_jvm_args.txt，已自动配置。')).toBeTruthy();
+  cleanup();
+
+  render(<DetectedHost detected={{
+    source: 'user_jvm_args.txt',
+    raw: '-Xms4G -Xmx2G',
+    canonicalArgs: null,
+    issues: [{ code: 'MEMORY_ORDER', severity: 'error', message: 'Initial memory cannot exceed max memory.', key: 'server.jvm.issue.memoryOrder' }],
+  }} />);
+  expect(screen.getByText('检测到配置文件 user_jvm_args.txt，但内容无法使用，没有采用。')).toBeTruthy();
+  expect(screen.getByText('初始内存不能大于最大内存')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /取消|重新应用/ })).toBeNull();
+});
+
+test('导入：检测到配置文件就自动沿用，可取消、可重新应用；换到别的文件夹后不再沿用，自己填的参数换来源后保留', async () => {
   const user = userEvent.setup();
   const source = (id: string, detected?: DetectedJvmConfig) => ({
     id, launchTarget: 'server.jar', coreType: 'forge', mcVersion: '1.20.1', modifiedAt: '2026-11-01T00:00:00.000Z', ready: true,
@@ -198,23 +210,39 @@ test('导入：换到别的文件夹后不再沿用上一个文件夹检测出�
     return json({});
   }));
   render(<MemoryRouter><ImportPage /></MemoryRouter>);
-  const sourceSelect = await screen.findByRole('combobox', { name: '选择要导入的文件夹' }) as HTMLSelectElement;
-  await waitFor(() => expect(sourceSelect.value).toBe('with-args'));
-  await user.click(await screen.findByRole('radio', { name: '沿用检测到的参数' }));
+  const sourceRadio = (id: string) => screen.getByRole('radio', { name: id }) as HTMLInputElement;
+  await screen.findByRole('radio', { name: 'with-args' });
+  await waitFor(() => expect(sourceRadio('with-args').checked).toBe(true));
   const maxMemory = () => (screen.getByLabelText('最大内存') as HTMLInputElement).value;
   const preview = () => screen.getByLabelText('最终 JVM 参数').textContent;
+  // 不用点任何东西就沿用了；带附加参数时高级区展开，不把它藏着提交。
+  await screen.findByText('已检测到配置文件 user_jvm_args.txt，已自动配置。');
   expect(maxMemory()).toBe('6');
   expect(preview()).toContain('-Dfoo=bar');
+  expect(screen.getByText('高级 JVM 参数').closest('details')!.open).toBe(true);
 
-  await user.selectOptions(sourceSelect, 'plain');
-  expect(screen.queryByRole('radio', { name: '沿用检测到的参数' })).toBeNull();
+  // 取消：回到沿用之前的参数；重新应用：再沿用一次。
+  await user.click(screen.getByRole('button', { name: '取消' }));
+  expect(maxMemory()).toBe('2');
+  expect(preview()).not.toContain('-Dfoo=bar');
+  await user.click(screen.getByRole('button', { name: '重新应用' }));
+  expect(maxMemory()).toBe('6');
+
+  await user.click(sourceRadio('plain'));
+  // 来源列表里 with-args 那一行仍写着它带 user_jvm_args.txt，只看导入设置区。
+  expect(within(screen.getByRole('heading', { name: '导入设置' }).closest('section')!).queryByText(/user_jvm_args\.txt/)).toBeNull();
   expect(maxMemory()).toBe('2');
   expect(preview()).not.toContain('-Dfoo=bar');
 
-  // 自己填的不是检测结果，换到另一个没有检测结果的文件夹时保留。
+  // 自己填的不是检测结果：换到另一个没有检测结果的文件夹时保留；
+  // 中途换到有检测结果的文件夹会沿用它，再换走时还原成自己填的。
   await user.clear(screen.getByLabelText('最大内存'));
   await user.type(screen.getByLabelText('最大内存'), '3');
-  await user.selectOptions(sourceSelect, 'plain-2');
+  await user.click(sourceRadio('plain-2'));
+  expect(maxMemory()).toBe('3');
+  await user.click(sourceRadio('with-args'));
+  expect(maxMemory()).toBe('6');
+  await user.click(sourceRadio('plain'));
   expect(maxMemory()).toBe('3');
 });
 
@@ -248,7 +276,7 @@ test('实例设置：模组加载器还没装好的实例不显示「@modloader�
   expect(screen.getByText(/还没有安装完成/)).toBeTruthy();
 });
 
-test('导入：Forge 文件夹的启动目标是参数文件时，来源下拉和「已找到启动文件」不显示 @args: 标记', async () => {
+test('导入：Forge 文件夹的启动目标是参数文件时，来源列表只写核心和版本，不显示 @args: 标记和参数文件路径', async () => {
   const argsPath = 'libraries/net/minecraftforge/forge/1.20.1-47.2.0/win_args.txt';
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).includes('/import/sources')) {
@@ -259,9 +287,9 @@ test('导入：Forge 文件夹的启动目标是参数文件时，来源下拉�
     return json({});
   }));
   render(<MemoryRouter><ImportPage /></MemoryRouter>);
-  const sourceSelect = await screen.findByRole('combobox', { name: '选择要导入的文件夹' }) as HTMLSelectElement;
-  await waitFor(() => expect(sourceSelect.value).toBe('forge-server'));
-  expect(shownOption(sourceSelect)).toBe(`forge-server · ${argsPath}`);
-  expect(screen.getByText(argsPath, { selector: 'code' })).toBeTruthy();
+  const radio = await screen.findByRole('radio', { name: 'forge-server' }) as HTMLInputElement;
+  await waitFor(() => expect(radio.checked).toBe(true));
+  expect(document.getElementById(radio.getAttribute('aria-describedby')!)!.textContent).toBe('Forge 1.20.1');
   expect(document.body.textContent).not.toContain('@args:');
+  expect(document.body.textContent).not.toContain(argsPath);
 });

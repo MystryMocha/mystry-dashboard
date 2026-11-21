@@ -187,7 +187,6 @@ async function ensureConfiguration() {
         text('# 本文件包含密钥，不要上传、分享或放入版本控制。', '# This file contains secrets. Do not upload, share or commit it.'),
         'HOST=127.0.0.1',
         'PORT=3000',
-        'JWT_EXPIRES_IN=2h',
         'CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000',
         '',
       ].join('\n');

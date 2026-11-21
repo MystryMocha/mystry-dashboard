@@ -40,7 +40,7 @@ Mystry Dashboard（根包名 `mystry-dashboard`，当前 `0.2.0-preview.4`）是
 
 - 前后端公共请求、响应和字段先修改 `packages/shared`；需要运行时校验时同步 `schemas.ts`，然后先构建 `@mystry/shared`。
 - 最终数据根优先 `MYSTRY_DATA_DIR`，否则 `DATA_DIR`，再否则仓库相对路径 `data`。实例唯一工作目录是该根下的 `instances/<id>`。文件操作必须复用 `file-service` 和 `apps/server/src/utils/path.ts` 的校验，不得接受或拼接未验证系统路径。
-- 同机已有服务端只能通过 `DATA_DIR/imports` 下的单层目录 ID 交接复制；该目录是只读复制源，不是实例工作目录。不得浏览整机、不得绑定外部绝对安装路径。
+- 同机已有服务端只能通过 `DATA_DIR/imports` 下的单层目录 ID 交接复制，或由浏览器读出用户选的文件夹后分批上传（D-039，临时目录 `uploads/.tmp-folder-upload-<id>`，相对路径逐段校验，确认时改名进 staging）；`imports` 是只读复制源，不是实例工作目录。不得浏览整机、不得接收或绑定外部绝对安装路径。
 - 部署/导入先写入 `DATA_DIR/.mystry-staging/<taskId>/<instanceId>`，成功后再原子移动到 `instances/<id>`。崩溃恢复只清理 marker 匹配的 staging，不得删除已注册实例或最终目录。
 - 同一 `DATA_DIR` 只允许一个面板进程在 `initDb` / 任务恢复前取得 `.mystry-panel-lock/`。
 - Minecraft 实例默认通过面板进程 `PATH` 中的 `java` 启动，也可按 `javaRuntimeId` 使用面板扫描、注册并在执行前复验的运行时；请求不得提交可执行路径。面板一键安装的 Java（D-034）只能是 `java-install-service.ts` 里钉死 tag 和 SHA-256 的 Temurin JRE，装在 `DATA_DIR/runtimes/java/`，扫描必须始终包含这个目录。子进程环境必须走 `getMinecraftChildEnv()` 脱敏，不得把面板密钥或 `DATA_DIR` 传给 Java。

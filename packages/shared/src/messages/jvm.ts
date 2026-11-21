@@ -19,7 +19,7 @@ export const JVM_MESSAGES = {
 
   // 面板自动安装 Java（Eclipse Temurin JRE）
   'server.jvm.javaInstall.queued': 'Waiting to install Java {major}',
-  'server.jvm.javaInstall.downloading': 'Downloading Java {major} ({percent}%)',
+  'server.jvm.javaInstall.downloading': 'Downloading Java {major}',
   'server.jvm.javaInstall.extracting': 'Extracting Java {major}',
   'server.jvm.javaInstall.verifying': 'Checking Java {major}',
   'server.jvm.javaInstall.unsupportedMajor': "The panel can't install Java {major} automatically.",
@@ -28,6 +28,7 @@ export const JVM_MESSAGES = {
   'server.jvm.javaInstall.checksumMismatch': 'The downloaded Java {major} failed the checksum check and was discarded.',
   'server.jvm.javaInstall.extractFailed': "The Java {major} archive couldn't be extracted.",
   'server.jvm.javaInstall.verifyFailed': "The installed Java {major} didn't run correctly, so it wasn't added.",
+  'server.jvm.javaInstall.notCancellable': 'This Java installation has already finished, so it can\'t be cancelled.',
 
   // 预设名称：作为诊断里的 {preset} 嵌套参数
   'server.jvm.preset.compatibility': 'Compatibility First',

@@ -70,7 +70,7 @@
 | 8 | 提交失败后给出错误汇总，把焦点移过去，每条链接到对应字段；错误不能只靠颜色 | [GOV.UK Error summary](https://design-system.service.gov.uk/components/error-summary/)；[WCAG 3.3.1](https://www.w3.org/WAI/WCAG22/Understanding/error-identification.html) | A7、C1 |
 | 9 | 标签在输入框外面、上方，不拿占位字当标签 | [NN/g](https://www.nngroup.com/articles/form-design-placeholders/)；[Material 3](https://m3.material.io/components/text-fields/guidelines) | 现状已符合；A1 的占位字只用来显示默认值，标签仍在 |
 | 10 | 表单以单列为主，只有强相关的短字段可以同行 | [Baymard](https://baymard.com/blog/avoid-multi-column-forms)；[Primer](https://primer.style/product/ui-patterns/forms/) | 现状是「名称 + 版本」「内存 + 优化方案」同行，属于允许的情况；本方案不新增并排字段 |
-| 11 | 步进按钮只适合小幅微调，范围大的数值要能直接输入 | [NN/g Input Steppers](https://www.nngroup.com/articles/input-steppers/) | A3 用档位加输入框，不用步进器 |
+| 11 | 步进按钮只适合小幅微调，范围大的数值要能直接输入 | [NN/g Input Steppers](https://www.nngroup.com/articles/input-steppers/) | A3 用档位加输入框；框内的 ±1 GB 小箭头只做微调（用户要求加回，见第 8 节末） |
 
 ### 3.2 同类产品怎么做
 
@@ -183,7 +183,7 @@ C1 只有在确实存在「只有服务端才知道、又能对应到某个字�
 |---|---|---|
 | B1、B2 | `Field.tsx`、`NumberInput.tsx`、`PasswordInput.tsx` | `Field` 负责标签、可选标记、说明、错误行和 aria；行内布局用 `useFieldFeedback`；`useFormFeedback` 管「全部显示」和重置 |
 | A2 | 参数配置、JVM 配置器、frp 端口 | 都换成 `NumberInput`；全站不再有 `type="number"` |
-| A3 | `JvmSettingsEditor.tsx` | 按 GB 填，档位 1/2/4/6/8/12/16/24/32 按主机内存过滤，推荐值并进档位；不是整数 GB 的旧值不动就原样保留 |
+| A3 | `JvmSettingsEditor.tsx` | 按 GB 填；不是整数 GB 的旧值不动就原样保留。档位原为 1/2/4/6/8/12/16/24/32 并标推荐值，后来按用户意见收成 8/10/12 GB，见第 8 节末「JVM 配置器精简」 |
 | A4 | 上面各页 | 红字失焦后才出现；已有的值被清空（实例设置的名称）算填错 |
 | A5 | 登录与初始化、改密码、frp 令牌 | 令牌框去掉了 `maxLength`，超长显示「65 / 64」 |
 | A6 | `SaveBar.tsx`，实例设置和参数配置 | 实例没在运行时保存后只短暂提示；只改名称不提示重启 |
@@ -223,13 +223,26 @@ C1 只有在确实存在「只有服务端才知道、又能对应到某个字�
 |---|---|---|
 | 低 | 导入来源读取失败时同时说「交接目录是空的」 | `ImportPage.tsx` |
 | 低 | ZIP 已有预检又选了新文件后，操作栏和按钮说法不一致，新文件撤不掉 | `ImportPage.tsx` |
-| 低 | 「检测到的参数」还没选，操作栏却说「先修正 JVM 参数」 | `ImportPage.tsx`、`JvmSettingsEditor.tsx` |
 | 低 | JVM 原始文本输到能解析的瞬间，文本框换成结构化表单 | `JvmSettingsEditor.tsx` |
 | 低 | 虚拟局域网轮询失败一次后红字不消失 | `LanSection.tsx` |
 | 低 | 部署页换核心不重置 JVM 预设 | `DeployPage.tsx`、`JvmSettingsEditor.tsx` |
 | 低 | 版本、构建号读取失败时下拉面板写「没有可用版本」 | `LazyScrollSelect.tsx` |
 | 低 | 换下载来源后版本列表不重新读取 | `DeployPage.tsx` |
 | 低 | 直连端口无效时检查清单仍按 25565 生成防火墙命令 | `DirectSection.tsx` |
+
+原来还有一条「检测到的参数还没选，操作栏却说先修正 JVM 参数」，下面改成自动沿用后就没有「还没选」这一步了，已从表里去掉。
+
+### JVM 配置器精简（2026-11-19）
+
+用户看过开发版后提出以下几点，按原话改了，没有另做方案评审：
+
+- **初始内存放进基础区**：原来藏在「高级 JVM 参数」里，要先勾「手动设置初始内存 Xms」，基础区看不出 Xms 是多少。现在「初始内存」和「最大内存」等宽并排，复选框去掉。初始内存没改过时自动取值，填了或点了档位就算手动，之后改最大内存不再带着它走。两组档位各要约 190px 才放得进一行，所以配置器宽度（容器查询 `jvm`）不小于 660px 时内存占 3 份、优化方案占 2 份排在右边（部署页 1366 宽时约 690px），更窄时（导入页和实例设置的右栏、创建空实例对话框、手机）优化方案排到内存下面；400px 以下档位间距和内边距收紧。1366、1920、1280、1024、390 宽下量过，两组档位都在一行。
+- **G1 均衡下初始内存等于最大内存**：共享包 `automaticInitialMemoryMiB` 里 G1 均衡改成和 Paper Aikar 一样取最大内存；切到 G1 均衡或 Paper Aikar 时初始内存回到自动（手动改过的也重置），切回兼容优先、自定义时自动值是 `min(1 GiB, Xmx)`。Paper Aikar 下初始内存锁定，旧数据里两者不同时仍可改。已保存的 G1 实例（比如 `-Xms1G -Xmx4G`）打开时按手动处理，原样显示、不外发。
+- **档位**：最大内存只给 8 / 10 / 12 GB，初始内存给 2 / 4 / 6 GB（Paper Aikar 锁定时点不了），超出本机内存的不显示（一档都放不下时整组不显示），不再标「推荐」，也不再写「这台电脑共 N GB」。默认值仍按推荐算法给（32 GB 机器是 7.5 GB），所以默认值常常不在档位里。初始内存档位比最大内存大时照样填入，由诊断说明不能保存。
+- **加回 ±1 GB 箭头**：换成文本框后原生数字框的上下箭头没了，用户要求加回。`NumberInput` 新增可选的 `stepper`，在框内最右侧竖排两个小按钮，「GB」往左让位；框里按 ↑ ↓ 也一样，滚轮不改数字（换掉 `type="number"` 的原因之一）。一步走到相邻的整数 GB（2.44 往上是 3、往下是 2），按框里显示的数算（4100M 显示 4，按 MiB 算往下会被认回原值、按了没反应），不低于 0.5 GB；框里删空或填错时从上一个合法值算。箭头和打字走同一条路，所以点初始内存的箭头也算手动设置；Paper Aikar 锁定时箭头和输入框一起禁用。箭头和原生的一样不进 Tab 顺序，按下时不抢输入框焦点（否则失焦会先冒出错误）。触屏上 17px 高的按钮点不准，粗指针下不显示，用档位。
+- **检测到 `user_jvm_args.txt` 就自动沿用**：三选一单选框换成一行提示「已检测到配置文件 user_jvm_args.txt，已自动配置。」加「取消」；取消后还原成沿用之前的参数（用户自己填的或默认值），提示改成「没有使用……」加「重新应用」。文件解析失败时用警告色说明原因，不给按钮。原来的「自定义配置」等于沿用后直接改输入框，不再单列。沿用逻辑在 `ImportPage` 换来源的 effect 里做（配置器里做的话子组件 effect 先跑，会被父组件的还原覆盖）；D-019 说的「展示并确认检测到的参数」现在靠提示和输入框展示、点导入按钮确认。
+
+测试：`forms-jvm.test.tsx` 改写档位、初始内存两条，新增初始内存档位、G1 切换、Paper 锁定、已保存 G1 实例、最大内存箭头和键盘加减、旧值离整数 GB 只差几 MiB、初始内存箭头七条；`forms-display-logic.test.tsx` 的检测结果两条改成提示条和导入页自动沿用 / 取消 / 重新应用 / 换来源还原；服务端 `jvm-config.test.ts` 改了 G1 的自动值。
 
 ## 附录：原型截图
 

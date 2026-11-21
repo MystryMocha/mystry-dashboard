@@ -75,6 +75,7 @@ beforeEach(() => {
       : url === '/api/tasks' ? { tasks: [{ id: 'task', type: 'import', status: 'running', progress: 30, createdAt: new Date().toISOString() }] }
       : url === '/api/nodes' ? nodes
       : url === '/api/system/download-source' ? { source: 'official' }
+      : url === '/api/auth/session-duration' ? { duration: '12h' }
       : String(url).includes('/import/sources') ? { sources: [] }
       : String(url).includes('java-runtimes') ? { runtimes: [], defaultRuntime: null }
       : {};
@@ -407,6 +408,42 @@ test('本机环境页切换下载来源：失败时保留原选择，成功后�
   expect(screen.queryByRole('alert')).toBeNull();
   expect(screen.getByText(/Paper 和 Fabric 的服务端文件没有可靠的镜像/)).toBeTruthy();
   expect(saved.at(-1)).toBe('{"source":"china"}');
+});
+
+test('本机环境页改登录有效期：保存后换上新令牌，选「不过期」时提示风险，失败时保留原选择', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const saved: string[] = [];
+  let failSave = true;
+  localStorage.setItem('mystry_token', 'old-token');
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/auth/session-duration' && options?.method === 'PUT') {
+      saved.push(String(options.body));
+      return failSave
+        ? new Response(JSON.stringify({ error: 'Choose one of the listed sign-in durations.', code: 'server.auth.sessionDurationInvalid' }), { status: 400 })
+        : new Response(JSON.stringify({ duration: 'never', token: 'new-token' }));
+    }
+    return baseFetch(url, options);
+  }));
+  mount(<NodesPage />);
+  const select = await screen.findByRole('combobox', { name: '登录有效期' }) as HTMLSelectElement;
+  await waitFor(() => expect(select.value).toBe('12h'));
+  expect(screen.getByRole('option', { name: '12 小时（默认）' })).toBeTruthy();
+  expect(screen.queryByText(/直到修改密码/)).toBeNull();
+
+  await user.selectOptions(select, 'never');
+  expect((await screen.findByRole('alert')).textContent).toBe('请从列出的选项中选择登录有效期');
+  expect(select.value).toBe('12h');
+  expect(localStorage.getItem('mystry_token')).toBe('old-token');
+
+  failSave = false;
+  await user.selectOptions(select, 'never');
+  expect(await screen.findByText('已保存，这台设备的登录已按新时长计算。')).toBeTruthy();
+  expect(select.value).toBe('never');
+  expect(screen.getByText(/直到修改密码/)).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(localStorage.getItem('mystry_token')).toBe('new-token');
+  expect(saved.at(-1)).toBe('{"duration":"never"}');
 });
 
 test('复制日志提供空日志、权限拒绝、API 缺失与成功反馈', async () => {
@@ -1540,6 +1577,9 @@ test('Java 选择器：新建实例自动选推荐版本，手动改过后不再
   // 默认 Java 是 8，Minecraft 1.21.1 推荐 21：自动选已装的 Java 21，不出现安装按钮。
   await waitFor(() => expect(select.value).toBe('rt21'));
   expect(screen.queryByRole('button', { name: /安装 Java/ })).toBeNull();
+  // 用的就是推荐版本：不再写「推荐 Java 21」，标签里也不带。
+  expect(screen.queryByText('推荐 Java 21')).toBeNull();
+  expect(screen.getByRole('combobox', { name: 'Java 运行时' })).toBe(select);
   // 换成 1.16.5：默认 Java 8 正好合适，回到默认。
   await user.click(screen.getByRole('button', { name: '切到 1.16.5' }));
   await waitFor(() => expect(select.value).toBe(''));
@@ -1584,10 +1624,24 @@ test('Java 选择器：推荐版本没装时一键安装，装好后自动选中
   render(<JavaSelectHarness autoSelect onValue={(value) => values.push(value)} />);
   const button = await screen.findByRole('button', { name: '安装 Java 21' });
   expect(installingStates).toEqual([false]);
-  expect(screen.getByText(/这台电脑还没装 Java 21/)).toBeTruthy();
+  // 状态点、推荐版本、安装按钮、手动下载链接排在同一行，按这个顺序；下载来源和大小只在悬停提示里。
+  const row = button.closest('.java-status-row') as HTMLElement;
+  expect([...row.children].map((child) => child.textContent)).toEqual(['系统默认 Java 1.8.0_492 可用', '推荐 Java 21', '安装 Java 21', '自己下载安装']);
+  expect(screen.queryByText(/这台电脑还没装/)).toBeNull();
   // 手动下载链接留作后备。
   expect(screen.getByRole('link', { name: '自己下载安装' }).getAttribute('href')).toBe('https://adoptium.net/temurin/releases/?version=21');
+  // 点按钮先弹确认，写明下载来源和大小；点「取消」什么都不发。
   await user.click(button);
+  let dialog = screen.getByRole('dialog', { name: '安装 Java 21？' });
+  expect(within(dialog).getByText(/Eclipse Temurin.*40–60 MB.*下载期间可以取消/)).toBeTruthy();
+  await user.click(within(dialog).getByRole('button', { name: '取消' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(posted).toEqual([]);
+  expect(installingStates).toEqual([false]);
+  // 确认后才开始下载。
+  await user.click(button);
+  dialog = screen.getByRole('dialog', { name: '安装 Java 21？' });
+  await user.click(within(dialog).getByRole('button', { name: '安装 Java 21' }));
   const select = screen.getByLabelText(/^Java 运行时/) as HTMLSelectElement;
   await waitFor(() => expect(select.value).toBe('panel21'));
   expect(posted).toEqual([{ major: 21 }]);
@@ -1595,6 +1649,58 @@ test('Java 选择器：推荐版本没装时一键安装，装好后自动选中
   // 安装期间通知页面暂停提交，结束后恢复。
   await waitFor(() => expect(installingStates).toEqual([false, true, false]));
   expect(screen.queryByRole('button', { name: /安装 Java/ })).toBeNull();
+});
+
+test('Java 选择器：没装 Java 时没有橙色警告，推荐版本照样跟在状态点后面', async () => {
+  stubJava({ runtimes: [], installable: [] }, (url) => (
+    url === '/api/system/java' ? new Response(JSON.stringify({ available: false })) : null
+  ));
+  render(<JavaSelectHarness autoSelect onValue={() => {}} />);
+  const recommended = await screen.findByText('推荐 Java 21');
+  expect(recommended.closest('.java-status-row')!.textContent).toContain('未找到系统默认 Java');
+  expect(screen.queryByText(/推荐使用 Java/)).toBeNull();
+  // 面板装不了（installable 没有 21）时不给安装按钮，只给下载链接。
+  expect(screen.queryByRole('button', { name: /安装 Java/ })).toBeNull();
+  expect(screen.getByRole('link', { name: '下载 Java 21' })).toBeTruthy();
+});
+
+test('Java 选择器：下载中可以取消，取消后不报错，按钮回到「安装 Java 21」', async () => {
+  let cancelRequested = false;
+  const running = { id: 'install21', type: 'download', status: 'running', progress: 30, message: '', messageI18n: { key: 'server.jvm.javaInstall.downloading', params: { major: 21 } }, createdAt: '', updatedAt: '' };
+  stubJava({ runtimes: [java8], installable: [21] }, (url, options) => {
+    if (url === '/api/system/java-runtimes/install' && options?.method === 'POST') return new Response(JSON.stringify(running));
+    if (url === '/api/system/java-runtimes/install/install21/cancel' && options?.method === 'POST') {
+      cancelRequested = true;
+      return new Response(JSON.stringify(running));
+    }
+    if (url === '/api/tasks/install21') {
+      return new Response(JSON.stringify(cancelRequested
+        ? { ...running, status: 'failed', message: 'Cancelled', messageI18n: { key: 'server.tasks.cancelled' }, error: 'x', errorI18n: { key: 'server.tasks.cancelledByUser' } }
+        : running));
+    }
+    return null;
+  });
+  const user = userEvent.setup();
+  render(<JavaSelectHarness autoSelect onValue={() => {}} />);
+  await user.click(await screen.findByRole('button', { name: '安装 Java 21' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '安装 Java 21' }));
+
+  // 「取消安装」在进度条的文字行里，百分比右边。
+  const cancel = await screen.findByRole('button', { name: '取消安装' });
+  expect(cancel.closest('.task-progress')).toBeTruthy();
+  expect(screen.getByRole('progressbar', { name: 'Java 21 安装进度' })).toBeTruthy();
+  // 文案不再另写下载百分比，只有右边一个整体进度。
+  expect(cancel.closest('.task-progress-text')!.textContent).toBe('正在下载 Java 2130%取消安装');
+  await user.click(cancel);
+  expect(cancelRequested).toBe(true);
+  expect((screen.getByRole('button', { name: '正在取消…' }) as HTMLButtonElement).disabled).toBe(true);
+
+  // 下一次轮询拿到「已取消」：进度条收起，不显示错误，可以重新安装。
+  await waitFor(() => expect(screen.queryByRole('progressbar')).toBeNull(), { timeout: 4000 });
+  expect(screen.queryByText(/你取消了这个任务/)).toBeNull();
+  expect(document.querySelector('p.error')).toBeNull();
+  expect((screen.getByRole('button', { name: '安装 Java 21' }) as HTMLButtonElement).disabled).toBe(false);
+  expect(installingStates.at(-1)).toBe(false);
 });
 
 test('Java 选择器：安装失败显示原因，保留手动下载入口', async () => {
@@ -1610,6 +1716,7 @@ test('Java 选择器：安装失败显示原因，保留手动下载入口', asy
   const user = userEvent.setup();
   render(<JavaSelectHarness autoSelect onValue={() => {}} />);
   await user.click(await screen.findByRole('button', { name: '安装 Java 21' }));
+  await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: '安装 Java 21' }));
   expect(await screen.findByText(/Java 21 没能下载下来.*国内镜像/)).toBeTruthy();
   expect(screen.getByRole('button', { name: '安装 Java 21' })).toBeTruthy();
   expect(screen.getByRole('link', { name: '自己下载安装' })).toBeTruthy();

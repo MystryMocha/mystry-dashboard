@@ -254,12 +254,9 @@ h1[tabindex="-1"]:focus { outline: none; }
 .error { margin: 0; color: var(--danger); font-size: var(--text-small); line-height: 1.5; }
 .field-warn { margin: 0; color: var(--warn); font-size: var(--text-small); line-height: 1.5; }
 
-/* Java 选择器里的一键安装：说明、按钮和手动下载链接，进度条在下方 */
-.java-install { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-/* 安装说明和按钮同一行，放不下时自动换行；进度和错误占整行。 */
-.java-install > .field-help { flex: 1 1 320px; margin: 0; }
-.java-install > :is(.task-progress, .error) { flex: 1 1 100%; }
-.java-install-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+/* Java 选择器下方一行：实际要用的 Java 的状态、推荐版本、「安装 Java N」和手动下载链接，放不下时自动换行；进度条在下方。 */
+.java-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+.java-recommended { color: var(--label); font-size: var(--text-small); font-weight: 600; }
 
 .link { color: var(--accent-text); font-weight: 500; }
 .link:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -830,8 +827,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 .field > label { font-size: var(--text-small); font-weight: 600; color: var(--label-2); }
 .field-help { margin: 0; font-size: var(--text-small); line-height: 1.5; color: var(--label-2); }
 .field-help code,
-.deploy-guide code,
-.import-handoff-note code {
+.deploy-guide code {
   padding: 1px 6px;
   border-radius: 5px;
   background: var(--fill-2);
@@ -848,6 +844,8 @@ h1[tabindex="-1"]:focus { outline: none; }
   width: 100%;
   min-height: 38px;
   padding: 8px 12px;
+  /* 框内右侧有单位、按钮时由 .input-affix 设 --affix-space 留位（见下）；这条规则优先级高，得在这里读它。 */
+  padding-inline-end: var(--affix-space, 12px);
   border: 0;
   border-radius: var(--radius-sm);
   background-color: var(--input-bg);
@@ -916,8 +914,13 @@ select.input,
 /* 输入框里靠右的附加内容：密码的显示/隐藏按钮、数字的单位。外壳占满一行，输入框在右侧留出位置。 */
 .input-affix { position: relative; display: block; min-width: 0; }
 .input-affix > input { width: 100%; }
-.input-affix.has-affix-button > input { padding-inline-end: 44px; }
-.input-affix.has-suffix-text > input { padding-inline-end: 46px; }
+/*
+ * 右侧留位写在 --affix-space 里：.field 里的输入框吃上面 .field :is(input:not(...)...) 的 padding，
+ * 那条优先级比这里高，直接写 padding-inline-end 会被压回 12px，所以那条也读这个变量。
+ */
+.input-affix:is(.has-affix-button, .has-suffix-text, .has-stepper) > input { padding-inline-end: var(--affix-space); }
+.input-affix.has-affix-button > input { --affix-space: 44px; }
+.input-affix.has-suffix-text > input { --affix-space: 46px; }
 .input-affix-text {
   position: absolute;
   inset-block: 0;
@@ -945,6 +948,41 @@ select.input,
 .input-affix-button:hover:not(:disabled) { color: var(--label); }
 .input-affix-button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
 .input-affix-button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* 数字框的上下箭头：两个小按钮竖排贴在框内最右侧，单位往左让出位置。 */
+.input-affix.has-stepper > input { --affix-space: 36px; }
+.input-affix.has-suffix-text.has-stepper > input { --affix-space: 66px; }
+.input-affix.has-stepper .input-affix-text { inset-inline-end: 34px; }
+.input-stepper {
+  position: absolute;
+  inset-block: 3px;
+  inset-inline-end: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 24px;
+}
+.input-stepper > button {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--label-2);
+  cursor: pointer;
+}
+.input-stepper > button:hover:not(:disabled) { background: var(--fill); color: var(--label); }
+.input-stepper > button:active:not(:disabled) { background: var(--fill-strong); }
+.input-stepper > button:disabled { opacity: 0.5; cursor: not-allowed; }
+/* 触屏上 17px 高的按钮点不准，和原生数字框一样不显示箭头，改用下面的常用档位。 */
+@media (pointer: coarse) {
+  .input-stepper { display: none; }
+  .input-affix.has-stepper > input { --affix-space: 12px; }
+  .input-affix.has-suffix-text.has-stepper > input { --affix-space: 46px; }
+  .input-affix.has-stepper .input-affix-text { inset-inline-end: 12px; }
+}
 
 /* 只为拿到一组字段的容器引用（跳到第一个出错的字段），不参与排版。 */
 .form-fields { display: contents; }
@@ -1302,6 +1340,8 @@ input[type='radio'] {
   color: var(--label-2);
 }
 .task-progress-value { color: var(--label); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* 文案占满左边，百分比和可选的按钮（如「取消安装」）靠右。 */
+.task-progress-text > :first-child { flex: 1 1 auto; min-width: 0; }
 
 /* ========== 页面内容不放卡片 ==========
  * 页面里的表单分区和分组列表直接放在页面背景上，用分隔线和标题分层次，和总览的服务器列表一致：
@@ -2410,23 +2450,24 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .core-option.selected .core-check { opacity: 1; transform: none; }
 
 /* ========== JVM 与 Java 设置 ========== */
-.jvm-settings { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.jvm-settings { container: jvm / inline-size; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .jvm-basic-grid { gap: 16px; }
-
-.jvm-detected-choice {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0;
-  padding: 14px 16px;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--c-orange) 11%, var(--surface));
+/*
+  初始内存和最大内存并排，各自的档位排在自己下面。两组档位各要约 190px 才放得进一行，
+  所以配置器够宽（部署页 1366 宽时约 680px）才把优化方案放到右边，内存占 3 份、优化方案占 2 份；
+  再窄（导入页、实例设置的右栏，创建空实例对话框）优化方案排到内存下面。
+*/
+.jvm-memory-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; min-width: 0; }
+@container jvm (min-width: 660px) {
+  .jvm-basic-grid { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
 }
-.jvm-detected-choice legend { float: left; width: 100%; margin-bottom: 2px; padding: 0; font-size: var(--text-body); font-weight: 600; color: var(--warn); }
-.jvm-detected-choice label { display: flex; align-items: center; gap: 8px; font-size: var(--text-body); cursor: pointer; }
-
-.jvm-advanced .checkbox-field { font-size: var(--text-body); }
+/* 手机宽度：档位收紧一点，两组都还能各占一行。 */
+@container jvm (max-width: 400px) {
+  .jvm-memory-tiers { gap: 4px; }
+  .jvm-memory-tiers .chip { padding: 0 9px; }
+}
+/* 检测到 user_jvm_args.txt 的一行提示：取消按钮跟在文字后面。 */
+.jvm-detected { align-items: center; }
 
 .jvm-args-preview {
   display: flex;
@@ -2615,8 +2656,17 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .start-issue { margin-bottom: 12px; }
 .start-issue-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .start-issue-actions .btn { align-self: auto; }
-.import-handoff-note ol { margin: 6px 0; padding-left: 18px; line-height: 1.75; font-size: var(--text-small); }
-.import-handoff-note p { color: var(--label-2); font-size: var(--text-small); }
+/* 从 imports 文件夹复制：路径和「复制路径」在一行，路径很长时自己换行，按钮不被挤走；
+   来源列表每一行整行可点，不能导入的行写原因、不能选。 */
+.import-dir-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.import-dir-row .btn,
+.import-source-head .btn { flex-shrink: 0; }
+.import-dir-path { font-size: var(--text-small); }
+.import-source-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.import-source-option { justify-content: flex-start; flex-wrap: nowrap; gap: 12px; cursor: pointer; }
+.import-source-option.is-unavailable { cursor: not-allowed; }
+.import-source-option.is-unavailable .list-row-title { color: var(--label-2); }
+.import-source-reason { color: var(--warn); }
 .import-zip-lead { font-size: var(--text-small); }
 .import-preview-card { align-items: center; flex-wrap: wrap; }
 .import-preview-card p { color: var(--label-2); font-size: var(--text-small); }
@@ -2650,6 +2700,16 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 
 .import-meta-grid { gap: 16px; }
 
+/* 导入设置里面板识别出的设置：左列名称、右列值，值下面可以跟一行提醒或说明。 */
+.import-summary { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: 10px 20px; margin: 0; }
+.import-summary-row { display: contents; }
+.import-summary dt { color: var(--label-2); font-size: var(--text-small); line-height: 1.5; }
+.import-summary dd { display: flex; flex-direction: column; gap: 2px; margin: 0; font-size: var(--text-body); line-height: 1.5; overflow-wrap: anywhere; }
+.import-summary-note { color: var(--label-2); font-size: var(--text-small); }
+.import-summary-warn { color: var(--warn); font-size: var(--text-small); }
+/* 「修改设置」展开后的核心、版本、Java 和 JVM 配置，间距和卡片里其他控件一致。 */
+.import-settings-body { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+
 /* ========== 本机环境 ========== */
 .about-card {
   display: flex;
@@ -2658,9 +2718,13 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   max-width: 760px;
   padding: 28px;
 }
-/* 本机环境页各块同宽：本机信息、「在其他设备上打开」入口和下载来源都不超过 760px。 */
+/* 本机环境页各块同宽：本机信息、「在其他设备上打开」入口、登录有效期和下载来源都不超过 760px。 */
 .download-source-section,
+.session-duration-section,
 .remote-entry-section { max-width: 760px; }
+/* 登录有效期只有几个短选项，选择框不必撑满整行；说明文字照常占满。 */
+.session-duration-field select { max-width: 320px; }
+.session-duration-help { display: grid; gap: 4px; }
 /* 下载入口旁的来源提示：就地展开切换控件，不离开当前页面 */
 .download-source-hint { display: grid; gap: 10px; min-width: 0; }
 .download-source-hint-panel {
@@ -2972,6 +3036,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   /* 英文标签较长，窄屏下导入和联机方式切换同样去掉图标。 */
   .import-mode-switch .segmented-item,
   .multiplayer-mode-switch .segmented-item { gap: 0; padding: 0 10px; }
+  /* 导入页有三种方式，再收窄一点，英文在 390 宽度下三项也放得下。 */
+  .import-mode-switch .segmented-item { padding: 0 8px; }
   .import-mode-switch .segmented-item svg,
   .multiplayer-mode-switch .segmented-item svg { display: none; }
   .page-header-actions { width: 100%; }

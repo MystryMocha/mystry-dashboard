@@ -16,4 +16,5 @@ export default {
   'server.auth.launcherLocalOnly': '启动器接口仅允许本机访问',
   'server.auth.invalidLauncherToken': '启动器令牌无效',
   'server.auth.launcherShutdownUnsupported': '当前运行方式不支持启动器关闭',
+  'server.auth.sessionDurationInvalid': '请从列出的选项中选择登录有效期',
 } satisfies Record<keyof typeof AUTH_MESSAGES, string>;

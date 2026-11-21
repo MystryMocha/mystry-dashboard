@@ -64,7 +64,10 @@ test('推荐内存按四分之一、512 MiB、系统保留和上下限计算', (
   assert.equal(recommendedMaxMemoryMiB(4 * 1024), 2048);
   assert.equal(recommendedMaxMemoryMiB(3 * 1024), 1024);
   assert.equal(automaticInitialMemoryMiB('compatibility', 8192), 1024);
-  assert.equal(automaticInitialMemoryMiB('g1-balanced', 8192), 1024);
+  assert.equal(automaticInitialMemoryMiB('compatibility', 512), 512);
+  assert.equal(automaticInitialMemoryMiB('custom', 8192), 1024);
+  // G1 均衡和 Paper Aikar 是服务器调优方案，初始内存和最大内存相同。
+  assert.equal(automaticInitialMemoryMiB('g1-balanced', 8192), 8192);
   assert.equal(automaticInitialMemoryMiB('paper-aikar', 8192), 8192);
 });
 

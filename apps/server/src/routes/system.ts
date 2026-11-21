@@ -15,7 +15,7 @@ import {
 } from '@mystry/shared';
 import { getDownloadSource, setDownloadSource } from '../services/download-sources.js';
 import { detectJava } from '../services/java-detect.js';
-import { installableJavaMajors, startJavaInstall } from '../services/java-install-service.js';
+import { cancelJavaInstall, installableJavaMajors, startJavaInstall } from '../services/java-install-service.js';
 import { scanJavaRuntimes } from '../services/java-runtime-service.js';
 import { MetricsService } from '../services/metrics-service.js';
 import { processManager } from '../services/process-manager.js';
@@ -177,6 +177,19 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
       }
       try {
         return await startJavaInstall(req.body.major);
+      } catch (err) {
+        return sendRouteError(reply, err);
+      }
+    },
+  );
+
+  // 取消一键安装：只接受还在进行中的 Java 安装任务（别的任务 ID 一律 409），返回任务当前状态；
+  // 运行中的任务要等下载停下、临时目录清掉后才变成已取消，前端继续轮询到结束。
+  app.post<{ Params: { taskId: string } }>(
+    '/api/system/java-runtimes/install/:taskId/cancel',
+    async (req, reply) => {
+      try {
+        return cancelJavaInstall(req.params.taskId);
       } catch (err) {
         return sendRouteError(reply, err);
       }

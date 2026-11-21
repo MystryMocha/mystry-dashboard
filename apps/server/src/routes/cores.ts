@@ -1,15 +1,30 @@
+import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type {
   ConfirmZipImportInput,
+  CreateFolderUploadInput,
   DeployCoreInput,
+  ExistingServerSourceListResult,
   ImportExistingServerInput,
 } from '@mystry/shared';
 import {
   DEPLOYABLE_CORE_TYPE_ENUM,
   deployCoreBodySchema,
   confirmZipImportBodySchema,
+  createFolderUploadBodySchema,
   importExistingServerBodySchema,
 } from '@mystry/shared';
+import { config } from '../config.js';
+import {
+  FOLDER_UPLOAD_BATCH_MAX_FILES,
+  cancelFolderUpload,
+  completeFolderUpload,
+  confirmFolderUpload,
+  createFolderUpload,
+  getFolderUpload,
+  receiveFolderUploadBatch,
+  type FolderUploadPart,
+} from '../services/folder-upload-service.js';
 import { deployCore } from '../services/core-depot.js';
 import {
   listCoreVersions,
@@ -134,7 +149,12 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/import/sources', async (_req, reply) => {
     try {
-      return { sources: await listExistingServerSources() };
+      // 路径只用来告诉用户把服务端复制到哪里；数据根是相对值时也换成绝对路径再给人看。
+      const result: ExistingServerSourceListResult = {
+        sources: await listExistingServerSources(),
+        importDir: path.resolve(config.existingServerImportDir),
+      };
+      return result;
     } catch (err) {
       return sendRouteError(reply, err, 500);
     }
@@ -236,6 +256,86 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
   app.delete<{ Params: { id: string } }>('/api/import/previews/:id', async (req, reply) => {
     try {
       cancelImportPreview(req.params.id, req.user.id);
+      return { ok: true };
+    } catch (error) {
+      return sendRouteError(reply, error);
+    }
+  });
+
+  // 浏览器里选文件夹上传：开始 → 分批传文件 → 传完预检 → 确认导入或取消。
+  app.post<{ Body: CreateFolderUploadInput }>(
+    '/api/import/folder-uploads',
+    { attachValidation: true, schema: { body: createFolderUploadBodySchema } },
+    async (req, reply) => {
+      if (req.validationError) {
+        return reply.code(400).send(panelErrorBody('server.imports.folder.invalidParams'));
+      }
+      try {
+        return createFolderUpload(req.user.id, req.body);
+      } catch (error) {
+        return sendRouteError(reply, error);
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string } }>('/api/import/folder-uploads/:id/files', async (req, reply) => {
+    try {
+      // 全局 multipart 上限只允许一个文件；这里按一批的文件数放宽，单个文件不超过文件夹总大小上限。
+      const parts = req.parts({
+        limits: {
+          files: FOLDER_UPLOAD_BATCH_MAX_FILES,
+          fields: FOLDER_UPLOAD_BATCH_MAX_FILES,
+          parts: FOLDER_UPLOAD_BATCH_MAX_FILES * 2,
+          fileSize: config.maxExistingImportBytes,
+          fieldSize: 4096,
+        },
+      }) as AsyncIterable<FolderUploadPart>;
+      return await receiveFolderUploadBatch(req.params.id, req.user.id, parts);
+    } catch (error) {
+      return sendRouteError(reply, error);
+    }
+  });
+
+  app.post<{ Params: { id: string } }>('/api/import/folder-uploads/:id/complete', async (req, reply) => {
+    try {
+      return await completeFolderUpload(req.params.id, req.user.id);
+    } catch (error) {
+      return sendRouteError(reply, error);
+    }
+  });
+
+  app.get<{ Params: { id: string } }>('/api/import/folder-uploads/:id', async (req, reply) => {
+    try {
+      return getFolderUpload(req.params.id, req.user.id);
+    } catch (error) {
+      return sendRouteError(reply, error);
+    }
+  });
+
+  app.post<{ Params: { id: string }; Body: ConfirmZipImportInput }>(
+    '/api/import/folder-uploads/:id/confirm',
+    { attachValidation: true, schema: { body: confirmZipImportBodySchema } },
+    async (req, reply) => {
+      if (req.validationError) {
+        return reply.code(400).send(panelErrorBody('server.imports.folder.invalidParams'));
+      }
+      if (!req.body.name.trim()) {
+        return reply.code(400).send(panelErrorBody('server.imports.nameRequired'));
+      }
+      try {
+        return await confirmFolderUpload(req.params.id, req.user.id, {
+          ...req.body,
+          name: req.body.name.trim(),
+        });
+      } catch (error) {
+        return sendRouteError(reply, error);
+      }
+    },
+  );
+
+  app.delete<{ Params: { id: string } }>('/api/import/folder-uploads/:id', async (req, reply) => {
+    try {
+      cancelFolderUpload(req.params.id, req.user.id);
       return { ok: true };
     } catch (error) {
       return sendRouteError(reply, error);
