@@ -74,7 +74,8 @@ Most server panels are either heavyweight data-center suites (requiring Linux, D
 | Game | Status |
 |---|---|
 | **Minecraft: Java Edition** | Supported in the current preview |
-| **Left 4 Dead 2** | Planned |
+| **Left 4 Dead 2** | Planned, the first SteamCMD server |
+| **Other mainstream SteamCMD dedicated servers** | Planned |
 
 ---
 
@@ -196,7 +197,8 @@ User documentation ([Documentation Center](docs/README.md), [Getting Started](do
 
 - Public Minecraft preview with portable Windows x64 and Linux x64 builds
 - Scheduled automatic backups and retention policies
-- Left 4 Dead 2 server support
+- Full support for the mainstream dedicated servers available through SteamCMD, starting with Left 4 Dead 2
+- Managing servers on multiple machines from one panel
 
 See the [changelog](CHANGELOG.md) for detailed release history.
 
