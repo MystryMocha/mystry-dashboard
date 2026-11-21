@@ -28,6 +28,8 @@ export default {
   'instance.settings.section.basic': '基本資訊',
   'instance.settings.section.runtime': '執行環境',
   'instance.settings.section.eula': '授權協議',
+  'instance.settings.section.danger': '危險操作',
+  'instance.settings.delete.desc': '永久刪除此實例資料夾及其中所有檔案，無法復原。',
   'instance.settings.name.label': '名稱',
   'instance.settings.jarFile.label': 'Jar 檔名',
   'instance.settings.launchFile.label': '啟動檔案',
@@ -52,6 +54,8 @@ export default {
   'instance.startIssue.javaTooOld.body': '啟動時使用的 Java 版本太舊，伺服器剛啟動就結束了。請安裝 Java {java}，然後開啟「實例設定」，點「重新掃描」，選擇 Java {java}，儲存後再啟動。',
   'instance.startIssue.java.bodyUnknown': '啟動時使用的 Java 版本和這個伺服器不相符，伺服器剛啟動就結束了。請查看伺服器端或整合包要求的 Java 版本並安裝，然後開啟「實例設定」，點「重新掃描」，選擇它，儲存後再啟動。',
   'instance.startIssue.java.openSettings': '開啟實例設定',
+  'instance.startIssue.javaUnavailable.title': '這個伺服器選擇的 Java 已無法使用',
+  'instance.startIssue.javaUnavailable.body': '用它無法啟動。請開啟「實例設定」，點「重新掃描」，重新選擇 Java，儲存後再啟動。',
 
   // 启动成功后的下一步提示（控制台上方）
   'instance.ready.title': '伺服器已啟動，現在可以進入伺服器了。',

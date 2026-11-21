@@ -44,7 +44,7 @@ The interface follows Apple's design style: a floating, translucent **sidebar** 
 | Import Server | `/import` | Turns an uploaded server folder or zip, or a folder copied into imports, into an instance |
 | Multiplayer | `/multiplayer` | Opens an instance's game port to friends. You can use your own frp server or open a virtual LAN |
 | This Machine | `/nodes` | Shows this computer's system, CPU, memory and number of instances |
-| Task Center (top right) | — | Slides in from the right with recent deploy and import tasks. It keeps updating after you leave the deploy page, until each task completes or fails |
+| Task Center (top right) | — | Slides in from the right with recent deploy and import tasks. It keeps updating after you leave the deploy page, until each task completes or fails. The number on the button counts tasks in progress and is hidden when none are running. A task you cancelled shows as "Cancelled" |
 | Language (top right) | — | Choose **Auto / English / 简体中文 / 繁體中文**. With Auto, the panel follows your browser language: Traditional Chinese (Taiwan, Hong Kong, Macau) shows 繁體中文, other Chinese shows 简体中文, and every other language shows English. The choice is saved in this browser. You can also switch it at the top right of the sign-in page |
 | Appearance (top right) | — | Choose the **Auto / Light / Dark** appearance (Auto follows the system). The choice is saved in this browser |
 | Sign Out | — | Signs this browser out |
@@ -104,7 +104,7 @@ When you're done, click **Turn Off** and the panel goes back to accepting only t
 
 **Purpose**: see the status of all your servers at a glance and do everyday tasks.
 
-The "This Machine" strip under the title shows host CPU, host memory and free space on the data disk. Below it, each server has one row. After its status comes one sentence about what you can do now, such as "Players can join now" or "This server needs Java 21", followed by the matching next step (Invite Players, Open Settings, Review EULA, Open Console) and then Start or Stop. Switch between **All**, **Running** and **Issues** at the top right of the list. A running server shows the process's CPU and actual memory use, and the bar beside it compares that memory with "Max Memory", the heap limit set for Java (`-Xmx`). Actual use is usually slightly above that limit; the two are not the same thing. With no instances yet, the page lists three ways to add one: Quick Deploy, Import Server and Create Empty Instance. The first sample shows "Collecting…", and metrics the current system doesn't support show "Unavailable". If monitoring fails, the old values stay on screen, marked as possibly out of date, and you can click "Retry Monitoring".
+The "This Machine" strip under the title shows host CPU, host memory and free space on the data disk. Below it, each server has one row. After its status comes one sentence about what you can do now, such as "Players can join now", "This server needs Java 21" or "The Java chosen for this server is no longer available", followed by the matching next step (Invite Players, Open Settings, Review EULA, Open Console) and then Start or Stop. Switch between **All**, **Running** and **Issues** at the top right of the list. A running server shows the process's CPU and actual memory use, and the bar beside it compares that memory with "Max Memory", the heap limit set for Java (`-Xmx`). Actual use is usually slightly above that limit; the two are not the same thing. With no instances yet, the page lists three ways to add one: Quick Deploy, Import Server and Create Empty Instance. The first sample shows "Collecting…", and metrics the current system doesn't support show "Unavailable". If monitoring fails, the old values stay on screen, marked as possibly out of date, and you can click "Retry Monitoring".
 
 | Column / Area | Description |
 |-----------|------|
@@ -114,7 +114,7 @@ The "This Machine" strip under the title shows host CPU, host memory and free sp
 | Status | A colored badge (see the table below), followed by what you can do now |
 | Actions | The next step when there is one (Invite Players, Open Settings, Review EULA, Open Console, Migrate), then whichever of start/stop is available right now. Restart, Force Stop and Delete are under "More Actions" |
 
-Instance status and metrics refresh automatically every 5 seconds, and pause while you're on another browser tab. At the top right of the page are **Quick Deploy**, **Import Server** and **Create Empty Instance** (for when you upload your own `server.jar`). With no instances yet, these three are listed in the middle of the page instead. If a refresh fails, the last data stays on screen with a note that it may be out of date.
+Instance status and metrics refresh automatically every 5 seconds, and pause while you're on another browser tab. At the top right of the page are **Quick Deploy**, **Import Server** and **Create Empty Instance** (for when you upload your own `server.jar`). With no instances yet, these three are listed in the middle of the page instead. At phone width, Quick Deploy and Import Server are in the bottom tab bar, only Create Empty Instance stays at the top right, and the "This Machine" strip moves below the server list. If a refresh fails, the last data stays on screen with a note that it may be out of date.
 
 ### Instance Status
 
@@ -131,9 +131,9 @@ Instance status and metrics refresh automatically every 5 seconds, and pause whi
 
 - **Start**: available only when the instance isn't "Running".
 - **Stop**: available only when the instance isn't "Stopped".
-- **Restart**: available at any time (it stops, then starts). The confirmation dialog warns about the interruption.
-- **Force Stop**: ends the process immediately and may corrupt the world. It asks for confirmation. Try a normal stop first.
-- **Delete**: stop the instance first. You have to type the instance name to confirm. It deletes the record in the panel and every file in that instance's folder, and it can't be undone. Legacy external folders are never accessed or deleted.
+- **Restart**: stops, then starts. The confirmation dialog warns about the interruption. Under "More Actions" on the Instances page it's available except while the instance is starting or stopping; at the top of the instance's page it appears only while the instance is running.
+- **Force Stop**: ends the process immediately and may corrupt the world. It asks for confirmation. Try a normal stop first. It's available only while the process is alive (starting, running or stopping), under "More Actions".
+- **Delete**: stop the instance first. You have to type the instance name to confirm. It deletes the record in the panel and every file in that instance's folder, and it can't be undone. Legacy external folders are never accessed or deleted. Besides "More Actions" on the Instances page, **Delete Instance** is also at the bottom of the instance's **Settings** tab.
 
 ---
 
@@ -279,7 +279,7 @@ When the version doesn't match, the console commonly shows `UnsupportedClassVers
 
 ## Instance Details
 
-The top shows the instance name, core, version and status, along with **Start / Stop / Restart / Force Stop**. "‹ Instances" at the top left takes you back to the Instances page.
+The top shows the instance name, core, version and status, along with what you can do right now: **Start** while it's stopped; **Stop** and **Restart** while it's running, with **Force Stop** under "More Actions" beside them. "‹ Instances" at the top left takes you back to the Instances page.
 
 ### Console
 
@@ -371,6 +371,8 @@ Backups are stored under `backups/` in the data directory by default. You can us
 
 After you click **Save Settings**, the page shows "Settings saved." or the reason it failed. Before you leave the page, it likewise asks whether to discard unsaved changes.
 
+**Delete Instance** is at the bottom of the tab, under "Danger Zone". Stop the instance first, type its name to confirm, and choose whether to delete its backups too. After deletion you're taken back to the Instances page.
+
 ---
 
 ## Where Is Data Stored?
@@ -405,10 +407,11 @@ Adoption fails if the target folder is empty, incomplete, doesn't match the ID, 
 
 ### The Server Exits Right After Starting or Shows "Crashed"
 
-First check whether there's a notice above the **Console**. The panel recognizes the two causes below and gives you the next step directly:
+First check whether there's a notice above the **Console**. The panel recognizes the causes below and gives you the next step directly:
 
 - **You haven't agreed to the Minecraft EULA yet**: the status is "Stopped". Click **Agree and Start** in the notice. You can also check Minecraft EULA in **Settings**.
 - **The Java version is too new or too old**: the notice states the Java version this server needs. Click **Download Java** and install it. Then open **Settings**, click **Rescan**, select it, save, and start again.
+- **The Java you chose is no longer available** (it was uninstalled or moved): the Instances page and the notice above the console say so before you start. Open **Settings**, click **Rescan**, choose a Java again, save, and start.
 
 If there's no notice:
 

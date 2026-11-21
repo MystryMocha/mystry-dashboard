@@ -518,3 +518,32 @@ test('打印过完成启动的标志行后标记为可以进服；停止或退�
   await stopping;
   assert.equal(manager.isReady(info.id), false);
 });
+
+test('绑定的 Java 已不可用或已不在登记表里时，实例信息不等启动就给出 java-unavailable', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb, getDb } = await import('../db.js');
+  const { createInstance, getInstance, listInstances } = await import('./instance-service.js');
+
+  initDb();
+  const info = createInstance({ name: 'java-gone' });
+  assert.equal(getInstance(info.id)?.startIssue, null, '用系统默认 Java 的实例不提前报问题');
+
+  const db = getDb();
+  db.prepare(
+    'INSERT INTO java_runtimes (id, path, version, major_version, source, verified_at, available) VALUES (?, ?, ?, ?, ?, ?, 1)',
+  ).run('rt-test', path.join(os.tmpdir(), 'mystry-missing-java'), '21.0.1', 21, 'scan', new Date().toISOString());
+  db.prepare('UPDATE instances SET java_runtime_id = ? WHERE id = ?').run('rt-test', info.id);
+  assert.equal(getInstance(info.id)?.startIssue, null, '登记为可用的运行时不提前报问题');
+
+  db.prepare('UPDATE java_runtimes SET available = 0 WHERE id = ?').run('rt-test');
+  assert.deepEqual(getInstance(info.id)?.startIssue, { kind: 'java-unavailable', requiredJava: null });
+
+  db.prepare('DELETE FROM java_runtimes WHERE id = ?').run('rt-test');
+  assert.deepEqual(
+    listInstances().find((item) => item.id === info.id)?.startIssue,
+    { kind: 'java-unavailable', requiredJava: null },
+  );
+
+  db.prepare('UPDATE instances SET java_runtime_id = NULL WHERE id = ?').run(info.id);
+  assert.equal(getInstance(info.id)?.startIssue, null, '改回系统默认 Java 后提示消失');
+});

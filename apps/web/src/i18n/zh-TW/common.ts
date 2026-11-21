@@ -13,6 +13,7 @@ export default {
   'task.status.running': '進行中',
   'task.status.completed': '已完成',
   'task.status.failed': '失敗',
+  'task.status.cancelled': '已取消',
 
   'action.start': '啟動',
   'action.stop': '停止',

@@ -148,7 +148,13 @@ export function MultiplayerPage() {
             )}
           </div>
           {selected && method === 'direct' && (
-            <DirectSection key={selected.id} instance={selected} guide={guide} onChooseVirtualLan={() => chooseMethod('lan')} />
+            <DirectSection
+              key={selected.id}
+              instance={selected}
+              guide={guide}
+              onChooseVirtualLan={() => chooseMethod('lan')}
+              onInstanceChanged={load}
+            />
           )}
           {selected && method === 'lan' && (
             <LanSection key={selected.id} instanceId={selected.id} guide={guide} />

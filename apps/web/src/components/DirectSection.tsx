@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Copy } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Copy, Play } from 'lucide-react';
 import type { InstanceInfo, InstanceLocalNetwork } from '@mystry/shared';
-import { getInstanceLocalNetwork, savePublicHost } from '../api';
+import { controlInstance, getInstanceLocalNetwork, savePublicHost } from '../api';
 import { copyText } from '../clipboard';
 import { MultiplayerLayout, type GuideControl } from './MultiplayerLayout';
 import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n } from '../i18n';
+import { canStartInstance } from '../instance-status';
 import { publicHostIssue } from '../validation';
 
 function isPrivateHost(host: string): boolean {
@@ -23,10 +25,13 @@ export function DirectSection({
   instance,
   guide,
   onChooseVirtualLan,
+  onInstanceChanged,
 }: {
   instance: InstanceInfo;
   guide: GuideControl;
   onChooseVirtualLan: () => void;
+  /** 在这里启动了实例之后调用，让页面重新读取实例状态。 */
+  onInstanceChanged: () => Promise<void> | void;
 }) {
   const { t } = useI18n();
   const hostId = useId();
@@ -37,6 +42,8 @@ export function DirectSection({
   const [hostOpen, setHostOpen] = useState(false);
   const [hostBusy, setHostBusy] = useState(false);
   const [hostError, setHostError] = useState('');
+  const [startBusy, setStartBusy] = useState(false);
+  const [startError, setStartError] = useState('');
   const hostTouched = useRef(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -84,7 +91,23 @@ export function DirectSection({
     }
   }
 
+  async function start() {
+    setStartBusy(true);
+    setStartError('');
+    try {
+      await controlInstance(instance.id, 'start');
+      // 马上刷新实例状态，按钮不会在下一次轮询前又变回可点。
+      await onInstanceChanged();
+    } catch (err) {
+      setStartError(errorMessage(err));
+    } finally {
+      setStartBusy(false);
+    }
+  }
+
   const running = instance.status === 'running';
+  // 待迁移，或已知这次启动一定失败：不放「启动」，带去实例页处理。
+  const needsFix = canStartInstance(instance.status) && (instance.requiresMigration || !!instance.startIssue);
   const port = network?.port ?? null;
   const withPort = (host: string) => (host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`);
   const addresses = port != null && network ? network.addresses.map(withPort) : [];
@@ -166,7 +189,25 @@ export function DirectSection({
     <MultiplayerLayout guide={guideContent} control={guide}>
       <p className="section-lead">{t('multiplayer.direct.intro')}</p>
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
-      {!running && <p className="callout" role="status">{t('multiplayer.direct.notRunning')}</p>}
+      {/* 没在运行时地址用不了：能启动就在这里启动；有要先处理的问题（EULA、Java、待迁移）就带去实例页，那里写着原因。 */}
+      {!running && (
+        <div className="callout" role="status">
+          <p>
+            {t(needsFix
+              ? 'multiplayer.direct.needsFix'
+              : instance.status === 'starting' ? 'multiplayer.direct.starting' : 'multiplayer.direct.notRunning')}
+          </p>
+          {needsFix ? (
+            <Link className="btn btn-sm" to={`/instances/${instance.id}`}>{t('multiplayer.direct.openInstance')}</Link>
+          ) : canStartInstance(instance.status) ? (
+            <button className="btn btn-sm" type="button" disabled={startBusy} onClick={() => void start()}>
+              <Play size={13} aria-hidden="true" />
+              {t('action.start')}
+            </button>
+          ) : null}
+        </div>
+      )}
+      {startError && <p className="callout callout-danger" role="alert">{startError}</p>}
       {network?.serverIpBlocked && (
         <p className="callout callout-danger" role="alert">
           {t(network.serverIpIsUnboundPublicHost ? 'multiplayer.direct.serverIpPublic' : 'multiplayer.direct.serverIpBlocked')}

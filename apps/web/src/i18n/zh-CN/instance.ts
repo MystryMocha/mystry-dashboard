@@ -28,6 +28,8 @@ export default {
   'instance.settings.section.basic': '基本信息',
   'instance.settings.section.runtime': '运行环境',
   'instance.settings.section.eula': '许可协议',
+  'instance.settings.section.danger': '危险操作',
+  'instance.settings.delete.desc': '永久删除这个实例的文件夹和里面的全部文件，无法恢复。',
   'instance.settings.name.label': '名称',
   'instance.settings.jarFile.label': 'Jar 文件名',
   'instance.settings.launchFile.label': '启动文件',
@@ -52,6 +54,8 @@ export default {
   'instance.startIssue.javaTooOld.body': '启动时用的 Java 版本太旧，服务器刚启动就退出了。请安装 Java {java}，然后打开「实例设置」，点「重新扫描」，选择 Java {java}，保存后再启动。',
   'instance.startIssue.java.bodyUnknown': '启动时用的 Java 版本和这个服务器不匹配，服务器刚启动就退出了。请查看服务端或整合包要求的 Java 版本并安装，然后打开「实例设置」，点「重新扫描」，选择它，保存后再启动。',
   'instance.startIssue.java.openSettings': '打开实例设置',
+  'instance.startIssue.javaUnavailable.title': '这个服务器选择的 Java 已不可用',
+  'instance.startIssue.javaUnavailable.body': '用它无法启动。请打开「实例设置」，点「重新扫描」，重新选择 Java，保存后再启动。',
 
   // 启动成功后的下一步提示（控制台上方）
   'instance.ready.title': '服务器已启动，现在可以进服了。',

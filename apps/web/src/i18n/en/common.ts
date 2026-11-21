@@ -11,6 +11,7 @@ export default {
   'task.status.running': 'In Progress',
   'task.status.completed': 'Completed',
   'task.status.failed': 'Failed',
+  'task.status.cancelled': 'Cancelled',
 
   'action.start': 'Start',
   'action.stop': 'Stop',

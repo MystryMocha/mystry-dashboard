@@ -18,7 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { DashboardMetrics, InstanceInfo } from '@mystry/shared';
-import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
+import { api, controlInstance, type InstanceAction } from '../api';
 import {
   HostMeters,
   Meter,
@@ -29,6 +29,7 @@ import {
 import { ActionMenu } from '../components/ActionMenu';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CoreIcon, coreDisplayName } from '../components/CoreIcon';
+import { DeleteInstanceDialog } from '../components/DeleteInstanceDialog';
 import { EulaCheckbox } from '../components/EulaCheckbox';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
@@ -65,7 +66,7 @@ function formatGib(bytes: number, fmt: I18n['fmt']): string {
   return `${fmt.gib(bytes, Number.isInteger(gib) ? 0 : 1)} GiB`;
 }
 
-/** 需要用户处理的实例：已崩溃、待迁移，或上次启动因可识别原因失败。 */
+/** 需要用户处理的实例：已崩溃、待迁移、上次启动因可识别原因失败，或选的 Java 已不可用。 */
 function hasIssue(inst: InstanceInfo): boolean {
   return inst.requiresMigration || inst.status === 'crashed' || (canStartInstance(inst.status) && !!inst.startIssue);
 }
@@ -92,6 +93,13 @@ function rowState(inst: InstanceInfo, t: I18n['t']): RowState {
       sentence: t('dashboard.row.eula'),
       tone: 'warn',
       fix: { to: page, label: t('dashboard.row.action.reviewEula'), icon: TriangleAlert },
+    };
+  }
+  if (issue?.kind === 'java-unavailable') {
+    return {
+      sentence: t('instance.startIssue.javaUnavailable.title'),
+      tone: 'warn',
+      fix: { to: `${page}/settings`, label: t('instance.startIssue.java.openSettings'), icon: Settings },
     };
   }
   if (issue) {
@@ -316,7 +324,6 @@ export function DashboardPage() {
   const [restartTarget, setRestartTarget] = useState<InstanceInfo | null>(null);
   const [forceStopTarget, setForceStopTarget] = useState<InstanceInfo | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InstanceInfo | null>(null);
-  const [deleteBackups, setDeleteBackups] = useState(true);
   const [emptyOpen, setEmptyOpen] = useState(false);
   const [emptyName, setEmptyName] = useState(() => t('dashboard.createEmpty.defaultName'));
   const [emptyJvm, setEmptyJvm] = useState('-Xms1G -Xmx2G');
@@ -371,14 +378,6 @@ export function DashboardPage() {
     const target = forceStopTarget;
     setForceStopTarget(null);
     await act(target.id, 'stop', { force: true });
-  }
-
-  async function confirmDelete() {
-    if (!deleteTarget) return;
-    const target = deleteTarget;
-    const query = !target.requiresMigration && !deleteBackups ? '?keepBackups=1' : '';
-    setDeleteTarget(null);
-    await run(target.id, () => api(`${instanceApi(target.id)}${query}`, { method: 'DELETE' }));
   }
 
   const emptyNameIssue = instanceNameIssue(emptyName);
@@ -459,11 +458,12 @@ export function DashboardPage() {
         // 还没有实例时，列表区的三种添加方式就是入口，顶部不再重复一套按钮；加载中也先不画，避免空面板上按钮闪一下又消失。
         actions={loadState === 'loading' || (loaded && instances.length === 0) ? undefined : (
           <>
-            <Link to="/deploy" className="btn btn-primary">
+            {/* 这两个入口在手机上由底部标签栏提供，窄屏时隐藏（overview-nav-action）。 */}
+            <Link to="/deploy" className="btn btn-primary overview-nav-action">
               <Plus size={16} aria-hidden="true" />
               {t('nav.deploy')}
             </Link>
-            <Link to="/import" className="btn">
+            <Link to="/import" className="btn overview-nav-action">
               <FolderDown size={16} aria-hidden="true" />
               {t('nav.import')}
             </Link>
@@ -559,10 +559,7 @@ export function DashboardPage() {
                 onAction={(action) => void act(inst.id, action)}
                 onRestart={() => setRestartTarget(inst)}
                 onForceStop={() => setForceStopTarget(inst)}
-                onDelete={() => {
-                  setDeleteBackups(true);
-                  setDeleteTarget(inst);
-                }}
+                onDelete={() => setDeleteTarget(inst)}
               />
             ))}
           </ul>
@@ -641,37 +638,13 @@ export function DashboardPage() {
         onCancel={() => setForceStopTarget(null)}
       />
 
-      {/* 删除确认 */}
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        title={
-          deleteTarget?.requiresMigration
-            ? t('dashboard.removeRecord.title', { name: deleteTarget?.name ?? '' })
-            : t('dashboard.delete.title', { name: deleteTarget?.name ?? '' })
-        }
-        description={
-          deleteTarget?.requiresMigration
-            ? t('dashboard.removeRecord.body')
-            : (
-              <>
-                <p>{t('dashboard.delete.body')}</p>
-                <label className="checkbox-field">
-                  <input
-                    type="checkbox"
-                    checked={deleteBackups}
-                    onChange={(e) => setDeleteBackups(e.target.checked)}
-                  />
-                  <span>{t('dashboard.delete.deleteBackups')}</span>
-                </label>
-                {!deleteBackups && <p className="muted">{t('dashboard.delete.keepBackupsNote')}</p>}
-              </>
-            )
-        }
-        confirmLabel={deleteTarget?.requiresMigration ? t('dashboard.removeRecord.confirm') : t('action.deletePermanently')}
-        danger
-        busy={busyId === deleteTarget?.id}
-        requireText={deleteTarget?.requiresMigration ? undefined : deleteTarget?.name}
-        onConfirm={() => void confirmDelete()}
+      {/* 删除确认：请求在弹窗里发，成功后关掉并刷新列表。 */}
+      <DeleteInstanceDialog
+        instance={deleteTarget}
+        onDeleted={() => {
+          setDeleteTarget(null);
+          void load();
+        }}
         onCancel={() => setDeleteTarget(null)}
       />
     </div>
