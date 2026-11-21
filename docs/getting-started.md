@@ -2,51 +2,51 @@
 
 **English** · [简体中文](getting-started.zh-CN.md)
 
-First pick one way to run the panel. Once it has started, follow [Set Up Administrator](#set-up-administrator), which is the same for every option:
+First pick one way to run the panel. Once it has started, every option continues with [Set Up Administrator](#set-up-administrator):
 
 | Option | Best for | Environment and entry point |
 |---|---|---|
-| Portable build | Just using the panel | Windows/Linux x64, bundles Node.js, uses `mdash` |
-| Source launcher | Building from source and starting/stopping everything in one place | Node.js ≥ 22, uses `mdash.cmd` / `mdash.sh` |
+| Portable build | Using the panel without building it | Windows/Linux x64, bundles Node.js, uses `mdash` |
+| Source launcher | Building from source, with one tool to start and stop | Node.js ≥ 22, uses `mdash.cmd` / `mdash.sh` |
 | Manual development | Changing the frontend or backend code | Node.js ≥ 22, runs two development terminals |
 
-With every option, you need to install the Java your server requires yourself. There is no portable package for macOS in this Preview. The configuration file differs by entry point; see the [configuration file comparison table](configuration.md). In these docs, `DATA_DIR/...` means the final data root, and `MYSTRY_DATA_DIR` takes priority over `DATA_DIR`.
+No option bundles Java: use a Java you already have, or let the panel install Eclipse Temurin when the recommended version is missing. This Preview has no macOS portable package. The configuration file differs by entry point; see the [configuration file comparison table](configuration.md). In these docs, `DATA_DIR/...` means the final data root, and `MYSTRY_DATA_DIR` takes priority over `DATA_DIR`.
 
-Windows PowerShell uses `npm.cmd`. For the generic npm scripts below, use `npm` on Linux/macOS.
+Run the generic npm scripts below with `npm.cmd` in Windows PowerShell and with `npm` on Linux/macOS.
 
 ## Portable Build (Recommended for Most Users)
 
-The portable package already contains Node.js, production dependencies and the build output. On Windows, extract it and double-click `mdash.cmd`. On Linux x64, extract it and run:
+The portable package contains Node.js, the production dependencies and the build output. On Windows, extract it and double-click `mdash.cmd`. On Linux x64, extract it and run:
 
 ```bash
 chmod +x mdash
 ./mdash start
 ```
 
-You don't need to run `npm install`. Install a Java version that suits your target server first. You can check the default PATH runtime with `java -version`, or scan for and select another installed runtime in the panel. For the full platform list, verification, upgrades and limitations, see [Portable Preview](portable-release.md).
+No `npm install` is needed. First install a Java version that suits your target server: check the default PATH runtime with `java -version`, or scan for and select another installed runtime in the panel. For the full platform list, verification, upgrades and limitations, see [Portable Preview](portable-release.md).
 
 ## Requirements for Running from Source
 
 | Dependency | Requirement |
 |------|------|
 | Node.js | **≥ 22** (uses the built-in `node:sqlite`, so no native SQLite module needs compiling) |
-| Java | Uses the `java` on PATH by default; the deploy page and instance settings let you select a local runtime that the panel has scanned and verified |
+| Java | The `java` on PATH by default; on the deploy page and in instance settings you can also select a local runtime the panel has scanned and verified |
 | Operating system | The source launcher supports Windows (`mdash.cmd`) and Linux / WSL (`mdash.sh`); the portable artifacts are built and smoke-tested separately on Windows x64 and Linux x64 |
 
-The panel does not accept a hand-typed full Java path. First run `java -version` in the same user environment that runs the panel to check the default PATH. If you need a different installed Java, click **Rescan** on the deploy page or in the instance settings, then use the selector.
+The panel does not accept a typed-in full Java path. To check the default PATH, run `java -version` in the same user environment that runs the panel. To use another installed Java, click **Rescan** on the deploy page or in the instance settings, then pick it in the selector.
 
 ## One-Click Management on Windows (Recommended)
 
-After you install Node.js 22 or later, double-click `mdash.cmd` in the repository root. It automatically:
+With Node.js 22 or later installed, double-click `mdash.cmd` in the repository root. It automatically:
 
 1. Checks Node and npm.
-2. Installs dependencies according to `package-lock.json`, and builds shared, server and web. It skips this when the source and lock file haven't changed.
+2. Installs dependencies from `package-lock.json` and builds shared, server and web, skipping this step when neither the source nor the lock file has changed.
 3. Copies `.env.example` to `.env` if there is no `.env`.
-4. Hands over to the cross-platform controller `mdash`, which generates random secrets that all differ from each other, checks Java, starts the panel in the background and opens your browser.
+4. Hands over to the cross-platform controller `mdash`, which generates distinct random secrets, checks Java, starts the panel in the background and opens your browser.
 
-If dependency downloads are slow or fail, run `.\mdash.cmd mirror` to choose another npm download source. See [npm download source](configuration.md#npm-registry).
+If dependency downloads are slow or fail, run `.\mdash.cmd mirror` to choose another npm download source; see [npm download source](configuration.md#npm-registry).
 
-Double-clicking shows a menu. Its language follows your system (Chinese on a Chinese system, English otherwise; you can set it with `MYSTRY_LANG`, see [launcher language](configuration.md#launcher-language)). You can also run these directly:
+Double-clicking opens a menu in your system language (Chinese on a Chinese system, English otherwise; set it with `MYSTRY_LANG`, see [launcher language](configuration.md#launcher-language)). You can also run the commands directly:
 
 ```powershell
 .\mdash.cmd start
@@ -62,11 +62,11 @@ Double-clicking shows a menu. Its language follows your system (Chinese on a Chi
 .\mdash.cmd help
 ```
 
-Start, stop, status and logs share one implementation with `mdash.sh` on Linux and `mdash` in the portable build. The only difference is that the configuration defaults to `.env` in the repository root (or the file set by `MYSTRY_CONFIG_PATH`, if you set it), and the data directory follows the `DATA_DIR` in that file. Logs are in `logs/` in the repository root.
+Start, stop, status and logs share one implementation with `mdash.sh` on Linux and `mdash` in the portable build. The only differences: the configuration defaults to `.env` in the repository root (or the file named by `MYSTRY_CONFIG_PATH`, if set), and the data directory follows that file's `DATA_DIR`. Logs go to `logs/` in the repository root.
 
-A background stop or restart first cancels deploy/import tasks, then safely stops each running Minecraft instance one by one. Do not force-kill the Node process in Task Manager.
+A background stop or restart first cancels deploy/import tasks, then stops each running Minecraft instance safely, one at a time. Do not force-kill the Node process in Task Manager.
 
-If a secret in your existing `.env` is not a 64-character hexadecimal string, the source launcher first backs up the original file to `launcher/config-backups/` under the data directory, then generates new valid secrets. Changing `JWT_SECRET` invalidates old sign-in tokens, but it does not delete the administrator, instances or Minecraft worlds.
+If a secret in your existing `.env` is not a 64-character hexadecimal string, the source launcher first backs up the original file to `launcher/config-backups/` under the data directory, then generates new valid secrets. Changing `JWT_SECRET` invalidates old sign-in tokens but does not delete the administrator, instances or Minecraft worlds.
 
 ## One-Click Source Management on Linux / WSL
 
@@ -77,9 +77,9 @@ chmod +x mdash.sh
 ./mdash.sh start
 ```
 
-`mdash.sh` checks for Node.js 22, installs any missing dependencies according to the lock file and builds the source. It then hands over to the cross-platform controller `mdash` to generate the configuration, start the panel and stop it safely. By default it writes the configuration to `config/panel.env` and the data to `data/` in the repository. Both are ignored by Git.
+`mdash.sh` checks for Node.js 22, installs missing dependencies from the lock file and builds the source, then hands over to the cross-platform controller `mdash` to generate the configuration, start the panel and stop it safely. By default the configuration goes to `config/panel.env` and the data to `data/` in the repository; Git ignores both.
 
-If you want to keep WSL test data separate, use the same environment variables before every operation, including start, stop and status:
+To keep WSL test data separate, set the same environment variables before every operation, including start, stop and status:
 
 ```bash
 export MYSTRY_CONFIG_PATH="${HOME}/mystry-test/config/panel.env"
@@ -87,7 +87,7 @@ export MYSTRY_DATA_DIR="${HOME}/mystry-test"
 ./mdash.sh start
 ```
 
-On the first run with an empty user database, it automatically generates random secrets and creates the administrator `admin` with a random 16-character password, which is shown only once in the window. Do not share the password or `panel.env` in chats, repositories or screenshots. The available commands are `start`, `foreground`, `stop`, `restart`, `rebuild`, `mirror`, `status`, `logs`, `open`, `reset-password` and `help`. `rebuild` safely stops the panel first, then reinstalls dependencies, builds and starts again, the same as `mdash.cmd rebuild` on Windows.
+On the first run with an empty user database, it generates random secrets and creates the administrator `admin` with a random 16-character password, shown only once in the window. Do not share the password or `panel.env` in chats, repositories or screenshots. The available commands are `start`, `foreground`, `stop`, `restart`, `rebuild`, `mirror`, `status`, `logs`, `open`, `reset-password` and `help`. `rebuild` stops the panel safely, then reinstalls dependencies, builds and starts it again, the same as `mdash.cmd rebuild` on Windows.
 
 ## Manual Install and First-Time Configuration
 
@@ -98,7 +98,7 @@ npm install
 npm run build -w @mystry/shared
 ```
 
-Copy the environment variable template only for the first-time configuration. If you already have a `.env`, keep it and check the required fields.
+Copy the environment variable template only on first-time configuration. If `.env` already exists, keep it and check the required fields.
 
 Windows PowerShell:
 
@@ -114,11 +114,11 @@ Linux/macOS:
 if [ ! -e .env ]; then cp .env.example .env; fi
 ```
 
-Edit `.env`. Generate and fill in `JWT_SECRET` and `SETUP_TOKEN` as described in [Required Settings for First Start](configuration.md#required-settings-for-first-start). `SETUP_TOKEN` is only used to set up the administrator. After you create the administrator, remove it from `.env` and restart the panel.
+Edit `.env` and fill in `JWT_SECRET` and `SETUP_TOKEN`, generated as described in [Required Settings for First Start](configuration.md#required-settings-for-first-start). `SETUP_TOKEN` is used only to set up the administrator; once the administrator exists, remove it from `.env` and restart the panel.
 
 ## Development Mode
 
-You need to run the backend and the frontend at the same time (the frontend reaches the API through the Vite proxy).
+Run the backend and the frontend at the same time (the frontend reaches the API through the Vite proxy).
 
 **Terminal 1 — backend** (default `http://127.0.0.1:3000`):
 
@@ -136,7 +136,7 @@ Open **http://127.0.0.1:5173** in your browser, then follow [Set Up Administrato
 
 ## Production Deployment
 
-Build all workspace packages in one go:
+Build all workspace packages at once:
 
 ```bash
 npm run build
@@ -148,7 +148,7 @@ Start the backend (it serves the static assets in `apps/web/dist`):
 npm start
 ```
 
-It listens on **http://127.0.0.1:3000** by default, with the frontend and backend on the same port.
+It listens on **http://127.0.0.1:3000** by default; the frontend and backend share that port.
 
 ## Set Up Administrator
 
@@ -189,17 +189,17 @@ Once you see the **Instances** page, follow [Step-by-Step Tutorials: Your First 
 | 4 | Wait for `Done` to appear in the console | Instance → **Console** |
 | 5 | Add the server `127.0.0.1` in the game | Minecraft client |
 
-To open the panel on a phone or another computer, click **Other Devices** in the top bar. See [Open the Panel on Another Device](user-guide.md#open-the-panel-on-another-device). When the panel is installed on a server you reach over SSH, the first run asks once whether your own computer or phone may open the panel. You can also run `./mdash.sh remote on` (`./mdash remote on` in the portable build) at any time, then allow the panel port in your cloud provider's security group.
+To open the panel on a phone or another computer, click **Other Devices** in the top bar; see [Open the Panel on Another Device](user-guide.md#open-the-panel-on-another-device). If the panel runs on a server you reach over SSH, the first run asks once whether your own computer or phone may open the panel. You can also run `./mdash.sh remote on` (`./mdash remote on` in the portable build) at any time, then allow the panel port in your cloud provider's security group.
 
 For detailed steps, see [Step-by-Step Tutorials](tutorials.md) and the [User Guide](user-guide.md).
 
 ## First-Time Checklist
 
-1. Install a Java version that meets your server's requirements. You can check the default runtime with `java -version` in the panel's environment, or select a scanned runtime in the panel later.
-2. Make sure `JWT_SECRET` and `SETUP_TOKEN` are set to different 64-character hexadecimal values. The launcher generates them automatically; for a manual run you fill them in yourself.
+1. Install a Java version that meets your server's requirements. Check the default runtime with `java -version` in the panel's environment, or select a scanned runtime in the panel later.
+2. Make sure `JWT_SECRET` and `SETUP_TOKEN` are set to different 64-character hexadecimal values. The launcher generates them automatically; for a manual run, fill them in yourself.
 3. If you started with the launcher, sign in with the account shown in the window. In manual configuration mode, enter the **Setup Token**, a username and a password on the sign-in page to create the administrator, then remove `SETUP_TOKEN` and restart.
-4. Create your first instance with **Quick Deploy** or **Import an Existing Server**. For a server you already have, follow [Upload a Folder](user-guide.md#upload-a-folder).
-5. Start the server from the instance details, and view the logs in **Console**.
+4. Create your first instance with **Quick Deploy** or **Import an Existing Server**. To bring in a server you already have, follow [Upload a Folder](user-guide.md#upload-a-folder).
+5. Start the server from the instance details and view the logs in **Console**.
 6. To change the port, difficulty and so on: Instance → **Properties** → save, then **restart**.
 
 ## Troubleshooting
@@ -212,6 +212,6 @@ For detailed steps, see [Step-by-Step Tutorials](tutorials.md) and the [User Gui
 | Frontend gets 401 | Not signed in, or the token has expired | Sign in again |
 | An instance fails to start | The jar doesn't exist, or the default PATH / bound Java runtime is unavailable or the wrong version | Check the instance root directory, the runtime status in the instance settings and the console log |
 | Deployment times out | The network can't reach the Mojang / Paper / Fabric APIs, or the task exceeded its execution timeout | Check your firewall, proxy, the failure reason in the **Task Center** and the related timeout settings |
-| Port in use | The panel port or the Minecraft server port conflicts | Change `PORT` for the panel port in the configuration file of your current entry point; change the game port in the instance's `server.properties`; in development mode, also update the Vite proxy target |
+| Port in use | The panel port or the Minecraft server port conflicts | Panel port: change `PORT` in your current entry point's configuration file. Game port: change it in the instance's `server.properties`. In development mode, also update the Vite proxy target |
 
 For more configuration, see [Configuration](configuration.md).

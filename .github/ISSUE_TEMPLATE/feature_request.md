@@ -8,11 +8,11 @@ assignees: ""
 
 ## Problem / Use Case
 
-What use case do you want to solve?
+What use case should this address?
 
 ## Proposed Solution
 
-Describe the behavior or interaction you would like.
+Describe the behavior or interaction you want.
 
 ## Alternatives
 
