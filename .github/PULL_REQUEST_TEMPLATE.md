@@ -1,6 +1,6 @@
 ## Summary
 
-<!-- Briefly describe what problem this PR solves and why the change is needed -->
+<!-- What problem does this PR solve, and why is the change needed? -->
 
 ## Type of Change
 
@@ -18,11 +18,11 @@
 - [ ] `npm run ci:local` passes (PRs are no longer checked automatically on the remote)
 - [ ] Related flows verified manually (please describe)
 
-<!-- State separately: implemented, verified, unverified, remaining risks or warnings -->
+<!-- List separately: implemented, verified, unverified, and remaining risks or warnings -->
 
 ## Related Issues
 
-<!-- For example: Closes #123 -->
+<!-- e.g. Closes #123 -->
 
 ## Checklist
 

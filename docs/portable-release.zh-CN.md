@@ -2,35 +2,35 @@
 
 [English](portable-release.md) · **简体中文**
 
-仓库当前版本为 `v0.2.0-preview.5`，发布流程为其配置了两个自带 Node.js 22、生产依赖和已构建前后端的便携目标：
+仓库当前版本为 `v0.2.0-preview.5`。发布流程为其配置了两个便携目标，均内置 Node.js 22、生产依赖与已构建的前后端：
 
 | 系统 | 文件 |
 |------|------|
 | Windows x64 | `mystry-v0.2.0-preview.5-windows-x64.zip` |
 | Linux x64 | `mystry-v0.2.0-preview.5-linux-x64.tar.gz` |
 
-Linux ARM64 与 macOS（Intel / Apple Silicon）打包脚本仍可本地使用，但不纳入本 Preview 公开发布矩阵，留待后续版本。
+Linux ARM64 与 macOS（Intel / Apple Silicon）的打包脚本仍可在本地使用，但未纳入本 Preview 的公开发布矩阵，留待后续版本。
 
-此表说明构建目标与文件命名，不代表对应资产已经公开发布。下载前以项目实际 Release 页面为准；若没有所需资产，可按 [快速开始](getting-started.zh-CN.md) 使用源码管理器。
+此表仅列出构建目标与文件命名，不代表对应资产已公开发布。下载前以项目实际的 Release 页面为准；若无所需资产，可按 [快速开始](getting-started.zh-CN.md) 使用源码管理器。
 
-这是 Preview，不是系统安装器。用户无需安装 Node.js 或运行 `npm install`，但仍需自行安装 Minecraft 所需 Java。实例默认使用系统 `PATH` 中的 `java`，也可在面板中选择扫描并验证的本机运行时。本阶段没有采用 [Node SEA](https://nodejs.org/download/release/latest-jod/docs/api/single-executable-applications.html)：该能力仍标为 Active development，且直接面向单个 CommonJS 主脚本，不适合当前 ESM、多包和静态前端资源布局。
+这是 Preview，并非系统安装器。你无需安装 Node.js 或运行 `npm install`，但 Minecraft 所需的 Java 不随包提供。实例默认使用系统 `PATH` 中的 `java`，也可在面板中选择已扫描并验证的本机运行时，或在缺少推荐版本时由面板安装 Eclipse Temurin。本阶段未采用 [Node SEA](https://nodejs.org/download/release/latest-jod/docs/api/single-executable-applications.html)：该功能仍标为 Active development，且面向单个 CommonJS 主脚本，不适合当前 ESM、多包与静态前端资源的布局。
 
 ## 下载与校验
 
-从同一 GitHub Release 下载对应平台压缩包、`SHA256SUMS`、`SHA256SUMS.asc` 以及 `mystry-release-signing-key.asc`（与仓库 [`.github/release-signing-key.asc`](../.github/release-signing-key.asc) 相同）。发布页还会提供生产依赖的 `sbom.cdx.json`。
+从同一 GitHub Release 下载对应平台的压缩包、`SHA256SUMS`、`SHA256SUMS.asc` 与 `mystry-release-signing-key.asc`（与仓库中的 [`.github/release-signing-key.asc`](../.github/release-signing-key.asc) 相同）。发布页另提供生产依赖的 `sbom.cdx.json`。
 
 ### 1. 取得并信任发布公钥
 
-维护者首次启用签名前须按 [`.github/RELEASE_SIGNING.md`](../.github/RELEASE_SIGNING.zh-CN.md) 提交公钥与 [`.github/release-signing-key.fingerprint`](../.github/release-signing-key.fingerprint) 单行指纹。
+首次启用签名前，维护者须按 [`.github/RELEASE_SIGNING.md`](../.github/RELEASE_SIGNING.zh-CN.md) 提交公钥与单行指纹文件 [`.github/release-signing-key.fingerprint`](../.github/release-signing-key.fingerprint)。
 
-用户侧：
+作为用户，执行：
 
 ```bash
 gpg --import mystry-release-signing-key.asc
 gpg --fingerprint
 ```
 
-将输出中的指纹与仓库 `release-signing-key.fingerprint` 或 Release 说明中的记录比对（40 位十六进制，忽略空格与大小写差异后须完全一致）。只有从项目发布渠道取得并信任该公钥后，GPG 签名校验才有意义。
+将输出中的指纹与仓库中的 `release-signing-key.fingerprint` 或 Release 说明中的记录比对（40 位十六进制，忽略空格与大小写后须完全一致）。只有从项目发布渠道取得并信任该公钥后，GPG 签名校验才有意义。
 
 ### 2. 校验文件哈希与签名
 
@@ -41,7 +41,7 @@ sha256sum -c SHA256SUMS --ignore-missing
 gpg --verify SHA256SUMS.asc SHA256SUMS
 ```
 
-Windows PowerShell 可先计算压缩包哈希，再与 `SHA256SUMS` 中对应行比较：
+在 Windows PowerShell 中，先计算压缩包哈希，再与 `SHA256SUMS` 中的对应行比对：
 
 ```powershell
 Get-FileHash .\mystry-v0.2.0-preview.5-windows-x64.zip -Algorithm SHA256
@@ -49,7 +49,7 @@ Get-FileHash .\mystry-v0.2.0-preview.5-windows-x64.zip -Algorithm SHA256
 
 也可在 WSL 或 Gpg4win 中执行与 Linux 相同的 `gpg --verify`。
 
-流水线缺少 `RELEASE_GPG_PRIVATE_KEY` 或 `RELEASE_GPG_FINGERPRINT` 与仓库指纹不一致时会拒绝创建公开 Release，不会降级成未签名发布。发布前 CI 会在独立 keyring 中用仓库公钥验证 `SHA256SUMS.asc`，再执行 `gh release create`。
+若流水线缺少 `RELEASE_GPG_PRIVATE_KEY`，或 `RELEASE_GPG_FINGERPRINT` 与仓库指纹不一致，流水线将拒绝创建公开 Release，绝不降级为未签名发布。CI 先在独立 keyring 中以仓库公钥验证 `SHA256SUMS.asc`，再执行 `gh release create`。
 
 ## 启动
 
@@ -59,11 +59,11 @@ Windows：
 解压 → 双击 mdash.cmd → 面板在后台运行并打开浏览器 → 用窗口里的账号密码登录 → 要停止时在窗口里按 Ctrl+C
 ```
 
-双击后面板和服务端作为 daemon 在后台运行，没有单独的窗口，看到的窗口只负责显示账号和重要日志，完整日志在 `logs/panel.stdout.log`。关掉窗口不影响面板和服务端；想再看日志或停止面板时，重新双击 `mdash.cmd`。按 Ctrl+C 会安全停止面板和所有服务端，关机或重启前也请先这样停止。启动失败时窗口会停在错误信息上，按回车才关闭。
+双击后，面板与服务端以 daemon 形式在后台运行，自身没有窗口；你看到的窗口仅显示账号与重要日志，完整日志位于 `logs/panel.stdout.log`。关闭窗口不影响面板与服务端；如需再次查看日志或停止面板，重新双击 `mdash.cmd` 即可。按 Ctrl+C 可安全停止面板与所有服务端，关机或重启前亦须先行停止。启动失败时，窗口停留在错误信息上，按回车后关闭。
 
-想用菜单时运行 `.\mdash.cmd menu`。带参数的命令行调用不会暂停，可放心用于脚本。
+如需使用菜单，运行 `.\mdash.cmd menu`。带参数的命令行调用不会暂停，可安全用于脚本。
 
-也可以在终端运行：
+也可在终端中运行：
 
 ```powershell
 .\mdash.cmd start
@@ -83,18 +83,18 @@ chmod +x mdash
 | 命令 | 作用 |
 |------|------|
 | `start` | 后台启动，写入 PID 指纹、执行健康检查并记录日志 |
-| `watch` | 后台启动并查看日志，双击时就是这个操作 |
-| `foreground` | 前台启动，适合排错；关窗口时面板也会退出 |
+| `watch` | 后台启动并查看日志，即双击时的操作 |
+| `foreground` | 前台启动，用于排错；关闭窗口时面板随之退出 |
 | `stop` | 通过本机令牌请求安全关闭 |
-| `restart` | 停止后重新后台启动 |
-| `status` | 检查健康状态和受管进程状态 |
+| `restart` | 停止后重新在后台启动 |
+| `status` | 检查健康状态与受管进程状态 |
 | `logs` | 显示最近日志 |
 | `open` | 打开面板地址 |
 | `reset-password` | 面板运行期间在交互终端中重置并显示新的随机管理员密码 |
 | `remote` | 面板运行期间开关「从其他设备访问」：`remote on`、`remote off`、`remote status`、`remote https off`、`remote renew-cert` |
 | `menu` | 打开交互式命令菜单 |
 
-首次启动会创建 `config/panel.env`，生成彼此不同的随机密钥，并创建管理员 `admin` 和随机 16 位密码。密码只在窗口里显示一次，不写入日志文件；登录后点左下角的齿轮进入「面板设置」，点「修改密码」修改。忘记密码时，在面板运行期间于终端窗口里执行 `.\mdash.cmd reset-password` 生成新密码；输出被重定向或通过管道传出时命令会拒绝执行，新密码不会写进文件。配置文件包含密钥，不要上传或分享。
+首次启动将创建 `config/panel.env`，生成互不相同的随机密钥，并创建管理员 `admin` 与 16 位随机密码。密码仅在窗口中显示一次，不写入日志文件；登录后，点击左下角齿轮进入「面板设置」，再点击「修改密码」即可修改。忘记密码时，在面板运行期间于终端窗口中执行 `.\mdash.cmd reset-password` 生成新密码；若输出被重定向或经管道传出，命令将拒绝执行，新密码因此不会写入文件。配置文件含有密钥，请勿上传或分享。
 
 ## 目录与数据
 
@@ -113,34 +113,34 @@ mystry-dashboard/
 └── LICENSE
 ```
 
-实例仍严格位于 `data/instances/<id>`。`manifest.json` 记录产品版本、Git SHA、Node 版本、目标平台、架构、构建时间，以及包内每个发布文件的大小和 SHA-256。发布包中的 `config/`、`data/` 和 `logs/` 初始为空，不包含 `.env`、数据库、缓存、实例或开发依赖。
+实例始终位于 `data/instances/<id>`。`manifest.json` 记录产品版本、Git SHA、Node 版本、目标平台、架构、构建时间，以及包内每个发布文件的大小与 SHA-256。发布包中的 `config/`、`data/` 与 `logs/` 初始为空，包内不含 `.env`、数据库、缓存、实例或开发依赖。
 
 ## 升级与回滚
 
-不要覆盖正在运行的便携目录：
+切勿覆盖正在运行的便携目录：
 
-1. 在旧目录运行 `mdash stop`，再用 `mdash status` 确认已停止。0.2.0-preview.5 及更早的版本里这个命令叫 `mystryctl`，不是 `mdash`。
-2. 将新版本解压到一个新的同级目录。
+1. 在旧目录运行 `mdash stop`，再以 `mdash status` 确认已停止。0.2.0-preview.5 及更早版本中，该命令名为 `mystryctl` 而非 `mdash`。
+2. 将新版本解压至新的同级目录。
 3. 确认新目录的 `config/`、`data/`、`logs/` 为空。
-4. 将旧目录中的这三个目录移动到新目录，保留旧应用目录作为回滚副本。
-5. 从新目录运行 `mdash start`，检查登录、实例列表和存档。
-6. 确认无误后再自行归档旧应用目录；不要删除唯一的数据副本。
+4. 将旧目录中的这三个目录移至新目录，并保留旧应用目录作为回滚副本。
+5. 从新目录运行 `mdash start`，检查登录、实例列表与存档。
+6. 确认无误后，自行归档旧应用目录；切勿删除唯一的数据副本。
 
-需要回滚时，先停止新版本，将 `config/`、`data/`、`logs/` 移回旧应用目录后再启动。当前没有数据库版本迁移框架，因此升级前应另外备份这三个目录，不能只依赖旧应用目录。
+回滚时，先停止新版本，将 `config/`、`data/`、`logs/` 移回旧应用目录后再启动。目前尚无数据库版本迁移框架，因此升级前须另行备份这三个目录，不可仅依赖旧应用目录。
 
-若已在环境中设置 `MYSTRY_HOME`，Windows `.cmd` 与 Unix `.sh` 包装脚本会保留该值，并仅对未设置的 `MYSTRY_CONFIG_PATH`、`MYSTRY_DATA_DIR` 使用便携包默认值；相对路径均相对于 `MYSTRY_HOME`。日常便携使用不需要手动设置这些变量。
+若环境中已设置 `MYSTRY_HOME`，Windows `.cmd` 与 Unix `.sh` 包装脚本将保留该值，并仅对未设置的 `MYSTRY_CONFIG_PATH`、`MYSTRY_DATA_DIR` 使用便携包默认值；相对路径均相对于 `MYSTRY_HOME`。日常使用便携版无需手动设置这些变量。
 
 ## Preview 已知限制
 
-- 公开发布仅覆盖 Windows x64 与 Linux x64；Linux ARM64 与 macOS 便携包暂不提供。
-- 不提供 NSIS、DEB、PKG、系统级安装或卸载。
-- 不注册 WinSW、systemd、LaunchDaemon，也不会开机自动启动。
-- Windows 产物尚未代码签名；操作系统可能显示来源警告。
-- 不提供原生自动更新、自动回滚和运行中覆盖升级。
-- Java 8/17/21/25 不随包提供，也不会自动下载；用户可正确配置系统 `PATH` 作为默认运行时，或启动面板后扫描并选择其他已安装版本。
-- 登录仍使用浏览器本地 JWT；Cookie 会话、CSRF、TOTP 和公网部署向导尚未实现。
-- 默认只监听 `127.0.0.1`。不要把面板端口直接暴露到不可信公网。
-- 2026-11-16 的官方 registry 生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 来自 React Router 6 系公告（GHSA-wrjc-x8rr-h8h6 反斜杠开放重定向、GHSA-337j-9hxr-rhxg SSR hydration 构造注入），修复版只在 7.18 以上；当前 SPA 不使用 SSR hydration，导航目标来自固定站内路径或服务端生成的实例 ID，但这些公告仍作为 Preview 残余风险记录，并须在每次发布时重新审计。此前公告已通过升级 `react-router-dom` / `react-router` 6.30.6（GHSA-jjmj-jmhj-qwj2）、`@fastify/static` 10.1.10 带动 `glob` 14.0.3 / `minimatch` 11.0.4（GHSA-3g3m-2fjr-6pw4、GHSA-g3hv-75wg-m249），以及升级传递依赖（`fastify` 5.12.7、`fast-jwt` 6.3.5、`@fastify/busboy` 3.2.3、`fast-uri` 3.1.9 / 4.2.3、`brace-expansion` 5.0.12）消除。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入便携包，升级需跨大版本，暂未处理。
+- 公开发布仅覆盖 Windows x64 与 Linux x64；暂不提供 Linux ARM64 与 macOS 便携包。
+- 不提供 NSIS、DEB、PKG 安装包，也不支持系统级安装或卸载。
+- 不注册 WinSW、systemd 或 LaunchDaemon，也不随开机自动启动。
+- Windows 产物尚无代码签名，操作系统可能显示来源警告。
+- 不提供原生自动更新、自动回滚与运行中覆盖升级。
+- Java 8/17/21/25 不随包提供；可使用系统 `PATH` 中的运行时、选择面板扫描到的其他已安装版本，或在缺少推荐版本时由面板安装 Eclipse Temurin。
+- 登录仍使用浏览器本地存储的 JWT；Cookie 会话、CSRF 防护、TOTP 与公网部署向导尚未实现。
+- 面板默认仅监听 `127.0.0.1`。切勿将面板端口直接暴露于不可信的公网。
+- 2026-11-16 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系公告（GHSA-wrjc-x8rr-h8h6 反斜杠开放重定向、GHSA-337j-9hxr-rhxg SSR hydration 构造注入），仅 7.18 及更高版本修复。当前 SPA 不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；但这些公告仍作为 Preview 残余风险记录，每次发布须重新审计。此前的公告已通过以下升级消除：`react-router-dom` / `react-router` 升至 6.30.6（GHSA-jjmj-jmhj-qwj2），`@fastify/static` 升至 10.1.10 并带动 `glob` 14.0.3 / `minimatch` 11.0.4（GHSA-3g3m-2fjr-6pw4、GHSA-g3hv-75wg-m249），以及传递依赖（`fastify` 5.12.7、`fast-jwt` 6.3.5、`@fastify/busboy` 3.2.3、`fast-uri` 3.1.9 / 4.2.3、`brace-expansion` 5.0.12）。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入便携包；修复需跨大版本升级，暂未处理。
 
 ## 发布维护
 
@@ -155,27 +155,27 @@ node scripts/portable/package-portable.mjs --platform win32 --arch x64 --output-
 node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.5-windows-x64.zip
 ```
 
-以上流程可一键完成（在目标平台原生运行，自动使用当前平台与架构，并生成压缩包、SHA256SUMS 与 SBOM）：
+以上流程可由一条命令完成（在目标平台原生运行，自动采用当前平台与架构，并生成压缩包、SHA256SUMS 与 SBOM）：
 
 ```bash
 npm run package:release
 ```
 
-Windows 用户也可直接双击 `scripts/portable/package-release.cmd`。参数：
+在 Windows 上也可双击 `scripts/portable/package-release.cmd`。参数：
 
-- `--skip-install`：跳过 `npm ci`（需已有依赖）
-- `--skip-verify`：跳过 `verify` 与生产依赖审计，仅构建后打包（开发自测）
-- `--skip-smoke`：跳过最终压缩包冒烟验证
+- `--skip-install`：跳过 `npm ci`（须已安装依赖）
+- `--skip-verify`：跳过 `verify` 与生产依赖审计，仅构建并打包（供开发自测）
+- `--skip-smoke`：跳过对最终压缩包的冒烟验证
 - `--no-force`：已有同名压缩包时拒绝覆盖
-- `--allow-dirty`：允许脏工作树打包（非发布用途）
-- `--output-dir <目录>`：指定输出目录，默认 `release`
+- `--allow-dirty`：允许在脏工作树上打包（非发布用途）
+- `--output-dir <目录>`：指定输出目录，默认为 `release`
 - `--runtime-dir <目录>`：复用本机已下载的 Node 运行时，不重新下载
 
-`package-portable.mjs` 写入 `manifest.json` 的 Git SHA 优先取自当前 checkout 的 `git rev-parse HEAD`（而非 workflow 的 `GITHUB_SHA`）。正式资产要求工作树干净；本地非发布调试可设置 `MYSTRY_PORTABLE_ALLOW_DIRTY=1` 或传入 `--allow-dirty`。
+`package-portable.mjs` 写入 `manifest.json` 的 Git SHA 优先取自当前 checkout 的 `git rev-parse HEAD`（而非 workflow 的 `GITHUB_SHA`）。正式资产须基于干净的工作树；本地非发布调试可设置 `MYSTRY_PORTABLE_ALLOW_DIRTY=1` 或传入 `--allow-dirty`。
 
-目标平台必须与构建机平台、架构一致。发布流程位于 `.github/workflows/portable-release.yml`：只有位于 `main` 历史、版本与根 `package.json` 一致、且 checkout 工作树干净的现有 `v*` 标签才能触发发布；prepare 阶段执行 `npm run verify` 与生产依赖审计；Windows x64 矩阵 job 显式执行 `npm run windows:test`；Win/Linux x64 两个最终压缩包都必须重新解压并通过健康检查，Release job 才会生成校验和、经指纹绑定的 GPG 签名、SBOM 和自动 Release Notes。第三方 Actions 使用固定 commit SHA，见 [`.github/actions-pins.md`](../.github/actions-pins.md)。
+目标平台须与构建机的平台、架构一致。发布流程定义于 `.github/workflows/portable-release.yml`：仅当现有 `v*` 标签位于 `main` 历史中、版本与根 `package.json` 一致且 checkout 工作树干净时，方可触发发布；prepare 阶段执行 `npm run verify` 与生产依赖审计；Windows x64 矩阵 job 显式执行 `npm run windows:test`；Win/Linux x64 两个最终压缩包均须重新解压并通过健康检查，Release job 才会生成校验和、经指纹绑定的 GPG 签名、SBOM 与自动 Release Notes。第三方 Actions 使用固定的 commit SHA，见 [`.github/actions-pins.md`](../.github/actions-pins.md)。
 
-仓库需要在 GitHub `release` Environment 配置：
+仓库须在 GitHub `release` Environment 中配置：
 
 - `RELEASE_GPG_PRIVATE_KEY`：ASCII armored 私钥，必需。
 - `RELEASE_GPG_PASSPHRASE`：私钥有密码时配置。
@@ -183,6 +183,6 @@ Windows 用户也可直接双击 `scripts/portable/package-release.cmd`。参数
 
 `release` Environment 应启用 **Required reviewers**（人工审批），并限制仅受保护分支上的发布 workflow 可访问；此项须由仓库管理员在 GitHub Settings 中配置并留存记录。
 
-正式打标签前先将版本提交合入 `main`，再在该提交创建并推送标签。流水线不会自动创建标签，也不会发布不在 `main` 中的提交。
+正式打标签前，先将版本提交合入 `main`，再在该提交上创建并推送标签。流水线不会自动创建标签，也不发布不在 `main` 中的提交。
 
-Release 正文取自 `.github/portable-preview-notes.md`，包内 `README.txt` 由 `package-portable.mjs` 生成。两者都是英文在前、中文在后。本页另有英文版 `portable-release.md`，发布维护一节只在中文版写全。更新版本号、审计结论或其他事实时，所有语言要一起改；`npm run portable:test` 会比对日期、版本号、公告编号、行内代码和列表结构，但比对不了文字含义，改写说明后要人工对照。
+Release 正文取自 `.github/portable-preview-notes.md`，包内 `README.txt` 由 `package-portable.mjs` 生成，两者均为英文在前、中文在后。本页另有英文版 `portable-release.md`，发布维护一节仅在中文版完整列出。更新版本号、审计结论或其他事实时，须同步修改所有语言；`npm run portable:test` 比对日期、版本号、公告编号、行内代码与列表结构，但无法比对文意，改写说明后须人工对照。

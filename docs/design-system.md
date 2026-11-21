@@ -1,16 +1,16 @@
 # Design System
 
-How the Mystry Dashboard web UI looks, reads and is put together. Use it when you design or build a page, a component or user-visible copy in `apps/web`. Writing rules for each language and right-to-left layout are in [Localization](localization.md).
+How the Mystry Dashboard web UI looks, reads and is built. Use it when designing or building a page, component or user-visible copy in `apps/web`. Per-language writing rules and right-to-left layout are in [Localization](localization.md).
 
 - **Source of truth:** [`apps/web/src/styles.css`](../apps/web/src/styles.css) (tokens and every component class) and [`apps/web/src/i18n/`](../apps/web/src/i18n/) (copy). If this page and the code disagree, the code wins — fix this page in the same change.
-- **Visual reference:** a browsable copy with live component previews in both themes lives in the [Mystry Dashboard Design System artifact](https://claude.ai/artifact/L1qMsnhfkv7rZ68ifVdke6) (private; ask the owner for access). It is a snapshot synced from `styles.css` at `edfb414` and does not update on its own.
+- **Visual reference:** a browsable copy with live component previews in both themes is in the [Mystry Dashboard Design System artifact](https://claude.ai/artifact/L1qMsnhfkv7rZ68ifVdke6) (private; ask the owner for access). It is a snapshot synced from `styles.css` at `edfb414` and does not update itself.
 - Token names below are CSS custom properties in `styles.css`: `accent` means `var(--accent)`. Font sizes are `--text-*` tokens; other values written in px are literals in the source, not variables.
 
 ## Content
 
 - **Plain, direct language; address the user as "you".** No exclamation marks, no jokes, no emoji. Say what will happen and what will not: "Copy an existing server from a folder on this machine, or upload a server ZIP. Your original files are never changed or deleted."
 - **Buttons are verbs**, one to three words: "Start", "Reload", "Choose ZIP". Destructive confirmations name the consequence: "Force Stop", "Delete Permanently", "Remove Record".
-- **Page titles are nouns**: "Instances", "Quick Deploy", "Import Server", "This Machine", "Panel Settings". The subtitle is one sentence that says what the page does.
+- **Page titles are nouns**: "Instances", "Quick Deploy", "Import Server", "This Machine", "Panel Settings". The subtitle is one sentence saying what the page does.
 - **Status words are fixed** and come from the glossary in `apps/web/src/i18n/en/common.ts`: Stopped, Starting, Running, Stopping, Crashed, Needs Migration; tasks are Queued, In Progress, Completed, Failed, Cancelled. A cancelled task is still `failed` in the data; the Task Center shows it as Cancelled in neutral gray, because cancelling is not an error.
 - **Empty states give the next step** (title + one sentence + a primary button, or, where there are several ways to start, a list of full-row choices with one sentence each, as on the empty overview); **errors give the cause and the way out**, never only a code.
 - Keep technical names untranslated: `Paper`, `Fabric`, `JVM`, `server.properties`, `ZIP`. Put a space between a number and its unit (`4 GB`, `3 / 5`).
@@ -24,7 +24,7 @@ The most important rule of the system:
 
 - **Navigation layer** — sidebar, toolbar button groups, pop-up menus, popovers, the floating action bar, the narrow-screen tab bar — is glass: `material`, `material-thick` or `menu-bg`, plus `backdrop-filter: blur(24–40px) saturate(180%)` and the `glass-edge` hairline.
 - **The toolbar has no bar of its own.** Its page title (shown once the content scrolls) and its button group are separate floating glass capsules, like the sidebar and the action bar. When content scrolls under them, `.topbar::before` adds a scroll edge: a light blur masked to fade out downward, never a full-width band with a hard bottom line.
-- **Below 768px only the tab bar keeps the blur.** The toolbar title capsule, its button groups, the sidebar drawer and the floating action bar drop `backdrop-filter` and use the near-opaque `material-flat`; the toolbar scroll edge drops its blur and fades from `bg` at 94%; the task drawer keeps `sheet-bg` without blur, and dialogs switch to the opaque `sheet-bg-solid` (translucent without blur lets text behind show through). Stacked blur layers on the same part of the screen are too costly for phone GPUs. Transient menus and popovers keep their blur.
+- **Below 768px only the tab bar keeps the blur.** The toolbar title capsule, its button groups, the sidebar drawer and the floating action bar drop `backdrop-filter` and use the near-opaque `material-flat`; the toolbar scroll edge drops its blur and fades from `bg` at 94%; the task drawer keeps `sheet-bg` without blur, and dialogs switch to the opaque `sheet-bg-solid` (a translucent sheet without blur lets the text behind it show through). Stacked blur layers on the same part of the screen are too costly for phone GPUs. Transient menus and popovers keep their blur.
 - **Content layer** — page content sits directly on the page background, not on cards. Form sections are a title, a `separator-strong` rule and the fields; grouped lists, the server list and empty states sit between two `separator-strong` rules with `separator` hairlines between rows; the deploy guide is set off by a vertical rule. Type, spacing and rules carry the hierarchy instead of stacked cards. The selector `.page :is(.form-card, .list-group):not(dialog *)` and its siblings in `styles.css` do this, so the same classes inside a native `<dialog>` keep their solid `surface`. Solid `surface` with `card-shadow` remains for things that are picked or float: the deploy core tiles, the login card, the migration panel, dialogs and the task drawer. Never put glass on content, and never make the navigation layer solid.
 - The page background is flat `bg`, with no gradient wash behind it.
 
@@ -108,7 +108,7 @@ These pairs still fall below 4.5:1; do not widen their use: `label-3` on `input-
 
 ## Components
 
-The class names to reach for. Each one is a plain CSS class in `styles.css`; the React components named in brackets wrap them.
+The classes to use. Each is a plain CSS class in `styles.css`; the React components named in brackets wrap them.
 
 | Component | Classes | Notes |
 |---|---|---|
@@ -161,7 +161,7 @@ The class names to reach for. Each one is a plain CSS class in `styles.css`; the
 
 ## Template check
 
-A choice is "templated" when you would have made it the same way for any other product. Before you ship a page, look for these and keep one only when you can say what it tells the user:
+A choice is "templated" when you would have made it the same way for any other product. Before shipping a page, look for these and keep one only when you can say what it tells the user:
 
 - **Structure:** content chopped into identical cards; one radius and one grey shadow on everything; numbered markers (01 / 02 / 03) on things that are not steps; a big number with a small label where one sentence would do (the overview says "3 instances, 1 running, 1 needs attention" instead of stat tiles); gradient washes as decoration.
 - **Type:** one word in a heading set apart in italic, bold or color; ALL-CAPS or widely tracked labels; a small label above a heading that repeats it; many sizes close to each other instead of a few clear steps; a monospace face for small data labels (monospace is for logs, commands and paths).

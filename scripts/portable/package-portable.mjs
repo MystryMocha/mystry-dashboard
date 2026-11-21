@@ -239,7 +239,7 @@ export async function createPortableReadme(destination, version) {
 中文说明在英文之后。
 
 Windows:
-  Double-click mdash.cmd. The panel runs in the background with no window of its own. The window you see shows the account and logs.
+  Double-click mdash.cmd. The panel runs in the background with no window of its own; the window you see shows the account and logs.
   Closing the window does not affect the panel or your servers. To stop them, open mdash.cmd again and press Ctrl+C.
 
 Linux / macOS:
@@ -250,12 +250,12 @@ Commands:
   start, watch, foreground, stop, restart, status, logs, open, reset-password, menu, help
 
 Important notes:
-1. Node.js is bundled. You don't need to install Node or run npm install.
-2. First start creates the admin account and a random 16-character password shown once in the window (default address: http://127.0.0.1:3000). Use reset-password locally if you forget it.
-3. This package doesn't include the Java runtime Minecraft needs. It uses the java on your system PATH by default. You can also scan for and select another installed runtime in the panel.
-4. This preview doesn't register a system service or start automatically at boot.
-5. The config, data and logs folders are created on first start. When you upgrade, stop the panel and keep these folders.
-6. The panel only listens on 127.0.0.1 by default. Don't expose the panel port directly to the untrusted public internet.
+1. Node.js is bundled. There is no need to install Node or run npm install.
+2. The first start creates the admin account with a random 16-character password, shown once in the window (default address: http://127.0.0.1:3000). If you forget it, run reset-password locally.
+3. The Java runtime that Minecraft needs is not included. The java on your system PATH is used by default; you can also select another installed runtime the panel scans, or install Eclipse Temurin from the panel.
+4. This preview does not register a system service or start at boot.
+5. The config, data and logs folders are created on first start. To upgrade, stop the panel and keep these folders.
+6. The panel listens only on 127.0.0.1 by default. Do not expose the panel port directly to the untrusted public internet.
 
 Project home: https://github.com/MystryMocha/mystry-dashboard
 
@@ -264,8 +264,8 @@ Project home: https://github.com/MystryMocha/mystry-dashboard
 Mystry Dashboard ${version} 便携预览版
 
 Windows：
-  双击 mdash.cmd，面板在后台运行，没有单独的窗口，看到的窗口显示账号和日志。
-  关闭窗口不影响面板和服务端。要停止时，重新打开 mdash.cmd 并按 Ctrl+C。
+  双击 mdash.cmd，面板即在后台运行，自身没有窗口；你看到的窗口仅显示账号与日志。
+  关闭窗口不影响面板与服务端。如需停止，重新打开 mdash.cmd 并按 Ctrl+C。
 
 Linux / macOS：
   chmod +x mdash
@@ -275,12 +275,12 @@ Linux / macOS：
   start, watch, foreground, stop, restart, status, logs, open, reset-password, menu, help
 
 重要说明：
-1. 本包自带 Node.js，不需要安装 Node 或运行 npm install。
-2. 首次启动会自动创建管理员 admin 和随机 16 位密码，只在窗口里显示一次（默认访问地址 http://127.0.0.1:3000）；忘记密码可在面板运行期间执行 reset-password 重置。
-3. 本包不含 Minecraft Java；默认使用系统 PATH 中的 java，也可在面板中扫描并选择其他已安装运行时。
-4. 本预览版不会注册系统服务，也不会开机自动启动。
-5. config、data、logs 由首次启动创建。升级时请停止面板，并保留这些目录。
-6. 默认只监听 127.0.0.1。不要把面板端口直接暴露到不可信公网。
+1. 本包自带 Node.js，无需安装 Node 或运行 npm install。
+2. 首次启动自动创建管理员 admin 与 16 位随机密码，密码仅在窗口中显示一次（默认地址 http://127.0.0.1:3000）；忘记密码时，可在面板运行期间执行 reset-password 重置。
+3. 本包不含 Minecraft 所需的 Java；默认使用系统 PATH 中的 java，也可在面板中选择扫描到的其他运行时，或由面板安装 Eclipse Temurin。
+4. 本预览版不注册系统服务，也不随开机自动启动。
+5. config、data、logs 目录于首次启动时创建。升级时须停止面板，并保留这些目录。
+6. 默认仅监听 127.0.0.1。切勿将面板端口直接暴露于不可信的公网。
 
 项目主页：https://github.com/MystryMocha/mystry-dashboard
 `;
