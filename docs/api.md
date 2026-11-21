@@ -39,7 +39,7 @@ CPU is normalized to 0–100% by the total capacity of all logical cores; proces
 |------|------|------|------|
 | GET | `/api/health` | No | `{ ok: true, service: "mystry-dashboard", processFingerprint?: string }` |
 
-`processFingerprint` appears only when the service was started by the portable controller, and is returned only to requests from a loopback address: with "access from other devices" enabled, health checks from other devices do not get it. It lets `mystryctl` tie the state file and PID to the service actually listening; it is not an authentication secret and cannot replace `X-Launcher-Token`. Connections arriving through the panel's built-in network (see below) land on a loopback address and therefore can see it.
+`processFingerprint` appears only when the service was started by the portable controller, and is returned only to requests from a loopback address: with "access from other devices" enabled, health checks from other devices do not get it. It lets `mdash` tie the state file and PID to the service actually listening; it is not an authentication secret and cannot replace `X-Launcher-Token`. Connections arriving through the panel's built-in network (see below) land on a loopback address and therefore can see it.
 
 ## Authentication `/api/auth`
 
@@ -65,7 +65,7 @@ X-Setup-Token: <SETUP_TOKEN>
 {"username":"admin","password":"a strong password of at least 12 characters"}
 ```
 
-Once the user is created the setup endpoint is no longer available. `mystryctl` and `PanelManager` use this endpoint to create `admin` automatically, and remove `SETUP_TOKEN` after success. The secret format requirements are in [Configuration](configuration.md#required-settings-for-first-start).
+Once the user is created the setup endpoint is no longer available. `mdash` uses this endpoint to create `admin` automatically, and remove `SETUP_TOKEN` after success. The secret format requirements are in [Configuration](configuration.md#required-settings-for-first-start).
 
 ### Session Duration
 
@@ -438,9 +438,9 @@ The limits on connection count, inbound message size, command length and send ra
 
 After a command is written to the instance's stdin successfully, the server appends `> command` as a line to that instance's console buffer and pushes it as an `output` frame (adding a line break first when the previous output chunk had none), so every connection and later `history` frames can see the command that was sent. `POST /api/instances/:id/command`, and the `save-off` / `save-all flush` / `save-on` the panel sends automatically during a backup, are echoed the same way.
 
-## PanelManager Local Endpoints
+## Launcher Local Endpoints
 
-`POST /api/launcher/shutdown` is called only by PanelManager in the repository root and does not use the sign-in JWT. The request must come from a loopback address and carry:
+`POST /api/launcher/shutdown` is called only by the local launcher `mdash` and does not use the sign-in JWT. The request must come from a loopback address and carry:
 
 ```http
 X-Launcher-Token: <LAUNCHER_TOKEN>
@@ -457,7 +457,7 @@ Under the same conditions (a loopback origin plus `X-Launcher-Token`) there are 
 | PUT | `/api/launcher/remote-access/direct` | Request body `UpdateDirectAccessRequest`; toggles direct access |
 | POST | `/api/launcher/remote-access/certificate` | Regenerates the certificate |
 
-These endpoints serve the `reset-password` and `remote` commands of `mystryctl`. Requests arriving on the extra listeners (other devices) do not have a loopback source address and always get 403; connections arriving through the panel's built-in network land on a loopback address and are stopped by `X-Launcher-Token`.
+These endpoints serve the `reset-password` and `remote` commands of `mdash`. Requests arriving on the extra listeners (other devices) do not have a loopback source address and always get 403; connections arriving through the panel's built-in network land on a loopback address and are stopped by `X-Launcher-Token`.
 
 ## Multiplayer Tunneling `/api/frp`
 

@@ -25,7 +25,7 @@ Mystry Dashboard is a standalone web application, not a Minecraft mod. It runs o
 
 Personal, home and friend-group servers, run on the computer in front of you:
 
-- **Unzip and Double-Click** — The portable builds for Windows x64 and Linux x64 include Node.js 22 and everything else the panel needs. Double-clicking `mystryctl.cmd` starts the panel in the background and shows the `admin` password once. Closing the window leaves the panel and your servers running.
+- **Unzip and Double-Click** — The portable builds for Windows x64 and Linux x64 include Node.js 22 and everything else the panel needs. Double-clicking `mdash.cmd` starts the panel in the background and shows the `admin` password once. Closing the window leaves the panel and your servers running.
 - **Friends Join Without a Public IP** — Turn on **Virtual LAN** and send friends the join instructions. There's no port forwarding or sign-up, and the panel adds the Windows Firewall rules for you. Public IPv6, your own relay nodes and your own **frp** server work too. Only the game port is shared, never the panel.
 - **Startup Failures Come With a Fix** — If the EULA hasn't been accepted, click **Agree and Start**. If the server needs a different Java, the panel names the version and can install it. Memory and JVM flags are set in a form with G1GC presets, plus Aikar's flags for Paper.
 - **Back Up While People Are Playing** — A backup turns off world saving, flushes the world to disk, packs the folder and turns saving back on, so you never copy a half-written world. A restore checks every file first and backs up the current server before replacing it.
@@ -83,8 +83,8 @@ Pick how you want to run Mystry Dashboard, then [sign in for the first time](doc
 | Option | Requirements | How |
 |---|---|---|
 | **1. Portable preview (Recommended)** | Windows x64 or Linux x64 (Node.js 22 bundled) | [Download, verify and start](docs/portable-release.md) |
-| **2. Windows, from source** | Node.js 22 or later | Double-click `PanelManager.cmd` in the repository root |
-| **3. Linux / WSL, from source** | Node.js 22 or later | Run `./PanelManager.sh start` |
+| **2. Windows, from source** | Node.js 22 or later | Double-click `mdash.cmd` in the repository root |
+| **3. Linux / WSL, from source** | Node.js 22 or later | Run `./mdash.sh start` |
 | **4. Manual development** | Node.js 22 or later, two terminals | [Development guide](docs/development.md) |
 
 ### Start from Source in 3 Steps
@@ -92,23 +92,23 @@ Pick how you want to run Mystry Dashboard, then [sign in for the first time](doc
 Windows PowerShell:
 
 ```powershell
-.\PanelManager.cmd start
+.\mdash.cmd start
 ```
 
 Linux / WSL:
 
 ```bash
-chmod +x PanelManager.sh
-./PanelManager.sh start
+chmod +x mdash.sh
+./mdash.sh start
 ```
 
 1. **Launch**: The launcher checks your environment, installs dependencies, generates `config/panel.env` (or `.env` on Windows) with random secrets, creates the `admin` account with a random 16-character password shown once in the window, and starts the panel in the background.
 2. **Sign in**: Open `http://127.0.0.1:3000` and sign in with the account shown in the launcher window. To set your own password, open **Panel Settings** (the gear at the bottom left) and click **Change Password**. If you forget it, run `reset-password` on this computer.
 3. **Deploy**: Open **Quick Deploy**, pick a core and version, check the EULA box, and click **Start Deploy**.
 
-To open the panel on a phone or another computer, click **Other Devices** in the top bar. On a server you reach over SSH, run `./PanelManager.sh remote on`. See [Open the Panel on Another Device](docs/user-guide.md#open-the-panel-on-another-device).
+To open the panel on a phone or another computer, click **Other Devices** in the top bar. On a server you reach over SSH, run `./mdash.sh remote on`. See [Open the Panel on Another Device](docs/user-guide.md#open-the-panel-on-another-device).
 
-Double-clicking `PanelManager.cmd` opens a menu, and `help` lists every launcher command. [Getting Started](docs/getting-started.md) and the [portable release guide](docs/portable-release.md) explain what each one does.
+Double-clicking `mdash.cmd` opens a menu, and `help` lists every launcher command. [Getting Started](docs/getting-started.md) and the [portable release guide](docs/portable-release.md) explain what each one does.
 
 ### Java for Minecraft
 
@@ -121,7 +121,7 @@ Double-clicking `PanelManager.cmd` opens a menu, and `help` lists every launcher
 | 1.17 to 1.20.4 | **Java 17** |
 | 1.16.5 and earlier | **Java 8** |
 
-**Slow dependency downloads?** For source installations, run `.\PanelManager.cmd mirror` or `./PanelManager.sh mirror` to select npm's own config (default), the official registry, or a mainland China mirror (npmmirror, Tencent Cloud, Huawei Cloud). See [npm download source](docs/configuration.md#npm-registry). Portable builds already bundle production dependencies.
+**Slow dependency downloads?** For source installations, run `.\mdash.cmd mirror` or `./mdash.sh mirror` to select npm's own config (default), the official registry, or a mainland China mirror (npmmirror, Tencent Cloud, Huawei Cloud). See [npm download source](docs/configuration.md#npm-registry). Portable builds already bundle production dependencies.
 
 ### Portable Preview
 
@@ -146,9 +146,9 @@ Which config file the panel reads depends on how you run it:
 
 | How you run it | Config file |
 |---|---|
-| Portable package (`mystryctl`) | `config/panel.env` in the package folder |
-| Linux / WSL, from source (`PanelManager.sh`) | `config/panel.env` in the repository |
-| Windows, from source (`PanelManager.cmd`) | `.env` in the repository root |
+| Portable package (`mdash`) | `config/panel.env` in the package folder |
+| Linux / WSL, from source (`mdash.sh`) | `config/panel.env` in the repository |
+| Windows, from source (`mdash.cmd`) | `.env` in the repository root |
 | Manual (`npm run dev:server`, `npm start`) | `.env` in the repository root |
 
 The launchers create the file and generate its secrets automatically. For manual setup, copy [`.env.example`](.env.example).
@@ -185,7 +185,7 @@ The panel listens on `127.0.0.1` by default, and access from other devices is so
 | `apps/server/` | Fastify 5 API, `node:sqlite`, process, file, backup, LAN/frp and task services |
 | `apps/web/` | React 19, Vite 6, React Router 6 and xterm.js |
 | `packages/shared/` | Shared TypeScript types, JSON Schemas, JVM presets and i18n message keys |
-| `scripts/` | Launchers (`PanelManager`, `mystryctl`), verification scripts and portable packager |
+| `scripts/` | Launcher (`mdash`), verification scripts and portable packager |
 | `docs/` | Bilingual user documentation (`en` & `zh-CN`), architecture/API reference and AI knowledge base |
 
 User documentation ([Documentation Center](docs/README.md), [Getting Started](docs/getting-started.md), [Tutorials](docs/tutorials.md), [User Guide](docs/user-guide.md), [Configuration](docs/configuration.md), [Portable Release](docs/portable-release.md)) is available in both **English** and **Simplified Chinese**. Developer references ([Development Guide](docs/development.md), [API Reference](docs/api.md), [Architecture](docs/architecture.md)), the [Contributing Guide](CONTRIBUTING.md) and the [Changelog](CHANGELOG.md) are available in both languages as well. [CLAUDE.md](CLAUDE.md) and the AI knowledge base in `docs/ai/` are maintained in Chinese. Run the full verification suite with `npm run verify`.

@@ -239,12 +239,12 @@ export async function createPortableReadme(destination, version) {
 中文说明在英文之后。
 
 Windows:
-  Double-click mystryctl.cmd. The panel runs in the background with no window of its own. The window you see shows the account and logs.
-  Closing the window does not affect the panel or your servers. To stop them, open mystryctl.cmd again and press Ctrl+C.
+  Double-click mdash.cmd. The panel runs in the background with no window of its own. The window you see shows the account and logs.
+  Closing the window does not affect the panel or your servers. To stop them, open mdash.cmd again and press Ctrl+C.
 
 Linux / macOS:
-  chmod +x mystryctl
-  ./mystryctl start
+  chmod +x mdash
+  ./mdash start
 
 Commands:
   start, watch, foreground, stop, restart, status, logs, open, reset-password, menu, help
@@ -264,12 +264,12 @@ Project home: https://github.com/MystryMocha/mystry-dashboard
 Mystry Dashboard ${version} 便携预览版
 
 Windows：
-  双击 mystryctl.cmd，面板在后台运行，没有单独的窗口，看到的窗口显示账号和日志。
-  关闭窗口不影响面板和服务端。要停止时，重新打开 mystryctl.cmd 并按 Ctrl+C。
+  双击 mdash.cmd，面板在后台运行，没有单独的窗口，看到的窗口显示账号和日志。
+  关闭窗口不影响面板和服务端。要停止时，重新打开 mdash.cmd 并按 Ctrl+C。
 
 Linux / macOS：
-  chmod +x mystryctl
-  ./mystryctl start
+  chmod +x mdash
+  ./mdash start
 
 支持命令：
   start, watch, foreground, stop, restart, status, logs, open, reset-password, menu, help
@@ -401,8 +401,8 @@ export async function packagePortable({
       path.join(portableRoot, 'app', 'shared', 'package.json'),
     );
     await copyFileOrDirectory(
-      path.join(scriptDir, 'mystryctl.mjs'),
-      path.join(portableRoot, 'app', 'mystryctl.mjs'),
+      path.join(scriptDir, 'mdash.mjs'),
+      path.join(portableRoot, 'app', 'mdash.mjs'),
     );
     await copyFileOrDirectory(
       path.join(repoRoot, 'LICENSE'),
@@ -411,12 +411,12 @@ export async function packagePortable({
 
     if (targetPlatform === 'win32') {
       await copyFileOrDirectory(
-        path.join(scriptDir, 'mystryctl.cmd'),
-        path.join(portableRoot, 'mystryctl.cmd'),
+        path.join(scriptDir, 'mdash.cmd'),
+        path.join(portableRoot, 'mdash.cmd'),
       );
     } else {
-      const wrapperPath = path.join(portableRoot, 'mystryctl');
-      await copyFileOrDirectory(path.join(scriptDir, 'mystryctl.sh'), wrapperPath);
+      const wrapperPath = path.join(portableRoot, 'mdash');
+      await copyFileOrDirectory(path.join(scriptDir, 'mdash.sh'), wrapperPath);
       await fsp.chmod(wrapperPath, 0o755);
     }
 

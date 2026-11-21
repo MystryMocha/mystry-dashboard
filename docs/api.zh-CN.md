@@ -39,7 +39,7 @@ CPU 按整机逻辑核总容量归一至 0–100%；进程内存是驻留内存�
 |------|------|------|------|
 | GET | `/api/health` | 否 | `{ ok: true, service: "mystry-dashboard", processFingerprint?: string }` |
 
-`processFingerprint` 仅在便携控制器启动服务时出现，并且只对来自回环地址的请求返回：开启「从其他设备访问」后，其他设备的健康检查拿不到它。它用于让 `mystryctl` 将状态文件、PID 与实际监听服务对应起来，不是认证密钥，也不能替代 `X-Launcher-Token`。面板自带网络（见下）进来的连接落在回环地址上，因此看得到它。
+`processFingerprint` 仅在便携控制器启动服务时出现，并且只对来自回环地址的请求返回：开启「从其他设备访问」后，其他设备的健康检查拿不到它。它用于让 `mdash` 将状态文件、PID 与实际监听服务对应起来，不是认证密钥，也不能替代 `X-Launcher-Token`。面板自带网络（见下）进来的连接落在回环地址上，因此看得到它。
 
 ## 认证 `/api/auth`
 
@@ -65,7 +65,7 @@ X-Setup-Token: <SETUP_TOKEN>
 {"username":"admin","password":"至少 12 位的强密码"}
 ```
 
-用户创建成功后 setup 接口不再可用。`mystryctl` 和 `PanelManager` 会用这个接口自动创建 `admin`，并在成功后移除 `SETUP_TOKEN`。密钥格式要求见 [配置说明](configuration.zh-CN.md#首次启动必需配置)。
+用户创建成功后 setup 接口不再可用。`mdash` 会用这个接口自动创建 `admin`，并在成功后移除 `SETUP_TOKEN`。密钥格式要求见 [配置说明](configuration.zh-CN.md#首次启动必需配置)。
 
 ### 登录有效期
 
@@ -438,9 +438,9 @@ Authorization: Bearer <token>
 
 命令写入实例 stdin 成功后，服务端把 `> 命令` 作为一行追加到该实例的控制台缓冲并作为 `output` 帧推送（上一块输出没换行时先补换行），因此所有连接和之后的 `history` 帧都能看到已发出的命令。`POST /api/instances/:id/command` 和备份时面板自动发送的 `save-off` / `save-all flush` / `save-on` 同样回显。
 
-## PanelManager 本机接口
+## 启动器本机接口
 
-`POST /api/launcher/shutdown` 只供仓库根目录的 PanelManager 调用，不使用登录 JWT。请求必须来自回环地址并携带：
+`POST /api/launcher/shutdown` 只供本机启动器 `mdash` 调用，不使用登录 JWT。请求必须来自回环地址并携带：
 
 ```http
 X-Launcher-Token: <LAUNCHER_TOKEN>
@@ -457,7 +457,7 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 | PUT | `/api/launcher/remote-access/direct` | 请求体 `UpdateDirectAccessRequest`，开关直接访问 |
 | POST | `/api/launcher/remote-access/certificate` | 重新生成证书 |
 
-这些接口供 `mystryctl` 的 `reset-password` 和 `remote` 命令使用。从额外监听器（其他设备）进来的请求，来源地址不是回环，一律返回 403；面板自带网络进来的连接落在回环地址上，靠 `X-Launcher-Token` 挡住。
+这些接口供 `mdash` 的 `reset-password` 和 `remote` 命令使用。从额外监听器（其他设备）进来的请求，来源地址不是回环，一律返回 403；面板自带网络进来的连接落在回环地址上，靠 `X-Launcher-Token` 挡住。
 
 ## 联机穿透 `/api/frp`
 

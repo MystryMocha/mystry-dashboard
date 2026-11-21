@@ -6,8 +6,8 @@
 
 | 方式 | 适合 | 环境与入口 |
 |---|---|---|
-| 便携版 | 直接使用面板 | Windows/Linux x64，自带 Node.js，使用 `mystryctl` |
-| 源码管理器 | 从源码构建并统一启停 | Node.js ≥ 22，使用 `PanelManager` |
+| 便携版 | 直接使用面板 | Windows/Linux x64，自带 Node.js，使用 `mdash` |
+| 源码管理器 | 从源码构建并统一启停 | Node.js ≥ 22，使用 `mdash.cmd` / `mdash.sh` |
 | 手动开发 | 修改前后端代码 | Node.js ≥ 22，运行两个开发终端 |
 
 所有方式均需另行准备服务端所需的 Java。macOS 没有本 Preview 便携包。配置文件随入口不同而变化，见 [配置文件对照表](configuration.zh-CN.md)；文档中的 `DATA_DIR/...` 表示最终数据根，`MYSTRY_DATA_DIR` 优先于 `DATA_DIR`。
@@ -16,11 +16,11 @@ Windows PowerShell 使用 `npm.cmd`；下文通用 npm 脚本在 Linux/macOS 使
 
 ## 便携版（普通用户推荐）
 
-便携包已经包含 Node.js、生产依赖和构建产物。Windows 解压后双击 `mystryctl.cmd`；Linux x64 解压后运行：
+便携包已经包含 Node.js、生产依赖和构建产物。Windows 解压后双击 `mdash.cmd`；Linux x64 解压后运行：
 
 ```bash
-chmod +x mystryctl
-./mystryctl start
+chmod +x mdash
+./mdash start
 ```
 
 无需执行 `npm install`。请先安装适配目标服务端的 Java；可用 `java -version` 检查默认 PATH 运行时，或在面板中探测并选择其他已安装运行时。完整平台列表、校验、升级和限制见 [便携预览版](portable-release.zh-CN.md)。
@@ -31,63 +31,63 @@ chmod +x mystryctl
 |------|------|
 | Node.js | **≥ 22**（使用内置 `node:sqlite`，无需编译原生 SQLite 模块） |
 | Java | 默认使用 PATH 中的 `java`；部署页和实例设置可选择面板扫描并验证的本机运行时 |
-| 操作系统 | 源码管理器支持 Windows（`PanelManager.cmd`）与 Linux / WSL（`PanelManager.sh`）；便携产物由 Windows x64 与 Linux x64 分别构建和冒烟验证 |
+| 操作系统 | 源码管理器支持 Windows（`mdash.cmd`）与 Linux / WSL（`mdash.sh`）；便携产物由 Windows x64 与 Linux x64 分别构建和冒烟验证 |
 
 面板不接受手填 Java 完整路径。先在运行面板的同一用户环境中执行 `java -version` 检查默认 PATH；需要其他已安装 Java 时，在部署页或实例设置中使用「重新扫描」后的选择器。
 
 ## Windows 一键管理（推荐）
 
-安装 Node.js 22 或更高版本后，双击仓库根目录的 `PanelManager.cmd`。它会自动完成：
+安装 Node.js 22 或更高版本后，双击仓库根目录的 `mdash.cmd`。它会自动完成：
 
 1. 检查 Node 和 npm。
 2. 按 `package-lock.json` 安装依赖，并构建 shared、server 和 web；源码和锁文件没变时跳过。
 3. 没有 `.env` 时从 `.env.example` 复制一份。
-4. 交给跨平台控制器 `mystryctl`：生成互不相同的随机密钥、检查 Java、后台启动面板并打开浏览器。
+4. 交给跨平台控制器 `mdash`：生成互不相同的随机密钥、检查 Java、后台启动面板并打开浏览器。
 
-依赖下载慢或失败时，运行 `.\PanelManager.cmd mirror` 换一个 npm 下载源，见 [npm 下载源](configuration.zh-CN.md#npm-下载源)。
+依赖下载慢或失败时，运行 `.\mdash.cmd mirror` 换一个 npm 下载源，见 [npm 下载源](configuration.zh-CN.md#npm-下载源)。
 
 双击会显示菜单，语言跟随系统（中文系统显示中文，其他显示英文，可用 `MYSTRY_LANG` 指定，见[启动器语言](configuration.zh-CN.md#启动器语言)）。也可以直接使用：
 
 ```powershell
-.\PanelManager.cmd start
-.\PanelManager.cmd foreground
-.\PanelManager.cmd stop
-.\PanelManager.cmd restart
-.\PanelManager.cmd rebuild
-.\PanelManager.cmd mirror
-.\PanelManager.cmd status
-.\PanelManager.cmd logs
-.\PanelManager.cmd open
-.\PanelManager.cmd reset-password
-.\PanelManager.cmd help
+.\mdash.cmd start
+.\mdash.cmd foreground
+.\mdash.cmd stop
+.\mdash.cmd restart
+.\mdash.cmd rebuild
+.\mdash.cmd mirror
+.\mdash.cmd status
+.\mdash.cmd logs
+.\mdash.cmd open
+.\mdash.cmd reset-password
+.\mdash.cmd help
 ```
 
-启动、停止、状态和日志与 Linux 的 `PanelManager.sh`、便携版的 `mystryctl` 是同一套实现，只是配置默认用仓库根目录的 `.env`（设置了 `MYSTRY_CONFIG_PATH` 时用它指定的文件），数据目录按其中的 `DATA_DIR`。日志在仓库根目录的 `logs/`。
+启动、停止、状态和日志与 Linux 的 `mdash.sh`、便携版的 `mdash` 是同一套实现，只是配置默认用仓库根目录的 `.env`（设置了 `MYSTRY_CONFIG_PATH` 时用它指定的文件），数据目录按其中的 `DATA_DIR`。日志在仓库根目录的 `logs/`。
 
 后台停止和重启会先取消部署/导入任务，再逐个安全停止正在运行的 Minecraft 实例；不要直接在任务管理器中强杀 Node 进程。
 
-若已有 `.env` 中的密钥不是 64 位十六进制字符串，PanelManager 会先将原文件备份到数据目录下的 `launcher/config-backups/`，再生成合规的新密钥。更换 `JWT_SECRET` 会使旧登录令牌失效，但不会删除管理员、实例或 Minecraft 存档。
+若已有 `.env` 中的密钥不是 64 位十六进制字符串，源码启动器会先将原文件备份到数据目录下的 `launcher/config-backups/`，再生成合规的新密钥。更换 `JWT_SECRET` 会使旧登录令牌失效，但不会删除管理员、实例或 Minecraft 存档。
 
 ## Linux / WSL 源码一键管理
 
 在仓库根目录执行：
 
 ```bash
-chmod +x PanelManager.sh
-./PanelManager.sh start
+chmod +x mdash.sh
+./mdash.sh start
 ```
 
-`PanelManager.sh` 检查 Node.js 22、按锁文件补装依赖并构建源码，再交给跨平台控制器 `mystryctl` 生成配置、启动和安全停止。它默认把配置写到 `config/panel.env`、数据写到仓库 `data/`；两者均被 Git 忽略。
+`mdash.sh` 检查 Node.js 22、按锁文件补装依赖并构建源码，再交给跨平台控制器 `mdash` 生成配置、启动和安全停止。它默认把配置写到 `config/panel.env`、数据写到仓库 `data/`；两者均被 Git 忽略。
 
 如需隔离 WSL 测试数据，请在启动、停止、查看状态等每次操作前使用相同的环境变量：
 
 ```bash
 export MYSTRY_CONFIG_PATH="${HOME}/mystry-test/config/panel.env"
 export MYSTRY_DATA_DIR="${HOME}/mystry-test"
-./PanelManager.sh start
+./mdash.sh start
 ```
 
-首次空用户库会自动生成随机密钥，创建管理员 `admin` 和随机 16 位密码，并只在窗口里显示一次。不要把密码或 `panel.env` 分享到聊天、仓库或截图中。可用命令为 `start`、`foreground`、`stop`、`restart`、`rebuild`、`mirror`、`status`、`logs`、`open`、`reset-password` 和 `help`；其中 `rebuild` 会先安全停止面板，再重新安装依赖、构建并启动，和 Windows 的 `PanelManager.cmd rebuild` 相同。
+首次空用户库会自动生成随机密钥，创建管理员 `admin` 和随机 16 位密码，并只在窗口里显示一次。不要把密码或 `panel.env` 分享到聊天、仓库或截图中。可用命令为 `start`、`foreground`、`stop`、`restart`、`rebuild`、`mirror`、`status`、`logs`、`open`、`reset-password` 和 `help`；其中 `rebuild` 会先安全停止面板，再重新安装依赖、构建并启动，和 Windows 的 `mdash.cmd rebuild` 相同。
 
 ## 手动安装与首次配置
 
@@ -154,7 +154,7 @@ npm start
 
 在浏览器打开面板地址（默认整合面板为 `http://127.0.0.1:3000`，手动开发为 `http://127.0.0.1:5173`）。
 
-### 使用便携版 `mystryctl` 或源码管理器 `PanelManager`（推荐）
+### 使用 `mdash` 启动（推荐）
 
 1. 首次启动时，启动器已自动创建管理员 `admin` 和随机 16 位密码（只在启动窗口里显示一次），因此浏览器打开会直接显示 **「登录面板」**。
 2. 使用窗口里显示的 `admin` 和随机密码登录，然后点击左下角的齿轮进入「面板设置」，点「修改密码」将密码修改为自己的密码（至少 12 个字符）。
@@ -164,7 +164,7 @@ npm start
 
 1. 空用户库时页面显示 **「初始化管理员」**。在「初始化令牌」中填入当前配置文件里的 `SETUP_TOKEN`（默认配置位置见 [配置说明](configuration.zh-CN.md)，请勿外泄令牌或配置文件）。
 2. 填写用户名（去除首尾空白后 2–64 个字符）与密码（至少 12 个字符，UTF-8 编码不超过 72 字节），点击 **「创建并进入」**。
-3. 创建完成后，从实际使用的配置文件移除 `SETUP_TOKEN` 并重启面板（`mystryctl` 和 `PanelManager` 会自动清理）。若管理员已存在，页面会显示「登录面板」，初始化令牌不能用作登录密码。
+3. 创建完成后，从实际使用的配置文件移除 `SETUP_TOKEN` 并重启面板（`mdash` 会自动清理）。若管理员已存在，页面会显示「登录面板」，初始化令牌不能用作登录密码。
 
 看到总览后，按 [分步教程：第一次开服](tutorials.zh-CN.md#教程-1第一次开服推荐-paper) 部署实例，再启动 Minecraft 服务端。
 
@@ -189,7 +189,7 @@ npm start
 | 4 | 等控制台出现 `Done` | 实例 →「控制台」 |
 | 5 | 游戏添加服务器 `127.0.0.1` | Minecraft 客户端 |
 
-想在手机或另一台电脑上打开面板，点顶栏的 **其他设备**，步骤见 [在其他设备上打开面板](user-guide.zh-CN.md#在其他设备上打开面板)。面板装在经 SSH 登录的服务器上时，首次启动会问一句是否允许你自己的电脑或手机打开面板；之后也可以随时运行 `./PanelManager.sh remote on`（便携版为 `./mystryctl remote on`），再在云平台的安全组里放行面板端口。
+想在手机或另一台电脑上打开面板，点顶栏的 **其他设备**，步骤见 [在其他设备上打开面板](user-guide.zh-CN.md#在其他设备上打开面板)。面板装在经 SSH 登录的服务器上时，首次启动会问一句是否允许你自己的电脑或手机打开面板；之后也可以随时运行 `./mdash.sh remote on`（便携版为 `./mdash remote on`），再在云平台的安全组里放行面板端口。
 
 详细步骤见 [分步教程](tutorials.zh-CN.md) 与 [使用指南](user-guide.zh-CN.md)。
 

@@ -28,12 +28,12 @@ After installing, you can run `java -version` in a terminal to confirm. It's fin
 ### 2. Start the Panel and Sign In
 
 1. Start the panel:
-   - **Portable build (recommended)**: after extracting, on Windows double-click `mystryctl.cmd`. The panel runs in the background, and the window shows the account and important logs. Closing the window doesn't affect the panel or your servers. To stop the panel, double-click to open the window again and press `Ctrl+C`. On Linux, run `./mystryctl start` in the extracted folder. You don't need to install Node.js.
-   - **Source build**: install Node.js 22 or later first. On Windows, double-click `PanelManager.cmd` in the repository root. On Linux / WSL, run `./PanelManager.sh start`. The first run installs dependencies and builds automatically, which takes a few minutes.
+   - **Portable build (recommended)**: after extracting, on Windows double-click `mdash.cmd`. The panel runs in the background, and the window shows the account and important logs. Closing the window doesn't affect the panel or your servers. To stop the panel, double-click to open the window again and press `Ctrl+C`. On Linux, run `./mdash start` in the extracted folder. You don't need to install Node.js.
+   - **Source build**: install Node.js 22 or later first. On Windows, double-click `mdash.cmd` in the repository root. On Linux / WSL, run `./mdash.sh start`. The first run installs dependencies and builds automatically, which takes a few minutes.
 2. The launcher generates the configuration and opens your browser. If the browser doesn't open, go to `http://127.0.0.1:3000` yourself.
 3. On the first run, the launcher creates the administrator `admin` with a random password and shows them in the launcher window. The password is shown only this once, so note it down right away.
 4. The page shows "Sign In". Enter the username and password from the window, then click "Sign In".
-5. After signing in, open **Panel Settings** (the gear at the bottom left), click **Change Password** and change the password to your own (at least 12 characters). If you forget it, run the `reset-password` command while the panel is running (for example `.\mystryctl.cmd reset-password` for the portable build on Windows). The window shows a new password.
+5. After signing in, open **Panel Settings** (the gear at the bottom left), click **Change Password** and change the password to your own (at least 12 characters). If you forget it, run the `reset-password` command while the panel is running (for example `.\mdash.cmd reset-password` on Windows). The window shows a new password.
 
 Don't send the password, the config file, or screenshots that contain them to anyone. To write the configuration by hand or run in development mode, see [Getting Started](getting-started.md#manual-install-and-first-time-configuration).
 

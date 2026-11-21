@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, '..', '..');
-const launcherPath = path.join(projectRoot, 'PanelManager.sh');
-const controllerPath = path.join(projectRoot, 'scripts', 'portable', 'mystryctl.mjs');
+const launcherPath = path.join(projectRoot, 'mdash.sh');
+const controllerPath = path.join(projectRoot, 'scripts', 'portable', 'mdash.mjs');
 
 test('the Linux source launcher reuses the cross-platform controller with a fingerprint', async () => {
   const source = await fs.readFile(launcherPath, 'utf8');
@@ -21,8 +21,8 @@ test('the Linux source launcher reuses the cross-platform controller with a fing
   assert.match(source, /npm ci/);
   assert.match(source, /npm run build/);
   assert.match(source, /rebuild\)\s+call_controller stop\s+ensure_dependencies force\s+build_sources\s+run_controller start/);
-  assert.match(controller, /const sourceManagerCommand = process\.platform === 'win32' \? 'PanelManager\.cmd' : 'PanelManager\.sh';/);
-  assert.match(controller, /const managerCommand = portableMode \? 'mystryctl' : sourceManagerCommand;/);
+  assert.match(controller, /const sourceManagerCommand = process\.platform === 'win32' \? 'mdash\.cmd' : 'mdash\.sh';/);
+  assert.match(controller, /const managerCommand = portableMode \? 'mdash' : sourceManagerCommand;/);
   assert.match(controller, /const repositoryServerEntry = path\.join\(homeDir, 'apps', 'server', 'dist', 'index\.js'\);/);
 });
 
@@ -35,12 +35,12 @@ test('the launcher on Linux can forward the help command directly', { skip: proc
 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Mystry Dashboard 源码版管理器/);
-  assert.match(result.stdout, /用法：PanelManager\.sh <command>/);
+  assert.match(result.stdout, /用法：mdash\.sh <command>/);
   assert.match(result.stdout, /start\s+后台启动面板/);
 });
 
 test('reset-password in the Linux launcher refuses and returns non-zero when output is not a terminal', { skip: process.platform !== 'linux' }, async (t) => {
-  // Output goes through a pipe: mystryctl must refuse before contacting the server, and after exec the exit code is returned as is.
+  // Output goes through a pipe: the controller must refuse before contacting the server, and after exec the exit code is returned as is.
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-linux-reset-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const result = spawnSync('bash', [launcherPath, 'reset-password'], {
@@ -92,16 +92,16 @@ test('the Linux launcher installs dependencies from the chosen download source',
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await fs.mkdir(path.join(root, 'scripts', 'portable'), { recursive: true });
   await fs.mkdir(path.join(root, 'bin'));
-  await fs.copyFile(launcherPath, path.join(root, 'PanelManager.sh'));
+  await fs.copyFile(launcherPath, path.join(root, 'mdash.sh'));
   for (const name of ['npm-mirror.mjs', 'is-main-module.mjs']) {
     await fs.copyFile(path.join(projectRoot, 'scripts', name), path.join(root, 'scripts', name));
   }
-  await fs.writeFile(path.join(root, 'scripts', 'portable', 'mystryctl.mjs'), '', 'utf8');
+  await fs.writeFile(path.join(root, 'scripts', 'portable', 'mdash.mjs'), '', 'utf8');
   await fs.writeFile(path.join(root, 'package-lock.json'), '{}', 'utf8');
   const npmLog = path.join(root, 'npm.log');
   await fs.writeFile(path.join(root, 'bin', 'npm'), `#!/bin/sh\necho "$*" >> "${npmLog}"\n`, { mode: 0o755 });
 
-  const run = (args, env = {}) => spawnSync('bash', [path.join(root, 'PanelManager.sh'), ...args], {
+  const run = (args, env = {}) => spawnSync('bash', [path.join(root, 'mdash.sh'), ...args], {
     cwd: root,
     encoding: 'utf8',
     env: { ...process.env, PATH: `${path.join(root, 'bin')}${path.delimiter}${process.env.PATH}`, MYSTRY_LANG: 'zh-CN', ...env },

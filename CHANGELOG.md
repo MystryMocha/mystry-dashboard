@@ -6,6 +6,10 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Changed
+
+- The launcher command is now `mdash` everywhere: the source launchers `PanelManager.cmd` / `PanelManager.sh` become `mdash.cmd` / `mdash.sh`, and the portable `mystryctl.cmd` / `mystryctl` become `mdash.cmd` / `mdash`. The commands themselves are unchanged. The old names are gone without aliases, so update shortcuts and scripts; to stop a panel started by an older portable package, run `mystryctl stop` in its folder. The product name, the `MYSTRY_*` environment variables and the data directory layout stay the same.
+
 ## [0.2.0-preview.5] - 2026-11-21
 
 ### Added

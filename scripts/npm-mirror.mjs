@@ -25,7 +25,7 @@ export const NPM_MIRRORS = [
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // config/ is already ignored by .gitignore; a separate file is used so the config file holding secrets is not touched.
 const selectionPath = path.join(projectRoot, 'config', 'npm-mirror');
-const managerCommand = process.platform === 'win32' ? '.\\PanelManager.cmd' : './PanelManager.sh';
+const managerCommand = process.platform === 'win32' ? '.\\mdash.cmd' : './mdash.sh';
 
 // The launcher has already normalized the UI language and written it to MYSTRY_LANG.
 const chinese = /^zh/i.test(process.env.MYSTRY_LANG ?? '');

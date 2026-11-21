@@ -12,5 +12,5 @@ export MYSTRY_CONFIG_PATH MYSTRY_DATA_DIR
 exec "$MYSTRY_HOME/runtime/bin/node" \
   --no-warnings \
   --experimental-sqlite \
-  "$MYSTRY_HOME/app/mystryctl.mjs" \
+  "$MYSTRY_HOME/app/mdash.mjs" \
   "$@"

@@ -7,9 +7,9 @@
 | 启动入口 | 默认配置文件 | 首次配置 |
 |---|---|---|
 | 手动运行 `npm run dev:server` / `npm start` | 仓库根 `.env` | 复制 `.env.example` 并填写随机密钥 |
-| Windows 源码 `PanelManager.cmd` | 仓库根 `.env`（可用 `MYSTRY_CONFIG_PATH` 改） | 管理器从 `.env.example` 创建，密钥由 mystryctl 生成或修复 |
-| Linux / WSL 源码 `PanelManager.sh` | 仓库根 `config/panel.env` | 跨平台控制器自动生成 |
-| 便携版 `mystryctl` | 包根 `config/panel.env` | 跨平台控制器自动生成 |
+| Windows 源码 `mdash.cmd` | 仓库根 `.env`（可用 `MYSTRY_CONFIG_PATH` 改） | 管理器从 `.env.example` 创建，密钥由 mdash 生成或修复 |
+| Linux / WSL 源码 `mdash.sh` | 仓库根 `config/panel.env` | 跨平台控制器自动生成 |
+| 便携版 `mdash` | 包根 `config/panel.env` | 跨平台控制器自动生成 |
 
 表中列出默认值。路径覆盖变量见下方环境变量表；已有配置请保留，不要再次用模板覆盖。Windows PowerShell 使用 `npm.cmd`。
 
@@ -19,7 +19,7 @@
 
 - `JWT_SECRET`：64 位十六进制字符串，用于 JWT 签名。
 - `SETUP_TOKEN`：64 位十六进制字符串，用于首次 setup 请求的 `X-Setup-Token` header。管理器会自动生成并在创建管理员后移除，只有手动运行才需要自己配置。
-- `LAUNCHER_TOKEN`：PanelManager / mystryctl 自动生成的独立本机关闭令牌；手动运行且不使用管理器时可以不配置。
+- `LAUNCHER_TOKEN`：`mdash` 自动生成的独立本机关闭令牌；手动运行且不使用管理器时可以不配置。
 
 已配置的密钥必须分别使用不同的随机值。Node.js 生成命令如下；文档和模板不提供可用固定密钥：
 
@@ -41,7 +41,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | `PORT` | `3000` | 监听端口 |
 | `JWT_SECRET` | 无；初次启动前必填 | 64 位十六进制 JWT 签名密钥，不要使用固定示例值 |
 | `SETUP_TOKEN` | 无；初次 setup 前必填 | 64 位十六进制初始化令牌；setup 完成后可移除 |
-| `LAUNCHER_TOKEN` | 无；使用 PanelManager / mystryctl 时自动生成 | 64 位十六进制本机关闭令牌；仅回环地址可使用 |
+| `LAUNCHER_TOKEN` | 无；使用 `mdash` 时自动生成 | 64 位十六进制本机关闭令牌；仅回环地址可使用 |
 | `CORS_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` | 精确 CORS 来源白名单，逗号分隔，不要填写 `*` |
 | `RATE_LIMIT_MAX` | `120` | 普通请求限流窗口内的最大次数 |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | 普通请求限流窗口，毫秒 |
@@ -139,7 +139,7 @@ ZIP 导入的预检结果暂存在 `uploads/.tmp-import-preview-*`，按登录�
 
 ### 启动器语言
 
-`PanelManager.cmd`、`PanelManager.sh` 和 `mystryctl` 的菜单与提示跟随系统语言：系统语言是中文时显示中文，其他语言一律显示英文。Windows 看显示语言，Linux / macOS 依次看 `LC_ALL`、`LC_MESSAGES`、`LANG`。只影响启动器，不影响 Web 界面和面板日志。
+`mdash.cmd`、`mdash.sh` 和 `mdash` 的菜单与提示跟随系统语言：系统语言是中文时显示中文，其他语言一律显示英文。Windows 看显示语言，Linux / macOS 依次看 `LC_ALL`、`LC_MESSAGES`、`LANG`。只影响启动器，不影响 Web 界面和面板日志。
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
@@ -161,20 +161,20 @@ ZIP 导入的预检结果暂存在 `uploads/.tmp-import-preview-*`，按登录�
 
 **符号链接**：数据目录或备份目录所在的上级文件夹是符号链接或 junction 时（例如 `/home` 本身就是链接的 Linux 发行版），面板读取配置时会换成真实位置。数据目录本身及其中的内容不能是链接，否则面板会拒绝操作实例。
 
-**权限**：在 Linux/macOS 上，面板启动时会创建并校验数据根及 `instances`、`imports`、`uploads`、`.mystry-staging`、`.mystry-panel-lock` 等目录为 `0700`，`panel.db` 及其 WAL/SHM 为 `0600`。若已有目录对 group/other 可访问，默认拒绝启动；设置 `MYSTRY_REPAIR_DATA_PERMISSIONS=1` 可在启动时自动收紧权限。Windows 无法由 Node 可靠验证 ACL，首次启动会输出阻断级警告——请确保 `DATA_DIR` 仅当前运行面板的用户可读写（便携版由 `mystryctl`/PanelManager 创建用户专属目录）。
+**权限**：在 Linux/macOS 上，面板启动时会创建并校验数据根及 `instances`、`imports`、`uploads`、`.mystry-staging`、`.mystry-panel-lock` 等目录为 `0700`，`panel.db` 及其 WAL/SHM 为 `0600`。若已有目录对 group/other 可访问，默认拒绝启动；设置 `MYSTRY_REPAIR_DATA_PERMISSIONS=1` 可在启动时自动收紧权限。Windows 无法由 Node 可靠验证 ACL，首次启动会输出阻断级警告——请确保 `DATA_DIR` 仅当前运行面板的用户可读写（便携版由 `mdash` 创建用户专属目录）。
 
-`MYSTRY_HOME` 和 `MYSTRY_CONFIG_PATH` 用于确定配置文件位置，因此不能依赖该配置文件自己改变其加载位置；应由 `mystryctl`、shell 或进程环境在启动前设置。便携用户通常不需要手动设置这些变量。
+`MYSTRY_HOME` 和 `MYSTRY_CONFIG_PATH` 用于确定配置文件位置，因此不能依赖该配置文件自己改变其加载位置；应由 `mdash`、shell 或进程环境在启动前设置。便携用户通常不需要手动设置这些变量。
 
 ## npm 下载源
 
 源码启动器安装依赖时使用的下载地址。便携版自带依赖，不用设置。
 
 ```powershell
-.\PanelManager.cmd mirror
-.\PanelManager.cmd mirror npmmirror
+.\mdash.cmd mirror
+.\mdash.cmd mirror npmmirror
 ```
 
-第一条查看当前选择和可选项，第二条切换。Linux / WSL 用 `./PanelManager.sh mirror`；Windows 双击 `PanelManager.cmd` 后也可以在菜单里选。
+第一条查看当前选择和可选项，第二条切换。Linux / WSL 用 `./mdash.sh mirror`；Windows 双击 `mdash.cmd` 后也可以在菜单里选。
 
 | 名称 | 下载地址 | 说明 |
 |------|----------|------|

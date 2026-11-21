@@ -6,8 +6,8 @@ First pick one way to run the panel. Once it has started, follow [Set Up Adminis
 
 | Option | Best for | Environment and entry point |
 |---|---|---|
-| Portable build | Just using the panel | Windows/Linux x64, bundles Node.js, uses `mystryctl` |
-| Source launcher | Building from source and starting/stopping everything in one place | Node.js ≥ 22, uses `PanelManager` |
+| Portable build | Just using the panel | Windows/Linux x64, bundles Node.js, uses `mdash` |
+| Source launcher | Building from source and starting/stopping everything in one place | Node.js ≥ 22, uses `mdash.cmd` / `mdash.sh` |
 | Manual development | Changing the frontend or backend code | Node.js ≥ 22, runs two development terminals |
 
 With every option, you need to install the Java your server requires yourself. There is no portable package for macOS in this Preview. The configuration file differs by entry point; see the [configuration file comparison table](configuration.md). In these docs, `DATA_DIR/...` means the final data root, and `MYSTRY_DATA_DIR` takes priority over `DATA_DIR`.
@@ -16,11 +16,11 @@ Windows PowerShell uses `npm.cmd`. For the generic npm scripts below, use `npm` 
 
 ## Portable Build (Recommended for Most Users)
 
-The portable package already contains Node.js, production dependencies and the build output. On Windows, extract it and double-click `mystryctl.cmd`. On Linux x64, extract it and run:
+The portable package already contains Node.js, production dependencies and the build output. On Windows, extract it and double-click `mdash.cmd`. On Linux x64, extract it and run:
 
 ```bash
-chmod +x mystryctl
-./mystryctl start
+chmod +x mdash
+./mdash start
 ```
 
 You don't need to run `npm install`. Install a Java version that suits your target server first. You can check the default PATH runtime with `java -version`, or scan for and select another installed runtime in the panel. For the full platform list, verification, upgrades and limitations, see [Portable Preview](portable-release.md).
@@ -31,63 +31,63 @@ You don't need to run `npm install`. Install a Java version that suits your targ
 |------|------|
 | Node.js | **≥ 22** (uses the built-in `node:sqlite`, so no native SQLite module needs compiling) |
 | Java | Uses the `java` on PATH by default; the deploy page and instance settings let you select a local runtime that the panel has scanned and verified |
-| Operating system | The source launcher supports Windows (`PanelManager.cmd`) and Linux / WSL (`PanelManager.sh`); the portable artifacts are built and smoke-tested separately on Windows x64 and Linux x64 |
+| Operating system | The source launcher supports Windows (`mdash.cmd`) and Linux / WSL (`mdash.sh`); the portable artifacts are built and smoke-tested separately on Windows x64 and Linux x64 |
 
 The panel does not accept a hand-typed full Java path. First run `java -version` in the same user environment that runs the panel to check the default PATH. If you need a different installed Java, click **Rescan** on the deploy page or in the instance settings, then use the selector.
 
 ## One-Click Management on Windows (Recommended)
 
-After you install Node.js 22 or later, double-click `PanelManager.cmd` in the repository root. It automatically:
+After you install Node.js 22 or later, double-click `mdash.cmd` in the repository root. It automatically:
 
 1. Checks Node and npm.
 2. Installs dependencies according to `package-lock.json`, and builds shared, server and web. It skips this when the source and lock file haven't changed.
 3. Copies `.env.example` to `.env` if there is no `.env`.
-4. Hands over to the cross-platform controller `mystryctl`, which generates random secrets that all differ from each other, checks Java, starts the panel in the background and opens your browser.
+4. Hands over to the cross-platform controller `mdash`, which generates random secrets that all differ from each other, checks Java, starts the panel in the background and opens your browser.
 
-If dependency downloads are slow or fail, run `.\PanelManager.cmd mirror` to choose another npm download source. See [npm download source](configuration.md#npm-registry).
+If dependency downloads are slow or fail, run `.\mdash.cmd mirror` to choose another npm download source. See [npm download source](configuration.md#npm-registry).
 
 Double-clicking shows a menu. Its language follows your system (Chinese on a Chinese system, English otherwise; you can set it with `MYSTRY_LANG`, see [launcher language](configuration.md#launcher-language)). You can also run these directly:
 
 ```powershell
-.\PanelManager.cmd start
-.\PanelManager.cmd foreground
-.\PanelManager.cmd stop
-.\PanelManager.cmd restart
-.\PanelManager.cmd rebuild
-.\PanelManager.cmd mirror
-.\PanelManager.cmd status
-.\PanelManager.cmd logs
-.\PanelManager.cmd open
-.\PanelManager.cmd reset-password
-.\PanelManager.cmd help
+.\mdash.cmd start
+.\mdash.cmd foreground
+.\mdash.cmd stop
+.\mdash.cmd restart
+.\mdash.cmd rebuild
+.\mdash.cmd mirror
+.\mdash.cmd status
+.\mdash.cmd logs
+.\mdash.cmd open
+.\mdash.cmd reset-password
+.\mdash.cmd help
 ```
 
-Start, stop, status and logs share one implementation with `PanelManager.sh` on Linux and `mystryctl` in the portable build. The only difference is that the configuration defaults to `.env` in the repository root (or the file set by `MYSTRY_CONFIG_PATH`, if you set it), and the data directory follows the `DATA_DIR` in that file. Logs are in `logs/` in the repository root.
+Start, stop, status and logs share one implementation with `mdash.sh` on Linux and `mdash` in the portable build. The only difference is that the configuration defaults to `.env` in the repository root (or the file set by `MYSTRY_CONFIG_PATH`, if you set it), and the data directory follows the `DATA_DIR` in that file. Logs are in `logs/` in the repository root.
 
 A background stop or restart first cancels deploy/import tasks, then safely stops each running Minecraft instance one by one. Do not force-kill the Node process in Task Manager.
 
-If a secret in your existing `.env` is not a 64-character hexadecimal string, PanelManager first backs up the original file to `launcher/config-backups/` under the data directory, then generates new valid secrets. Changing `JWT_SECRET` invalidates old sign-in tokens, but it does not delete the administrator, instances or Minecraft worlds.
+If a secret in your existing `.env` is not a 64-character hexadecimal string, the source launcher first backs up the original file to `launcher/config-backups/` under the data directory, then generates new valid secrets. Changing `JWT_SECRET` invalidates old sign-in tokens, but it does not delete the administrator, instances or Minecraft worlds.
 
 ## One-Click Source Management on Linux / WSL
 
 Run these in the repository root:
 
 ```bash
-chmod +x PanelManager.sh
-./PanelManager.sh start
+chmod +x mdash.sh
+./mdash.sh start
 ```
 
-`PanelManager.sh` checks for Node.js 22, installs any missing dependencies according to the lock file and builds the source. It then hands over to the cross-platform controller `mystryctl` to generate the configuration, start the panel and stop it safely. By default it writes the configuration to `config/panel.env` and the data to `data/` in the repository. Both are ignored by Git.
+`mdash.sh` checks for Node.js 22, installs any missing dependencies according to the lock file and builds the source. It then hands over to the cross-platform controller `mdash` to generate the configuration, start the panel and stop it safely. By default it writes the configuration to `config/panel.env` and the data to `data/` in the repository. Both are ignored by Git.
 
 If you want to keep WSL test data separate, use the same environment variables before every operation, including start, stop and status:
 
 ```bash
 export MYSTRY_CONFIG_PATH="${HOME}/mystry-test/config/panel.env"
 export MYSTRY_DATA_DIR="${HOME}/mystry-test"
-./PanelManager.sh start
+./mdash.sh start
 ```
 
-On the first run with an empty user database, it automatically generates random secrets and creates the administrator `admin` with a random 16-character password, which is shown only once in the window. Do not share the password or `panel.env` in chats, repositories or screenshots. The available commands are `start`, `foreground`, `stop`, `restart`, `rebuild`, `mirror`, `status`, `logs`, `open`, `reset-password` and `help`. `rebuild` safely stops the panel first, then reinstalls dependencies, builds and starts again, the same as `PanelManager.cmd rebuild` on Windows.
+On the first run with an empty user database, it automatically generates random secrets and creates the administrator `admin` with a random 16-character password, which is shown only once in the window. Do not share the password or `panel.env` in chats, repositories or screenshots. The available commands are `start`, `foreground`, `stop`, `restart`, `rebuild`, `mirror`, `status`, `logs`, `open`, `reset-password` and `help`. `rebuild` safely stops the panel first, then reinstalls dependencies, builds and starts again, the same as `mdash.cmd rebuild` on Windows.
 
 ## Manual Install and First-Time Configuration
 
@@ -154,7 +154,7 @@ It listens on **http://127.0.0.1:3000** by default, with the frontend and backen
 
 Open the panel address in your browser (`http://127.0.0.1:3000` by default, or `http://127.0.0.1:5173` in manual development mode).
 
-### Started with `mystryctl` or `PanelManager` (Recommended)
+### Started with `mdash` (Recommended)
 
 1. On the first run, the launcher has already created the `admin` account with a random 16-character password (shown once in the launcher window), so the browser opens directly to **Sign In**.
 2. Sign in with `admin` and the password from the launcher window, then open **Panel Settings** (the gear at the bottom left) and click **Change Password** to set your own password (at least 12 characters).
@@ -164,7 +164,7 @@ Open the panel address in your browser (`http://127.0.0.1:3000` by default, or `
 
 1. With an empty user database, the page shows **Set Up Administrator**. In **Setup Token**, enter the `SETUP_TOKEN` from your configuration file (see [Configuration](configuration.md)). Do not share the token or configuration file.
 2. Enter a username (2–64 characters after trimming whitespace) and a password (at least 12 characters, and no more than 72 bytes in UTF-8), then click **Create and Continue**.
-3. Once the administrator is created, remove `SETUP_TOKEN` from your configuration file and restart the panel (`mystryctl` and `PanelManager` clean it up automatically). If an administrator already exists, the page shows **Sign In**; `SETUP_TOKEN` cannot be used as a sign-in password.
+3. Once the administrator is created, remove `SETUP_TOKEN` from your configuration file and restart the panel (`mdash` cleans it up automatically). If an administrator already exists, the page shows **Sign In**; `SETUP_TOKEN` cannot be used as a sign-in password.
 
 Once you see the **Instances** page, follow [Step-by-Step Tutorials: Your First Server](tutorials.md#tutorial-1-your-first-server-paper-recommended) to deploy an instance, then start the Minecraft server.
 
@@ -189,7 +189,7 @@ Once you see the **Instances** page, follow [Step-by-Step Tutorials: Your First 
 | 4 | Wait for `Done` to appear in the console | Instance → **Console** |
 | 5 | Add the server `127.0.0.1` in the game | Minecraft client |
 
-To open the panel on a phone or another computer, click **Other Devices** in the top bar. See [Open the Panel on Another Device](user-guide.md#open-the-panel-on-another-device). When the panel is installed on a server you reach over SSH, the first run asks once whether your own computer or phone may open the panel. You can also run `./PanelManager.sh remote on` (`./mystryctl remote on` in the portable build) at any time, then allow the panel port in your cloud provider's security group.
+To open the panel on a phone or another computer, click **Other Devices** in the top bar. See [Open the Panel on Another Device](user-guide.md#open-the-panel-on-another-device). When the panel is installed on a server you reach over SSH, the first run asks once whether your own computer or phone may open the panel. You can also run `./mdash.sh remote on` (`./mdash remote on` in the portable build) at any time, then allow the panel port in your cloud provider's security group.
 
 For detailed steps, see [Step-by-Step Tutorials](tutorials.md) and the [User Guide](user-guide.md).
 

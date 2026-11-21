@@ -43,8 +43,8 @@ test('portable package paths use only printable ASCII, so the tar shipped with W
 });
 
 test('the portable entry calls only the Node runtime inside the package', async () => {
-  const windows = await fsp.readFile(path.join(scriptDir, 'mystryctl.cmd'), 'utf8');
-  const unix = await fsp.readFile(path.join(scriptDir, 'mystryctl.sh'), 'utf8');
+  const windows = await fsp.readFile(path.join(scriptDir, 'mdash.cmd'), 'utf8');
+  const unix = await fsp.readFile(path.join(scriptDir, 'mdash.sh'), 'utf8');
   assert.match(windows, /runtime\\node\.exe/i);
   assert.doesNotMatch(windows, /\bnpm(?:\.cmd)?\b/i);
   assert.match(unix, /runtime\/bin\/node/);
@@ -122,7 +122,7 @@ test('README.txt in the package has English first, and the English and Chinese s
     assertSameContent(english, chinese);
     for (const text of [english, chinese]) {
       assert.match(text, /start, watch, foreground, stop, restart, status, logs, open, reset-password, menu, help/);
-      assert.match(text, /chmod \+x mystryctl/);
+      assert.match(text, /chmod \+x mdash/);
     }
   } finally {
     await fsp.rm(directory, { recursive: true, force: true });
@@ -139,7 +139,7 @@ async function startInteractiveController(t, args = ['menu']) {
   await fsp.writeFile(preload, "Object.defineProperty(process.stdin, 'isTTY', { value: true });\n", 'utf8');
   const child = spawn(
     process.execPath,
-    ['--import', pathToFileURL(preload).href, path.join(scriptDir, 'mystryctl.mjs'), ...args],
+    ['--import', pathToFileURL(preload).href, path.join(scriptDir, 'mdash.mjs'), ...args],
     {
       env: {
         ...process.env,
@@ -214,7 +214,7 @@ test('a menu command that fails also shows the error first and waits for Enter',
 function runController(command, env, nodeArgs = [], { input } = {}) {
   return new Promise((resolve) => {
     // command may be an array: remote takes a subcommand and arguments. When input is not empty it is connected to standard input, to answer prompts.
-    const child = spawn(process.execPath, [...nodeArgs, path.join(scriptDir, 'mystryctl.mjs'), ...[command].flat()], {
+    const child = spawn(process.execPath, [...nodeArgs, path.join(scriptDir, 'mdash.mjs'), ...[command].flat()], {
       env,
       stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     });
@@ -362,7 +362,7 @@ for (const language of ['zh-CN', 'en-US']) {
 
 test('the UI language follows MYSTRY_LANG and LANG, and anything not Chinese uses English', () => {
   const help = (env) => {
-    const result = spawnSync(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'help'], {
+    const result = spawnSync(process.execPath, [path.join(scriptDir, 'mdash.mjs'), 'help'], {
       env: { ...process.env, MYSTRY_LANG: '', LC_ALL: '', LC_MESSAGES: '', LANG: '', ...env },
       encoding: 'utf8',
     });
@@ -396,7 +396,7 @@ test('the smoke log check holds in every UI language', async (t) => {
   assert.equal(expectedLine, '{"msg":"Server listening"}');
 
   for (const language of ['zh-CN', 'en-US']) {
-    const result = spawnSync(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'logs'], {
+    const result = spawnSync(process.execPath, [path.join(scriptDir, 'mdash.mjs'), 'logs'], {
       env: {
         ...process.env,
         MYSTRY_HOME: home,
@@ -868,7 +868,7 @@ test('foreground mode shows only readable logs, and the full log is written to a
     'plain line',
   ];
   const port = await reservePort();
-  const child = spawn(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'foreground'], {
+  const child = spawn(process.execPath, [path.join(scriptDir, 'mdash.mjs'), 'foreground'], {
     env: {
       ...(process.platform === 'win32' ? process.env : { PATH: fakeBin }),
       MYSTRY_HOME: home,
@@ -920,7 +920,7 @@ for (const [name, terminal] of [['终端里显示账号和密码', true], ['输�
     const configPath = path.join(home, 'config', 'panel.env');
     const child = spawn(process.execPath, [
       ...(terminal ? ['--import', pathToFileURL(preload).href] : []),
-      path.join(scriptDir, 'mystryctl.mjs'),
+      path.join(scriptDir, 'mdash.mjs'),
       'foreground',
     ], {
       env: {
@@ -1013,7 +1013,7 @@ for (const scenario of [
     else env.MYSTRY_NO_BROWSER = '1';
     const child = spawn(process.execPath, [
       ...(scenario.terminal ? ['--import', pathToFileURL(preload).href] : []),
-      path.join(scriptDir, 'mystryctl.mjs'),
+      path.join(scriptDir, 'mdash.mjs'),
       'foreground',
     ], { env, stdio: [scenario.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] });
     if (scenario.input !== undefined) child.stdin.write(scenario.input);
@@ -1098,7 +1098,7 @@ test('closing the window after a double-click start does not affect the backgrou
   const health = async () => (await fetch(`http://127.0.0.1:${port}/api/health`).catch(() => null))?.ok === true;
   const openWindow = () => {
     const child = spawn(process.execPath, [
-      '--import', pathToFileURL(preload).href, path.join(scriptDir, 'mystryctl.mjs'),
+      '--import', pathToFileURL(preload).href, path.join(scriptDir, 'mdash.mjs'),
     ], { env, stdio: ['pipe', 'pipe', 'pipe'] });
     const window = { child, output: '', exited: new Promise((resolve) => child.on('close', resolve)) };
     child.stdout.on('data', (chunk) => { window.output += chunk; });
@@ -1152,7 +1152,7 @@ test('pressing Ctrl+C twice in foreground mode still waits for the panel to shut
   // The pre-start check needs java; PATH holds only this fake java, which also keeps the token out of the dev machine's clipboard.
   await fsp.writeFile(path.join(fakeBin, 'java'), '#!/bin/sh\necho \'openjdk version "21"\' >&2\n', { mode: 0o755 });
 
-  const child = spawn(process.execPath, [path.join(scriptDir, 'mystryctl.mjs'), 'foreground'], {
+  const child = spawn(process.execPath, [path.join(scriptDir, 'mdash.mjs'), 'foreground'], {
     env: {
       PATH: fakeBin,
       MYSTRY_HOME: home,

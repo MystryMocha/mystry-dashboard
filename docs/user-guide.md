@@ -442,7 +442,7 @@ If there's no notice:
 
 ### You Forgot the Administrator Password
 
-While the panel is running, run the `reset-password` command on the computer that runs the panel: `.\mystryctl.cmd reset-password` for the portable build on Windows, `./mystryctl reset-password` for the portable build on Linux, and `.\PanelManager.cmd reset-password` or `./PanelManager.sh reset-password` for the source build. The window shows a new random password, only once. Run it directly in a terminal window: if its output is redirected to a file or piped, the command refuses and the old password stays valid. After signing in, open **Panel Settings** (the gear at the bottom left) and click **Change Password** to change it to your own.
+While the panel is running, run the `reset-password` command on the computer that runs the panel: `.\mdash.cmd reset-password` on Windows, and on Linux `./mdash reset-password` for the portable build or `./mdash.sh reset-password` for the source build. The window shows a new random password, only once. Run it directly in a terminal window: if its output is redirected to a file or piped, the command refuses and the old password stays valid. After signing in, open **Panel Settings** (the gear at the bottom left) and click **Change Password** to change it to your own.
 
 Resetting the password signs out every browser and device, including the ones you're using. Open the panel again and sign in with the new password.
 
