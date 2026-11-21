@@ -351,7 +351,7 @@ for (const language of ['zh-CN', 'en-US']) {
     assert.equal(result.output.includes(body.password), true, '终端里应显示新密码');
     assert.equal(result.output.includes(panel.launcherToken), false, '令牌不应出现在输出里');
     // The release smoke test relies on this check to catch passwords, so the separator and the password line each have to be recognized in the controller's real output; errors must not echo the password either.
-    const rejectsWithoutEcho = (error) => /密码块/.test(error.message) && !error.message.includes(body.password);
+    const rejectsWithoutEcho = (error) => /password block/.test(error.message) && !error.message.includes(body.password);
     assert.throws(() => assertNoCredentialsShown(result.output, 'reset-password'), rejectsWithoutEcho);
     const withoutDivider = result.output.replace(/^=+\r?$/gm, '');
     assert.throws(() => assertNoCredentialsShown(withoutDivider, 'reset-password'), rejectsWithoutEcho);
@@ -408,13 +408,13 @@ test('冒烟的日志检查在每种界面语言下都成立', async (t) => {
     assert.equal(result.status, 0, result.stderr);
     assertLogsShowLine(result.stdout, expectedLine);
   }
-  assert.throws(() => assertLogsShowLine('--- Recent stdout ---\n', expectedLine), /缺少/);
+  assert.throws(() => assertLogsShowLine('--- Recent stdout ---\n', expectedLine), /missing/);
 });
 
 test('冒烟的密码检查认得两种语言的密码行，不误报未显示密码的提示', () => {
-  assert.throws(() => assertNoCredentialsShown('  Password: abc\n', 'sample'), /密码块/);
-  assert.throws(() => assertNoCredentialsShown('  密码：abc\n', 'sample'), /密码块/);
-  assert.throws(() => assertNoCredentialsShown(`x\r\n${'='.repeat(64)}\r\n`, 'sample'), /密码块/);
+  assert.throws(() => assertNoCredentialsShown('  Password: abc\n', 'sample'), /password block/);
+  assert.throws(() => assertNoCredentialsShown('  密码：abc\n', 'sample'), /password block/);
+  assert.throws(() => assertNoCredentialsShown(`x\r\n${'='.repeat(64)}\r\n`, 'sample'), /password block/);
   assert.doesNotThrow(() => assertNoCredentialsShown(
     'Created administrator admin. Output is not a terminal, so the password was not shown.\n'
       + '已创建管理员 admin。当前输出不是终端，没有显示密码；\n',
@@ -429,12 +429,12 @@ test('冒烟用请求日志证明接口未被调用；日志不记请求时判�
   assert.doesNotThrow(() => assertRequestNotLogged(log, forbidden, '/api/auth/status'));
   assert.throws(
     () => assertRequestNotLogged(`${log}${request(forbidden)}\n`, forbidden, '/api/auth/status'),
-    /被请求过/,
+    /was requested/,
   );
   // Without a control request, "not seen" cannot be taken as "not requested".
   assert.throws(
     () => assertRequestNotLogged('{"msg":"Server listening"}\n', forbidden, '/api/auth/status'),
-    /无法确认/,
+    /cannot be confirmed/,
   );
 });
 
@@ -958,7 +958,7 @@ for (const [name, terminal] of [['终端里显示账号和密码', true], ['输�
     assert.equal(output.includes(body.password), terminal);
     // The release smoke test uses the same check to tell whether the first start wrote out the password.
     if (terminal) {
-      assert.throws(() => assertNoCredentialsShown(output, 'foreground'), /密码块/);
+      assert.throws(() => assertNoCredentialsShown(output, 'foreground'), /password block/);
     } else {
       assert.doesNotThrow(() => assertNoCredentialsShown(output, 'foreground'));
       assert.match(output, /reset-password/);

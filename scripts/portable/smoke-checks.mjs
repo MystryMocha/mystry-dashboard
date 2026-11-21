@@ -11,7 +11,7 @@ export function lastLogLine(logPath) {
     ? fs.readFileSync(logPath, 'utf8').split(/\r?\n/).filter((line) => line.trim())
     : [];
   if (lines.length === 0) {
-    throw new Error(`面板日志为空：${logPath}`);
+    throw new Error(`The panel log is empty: ${logPath}`);
   }
   return lines.at(-1);
 }
@@ -19,7 +19,7 @@ export function lastLogLine(logPath) {
 /** Looks only at the real content of the log, not at the logs command's own heading text. */
 export function assertLogsShowLine(logsOutput, expectedLine) {
   if (!logsOutput.includes(expectedLine)) {
-    throw new Error(`日志命令未返回面板输出，缺少：${expectedLine}\n实际输出：\n${logsOutput}`);
+    throw new Error(`The logs command did not return panel output; missing: ${expectedLine}\nActual output:\n${logsOutput}`);
   }
 }
 
@@ -34,7 +34,7 @@ const PASSWORD_LINE = /^[ \t]*(?:Password:|密码：)/m;
  */
 export function assertNoCredentialsShown(content, source) {
   if (CREDENTIAL_DIVIDER.test(content) || PASSWORD_LINE.test(content)) {
-    throw new Error(`${source} 写出了管理员密码块；非终端输出和日志文件不得包含密码`);
+    throw new Error(`${source} wrote the admin password block; non-terminal output and log files must not contain the password`);
   }
 }
 
@@ -61,9 +61,9 @@ export function loggedRequestPaths(content) {
 export function assertRequestNotLogged(content, forbiddenPath, controlPath) {
   const paths = loggedRequestPaths(content);
   if (!paths.has(controlPath)) {
-    throw new Error(`面板日志没有记录对照请求 ${controlPath}，无法确认 ${forbiddenPath} 未被请求`);
+    throw new Error(`The panel log has no record of the control request ${controlPath}, so it cannot be confirmed that ${forbiddenPath} was not requested`);
   }
   if (paths.has(forbiddenPath)) {
-    throw new Error(`面板日志显示 ${forbiddenPath} 被请求过`);
+    throw new Error(`The panel log shows ${forbiddenPath} was requested`);
   }
 }

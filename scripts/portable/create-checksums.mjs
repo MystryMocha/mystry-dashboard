@@ -19,7 +19,7 @@ export async function createChecksums(directory) {
     .map((entry) => entry.name)
     .filter((name) => name !== 'SHA256SUMS' && name !== 'SHA256SUMS.asc')
     .sort((left, right) => left.localeCompare(right));
-  if (entries.length === 0) throw new Error(`目录中没有可生成校验和的文件：${root}`);
+  if (entries.length === 0) throw new Error(`The directory has no files to checksum: ${root}`);
 
   const lines = [];
   for (const name of entries) {
@@ -33,7 +33,7 @@ export async function createChecksums(directory) {
 if (isMainModule(import.meta.url)) {
   const directory = process.argv[2] || 'release';
   createChecksums(directory)
-    .then((output) => console.log(`已生成：${output}`))
+    .then((output) => console.log(`Generated: ${output}`))
     .catch((error) => {
       console.error(error instanceof Error ? error.message : String(error));
       process.exitCode = 1;

@@ -19,7 +19,7 @@ function parseArguments(argv) {
   const result = {};
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
-    if (!token.startsWith('--')) throw new Error(`未知参数：${token}`);
+    if (!token.startsWith('--')) throw new Error(`Unknown option: ${token}`);
     const name = token.slice(2);
     if (name === 'force') {
       result.force = true;
@@ -30,7 +30,7 @@ function parseArguments(argv) {
       continue;
     }
     const value = argv[index + 1];
-    if (!value || value.startsWith('--')) throw new Error(`参数 --${name} 缺少值`);
+    if (!value || value.startsWith('--')) throw new Error(`Option --${name} needs a value`);
     result[name] = value;
     index += 1;
   }
@@ -51,7 +51,7 @@ function releasePlatform(platform) {
 
 async function copyFileOrDirectory(source, destination, options = {}) {
   const stat = await fsp.lstat(source);
-  if (stat.isSymbolicLink()) throw new Error(`拒绝复制符号链接：${source}`);
+  if (stat.isSymbolicLink()) throw new Error(`Refusing to copy a symlink: ${source}`);
   if (stat.isDirectory()) {
     await fsp.cp(source, destination, {
       recursive: true,
@@ -76,7 +76,7 @@ function run(command, args, options = {}) {
   });
   if (result.status !== 0) {
     throw new Error(
-      `${command} ${args.join(' ')} 执行失败：\n${result.stderr || result.stdout || ''}`,
+      `${command} ${args.join(' ')} failed:\n${result.stderr || result.stdout || ''}`,
     );
   }
   return result.stdout.trim();
@@ -90,7 +90,7 @@ async function assertBuildOutputs() {
   ];
   const missing = required.filter((relative) => !fs.existsSync(path.join(repoRoot, relative)));
   if (missing.length > 0) {
-    throw new Error(`缺少构建产物，请先运行 npm run build：${missing.join(', ')}`);
+    throw new Error(`Build output is missing; run npm run build first: ${missing.join(', ')}`);
   }
 }
 
@@ -190,9 +190,9 @@ async function collectFiles(rootDir) {
     for (const entry of entries) {
       const absolute = path.join(current, entry.name);
       const relative = path.relative(rootDir, absolute).split(path.sep).join('/');
-      if (entry.isSymbolicLink()) throw new Error(`便携包中不允许出现符号链接：${relative}`);
+      if (entry.isSymbolicLink()) throw new Error(`Symlinks are not allowed in the portable package: ${relative}`);
       // Dependencies were already filtered while copying; a non-ASCII name among the panel's own files fails at packaging time, rather than being left until the user extracts.
-      if (!isArchiveSafeName(entry.name)) throw new Error(`便携包中不允许出现非 ASCII 文件名：${relative}`);
+      if (!isArchiveSafeName(entry.name)) throw new Error(`Non-ASCII file names are not allowed in the portable package: ${relative}`);
       if (entry.isDirectory()) {
         await visit(absolute);
       } else if (entry.isFile() && relative !== 'manifest.json') {
@@ -215,11 +215,11 @@ function assertCleanWorktreeForRelease(allowDirty) {
     const status = run('git', ['status', '--porcelain']);
     if (status) {
       throw new Error(
-        '工作树不干净，拒绝生成可发布便携包；本地调试可设置 MYSTRY_PORTABLE_ALLOW_DIRTY=1 或传入 --allow-dirty',
+        'The working tree is not clean; refusing to build a releasable portable package. For local debugging set MYSTRY_PORTABLE_ALLOW_DIRTY=1 or pass --allow-dirty',
       );
     }
   } catch (error) {
-    if (error instanceof Error && error.message.includes('工作树不干净')) throw error;
+    if (error instanceof Error && error.message.includes('working tree is not clean')) throw error;
     // Skipped when not a Git repo (local, non-release cases only)
   }
 }
@@ -304,7 +304,7 @@ async function archivePackage(stageRoot, packageDir, archivePath, platform) {
       const absolute = path.join(directory, entry.name);
       const relative = path.relative(stageRoot, absolute).split(path.sep).join('/');
       const stat = await fsp.lstat(absolute);
-      if (stat.isSymbolicLink()) throw new Error(`拒绝将符号链接写入 ZIP：${relative}`);
+      if (stat.isSymbolicLink()) throw new Error(`Refusing to write a symlink into the ZIP: ${relative}`);
       if (entry.isDirectory()) {
         zipFile.addEmptyDirectory(relative, { mtime: stat.mtime, mode: stat.mode });
         await addDirectory(absolute);
@@ -333,17 +333,17 @@ export async function packagePortable({
   const targetArch = arch === 'amd64' ? 'x64' : arch;
   if (targetPlatform !== process.platform || targetArch !== process.arch) {
     throw new Error(
-      `便携包必须在目标系统原生构建：target=${targetPlatform}/${targetArch} `
+      `The portable package must be built natively on the target system: target=${targetPlatform}/${targetArch} `
         + `runner=${process.platform}/${process.arch}`,
     );
   }
   if (!['win32', 'linux', 'darwin'].includes(targetPlatform)) {
-    throw new Error(`不支持的平台：${targetPlatform}`);
+    throw new Error(`Unsupported platform: ${targetPlatform}`);
   }
   if (targetPlatform === 'win32' && targetArch !== 'x64') {
-    throw new Error('首发 Windows 仅支持 x64');
+    throw new Error('The initial Windows release supports x64 only');
   }
-  if (!['x64', 'arm64'].includes(targetArch)) throw new Error(`不支持的架构：${targetArch}`);
+  if (!['x64', 'arm64'].includes(targetArch)) throw new Error(`Unsupported architecture: ${targetArch}`);
 
   await assertBuildOutputs();
   assertCleanWorktreeForRelease(allowDirty);
@@ -355,7 +355,7 @@ export async function packagePortable({
   const archivePath = path.join(resolvedOutput, archiveName);
   await fsp.mkdir(resolvedOutput, { recursive: true });
   if (fs.existsSync(archivePath)) {
-    if (!force) throw new Error(`输出文件已存在；传入 --force 才允许覆盖：${archivePath}`);
+    if (!force) throw new Error(`The output file already exists; pass --force to allow overwriting: ${archivePath}`);
     await fsp.unlink(archivePath);
   }
 
@@ -470,7 +470,7 @@ async function main() {
     force: Boolean(args.force),
     allowDirty: Boolean(args.allowDirty),
   });
-  console.log(`便携包已生成：${result.archivePath}`);
+  console.log(`Portable package generated: ${result.archivePath}`);
 }
 
 if (isMainModule(import.meta.url)) {

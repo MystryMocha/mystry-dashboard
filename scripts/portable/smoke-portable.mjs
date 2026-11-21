@@ -25,7 +25,7 @@ function execute(command, args, options = {}) {
     ...options,
   });
   if (result.error) {
-    throw new Error(`${command} ${args.join(' ')} 无法完成：${result.error.message}`);
+    throw new Error(`${command} ${args.join(' ')} could not complete: ${result.error.message}`);
   }
   return result;
 }
@@ -34,7 +34,7 @@ function run(command, args, options = {}) {
   const result = execute(command, args, options);
   if (result.status !== 0) {
     throw new Error(
-      `${command} ${args.join(' ')} 执行失败：\n${result.stdout || ''}\n${result.stderr || ''}`,
+      `${command} ${args.join(' ')} failed:\n${result.stdout || ''}\n${result.stderr || ''}`,
     );
   }
   return `${result.stdout || ''}${result.stderr || ''}`;
@@ -62,7 +62,7 @@ function requestPanel(url) {
         resolve({ status, ok: status >= 200 && status < 300, body });
       });
     });
-    request.setTimeout(30_000, () => request.destroy(new Error(`请求面板超时：${url}`)));
+    request.setTimeout(30_000, () => request.destroy(new Error(`Request to the panel timed out: ${url}`)));
     request.on('error', reject);
   });
 }
@@ -120,7 +120,7 @@ function verifyWrapper(root, env) {
     : run(path.join(root, 'mystryctl'), ['help'], { cwd: root, env });
   // The command name in the usage line does not change with the UI language, and in source mode it is PanelManager here.
   if (!output.includes('mystryctl <command>')) {
-    throw new Error('平台入口脚本未能调用包内便携控制器');
+    throw new Error('The platform entry script failed to call the portable controller in the package');
   }
 }
 
@@ -132,7 +132,7 @@ async function hashFile(filePath) {
 
 async function verifyManifest(portableRoot, manifest) {
   if (!Array.isArray(manifest.files) || manifest.files.length === 0) {
-    throw new Error('manifest.json 缺少文件校验清单');
+    throw new Error('manifest.json has no file checksum list');
   }
   const expected = new Map(manifest.files.map((entry) => [entry.path, entry]));
   const actualPaths = [];
@@ -142,17 +142,17 @@ async function verifyManifest(portableRoot, manifest) {
     for (const entry of entries) {
       const absolute = path.join(directory, entry.name);
       const relative = path.relative(portableRoot, absolute).split(path.sep).join('/');
-      if (entry.isSymbolicLink()) throw new Error(`最终压缩包包含符号链接：${relative}`);
+      if (entry.isSymbolicLink()) throw new Error(`The final archive contains a symlink: ${relative}`);
       if (entry.isDirectory()) {
         await visit(absolute);
       } else if (entry.isFile() && relative !== 'manifest.json') {
         actualPaths.push(relative);
         const expectedFile = expected.get(relative);
-        if (!expectedFile) throw new Error(`manifest.json 未登记文件：${relative}`);
+        if (!expectedFile) throw new Error(`File not registered in manifest.json: ${relative}`);
         const stat = await fsp.stat(absolute);
-        if (stat.size !== expectedFile.size) throw new Error(`文件大小不匹配：${relative}`);
+        if (stat.size !== expectedFile.size) throw new Error(`File size mismatch: ${relative}`);
         if (await hashFile(absolute) !== expectedFile.sha256) {
-          throw new Error(`文件 SHA-256 不匹配：${relative}`);
+          throw new Error(`File SHA-256 mismatch: ${relative}`);
         }
       }
     }
@@ -162,15 +162,15 @@ async function verifyManifest(portableRoot, manifest) {
   actualPaths.sort((left, right) => left.localeCompare(right));
   const expectedPaths = [...expected.keys()].sort((left, right) => left.localeCompare(right));
   if (JSON.stringify(actualPaths) !== JSON.stringify(expectedPaths)) {
-    throw new Error('manifest.json 文件清单与解压结果不一致');
+    throw new Error('The manifest.json file list does not match the extracted result');
   }
 }
 
 async function main() {
   const archive = process.argv[2];
-  if (!archive) throw new Error('用法：node smoke-portable.mjs <archive>');
+  if (!archive) throw new Error('Usage: node smoke-portable.mjs <archive>');
   const archivePath = path.resolve(archive);
-  if (!fs.existsSync(archivePath)) throw new Error(`便携包不存在：${archivePath}`);
+  if (!fs.existsSync(archivePath)) throw new Error(`Portable package does not exist: ${archivePath}`);
 
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-portable-smoke-'));
   const extractDir = path.join(tempRoot, 'extract');
@@ -186,23 +186,23 @@ async function main() {
     );
     if (manifest.platform !== process.platform || manifest.arch !== process.arch) {
       throw new Error(
-        `便携包目标与当前机器不一致：package=${manifest.platform}/${manifest.arch} `
+        `The portable package target does not match this machine: package=${manifest.platform}/${manifest.arch} `
           + `host=${process.platform}/${process.arch}`,
       );
     }
     await verifyManifest(portableRoot, manifest);
     for (const name of ['config', 'data', 'logs']) {
       const entries = await fsp.readdir(path.join(portableRoot, name));
-      if (entries.length !== 0) throw new Error(`发布包的 ${name}/ 必须为空`);
+      if (entries.length !== 0) throw new Error(`${name}/ in the release package must be empty`);
     }
     const sharedStat = await fsp.lstat(
       path.join(portableRoot, 'app', 'node_modules', '@mystry', 'shared'),
     );
     if (!sharedStat.isDirectory() || sharedStat.isSymbolicLink()) {
-      throw new Error('@mystry/shared 必须是发布包内的物理目录');
+      throw new Error('@mystry/shared must be a physical directory inside the release package');
     }
     if (fs.existsSync(path.join(portableRoot, 'app', 'node_modules', 'typescript'))) {
-      throw new Error('发布包不得包含 TypeScript 开发依赖');
+      throw new Error('The release package must not contain the TypeScript dev dependency');
     }
 
     const port = await reservePort();
@@ -222,33 +222,33 @@ async function main() {
     const startOutput = runControl(portableRoot, 'start', env);
     started = true;
     if (!fs.existsSync(path.join(portableRoot, 'config', 'panel.env'))) {
-      throw new Error('首次启动未在 config/panel.env 生成配置');
+      throw new Error('The first start did not generate config in config/panel.env');
     }
     if (!fs.existsSync(path.join(portableRoot, 'data', 'panel.db'))) {
-      throw new Error('首次启动未在 data/panel.db 创建数据库');
+      throw new Error('The first start did not create the database at data/panel.db');
     }
     if (fs.existsSync(path.join(portableRoot, '.env'))) {
-      throw new Error('便携根目录不得生成源码模式 .env');
+      throw new Error('A source-mode .env must not be generated in the portable root');
     }
     const health = await requestPanel(`http://127.0.0.1:${port}/api/health`);
     if (!health.ok || health.body?.service !== 'mystry-dashboard') {
-      throw new Error(`健康检查失败：HTTP ${health.status}`);
+      throw new Error(`Health check failed: HTTP ${health.status}`);
     }
     // The first start creates the admin automatically with the internal token; the Web login page also uses this endpoint to tell whether setup is still needed.
     const authStatus = await requestPanel(`http://127.0.0.1:${port}/api/auth/status`);
     const authBody = authStatus.body;
     if (!authStatus.ok || authBody?.needsSetup !== false) {
       throw new Error(
-        `首次启动未自动创建管理员：HTTP ${authStatus.status} needsSetup=${authBody?.needsSetup}`,
+        `The first start did not create the admin automatically: HTTP ${authStatus.status} needsSetup=${authBody?.needsSetup}`,
       );
     }
     // After the admin is created, the setup token must be removed from the config immediately.
     const panelEnv = await fsp.readFile(path.join(portableRoot, 'config', 'panel.env'), 'utf8');
     if (/^\s*SETUP_TOKEN\s*=/m.test(panelEnv)) {
-      throw new Error('自动创建管理员后 config/panel.env 仍保留 SETUP_TOKEN');
+      throw new Error('config/panel.env still has SETUP_TOKEN after the admin was created automatically');
     }
     // The smoke test runs through pipes, so output is not a terminal: neither the startup output nor the log files may contain the generated password.
-    assertNoCredentialsShown(startOutput, 'start 输出');
+    assertNoCredentialsShown(startOutput, 'start output');
     await assertLogsHaveNoCredentials(logDir);
     runControl(portableRoot, 'status', env);
     // __is-running reports through its exit code whether the managed process is running.
@@ -256,9 +256,9 @@ async function main() {
     // A non-interactive reset-password must refuse before contacting the server, rather than resetting and then hiding the new password.
     const resetAttempt = runControlExpectingFailure(portableRoot, 'reset-password', env);
     if (resetAttempt.status === 0) {
-      throw new Error('输出不是终端时 reset-password 不应成功');
+      throw new Error('reset-password should not succeed when output is not a terminal');
     }
-    assertNoCredentialsShown(resetAttempt.output, 'reset-password 输出');
+    assertNoCredentialsShown(resetAttempt.output, 'reset-password output');
     // The /api/auth/status requested above serves as the control, proving the request log works and the reset endpoint really was not called.
     assertRequestNotLogged(
       await fsp.readFile(stdoutLogPath, 'utf8'),
@@ -270,18 +270,18 @@ async function main() {
     assertLogsShowLine(runControl(portableRoot, 'logs', env), expectedLogLine);
     const openOutput = runControl(portableRoot, 'open', env);
     if (!openOutput.includes(`http://127.0.0.1:${port}`)) {
-      throw new Error(`open 命令未返回面板地址：\n${openOutput}`);
+      throw new Error(`The open command did not return the panel URL:\n${openOutput}`);
     }
-    assertNoCredentialsShown(runControl(portableRoot, 'restart', env), 'restart 输出');
+    assertNoCredentialsShown(runControl(portableRoot, 'restart', env), 'restart output');
     const restartedHealth = await requestPanel(`http://127.0.0.1:${port}/api/health`);
     if (!restartedHealth.ok) {
-      throw new Error(`重启后的健康检查失败：HTTP ${restartedHealth.status}`);
+      throw new Error(`Health check after restart failed: HTTP ${restartedHealth.status}`);
     }
     runControl(portableRoot, 'stop', env);
     started = false;
     // A restart rotates the logs, so all log files are checked once more after stopping.
     await assertLogsHaveNoCredentials(logDir);
-    console.log(`便携包冒烟验证通过：${path.basename(archivePath)}`);
+    console.log(`Portable package smoke test passed: ${path.basename(archivePath)}`);
   } finally {
     if (started && portableRoot && controlEnv) {
       try {
