@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import {
   installJavaBodySchema,
@@ -8,6 +9,7 @@ import {
   type DownloadSourceSetting,
   type InstallJavaRequest,
   type JavaRuntimeListResult,
+  type PanelInfo,
   type PublicHostSetting,
   type UpdateDirectAccessRequest,
   type UpdatePanelNetworkRequest,
@@ -40,6 +42,15 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
   const metrics = new MetricsService(config.dataDir, () => processManager.getMetricTargets());
   app.get('/api/system/metrics', () => metrics.get());
+
+  // 面板运行信息：给「面板设置」页展示监听地址和目录。只读，只返回配置文件里的非密钥项。
+  app.get('/api/system/panel-info', (): PanelInfo => ({
+    host: config.host,
+    port: config.port,
+    dataDir: path.resolve(config.dataDir),
+    backupDir: path.resolve(config.backupDir),
+    configPath: path.resolve(config.configPath),
+  }));
 
   app.get('/api/system/download-source', (): DownloadSourceSetting => ({ source: getDownloadSource() }));
 

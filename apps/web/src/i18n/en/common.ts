@@ -46,6 +46,7 @@ export default {
   'nav.import': 'Import Server',
   'nav.multiplayer': 'Multiplayer',
   'nav.machine': 'This Machine',
+  'nav.settings': 'Panel Settings',
   'nav.group.servers': 'Servers',
   'nav.group.maintain': 'Deploy & Maintain',
 

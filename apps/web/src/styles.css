@@ -388,6 +388,8 @@ h1[tabindex="-1"]:focus { outline: none; }
 }
 
 .user-profile { display: flex; align-items: center; gap: 10px; min-width: 0; }
+/* 正在看面板设置页时，齿轮按钮保持选中。 */
+.btn.sidebar-settings.active { --btn-bg: var(--fill); --btn-fg: var(--accent-text); }
 
 .user-avatar {
   display: grid;
@@ -2720,13 +2722,46 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   max-width: 760px;
   padding: 28px;
 }
-/* 本机环境页各块同宽：本机信息、「在其他设备上打开」入口、登录有效期和下载来源都不超过 760px。 */
-.download-source-section,
-.session-duration-section,
+/* 本机环境页各块同宽：本机信息和「在其他设备上打开」入口都不超过 760px。 */
 .remote-entry-section { max-width: 760px; }
-/* 登录有效期只有几个短选项，选择框不必撑满整行；说明文字照常占满。 */
-.session-duration-field select { max-width: 320px; }
-.session-duration-help { display: grid; gap: 4px; }
+
+/* ========== 面板设置 ========== */
+/* 每组设置：组名和一句适用范围在前，设置行在后。设置行都是「左边名称和说明、右边控件」的短行，
+   最宽 720px，再宽控件就离名称太远；页面够宽时组名移到左边一列，整页最宽 200 + 40 + 720。 */
+.page.settings-page { max-width: 960px; }
+.settings-section-head { display: grid; gap: 4px; min-width: 0; }
+.settings-section-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 720px; }
+/* 说明有好几行时，控件对齐名称那一行，不跟着垂直居中。 */
+.settings-row { align-items: flex-start; }
+.settings-row .list-row-text { gap: 4px; }
+.settings-row-notes { display: grid; gap: 4px; }
+.settings-row-select { flex: 0 1 220px; }
+.settings-row-select > .input { width: 100%; }
+/* 读取失败：原因后面跟「重试」。 */
+.settings-load-error { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.settings-info dt,
+.settings-info dd { margin: 0; }
+.settings-info .list-row-value { min-width: 0; }
+/* 地址和路径用等宽字体，整段可一次选中复制；路径很长时在任意位置换行。 */
+.settings-path { font-family: var(--mono); font-size: var(--text-small); overflow-wrap: anywhere; user-select: all; }
+/* 路径比一行长得多，放在名称下面、靠左，换行后仍从同一条左边线开始。 */
+.settings-path-row { flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: center; gap: 2px; }
+.settings-path-row .settings-path { text-align: start; }
+
+@container page (min-width: 820px) {
+  /* 两列：左边组名，右边设置行。一条横线贯穿两列分开各组，列表自己的上下边线不再画。 */
+  .page.settings-page .settings-section {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 720px);
+    align-items: start;
+    column-gap: 40px;
+    border-top: 0.5px solid var(--separator-strong);
+  }
+  /* 组名和右边第一行的名称大致落在同一条线上（设置行上内边距 12px，单行内容垂直居中时约 15px）。 */
+  .page.settings-page .settings-section-head { padding-top: 14px; }
+  .page.settings-page .settings-section-head .section-lead { font-size: var(--text-small); line-height: 1.45; }
+  .page.settings-page .settings-section .list-group { border-block: 0; }
+}
 /* 下载入口旁的来源提示：就地展开切换控件，不离开当前页面 */
 .download-source-hint { display: grid; gap: 10px; min-width: 0; }
 .download-source-hint-panel {
@@ -3039,6 +3074,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 }
 
 @media (max-width: 560px) {
+  /* 面板设置：选择框换到说明下面时占满一行。 */
+  .settings-row-select { flex: 1 1 100%; }
   /* 手机上三条占用条各占一行，数值不被截断。 */
   .host-meters { grid-template-columns: minmax(0, 1fr); }
   .start-paths { padding: 20px 16px; }

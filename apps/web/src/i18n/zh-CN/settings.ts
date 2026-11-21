@@ -1,0 +1,45 @@
+import type en from '../en/settings';
+
+/** 面板设置页文案（简体中文）。 */
+export default {
+  'settings.device.title': '这台设备',
+  'settings.device.lead': '保存在这个浏览器里，其他设备各自设置。',
+  'settings.panel.title': '面板',
+  'settings.panel.lead': '所有登录的设备共用，改完马上生效。',
+
+  'settings.session.lead': '登录后多久需要重新输入密码。',
+  'settings.session.label': '登录有效期',
+  'settings.session.option.2h': '2 小时',
+  'settings.session.option.12h': '12 小时（默认）',
+  'settings.session.option.1d': '1 天',
+  'settings.session.option.7d': '7 天',
+  'settings.session.option.30d': '30 天',
+  'settings.session.option.never': '不过期',
+  'settings.session.help': '改短后，登录已超过新时长的设备需要重新登录；改长后，这台设备马上按新时长计算，其他设备下次登录后生效。',
+  'settings.session.never.desc': '选「不过期」后，登录过的设备会一直保持登录，直到修改密码。开启了「在其他设备上打开」时请谨慎使用。',
+  'settings.session.saved': '已保存，这台设备的登录已按新时长计算。',
+
+  'settings.downloadSource.title': '下载来源',
+  'settings.downloadSource.lead': '服务端文件和联机客户端从哪里下载。',
+  'settings.downloadSource.official': '官方来源',
+  'settings.downloadSource.china': '国内镜像',
+  'settings.downloadSource.official.desc': '文件直接来自 Mojang、PaperMC、FabricMC、Forge、NeoForge 和 GitHub，面板不会连接第三方镜像。',
+  'settings.downloadSource.china.desc': 'Vanilla、Forge、NeoForge 和版本列表使用 BMCLAPI，frp 和 EasyTier 使用公共 GitHub 镜像。镜像下载的文件都会先核对校验值再使用，因此部署 Vanilla 时仍会从 Mojang 读取提供校验值的版本清单；镜像失败时自动改用官方来源。',
+  'settings.downloadSource.china.limits': 'Paper 和 Fabric 的服务端文件没有可靠的镜像，仍从官方网站下载。Forge 和 NeoForge 安装器的部分文件仍要连接 Mojang，服务端第一次启动时也可能再下载文件。',
+  'settings.downloadSource.saved': '已保存，之后的下载使用这个来源。',
+  'settings.downloadSource.hint': '下载来源：{source}。',
+  'settings.downloadSource.hint.change': '更改',
+  'settings.downloadSource.hint.done': '完成',
+
+  'settings.account.title': '账号',
+  'settings.account.password': '密码',
+  'settings.account.password.desc': '修改后，其他浏览器和设备需要重新登录。',
+  'settings.info.title': '运行信息',
+  'settings.info.version': '版本',
+  'settings.info.address': '监听地址',
+  'settings.info.dataDir': '数据目录',
+  'settings.info.backupDir': '备份目录',
+  'settings.info.configFile': '配置文件',
+  'settings.info.note': '监听地址和目录在配置文件里设置，改完要重启面板才生效。',
+  'settings.info.loadFailed': '读不到运行信息。',
+} satisfies Record<keyof typeof en, string>;

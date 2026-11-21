@@ -48,6 +48,7 @@ export default {
   'nav.import': '匯入伺服器',
   'nav.multiplayer': '多人連線',
   'nav.machine': '本機環境',
+  'nav.settings': '面板設定',
   'nav.group.servers': '伺服器',
   'nav.group.maintain': '部署與維護',
 

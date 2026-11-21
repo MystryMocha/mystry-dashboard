@@ -632,7 +632,7 @@ test('所有来源校验都失败时不落地文件，错误说明原因并指�
       assert.match(rendered, /Mirror: the file failed its checksum check and was discarded\. /);
       assert.doesNotMatch(rendered, /\.\./);
       assert.match(rendered, /Official: the server returned HTTP 404/);
-      assert.match(rendered, /This Machine page/);
+      assert.match(rendered, /Panel Settings page/);
       return true;
     },
   );

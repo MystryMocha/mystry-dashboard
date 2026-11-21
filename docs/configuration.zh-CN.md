@@ -50,7 +50,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | `CONSOLE_TICKET_TTL_SECONDS` | `60` | 控制台 ticket 有效期；每个 ticket 只能建立一次 WebSocket 连接 |
 | `FILE_DOWNLOAD_TICKET_TTL_SECONDS` | `60` | 文件下载 ticket 有效期；每个 ticket 只能下载一次 |
 
-登录有效期不再用 `JWT_EXPIRES_IN` 设置（写了也不生效，启动时会提示），改在面板「本机环境」页选择，默认 12 小时，见 [登录有效期](user-guide.zh-CN.md#登录有效期)。
+登录有效期不再用 `JWT_EXPIRES_IN` 设置（写了也不生效，启动时会提示），改在面板「面板设置」页选择，默认 12 小时，见 [登录有效期](user-guide.zh-CN.md#登录有效期)。
 
 ### HTTP、文件与上传生命周期
 
