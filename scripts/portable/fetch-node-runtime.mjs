@@ -19,10 +19,10 @@ function parseArguments(argv) {
   const result = {};
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
-    if (!token.startsWith('--')) throw new Error(`未知参数：${token}`);
+    if (!token.startsWith('--')) throw new Error(`Unknown option: ${token}`);
     const name = token.slice(2);
     const value = argv[index + 1];
-    if (!value || value.startsWith('--')) throw new Error(`参数 --${name} 缺少值`);
+    if (!value || value.startsWith('--')) throw new Error(`Option --${name} needs a value`);
     result[name] = value;
     index += 1;
   }
@@ -44,26 +44,26 @@ function archiveFor(version, platform, arch) {
   if (platform === 'darwin' && ['x64', 'arm64'].includes(arch)) {
     return `${prefix}-darwin-${arch}.tar.gz`;
   }
-  throw new Error(`不支持的 Node 运行时目标：${platform}/${arch}`);
+  throw new Error(`Unsupported Node runtime target: ${platform}/${arch}`);
 }
 
 async function download(url, destination) {
   const parsed = new URL(url);
   if (parsed.protocol !== 'https:' || parsed.hostname !== 'nodejs.org') {
-    throw new Error(`拒绝从非官方地址下载 Node：${url}`);
+    throw new Error(`Refusing to download Node from a non-official URL: ${url}`);
   }
   const response = await fetch(parsed, { redirect: 'error' });
   if (!response.ok || !response.body) {
-    throw new Error(`下载失败：${url}（HTTP ${response.status}）`);
+    throw new Error(`Download failed: ${url} (HTTP ${response.status})`);
   }
   const declaredLength = Number(response.headers.get('content-length') || 0);
   if (declaredLength > 200 * 1024 * 1024) {
-    throw new Error(`Node 运行时压缩包超过 200MB 上限：${declaredLength}`);
+    throw new Error(`The Node runtime archive exceeds the 200MB limit: ${declaredLength}`);
   }
   await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(destination, { flags: 'wx' }));
   const stat = await fsp.stat(destination);
   if (stat.size === 0 || stat.size > 200 * 1024 * 1024) {
-    throw new Error(`Node 运行时压缩包大小异常：${stat.size}`);
+    throw new Error(`The Node runtime archive has an abnormal size: ${stat.size}`);
   }
 }
 
@@ -76,7 +76,7 @@ async function sha256(filePath) {
 function assertEmptyOutput(outputDir) {
   if (!fs.existsSync(outputDir)) return;
   const entries = fs.readdirSync(outputDir);
-  if (entries.length > 0) throw new Error(`运行时输出目录不是空目录：${outputDir}`);
+  if (entries.length > 0) throw new Error(`The runtime output directory is not empty: ${outputDir}`);
 }
 
 /** The Node version bundled in the portable package; local CI uses it too, so what is tested is the version users actually run. */
@@ -98,7 +98,7 @@ export async function downloadVerifiedNodeArchive({
   arch = process.arch,
   directory,
 }) {
-  if (!directory) throw new Error('必须指定 Node 压缩包下载目录');
+  if (!directory) throw new Error('A download directory for the Node archive is required');
   const { targetPlatform, targetArch, archiveName } = resolveTarget(version, platform, arch);
   const baseUrl = `https://nodejs.org/dist/v${version}`;
   const archivePath = path.join(directory, archiveName);
@@ -112,11 +112,11 @@ export async function downloadVerifiedNodeArchive({
   const checksumLine = checksums
     .split(/\r?\n/)
     .find((line) => line.trim().endsWith(`  ${archiveName}`));
-  if (!checksumLine) throw new Error(`SHASUMS256.txt 中找不到 ${archiveName}`);
+  if (!checksumLine) throw new Error(`${archiveName} was not found in SHASUMS256.txt`);
   const expected = checksumLine.trim().split(/\s+/)[0].toLowerCase();
   const actual = await sha256(archivePath);
   if (actual !== expected) {
-    throw new Error(`Node 运行时 SHA-256 不匹配：expected=${expected} actual=${actual}`);
+    throw new Error(`Node runtime SHA-256 mismatch: expected=${expected} actual=${actual}`);
   }
   return { version, platform: targetPlatform, arch: targetArch, archiveName, archivePath, sha256: actual };
 }
@@ -127,7 +127,7 @@ export async function fetchNodeRuntime({
   arch = process.arch,
   outputDir,
 }) {
-  if (!outputDir) throw new Error('必须指定 Node 运行时输出目录');
+  if (!outputDir) throw new Error('An output directory for the Node runtime is required');
   // Validate the target platform first, so no output directory is created when it is unsupported
   const { targetPlatform, targetArch, archiveName } = resolveTarget(version, platform, arch);
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-node-runtime-'));
@@ -149,11 +149,11 @@ export async function fetchNodeRuntime({
       windowsHide: true,
     });
     if (extracted.status !== 0) {
-      throw new Error(`解压 Node 运行时失败：${extracted.stderr || extracted.stdout}`);
+      throw new Error(`Failed to extract the Node runtime: ${extracted.stderr || extracted.stdout}`);
     }
     const roots = await fsp.readdir(extractDir, { withFileTypes: true });
     const root = roots.find((entry) => entry.isDirectory());
-    if (!root) throw new Error('Node 运行时压缩包缺少根目录');
+    if (!root) throw new Error('The Node runtime archive has no root directory');
     const sourceRoot = path.join(extractDir, root.name);
 
     if (targetPlatform === 'win32') {
@@ -186,7 +186,7 @@ export async function fetchNodeRuntime({
 
 async function main() {
   const args = parseArguments(process.argv.slice(2));
-  if (!args.output) throw new Error('必须通过 --output 指定空的运行时输出目录');
+  if (!args.output) throw new Error('An empty runtime output directory must be given with --output');
   const result = await fetchNodeRuntime({
     version: args.version || runtimeConfig.nodeVersion,
     platform: args.platform || process.platform,
@@ -194,7 +194,7 @@ async function main() {
     outputDir: path.resolve(args.output),
   });
   console.log(
-    `已准备 Node ${result.version} ${result.platform}/${result.arch}：${args.output}`,
+    `Prepared Node ${result.version} ${result.platform}/${result.arch}: ${args.output}`,
   );
 }
 

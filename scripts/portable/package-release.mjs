@@ -15,14 +15,14 @@ function parseArguments(argv) {
   const result = {};
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
-    if (!token.startsWith('--')) throw new Error(`未知参数：${token}`);
+    if (!token.startsWith('--')) throw new Error(`Unknown option: ${token}`);
     const name = token.slice(2);
     if (FLAG_OPTIONS.includes(name)) {
       result[name] = true;
       continue;
     }
     const value = argv[index + 1];
-    if (!value || value.startsWith('--')) throw new Error(`参数 --${name} 缺少值`);
+    if (!value || value.startsWith('--')) throw new Error(`Option --${name} needs a value`);
     result[name] = value;
     index += 1;
   }
@@ -33,7 +33,7 @@ function assertNodeVersion() {
   const match = /^v(\d+)\./.exec(process.version);
   const major = match ? Number(match[1]) : 0;
   if (major < 22) {
-    throw new Error(`Node.js 必须为 22 或更高版本，当前：${process.version}`);
+    throw new Error(`Node.js must be 22 or later; current: ${process.version}`);
   }
 }
 
@@ -66,7 +66,7 @@ function run(label, command, args) {
     windowsHide: true,
   });
   if (result.status !== 0) {
-    throw new Error(`步骤「${label}」执行失败：${command} ${args.join(' ')}`);
+    throw new Error(`Step "${label}" failed: ${command} ${args.join(' ')}`);
   }
 }
 
@@ -82,7 +82,7 @@ function archiveExtension(platform) {
 
 export async function createReleaseMetadata(outputDir, execute = run) {
   await execute(
-    '生成 SBOM',
+    'Generate SBOM',
     process.execPath,
     [
       path.join(scriptDir, 'create-sbom.mjs'),
@@ -91,7 +91,7 @@ export async function createReleaseMetadata(outputDir, execute = run) {
     ],
   );
   await execute(
-    '生成校验和',
+    'Generate checksums',
     process.execPath,
     [path.join(scriptDir, 'create-checksums.mjs'), outputDir],
   );
@@ -117,22 +117,22 @@ async function main() {
   const archiveName = `mystry-v${version}-${platformName}-${arch}.${archiveExtension(process.platform)}`;
   const archivePath = path.join(outputDir, archiveName);
 
-  console.log(`一键打包开始：v${version}（${platformName}/${arch}）`);
-  console.log(`输出目录：${outputDir}`);
+  console.log(`One-step packaging started: v${version} (${platformName}/${arch})`);
+  console.log(`Output directory: ${outputDir}`);
   console.log(
-    `开关：跳过安装=${skipInstall} 跳过验证=${skipVerify} 跳过冒烟=${skipSmoke} `
-      + `覆盖=${force} 允许脏工作树=${allowDirty}`,
+    `Switches: skip install=${skipInstall} skip verify=${skipVerify} skip smoke=${skipSmoke} `
+      + `force=${force} allow dirty tree=${allowDirty}`,
   );
 
   if (!skipInstall) {
-    runNpm('安装依赖', ['ci']);
+    runNpm('Install dependencies', ['ci']);
   }
 
   if (skipVerify) {
-    runNpm('构建应用', ['run', 'build']);
+    runNpm('Build the app', ['run', 'build']);
   } else {
-    runNpm('完整验证', ['run', 'verify']);
-    runNpm('生产依赖审计', ['run', 'audit:production']);
+    runNpm('Full verification', ['run', 'verify']);
+    runNpm('Production dependency audit', ['run', 'audit:production']);
   }
 
   const packageArguments = [
@@ -146,16 +146,16 @@ async function main() {
   if (args['runtime-dir']) {
     packageArguments.push('--runtime-dir', path.resolve(args['runtime-dir']));
   }
-  run('组装便携包', process.execPath, packageArguments);
+  run('Assemble the portable package', process.execPath, packageArguments);
 
   if (!fs.existsSync(archivePath)) {
-    throw new Error(`打包未生成预期压缩包：${archivePath}`);
+    throw new Error(`Packaging did not produce the expected archive: ${archivePath}`);
   }
-  console.log(`已生成压缩包：${archivePath}`);
+  console.log(`Archive generated: ${archivePath}`);
 
   if (!skipSmoke) {
     run(
-      '冒烟验证',
+      'Smoke test',
       process.execPath,
       [path.join(scriptDir, 'smoke-portable.mjs'), archivePath],
     );
@@ -166,7 +166,7 @@ async function main() {
   const artifacts = (await fsp.readdir(outputDir)).sort((left, right) =>
     left.localeCompare(right),
   );
-  console.log(`\n一键打包完成，发布目录 ${outputDir} 内文件：`);
+  console.log(`\nOne-step packaging finished. Files in the release directory ${outputDir}:`);
   for (const name of artifacts) {
     console.log(`  - ${name}`);
   }
@@ -174,7 +174,7 @@ async function main() {
 
 if (isMainModule(import.meta.url)) {
   main().catch((error) => {
-    console.error(`\n一键打包失败：${error instanceof Error ? error.message : String(error)}`);
+    console.error(`\nOne-step packaging failed: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;
   });
 }

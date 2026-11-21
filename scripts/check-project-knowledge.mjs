@@ -36,10 +36,10 @@ function compareLists(errors, label, expected, actual) {
   const extra = [...actualSet].filter((item) => !expectedSet.has(item));
 
   if (missing.length > 0) {
-    errors.push(`${label} 缺少：${missing.join(', ')}`);
+    errors.push(`${label} is missing: ${missing.join(', ')}`);
   }
   if (extra.length > 0) {
-    errors.push(`${label} 出现未登记项：${extra.join(', ')}`);
+    errors.push(`${label} has unregistered entries: ${extra.join(', ')}`);
   }
 }
 
@@ -123,7 +123,7 @@ export async function findMarkdownLinkErrors(root, markdownFiles) {
       try {
         decodedTarget = decodeURIComponent(withoutAnchor);
       } catch {
-        errors.push(`${markdownFile} 包含无法解码的链接：${rawTarget}`);
+        errors.push(`${markdownFile} contains a link that cannot be decoded: ${rawTarget}`);
         continue;
       }
 
@@ -132,11 +132,11 @@ export async function findMarkdownLinkErrors(root, markdownFiles) {
         : path.resolve(path.dirname(absoluteFile), decodedTarget);
       const relativeTarget = path.relative(root, resolved);
       if (relativeTarget === '..' || relativeTarget.startsWith(`..${path.sep}`) || path.isAbsolute(relativeTarget)) {
-        errors.push(`${markdownFile} 的本地链接越出仓库：${rawTarget}`);
+        errors.push(`${markdownFile} has a local link that escapes the repo: ${rawTarget}`);
         continue;
       }
       if (!(await exists(resolved))) {
-        errors.push(`${markdownFile} 的本地链接不存在：${rawTarget}`);
+        errors.push(`${markdownFile} has a local link that does not exist: ${rawTarget}`);
       }
     }
   }
@@ -146,7 +146,7 @@ export async function findMarkdownLinkErrors(root, markdownFiles) {
 async function requirePaths(root, errors, label, paths) {
   for (const item of paths) {
     if (!(await exists(path.join(root, item)))) {
-      errors.push(`${label}不存在：${item}`);
+      errors.push(`${label} does not exist: ${item}`);
     }
   }
 }
@@ -155,18 +155,18 @@ export async function checkProjectKnowledge(root) {
   const errors = [];
   const factsFile = path.join(root, FACTS_PATH);
   if (!(await exists(factsFile))) {
-    return [`机器事实文件不存在：${FACTS_PATH}`];
+    return [`The machine facts file does not exist: ${FACTS_PATH}`];
   }
 
   let facts;
   try {
     facts = await readJson(factsFile);
   } catch (error) {
-    return [`机器事实文件无法解析：${error instanceof Error ? error.message : String(error)}`];
+    return [`The machine facts file cannot be parsed: ${error instanceof Error ? error.message : String(error)}`];
   }
 
   if (facts.schemaVersion !== 1) {
-    errors.push(`不支持的机器事实 schemaVersion：${String(facts.schemaVersion)}`);
+    errors.push(`Unsupported machine facts schemaVersion: ${String(facts.schemaVersion)}`);
   }
 
   const packageFile = path.join(root, 'package.json');
@@ -174,47 +174,47 @@ export async function checkProjectKnowledge(root) {
   try {
     packageJson = await readJson(packageFile);
   } catch (error) {
-    errors.push(`package.json 无法解析：${error instanceof Error ? error.message : String(error)}`);
+    errors.push(`package.json cannot be parsed: ${error instanceof Error ? error.message : String(error)}`);
     return errors;
   }
 
   if (packageJson.engines?.node !== facts.nodeEngine) {
-    errors.push(`Node 版本漂移：package.json=${String(packageJson.engines?.node)}，知识库=${String(facts.nodeEngine)}`);
+    errors.push(`Node version drift: package.json=${String(packageJson.engines?.node)}, knowledge base=${String(facts.nodeEngine)}`);
   }
   compareLists(errors, 'workspaces', facts.workspaces ?? [], packageJson.workspaces ?? []);
 
   for (const [name, expectedCommand] of Object.entries(facts.requiredScripts ?? {})) {
     const actualCommand = packageJson.scripts?.[name];
     if (actualCommand !== expectedCommand) {
-      errors.push(`脚本 ${name} 漂移：package.json=${String(actualCommand)}，知识库=${String(expectedCommand)}`);
+      errors.push(`Script ${name} drift: package.json=${String(actualCommand)}, knowledge base=${String(expectedCommand)}`);
     }
   }
 
-  await requirePaths(root, errors, '入口文件', Object.values(facts.entrypoints ?? {}));
-  await requirePaths(root, errors, '知识库文档', facts.knowledgeDocuments ?? []);
-  await requirePaths(root, errors, '事实源路径', facts.sourcePaths ?? []);
-  await requirePaths(root, errors, 'AI 入口', Object.values(facts.aiEntrypoints ?? {}));
+  await requirePaths(root, errors, 'Entry file', Object.values(facts.entrypoints ?? {}));
+  await requirePaths(root, errors, 'Knowledge base document', facts.knowledgeDocuments ?? []);
+  await requirePaths(root, errors, 'Fact source path', facts.sourcePaths ?? []);
+  await requirePaths(root, errors, 'AI entry', Object.values(facts.aiEntrypoints ?? {}));
 
   const routeDirectory = path.join(root, ROUTES_DIR);
   if (!(await exists(routeDirectory))) {
-    errors.push(`服务端路由目录不存在：${ROUTES_DIR}`);
+    errors.push(`The server routes directory does not exist: ${ROUTES_DIR}`);
   } else {
     const actualRouteFiles = (await fs.readdir(routeDirectory, { withFileTypes: true }))
       .filter((entry) => entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts'))
       .map((entry) => entry.name);
     const expectedRouteFiles = (facts.routeModules ?? []).map((route) => route.file);
-    compareLists(errors, '服务端路由清单', expectedRouteFiles, actualRouteFiles);
+    compareLists(errors, 'Server route list', expectedRouteFiles, actualRouteFiles);
   }
 
   const serverIndexPath = path.join(root, SERVER_INDEX);
   if (!(await exists(serverIndexPath))) {
-    errors.push(`服务端入口不存在：${SERVER_INDEX}`);
+    errors.push(`The server entry does not exist: ${SERVER_INDEX}`);
   } else {
     const serverIndex = await fs.readFile(serverIndexPath, 'utf8');
     for (const route of facts.routeModules ?? []) {
       const registrationPattern = new RegExp(`\\bapp\\.register\\(\\s*${route.register}\\b`, 'u');
       if (!registrationPattern.test(serverIndex)) {
-        errors.push(`路由 ${route.file} 未在 ${SERVER_INDEX} 注册为 ${route.register}`);
+        errors.push(`Route ${route.file} is not registered in ${SERVER_INDEX} as ${route.register}`);
       }
     }
   }
@@ -222,22 +222,22 @@ export async function checkProjectKnowledge(root) {
   const configPath = path.join(root, SERVER_CONFIG);
   const envExamplePath = path.join(root, ENV_EXAMPLE);
   if (!(await exists(configPath))) {
-    errors.push(`服务端配置不存在：${SERVER_CONFIG}`);
+    errors.push(`The server config does not exist: ${SERVER_CONFIG}`);
   } else if (!(await exists(envExamplePath))) {
-    errors.push(`环境变量模板不存在：${ENV_EXAMPLE}`);
+    errors.push(`The environment variable template does not exist: ${ENV_EXAMPLE}`);
   } else {
     const configSource = await fs.readFile(configPath, 'utf8');
     const envExampleSource = await fs.readFile(envExamplePath, 'utf8');
     const expectedVariables = facts.environmentVariables ?? [];
     compareLists(
       errors,
-      `${SERVER_CONFIG} 环境变量`,
+      `${SERVER_CONFIG} environment variables`,
       expectedVariables,
       extractConfigEnvironmentVariables(configSource),
     );
     compareLists(
       errors,
-      `${ENV_EXAMPLE} 环境变量`,
+      `${ENV_EXAMPLE} environment variables`,
       expectedVariables,
       extractEnvExampleVariables(envExampleSource),
     );
@@ -246,13 +246,13 @@ export async function checkProjectKnowledge(root) {
   for (const requirement of facts.requiredContent ?? []) {
     const target = path.join(root, requirement.path);
     if (!(await exists(target))) {
-      errors.push(`内容检查文件不存在：${requirement.path}`);
+      errors.push(`The content check file does not exist: ${requirement.path}`);
       continue;
     }
     const content = await fs.readFile(target, 'utf8');
     for (const fragment of requirement.includes ?? []) {
       if (!content.includes(fragment)) {
-        errors.push(`${requirement.path} 缺少必要内容：${fragment}`);
+        errors.push(`${requirement.path} is missing required content: ${fragment}`);
       }
     }
   }
@@ -266,12 +266,12 @@ async function main() {
   const root = path.resolve(process.argv[2] ?? process.cwd());
   const errors = await checkProjectKnowledge(root);
   if (errors.length > 0) {
-    console.error('项目知识库检查失败：');
+    console.error('Project knowledge base check failed:');
     for (const error of errors) console.error(`- ${error}`);
     process.exitCode = 1;
     return;
   }
-  console.log('项目知识库检查通过');
+  console.log('Project knowledge base check passed');
 }
 
 if (isMainModule(import.meta.url)) {

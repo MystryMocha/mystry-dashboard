@@ -93,14 +93,14 @@ test('缺失 Markdown 链接会失败', async (t) => {
   const root = await createFixture(t);
   await write(root, 'docs/ai/README.md', '[缺失页面](missing.md)\n');
   const errors = await checkProjectKnowledge(root);
-  assert.ok(errors.some((error) => error.includes('本地链接不存在') && error.includes('missing.md')));
+  assert.ok(errors.some((error) => error.includes('local link that does not exist') && error.includes('missing.md')));
 });
 
 test('新增但未登记的路由会失败', async (t) => {
   const root = await createFixture(t);
   await write(root, 'apps/server/src/routes/launcher.ts', 'export const launcherRoutes = true;\n');
   const errors = await checkProjectKnowledge(root);
-  assert.ok(errors.some((error) => error.includes('服务端路由清单') && error.includes('launcher.ts')));
+  assert.ok(errors.some((error) => error.includes('Server route list') && error.includes('launcher.ts')));
 });
 
 test('配置新增但未同步的环境变量会失败', async (t) => {
@@ -111,14 +111,14 @@ test('配置新增但未同步的环境变量会失败', async (t) => {
     "const host = process.env.HOST;\nconst port = parsePositiveInt('PORT', 3000);\nconst extra = process.env.NEW_LIMIT;\n",
   );
   const errors = await checkProjectKnowledge(root);
-  assert.ok(errors.some((error) => error.includes('环境变量') && error.includes('NEW_LIMIT')));
+  assert.ok(errors.some((error) => error.includes('environment variables') && error.includes('NEW_LIMIT')));
 });
 
 test('Claude Code 入口缺失会失败', async (t) => {
   const root = await createFixture(t);
   await fs.rm(path.join(root, 'CLAUDE.md'));
   const errors = await checkProjectKnowledge(root);
-  assert.ok(errors.some((error) => error.includes('AI 入口') && error.includes('CLAUDE.md')));
+  assert.ok(errors.some((error) => error.includes('AI entry') && error.includes('CLAUDE.md')));
 });
 
 test('经符号链接或 junction 路径运行时仍会执行检查，不会静默通过', async (t) => {

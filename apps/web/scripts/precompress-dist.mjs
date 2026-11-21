@@ -19,7 +19,7 @@ function* walkFiles(dir) {
 }
 
 if (!fs.existsSync(distDir)) {
-  console.error(`找不到构建目录：${distDir}`);
+  console.error(`Build directory not found: ${distDir}`);
   process.exit(1);
 }
 
@@ -41,4 +41,4 @@ for (const file of walkFiles(distDir)) {
   compressed += 1;
 }
 
-console.log(`已为 ${compressed} 个前端资源生成 .br / .gz 预压缩副本`);
+console.log(`Generated .br / .gz precompressed copies for ${compressed} frontend assets`);

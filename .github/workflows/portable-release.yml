@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 已存在且位于 main 历史中的版本标签
+        description: An existing version tag that is in the history of main
         required: true
         type: string
 
@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   prepare:
-    name: 发布前门禁
+    name: Pre-release gate
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     outputs:
@@ -39,18 +39,18 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$RELEASE_TAG" == v* ]] || {
-            echo "::error::版本标签必须以 v 开头"
+            echo "::error::The version tag must start with v"
             exit 1
           }
           TAG_COMMIT="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
           git fetch origin main --no-tags
           git merge-base --is-ancestor "$TAG_COMMIT" origin/main || {
-            echo "::error::标签提交不在 origin/main 历史中"
+            echo "::error::The tag commit is not in the history of origin/main"
             exit 1
           }
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           [[ "${RELEASE_TAG#v}" == "$PACKAGE_VERSION" ]] || {
-            echo "::error::标签 $RELEASE_TAG 与 package.json 版本 $PACKAGE_VERSION 不一致"
+            echo "::error::Tag $RELEASE_TAG does not match package.json version $PACKAGE_VERSION"
             exit 1
           }
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -n "$(git status --porcelain)" ]]; then
-            echo "::error::标签 checkout 工作树必须干净"
+            echo "::error::The working tree of the tag checkout must be clean"
             git status --short
             exit 1
           fi
@@ -147,7 +147,7 @@ jobs:
           retention-days: 14
 
   release:
-    name: 发布 Preview
+    name: Publish Preview
     needs:
       - prepare
       - build
@@ -193,38 +193,38 @@ jobs:
             echo "$1" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]'
           }
           [[ -n "${RELEASE_GPG_PRIVATE_KEY:-}" ]] || {
-            echo "::error::缺少 RELEASE_GPG_PRIVATE_KEY，拒绝发布未签名校验和"
+            echo "::error::RELEASE_GPG_PRIVATE_KEY is missing; refusing to publish unsigned checksums"
             exit 1
           }
           EXPECTED_FP="$(normalize_fp "${RELEASE_GPG_FINGERPRINT:-}")"
           [[ -n "$EXPECTED_FP" ]] || {
-            echo "::error::缺少 RELEASE_GPG_FINGERPRINT，拒绝在未绑定签名身份时发布"
+            echo "::error::RELEASE_GPG_FINGERPRINT is missing; refusing to publish without a bound signing identity"
             exit 1
           }
           REPO_FP_FILE=".github/release-signing-key.fingerprint"
           [[ -f "$REPO_FP_FILE" ]] || {
-            echo "::error::缺少仓库公钥指纹文件：$REPO_FP_FILE"
+            echo "::error::The repo public key fingerprint file is missing: $REPO_FP_FILE"
             exit 1
           }
           REPO_FP="$(normalize_fp "$(grep -v '^#' "$REPO_FP_FILE" | head -n1)")"
           [[ "$REPO_FP" != UNCONFIGURED ]] || {
-            echo "::error::仓库发布指纹尚未配置，见 .github/RELEASE_SIGNING.md"
+            echo "::error::The repo release fingerprint is not configured yet; see .github/RELEASE_SIGNING.md"
             exit 1
           }
           [[ "$EXPECTED_FP" == "$REPO_FP" ]] || {
-            echo "::error::Environment RELEASE_GPG_FINGERPRINT 与仓库指纹不一致"
+            echo "::error::Environment RELEASE_GPG_FINGERPRINT does not match the repo fingerprint"
             exit 1
           }
           PUB_KEY=".github/release-signing-key.asc"
           grep -q '^-----BEGIN PGP PUBLIC KEY BLOCK-----' "$PUB_KEY" || {
-            echo "::error::仓库缺少有效的 ASCII armored 发布公钥：$PUB_KEY"
+            echo "::error::The repo has no valid ASCII-armored release public key: $PUB_KEY"
             exit 1
           }
           printf '%s' "$RELEASE_GPG_PRIVATE_KEY" | gpg --batch --import
           SECRET_FP="$(gpg --batch --with-colons --list-secret-keys | awk -F: '/^fpr:/ {print $10; exit}')"
           SECRET_FP="$(normalize_fp "$SECRET_FP")"
           [[ "$SECRET_FP" == "$EXPECTED_FP" ]] || {
-            echo "::error::导入的签名私钥指纹与 RELEASE_GPG_FINGERPRINT 不匹配"
+            echo "::error::The fingerprint of the imported signing private key does not match RELEASE_GPG_FINGERPRINT"
             exit 1
           }
           if [[ -n "${RELEASE_GPG_PASSPHRASE:-}" ]]; then
@@ -259,7 +259,7 @@ jobs:
           PUB_FP="$(gpg --homedir "$VERIFY_HOME" --batch --with-colons --list-keys | awk -F: '/^fpr:/ {print $10; exit}')"
           PUB_FP="$(normalize_fp "$PUB_FP")"
           [[ "$PUB_FP" == "$EXPECTED_FP" ]] || {
-            echo "::error::独立 keyring 中的公钥指纹与 RELEASE_GPG_FINGERPRINT 不一致"
+            echo "::error::The public key fingerprint in the standalone keyring does not match RELEASE_GPG_FINGERPRINT"
             exit 1
           }
           gpg --homedir "$VERIFY_HOME" --batch --verify release-assets/SHA256SUMS.asc release-assets/SHA256SUMS

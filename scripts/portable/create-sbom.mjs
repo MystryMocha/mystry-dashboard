@@ -8,9 +8,9 @@ function parseArguments(argv) {
   const result = {};
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
-    if (!token.startsWith('--')) throw new Error(`未知参数：${token}`);
+    if (!token.startsWith('--')) throw new Error(`Unknown option: ${token}`);
     const value = argv[index + 1];
-    if (!value || value.startsWith('--')) throw new Error(`参数 ${token} 缺少值`);
+    if (!value || value.startsWith('--')) throw new Error(`Option ${token} needs a value`);
     result[token.slice(2)] = value;
     index += 1;
   }
@@ -44,7 +44,7 @@ export async function createSbom({
     fsp.readFile(packagePath, 'utf8').then(JSON.parse),
   ]);
   if (!lock.packages || typeof lock.packages !== 'object') {
-    throw new Error('package-lock.json 缺少 packages 字段');
+    throw new Error('package-lock.json has no packages field');
   }
 
   const componentsByRef = new Map();
@@ -109,13 +109,13 @@ export async function createSbom({
 
 async function main() {
   const args = parseArguments(process.argv.slice(2));
-  if (!args.output) throw new Error('必须通过 --output 指定 SBOM 输出文件');
+  if (!args.output) throw new Error('An SBOM output file must be given with --output');
   const result = await createSbom({
     lockPath: args.lock ? path.resolve(args.lock) : undefined,
     packagePath: args.package ? path.resolve(args.package) : undefined,
     outputPath: path.resolve(args.output),
   });
-  console.log(`已生成 CycloneDX SBOM：${result.outputPath}（${result.componentCount} 个生产组件）`);
+  console.log(`Generated CycloneDX SBOM: ${result.outputPath} (${result.componentCount} production components)`);
 }
 
 if (isMainModule(import.meta.url)) {
