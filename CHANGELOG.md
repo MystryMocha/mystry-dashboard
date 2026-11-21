@@ -1,249 +1,251 @@
 # Changelog
 
-本文件记录项目的重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+**English** · [简体中文](CHANGELOG.zh-CN.md)
+
+This file records notable changes to the project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
 ### Added
 
-- 「在其他设备上打开」：顶栏新增「其他设备」按钮（手机宽度下在「本机」页），在面板里一键开启或关闭从手机、另一台电脑访问，不用改 `.env`，也不用重启面板。弹窗显示网址和二维码，二维码在浏览器本地生成。
-- 直接访问默认监听所有网卡，也可以只选一块；网卡旁写明用途（同一 Wi-Fi、公网、组网软件、代理软件的虚拟网卡等）。两个可选的安全开关：「使用 HTTPS」（默认开启，证书由面板自己签发，浏览器第一次会提示不安全，点「高级」→「继续前往」即可；可以关掉）和「只允许同一网段的设备」（默认关闭）。
-- Windows 上开启时尝试添加名为 `MystryDashboard-Panel-Direct` / `MystryDashboard-Panel-Overlay` 的防火墙放行规则，关闭时删除；面板不是管理员身份时加不上，页面给出手动放行的说明。Linux 上页面给出 `ufw` 和 `firewalld` 的写法。
-- 虚拟组网：手机用流量或不在同一网络时，可以用面板自带的 EasyTier 网络（不用注册账号，只放行面板端口，和每个实例的虚拟局域网互相独立），或电脑和手机上已装好的组网软件（如 Tailscale）。面板自带网络给出 Android 和另一台电脑的加入信息，并列出已加入的设备。
-- 启动器新增 `remote` 命令：`remote on [网卡名]`、`remote off`、`remote status`、`remote https on|off`、`remote renew-cert`。经 SSH 登录的服务器首次启动时会问一句是否允许自己的电脑或手机打开面板，并打印网址、证书指纹和安全组提醒。
-- 「联机」页支持有公网 IP 的电脑（云服务器、机房）：可以填写公网 IP 或域名，页面给出「公网地址:游戏端口」供复制，并列出朋友连不上时的检查清单（安全组、系统防火墙、`server-ip` 留空、域名和 SRV 记录）。网卡上直接有公网地址时自动显示。面板不自动探测公网 IP。
-- 「导入服务端」新增「上传文件夹」并设为默认方式：在浏览器里选择或拖入原服务端所在的文件夹，面板分批上传、检查启动文件后再导入，不用先把文件夹复制进数据目录的 `imports`。原「从本机文件夹导入」改名「从 imports 文件夹复制」并收为次要入口，适合服务端已经在面板所在电脑上（如 SSH 管理的服务器）或特别大的情况：在「上传文件夹」下方点链接切过去，`imports` 里已有文件夹时直接列出。手机浏览器不显示上传文件夹。
-- 新增「登录有效期」设置：可选 2 小时、12 小时、1 天、7 天、30 天或不过期，选了就保存。改长时这台设备马上生效，改短时登录已超过新时长的设备需要重新登录。
-- 新增「面板设置」页，入口是左下角用户名旁的齿轮。面板自己的设置集中到这里，按作用范围分组：「这台设备」（语言、外观，只对这个浏览器生效）、「面板」（登录有效期、下载来源、在其他设备上打开，对所有登录的设备生效）、「账号」（修改密码、退出登录）。「运行信息」列出版本、监听地址、数据目录、备份目录和配置文件的位置，只能看；要改仍然改配置文件后重启面板。
+- "Open on other devices": a new "Other devices" button in the top bar (on the "Local" page at phone width) turns access from a phone or another computer on or off with one click inside the panel, without editing `.env` or restarting the panel. The dialog shows the URL and a QR code, which is generated locally in the browser.
+- Direct access listens on all interfaces by default, or on a single chosen one; each interface is labeled with its purpose (same Wi-Fi, public network, virtual networking software, a proxy app's virtual interface, etc.). Two optional security switches: "Use HTTPS" (on by default; the certificate is issued by the panel itself, so the browser warns it is not secure the first time, and "Advanced" → "Proceed" continues; it can be turned off) and "Same subnet only" (off by default).
+- On Windows, enabling it tries to add firewall allow rules named `MystryDashboard-Panel-Direct` / `MystryDashboard-Panel-Overlay`, and disabling removes them; when the panel is not running as administrator the rules cannot be added, and the page explains how to allow it manually. On Linux the page gives the `ufw` and `firewalld` commands.
+- Virtual networking: when the phone is on mobile data or not on the same network, you can use the panel's built-in EasyTier network (no account needed, allows only the panel port, and is independent of each instance's virtual LAN), or virtual networking software already installed on the computer and phone (such as Tailscale). The built-in network gives join info for Android and for another computer, and lists the devices that have joined.
+- The launcher has a new `remote` command: `remote on [interface name]`, `remote off`, `remote status`, `remote https on|off`, `remote renew-cert`. On a server reached through SSH, the first start asks whether to allow your own computer or phone to open the panel, and prints the URL, certificate fingerprint and a security group reminder.
+- The "Multiplayer" page supports computers with a public IP (cloud servers, data centers): a public IP or domain can be entered, the page gives "public address:game port" to copy, and lists a checklist for when friends cannot connect (security group, system firewall, leaving `server-ip` empty, domain and SRV records). A public address directly on an interface is shown automatically. The panel does not auto-detect the public IP.
+- "Import Server" adds "Upload Folder" and makes it the default: choose or drag in the folder holding the original server in the browser, and the panel uploads in batches and checks the launch file before importing, without first copying the folder into `imports` in the data directory. The former "Import from a local folder" is renamed "Copy from the imports folder" and becomes a secondary entry, suited to servers already on the panel's computer (such as an SSH-managed server) or very large ones: switch over with the link below "Upload Folder", and it is listed directly when `imports` already contains folders. Mobile browsers do not show Upload Folder.
+- A new "Session Duration" setting: 2 hours, 12 hours, 1 day, 7 days, 30 days or never expire, saved as soon as chosen. Lengthening takes effect on this device immediately; after shortening, devices signed in for longer than the new duration have to sign in again.
+- A new "Panel Settings" page, opened with the gear next to the username in the bottom left. The panel's own settings are gathered here, grouped by scope: "This device" (language and appearance, for this browser only), "Panel" (session duration, download source, open on other devices, for every signed-in device) and "Account" (change password, sign out). "Runtime Info" lists the version, listen address, data directory, backup directory and config file location, read-only; changing them still means editing the config file and restarting the panel.
 
 ### Changed
 
-- 登录有效期和下载来源从「本机环境」页搬到「面板设置」页；修改密码从左下角的钥匙按钮搬到「面板设置」的「账号」一栏。「本机环境」页只留本机信息和「在其他设备上打开」。下载失败时的提示相应改为到「面板设置」页更换下载来源。
-- 「实例总览」改版：服务器列表移到最前面，一行一台；状态后面写明现在能做什么（可以进服、世界加载中、需要 Java 21、需要同意 EULA、意外退出），并直接给出下一步按钮（邀请朋友、打开实例设置、查看并同意、查看控制台）。主机 CPU、内存、数据盘缩成列表上方的一条占用条，运行中的服务器显示内存相对 `-Xmx` 上限的占用条。异常筛选改为列表上方的「全部 / 运行中 / 异常」，没有实例时列出三种添加方式。
-- 「一键部署」「导入服务端」「实例设置」「参数配置」在电脑宽度下分两栏排列，不用再往下翻很久：导入页左边是来源、右边是导入设置；实例设置左边是基本信息和许可协议、右边是运行环境；参数配置的分组排成两列；一键部署的五种核心排成一行，实例名称和游戏版本并排。窄屏仍是一列。
-- 控制台发出的命令（包括「常用命令」）会以 `> list` 这样的粗体白字记在日志里，后面紧跟服务端的回复；之前 Minecraft 不回显命令，点了看起来像没反应。重新连接、换页回来或其他人打开控制台时也看得到。
-- 「实例总览」和实例页面去掉一层卡片感：总览说明行改成大字状态句（如「共 6 个实例，2 个正在运行」，有需要处理的实例时接一句红字）；本机资源条和服务器列表不再放在底板上，只用分隔线分行；每行的启动、停止平时只显示文字和图标，悬停才出现底色，「邀请朋友」等下一步按钮仍是每行唯一带底色的操作。实例页的标签从胶囊分段改为下划线文字标签；「服务器已启动」提示从大块提示框缩成控制台上方的一行。
-- 其余页面同样去掉卡片：一键部署、导入服务端、联机、本机环境、实例的文件 / 参数 / 备份 / 设置，表单分区改为「标题 + 分隔线 + 内容」，列表和空状态夹在两条分隔线之间，部署指引用一条竖线和表单分开。弹窗里的表单和列表不变。页面也短了一些（实例设置、导入服务端在电脑上基本一屏放下）。
-- 实例页头的核心名和总览一致（如「自定义 Jar 1.21.4」），不再显示大写的 `CUSTOM`。
-- 任务列表里的「查看实例」链接去掉末尾的「→」。
-- 字号统一为八档（11 / 12 / 13 / 15 / 16 / 17 / 22 / 30px），不再有 12.5、13.5、14.5 这类相差半像素的字号；按钮、导航和菜单文字从 14px 调到和正文一样的 15px，手机上的实例标签改为 13px，英文五个标签也能一行放下。页面背景去掉左上、右下两团紫色光晕，改为纯色。「一键部署」的核心选择块悬停时不再上浮，只变底色。
-- 核心图标（Paper、Fabric 等）、头像和「本机环境」图标改为纯色，不再用渐变和彩色投影。运行中的服务器状态点不再一直呼吸闪动，只有启动中、停止中仍会闪烁。几处用「·」拼接的文字改成完整的话，如控制台的「实时日志已连接」、部署页的「插件服，新手推荐」、内存说明「推荐 … MiB，主机总内存约 … GiB」、系统默认 Java「系统默认 Java 21 可用」。
-- 删掉界面上几处空话：登录页「请妥善保管」、部署指引里没有依据的「性能也更好」和「也有别的办法」、导入 ZIP 区域里说不出具体限制的「上传大小与解压限制由面板配置决定」；部署提交、数据过期、扫码说明、公网地址和虚拟局域网介绍改得更短，不再重复标题已经说过的话。
-- 界面和错误提示里的开发用语换成用户的说法：「钉死版本」→「没有可用的官方客户端」，「下载票据」→「下载链接」，「冻结版本 / 复核于」→「参数版本 / 核对过」，「引导模式」「启动目标」「路径分隔符」「递归删除」「逻辑核总容量」「未收录配置」「内存任务」「流式解压」「bcrypt 截断上限」都改成了直白的话。旧实例迁移的按钮从「接管托管目录」改为「完成迁移」，和总览的「待迁移」「去迁移」一致；Java 的「重新探测」统一为「重新扫描」（英文本来就是 Rescan）。繁体中文改用台湾惯用词：「聯機」→「多人連線」，「外掛」→「插件」（外掛在台湾指作弊程序），「網路祕密」→「網路金鑰」，「命令」→「指令」。
-- 「联机」页重新排版：实例选择和三种方式放在同一行；右侧新增「指引」栏，写穿透模式的区别和连不上时查什么，可以关闭，之后点「显示指引」再打开。虚拟局域网和 frp 改成按操作顺序排：最上面是「对玩家开放这个实例」开关，点了立即生效，不再先勾选再保存；打开后是「让玩家加入」几步（发加入说明或玩家配置、玩家运行客户端、玩家连加入地址），加入地址放大显示，可直接复制；中继节点和保存过的穿透设置收进折叠区；frp 第一次保存穿透设置的按钮是「保存并开放」；客户端未安装时下载按钮、下载来源和「手动安装」合在一个提示里，手动上传默认收起。客户端没装好时只显示安装提示。删除 frp 服务器的按钮挪到服务器下拉框旁边。文案删掉原理解释和重复的提醒，进服的人统一叫「玩家」（总览的「邀请朋友」也改为「邀请玩家」），穿透模式改称「公网端口 / STCP 中转 / XTCP 打洞」，「朋友说明 / 朋友配置」改为「加入说明 / 玩家配置」。
-- 强调色固定为墨紫，「外观」弹层只保留自动 / 浅色 / 深色。之前选过其他强调色（蓝、紫、Mystry 粉、绿、石墨）的浏览器也会统一显示为墨紫。
-- `GET /api/health` 的进程指纹只返回给本机请求，其他设备访问时不再带这一项。
-- 「联机」页「同一网络」的说明改为同时适用于有公网 IP 的电脑；`server-ip` 填成公网 IP 时给出专门的提示；Windows 防火墙弹窗的提示只在面板运行在 Windows 上时显示。
-- 经 SSH 登录时，启动器不再尝试在服务器上打开浏览器。
+- Session duration and download source moved from the "Local Environment" page to the "Panel Settings" page; change password moved from the key button in the bottom left to the "Account" group of "Panel Settings". The "Local Environment" page keeps only local info and "Open on other devices". The download failure message now points to the "Panel Settings" page for changing the download source.
+- "Instance Overview" redesigned: the server list comes first, one row per server; after the status it says what can be done now (ready to join, world loading, needs Java 21, needs EULA acceptance, exited unexpectedly), with the next-step button right there (invite friends, open instance settings, view and accept, view console). Host CPU, memory and data disk shrink into one usage bar above the list, and running servers show a bar of memory against the `-Xmx` limit. The abnormal filter becomes "All / Running / Abnormal" above the list, and with no instances the three ways to add one are listed.
+- "One-Click Deploy", "Import Server", "Instance Settings" and "Config" use two columns at desktop width, so there is no more long scrolling: on the import page the source is on the left and import settings on the right; in instance settings basic info and the license agreement are on the left and the runtime environment on the right; config groups form two columns; the five cores of one-click deploy sit in one row, with instance name and game version side by side. Narrow screens keep one column.
+- Commands sent from the console (including "Common Commands") are recorded in the log in bold white, like `> list`, followed directly by the server's reply; previously Minecraft did not echo commands, so a click looked like nothing happened. They are also visible after reconnecting, returning from another page, or when someone else opens the console.
+- "Instance Overview" and the instance pages lose a layer of card styling: the overview description line becomes a large status sentence (such as "6 instances, 2 running", followed by a red sentence when instances need attention); the local resource bars and the server list no longer sit on a backing panel and are separated only by dividers; start and stop in each row normally show only text and icon, with a background appearing on hover, while next-step buttons such as "Invite Friends" remain the only action with a background in each row. Instance page tabs change from capsule segments to underlined text tabs; the "server started" hint shrinks from a large notice box to one line above the console.
+- The other pages drop cards as well: one-click deploy, import server, multiplayer, local environment, and the instance's files / config / backups / settings. Form sections become "heading + divider + content", lists and empty states sit between two dividers, and the deploy guide is separated from the form by a vertical line. Forms and lists inside dialogs are unchanged. Pages are also somewhat shorter (instance settings and import server fit roughly on one screen on desktop).
+- The core name in the instance page header matches the overview (such as "Custom Jar 1.21.4"), no longer showing the upper-case `CUSTOM`.
+- The "View Instance" link in the task list loses its trailing "→".
+- Font sizes are unified into eight steps (11 / 12 / 13 / 15 / 16 / 17 / 22 / 30px), with no more half-pixel sizes such as 12.5, 13.5 and 14.5; button, navigation and menu text goes from 14px to 15px, the same as body text, and instance tabs on phones become 13px so the five English tabs fit in one row too. The page background drops the two purple glows in the top left and bottom right for a solid color. The core selection blocks of "One-Click Deploy" no longer lift on hover and only change background.
+- Core icons (Paper, Fabric, etc.), the avatar and the "Local Environment" icon become solid colors, without gradients and colored shadows. The status dot of a running server no longer breathes continuously; only starting and stopping still blink. Several texts joined with "·" become full sentences, such as "Live log connected" in the console, "Plugin server, recommended for beginners" on the deploy page, the memory note "Recommended … MiB, host memory about … GiB", and "System default Java 21 available".
+- A few empty phrases are removed from the UI: "keep it safe" on the login page, the unfounded "performs better too" and "there are other ways too" in the deploy guide, and "upload size and extraction limits are decided by panel config" in the ZIP import area, which could not name a specific limit; deploy submission, stale data, scan instructions, public address and virtual LAN introductions are shortened and no longer repeat what the heading already says.
+- Developer jargon in the UI and error messages is replaced with user wording: "pinned version" → "no official client available", "download ticket" → "download link", "frozen version / reviewed on" → "argument version / checked", and "guided mode", "launch target", "path separator", "recursive delete", "total logical core capacity", "uncatalogued config", "memory task", "streaming extraction" and "bcrypt truncation limit" are all rewritten in plain words. The button for migrating a legacy instance changes from "Take Over Managed Directory" to "Finish Migration", matching "Pending migration" and "Migrate" on the overview; Java "Re-detect" is unified as "Rescan" (the English already was Rescan). Traditional Chinese switches to wording customary in Taiwan for several terms.
+- The "Multiplayer" page is laid out anew: instance selection and the three modes share one row; a new "Guide" column on the right explains the differences between tunnel modes and what to check when it does not connect, and can be closed and reopened with "Show Guide". The virtual LAN and frp are ordered by workflow: at the top is the switch "Open this instance to players", which takes effect on click rather than check-then-save; once on, the steps of "Let players join" follow (send the join instructions or player config, the player runs the client, the player connects to the join address), with the join address shown large and copyable; relay peers and saved tunnel settings are tucked into collapsible sections; the button for the first save of frp tunnel settings is "Save and Open"; when the client is not installed the download button, download source and "Install manually" are combined in one notice, with manual upload collapsed by default. When the client is not installed only the install prompt is shown. The delete button for an frp server moves next to the server dropdown. Wording drops explanations of how it works and repeated reminders, people joining are uniformly called "players" ("Invite Friends" on the overview becomes "Invite Players" too), tunnel modes are named "Public port / STCP relay / XTCP hole punching", and "friend instructions / friend config" become "join instructions / player config".
+- The accent color is fixed to ink purple, and the "Appearance" popover keeps only auto / light / dark. Browsers that had chosen another accent color (blue, purple, Mystry pink, green, graphite) also show ink purple.
+- The process fingerprint of `GET /api/health` is returned only to requests from this machine, and is no longer included for other devices.
+- The "Same network" description on the "Multiplayer" page now also applies to computers with a public IP; a dedicated notice is given when `server-ip` is set to the public IP; the hint about the Windows firewall prompt is shown only when the panel runs on Windows.
+- When logged in through SSH, the launcher no longer tries to open a browser on the server.
 
-- 质量门禁改在本机运行：新增 `npm run ci:local`，对当前提交做干净安装并执行 `npm ci` 和 `npm run verify`。Windows 上依次检查 Windows 与 WSL 里的 Linux，Node 固定为便携包内置的 22.23.1（官方下载并校验，不动本机已装的 Node）。GitHub 上的 Quality Gate 不再随推送和 PR 自动运行，只保留手动触发；发布工作流不变。
-- 「从 imports 文件夹复制」改版：写出 imports 文件夹在面板电脑上的完整路径，可以一键复制；步骤缩成两步（停掉原服务端、复制到这个路径，一个服务端一个文件夹），并说明面板不会改动 imports 里的文件、大服务端可以用 SFTP 或 rsync 传进来续传。下拉框换成「imports 里的服务端」列表，每一行写识别出的核心和版本、启动 jar、有没有 `user_jvm_args.txt`，不能导入的行直接写原因；「刷新目录」改叫「刷新」。Forge / NeoForge 的参数文件路径不再出现在来源里。
-- 「导入服务端」简化：选好来源之前只显示来源区；上传检查完（或在 imports 里选中文件夹）后，右边「导入设置」只列实例名称、面板识别出的服务端、要用的 Java 和最大内存（来自 `user_jvm_args.txt` 时注明），以及 EULA 勾选。核心类型、Minecraft 版本、Java 运行时和 JVM 设置收进「修改设置」，Java 版本不符、没有可用的 Java、JVM 参数有错误或警告、`user_jvm_args.txt` 用不了时自动展开。不知道 Minecraft 版本时（如 ZIP 导入）摘要提醒无法确认 Java 是否合适。上传文件夹和 ZIP 的说明缩成一句。
-- Java 运行时下拉框的选项只写主版本（如「Java 21」），同一个主版本装了不止一个时才带路径；鼠标停在下拉框上可以看到所选 Java 的路径。
-- 登录默认 12 小时后过期（原来 2 小时）。`.env` 里的 `JWT_EXPIRES_IN` 不再生效，启动时如果还写着会提示改在面板里设置；便携包生成的 `.env` 和 `.env.example` 不再写这一项。
+- The quality gate now runs locally: the new `npm run ci:local` does a clean install of the current commit and runs `npm ci` and `npm run verify`. On Windows it checks Windows and then Linux in WSL, with Node pinned to the 22.23.1 bundled in the portable package (downloaded from the official site and verified, without touching the Node installed on the machine). The Quality Gate on GitHub no longer runs automatically on pushes and PRs and keeps only manual triggering; the release workflow is unchanged.
+- "Copy from the imports folder" redesigned: it shows the full path of the imports folder on the panel's computer with one-click copy; the steps shrink to two (stop the original server, copy it to this path, one folder per server), and it explains that the panel does not modify files in imports and that large servers can be transferred with SFTP or rsync, which can resume. The dropdown is replaced by a "Servers in imports" list where each row shows the recognized core and version, the launch jar and whether there is a `user_jvm_args.txt`, with the reason written directly on rows that cannot be imported; "Refresh Directory" is renamed "Refresh". The args file path of Forge / NeoForge no longer appears in the source.
+- "Import Server" simplified: before a source is chosen only the source area is shown; after the upload is checked (or a folder is selected in imports), "Import Settings" on the right lists only the instance name, the server the panel recognized, the Java to be used and max memory (noting when it comes from `user_jvm_args.txt`), and the EULA checkbox. Core type, Minecraft version, Java runtime and JVM settings are tucked into "Edit Settings", which expands automatically on a Java version mismatch, when no Java is usable, when JVM arguments have errors or warnings, or when `user_jvm_args.txt` is unusable. When the Minecraft version is unknown (such as a ZIP import) the summary notes that it cannot confirm whether the Java fits. The explanations of upload folder and ZIP shrink to one sentence.
+- Options in the Java runtime dropdown state only the major version (such as "Java 21"), with the path added only when more than one of the same major version is installed; hovering over the dropdown shows the path of the selected Java.
+- Sign-in expires after 12 hours by default (previously 2 hours). `JWT_EXPIRES_IN` in `.env` no longer applies, and if still present a note at startup says to set it in the panel instead; the `.env` generated by the portable package and `.env.example` no longer include it.
 
 ### Fixed
 
-- Java 运行时下方的状态写的总是系统默认 Java：选了 Java 21 时仍写「系统默认 Java 1.8.0_492 可用」，系统里没有默认 Java 时还会写「未找到系统默认 Java」。现在写的是实际要用的那个 Java（部署、导入、实例设置、创建空实例都一样）。
-- 安装 Java 期间离开设置区（比如导入页取消已上传的文件夹、换了来源）后，导入页的提交按钮一直是灰的，要刷新页面才恢复。
-- 深色外观下，下拉框展开后的选项是浅灰底配白字，几乎看不清（Windows 用选择框的半透明底色画弹出列表）。现在选项使用实底和正常文字色。
-- 用 `http://` 加局域网地址或组网地址打开面板时，复制按钮也能用了（之前这种情况下浏览器不提供剪贴板接口，控制台和联机页的复制会失败或报错）。
-- 「联机」页「同一网络」不再把实例自己的虚拟局域网地址（`10.126.x.1`）当成发给朋友的局域网地址。
-- Windows 上安装 EasyTier 时一起装上 `Packet.dll`。`easytier-core.exe` 一启动就要加载它，之前只装了 core、cli 和 `wintun.dll`，没装 Npcap 的电脑上虚拟局域网会因找不到 DLL（`0xC0000135`）起不来。已经装过的会显示为尚未安装，在「联机」页的虚拟局域网里重新安装（下载或上传官方压缩包）一次即可。
+- The status under the Java runtime always described the system default Java: with Java 21 selected it still said "System default Java 1.8.0_492 available", and with no default Java on the system it said "System default Java not found". It now describes the Java that will actually be used (the same for deploy, import, instance settings and creating an empty instance).
+- After leaving the settings area during a Java install (for example cancelling an uploaded folder on the import page, or changing the source), the import page's submit button stayed grey until the page was refreshed.
+- In the dark appearance the options of an open dropdown were white text on light grey and nearly unreadable (Windows draws the popup list with the select's translucent background). Options now use a solid background and the normal text color.
+- The copy buttons also work when the panel is opened at `http://` plus a LAN address or virtual-network address (previously the browser provided no clipboard API in that case, so copying in the console and the multiplayer page failed or errored).
+- "Same network" on the "Multiplayer" page no longer treats the instance's own virtual LAN address (`10.126.x.1`) as a LAN address to send to friends.
+- Installing EasyTier on Windows now installs `Packet.dll` too. `easytier-core.exe` loads it as soon as it starts, and previously only core, cli and `wintun.dll` were installed, so on computers without Npcap the virtual LAN failed to start because the DLL could not be found (`0xC0000135`). Existing installs show as not installed yet; reinstall once (download or upload the official archive) under the virtual LAN on the "Multiplayer" page.
 
 ## [0.2.0-preview.4] - 2026-11-16
 
 ### Added
 
-- 根 `README.md` 与 `README.zh-CN.md` 补充浅色/深色多主题真实界面预览截图、横向方案对比与 3 步快速启动说明，并新增 GitHub 社交分享封面图（`docs/assets/social-preview.png`）。
-- 面板左下角可以修改管理员密码。
-- 新增 `reset-password` 命令，忘记密码时可在本机重置。
-- 「本机环境」页新增下载来源设置，可选官方来源（默认）或国内镜像，保存后立即生效。国内镜像下 Vanilla、Forge、NeoForge 和版本列表走 BMCLAPI，frp 和 EasyTier 走公共 GitHub 镜像，失败时自动改用官方来源；Paper 和 Fabric 的服务端文件仍走官方。`panel_settings` 表在启动时自动创建，无需手动迁移。
-- 部署页和联机客户端安装提示显示当前下载来源；下载进度显示正在使用的来源。
-- 核心下载按官方校验值核对，不符的文件不会进入缓存：Vanilla 按 Mojang 清单里的 SHA-1 逐级核对版本详情和服务端 jar；Paper 在 Fill 接口给出 SHA-256 时核对；Forge 和 NeoForge 在官方 Maven 能取到 `.sha256` 时核对，取不到时不校验；Fabric 服务端 jar 没有官方校验值。
-- 联机的两种方式在下载客户端失败时都可以改为手动安装：页面列出官方压缩包的文件名、SHA-256 和官方地址，在任意设备（官方或镜像）下载后上传，摘要一致才会安装。给朋友的 EasyTier 说明里也写上了 Windows 压缩包的文件名和 SHA-256。
-- 虚拟局域网可以填写自己的中继节点（一行一个，最多 8 个），也可以关掉内置的社区共享节点只用自己的；朋友的命令使用同一份节点。`instance_lans` 表启动时自动新增 `custom_peers`、`use_shared_peers` 两列，旧设置默认继续使用社区共享节点。
-- Windows 上打开虚拟局域网时，面板添加名为 `MystryDashboard-LAN-<实例 id>` 的防火墙放行规则：游戏 TCP 端口（只限本实例的虚拟地址）和 EasyTier 监听端口的 TCP/UDP，停止时按名字删除。规则加不上时页面给出提示，虚拟局域网照常运行。
-- 启动失败且原因能认出时，实例控制台上方给出说明和下一步：未同意 EULA 时可点「同意并启动」（先保存同意再启动）；Java 过新或过旧时给出需要的 Java 版本（能认出时）、Temurin 下载链接和「打开实例设置」入口。只认服务端和 JVM 的固定报错句式，其他崩溃仍只有控制台原文。Java 选择器在版本不符或找不到系统默认 Java 时也带下载链接。
-- 「联机」页新增并默认显示「同一网络」：列出这台电脑的局域网 IPv4 地址加游戏端口供复制（按网卡名和网段去掉能认出的虚拟网卡），并提示 Windows 防火墙弹窗和 `server-ip` 绑定问题。只读显示，不开端口、不改配置。
-- 「同一网络」在这台电脑有公网 IPv6、且 `server-ip` 留空或为 `*`、`::` 时，另外显示最多 3 个公网 IPv6 地址（写成 `[地址]:端口`），并提醒只在路由器放行游戏端口、不要整个关掉 IPv6 防火墙。面板不检测路由器是否放行，尚未在有公网 IPv6 的机器上实测。
-- 服务器完成启动（控制台出现 `Done (` 一行）后，控制台页提示可以进服，并给出「邀请朋友」入口跳到「联机」页；点「不再提示」后，这个浏览器里所有实例都不再显示。
-- ZIP 导入和本机文件夹导入按启动文件识别 Forge 等核心类型，并从启动文件名里认出 1.7–1.21 的 Minecraft 版本（NeoForge 和认不出核心的 jar 不认版本）；核心选「自动识别」、版本留空时使用识别结果。本机文件夹导入选中来源后自动填好识别到的版本；ZIP 导入页面上不预先填写，导入时才套用识别结果。
+- The root `README.md` and `README.zh-CN.md` gain real UI preview screenshots in light/dark themes, a side-by-side comparison of options and a 3-step quick start, plus a GitHub social preview image (`docs/assets/social-preview.png`).
+- The admin password can be changed from the bottom left of the panel.
+- A new `reset-password` command resets a forgotten password on this machine.
+- The "Local Environment" page gains a download source setting: the official source (default) or China mirrors, effective right after saving. Under China mirrors Vanilla, Forge, NeoForge and version lists use BMCLAPI, and frp and EasyTier use public GitHub mirrors, switching to the official source automatically on failure; the server files of Paper and Fabric still use official. The `panel_settings` table is created automatically at startup, with no manual migration.
+- The deploy page and the multiplayer client install prompt show the current download source; download progress shows the source in use.
+- Core downloads are checked against official checksums, and mismatched files do not enter the cache: Vanilla verifies the version details and server jar level by level from the SHA-1 in Mojang's manifest; Paper verifies when the Fill API gives a SHA-256; Forge and NeoForge verify when `.sha256` can be fetched from the official Maven, and do not verify when it cannot; the Fabric server jar has no official checksum.
+- Both multiplayer modes can switch to manual install when downloading the client fails: the page lists the file name, SHA-256 and official URL of the official archive, which can be downloaded on any device (official or mirror) and uploaded, and is installed only when the digest matches. The EasyTier instructions for friends also include the Windows archive's file name and SHA-256.
+- The virtual LAN accepts your own relay peers (one per line, at most 8), and the built-in community shared peers can be turned off to use only your own; the friend command uses the same peers. The `instance_lans` table gains the `custom_peers` and `use_shared_peers` columns automatically at startup, and old settings keep using the community shared peers by default.
+- On Windows, when the virtual LAN is turned on the panel adds firewall allow rules named `MystryDashboard-LAN-<instance id>`: the game TCP port (restricted to this instance's virtual address) and TCP/UDP on the EasyTier listen port, deleted by name on stop. When the rules cannot be added the page shows a notice and the virtual LAN runs as usual.
+- When a start fails for a recognizable reason, an explanation and the next step appear above the instance console: with the EULA not accepted, "Accept and Start" is available (acceptance is saved before starting); when Java is too new or too old it gives the Java version needed (when recognizable), a Temurin download link and an "Open Instance Settings" entry. Only fixed error patterns of the server and JVM are recognized; other crashes still show only the console text. The Java picker also carries a download link on a version mismatch or when the system default Java cannot be found.
+- The "Multiplayer" page adds "Same network" and shows it by default: it lists this computer's LAN IPv4 addresses plus the game port to copy (dropping recognizable virtual interfaces by interface name and subnet), and points out the Windows firewall prompt and `server-ip` binding problems. Read-only; it opens no ports and changes no config.
+- When this computer has a public IPv6 and `server-ip` is empty, `*` or `::`, "Same network" additionally shows up to 3 public IPv6 addresses (written as `[address]:port`), with a reminder to allow only the game port on the router rather than turning off the IPv6 firewall entirely. The panel does not check whether the router lets traffic through, and this has not been tested yet on a machine with a public IPv6.
+- After the server finishes starting (a `Done (` line appears in the console), the console page says it can be joined and offers an "Invite Friends" entry to the "Multiplayer" page; after "Don't show again", it is no longer shown for any instance in this browser.
+- ZIP import and local folder import recognize core types such as Forge from the launch file, and recognize Minecraft versions 1.7–1.21 from the launch file name (no version for NeoForge or jars with an unrecognized core); with the core on "Auto-detect" and the version left empty, the detection result is used. Local folder import fills in the recognized version automatically once a source is selected; the ZIP import page does not prefill, and applies the detection result at import time.
 
 ### Changed
 
-- 通过启动器首次启动时，自动创建管理员 `admin` 和随机 16 位密码，并只在窗口里显示一次，不再需要处理初始化令牌。手动运行面板时仍用初始化令牌。
-- 双击 `mystryctl.cmd` 后面板在后台运行，窗口只显示账号和重要日志，不再先进菜单。关掉窗口不影响面板和服务端，重新打开后按 Ctrl+C 安全停止。菜单改用 `mystryctl.cmd menu` 打开。
-- 启动窗口不再显示 Node 实验功能提示和 Windows 数据目录权限提示，后者写入日志文件。
-- 官方来源下 Forge 版本列表改用 `files.minecraftforge.net`，NeoForge 版本列表只用 `maven.neoforged.net`，不再访问第三方的 BMCLAPI。
-- 虚拟局域网改为在一个随机空闲端口上监听 TCP 与 UDP（EasyTier 会同时监听 IPv6），有 IPv6 或在同一局域网的朋友可以直接连上，不再全靠打洞或中转。
-- 修改密码或在本机运行 `reset-password` 后，此前的登录立即失效：旧令牌下一次请求即返回 401，未用的控制台票据和尚未开始的下载票据作废，已打开的控制台连接断开（已经在传输的下载不打断）。修改密码的当前页面换发新令牌保持登录，其他浏览器和设备需要用新密码重新登录。`users` 表启动时自动新增 `token_version` 列，已有用户无需手动迁移。
-- `reset-password` 只能在终端窗口里运行：输出被重定向到文件或通过管道传出时直接拒绝、不重置密码，避免新密码写进文件或日志。
-- 服务器进程自己以退出码 0 结束时（例如未同意 EULA）状态记为「已停止」，不再显示「已崩溃」。
-- 导入页改用更直白的说法，例如「上传并检查」「复制并导入」「已找到启动文件」「自动识别」。
-- 文档索引、快速开始、使用指南、分步教程和配置说明新增英文版，使用原文件名；中文版改名为 `*.zh-CN.md`，两边开头互相链接，指向旧文件名的链接现在打开英文版。教程「让朋友联机」改为使用「联机」页，不再手动查局域网 IP。
+- On the first start through the launcher, the administrator `admin` and a random 16-character password are created automatically and shown only once in the window, with no setup token to handle. Running the panel manually still uses the setup token.
+- After double-clicking `mystryctl.cmd` the panel runs in the background and the window shows only the account and important logs, no longer opening the menu first. Closing the window does not affect the panel or servers, and Ctrl+C after reopening stops it safely. The menu is now opened with `mystryctl.cmd menu`.
+- The startup window no longer shows the Node experimental feature notice or the Windows data directory permission notice; the latter is written to the log file.
+- Under the official source the Forge version list now uses `files.minecraftforge.net` and the NeoForge version list uses only `maven.neoforged.net`, no longer contacting the third-party BMCLAPI.
+- The virtual LAN now listens on TCP and UDP on a random free port (EasyTier also listens on IPv6), so friends with IPv6 or on the same LAN can connect directly instead of relying entirely on hole punching or relaying.
+- After a password change, or running `reset-password` on this machine, earlier sign-ins are invalidated immediately: old tokens return 401 on their next request, unused console tickets and download tickets that have not started are voided, and open console connections are dropped (downloads already transferring are not interrupted). The page that changed the password gets a reissued token and stays signed in, while other browsers and devices have to sign in again with the new password. The `users` table gains the `token_version` column automatically at startup, with no manual migration for existing users.
+- `reset-password` can only run in a terminal window: when output is redirected to a file or piped it refuses outright and does not reset the password, so the new password is not written into a file or log.
+- When the server process ends on its own with exit code 0 (for example the EULA is not accepted) the status is recorded as "Stopped", no longer "Crashed".
+- The import page uses plainer wording, such as "Upload and Check", "Copy and Import", "Launch file found" and "Auto-detect".
+- The documentation index, getting started, user guide, step-by-step tutorials and configuration docs gain English versions under the original file names; the Chinese versions are renamed `*.zh-CN.md`, the two link to each other at the top, and links to the old file names now open the English version. The "Let friends join" tutorial now uses the "Multiplayer" page instead of looking up the LAN IP manually.
 
 ### Fixed
 
-- 安装路径里有符号链接或 junction 时（例如 `/home` 本身是链接的 Linux 发行版），面板不再一启动就静默退出、只提示“60 秒内未启动”，部署和文件操作也不再报实例目录越界。数据目录本身是链接时仍会拒绝。
-- 仓库路径里有符号链接时，`knowledge:check`、`lockfile:check` 等脚本不再什么都不做就当作通过。
-- 关闭前台窗口或终端时，面板会尝试安全关闭。
-- 前台启动不再刷屏：窗口只显示可读的重要日志，不显示逐请求记录，完整日志写入 `logs/panel.stdout.log`。
-- Forge 的默认版本现在总是最新构建。原来按 BMCLAPI 返回的顺序取，可能选到旧一点的构建。
-- Forge 1.7.10 等带分支后缀的旧版本能拼出正确的安装器地址。
-- Windows 上安装 frp 客户端不再依赖系统 `tar`。原来 `PATH` 里排在前面的是 Git 带的 GNU tar 时（例如从 Git Bash 启动），下载成功后会解压失败。
-- NeoForge 的 Minecraft 版本现在显示正确：26.3 不再显示成 1.26.3，26.1.2 也能单独选择，国内来源能列出对应的构建，新部署的实例记录和 Java 推荐随之正确。部署页只列正式版，快照和愚人节版不再混入。
-- NeoForge 在国内来源下留空构建时总是取最新构建。原来按 BMCLAPI 返回的顺序取，1.21 会选到 21.0.98-beta。
-- 部署页的版本下拉在桌面宽度下能用鼠标滚轮选到全部选项。原来首屏 10 项放不满面板，没有滚动条，只有键盘能加载后面的版本。
-- 版本下拉滚到底后继续滚动，页面不再跟着移动。原来下拉会随页面移位，此时点到下拉外面会直接收起。
-- 「联机」页补上浏览器标签标题。
-- 部署页「部署完成后」关于朋友加入的说明改为指向「联机」页，不再只让用户自己找地址、放行端口。
-- 任务中心里任务结束后的消息和状态词相同时只显示一次。
-- 英文界面在手机宽度下顶栏标题不再被截断（「Instance Workspace」改为「Instance」）。
-- 国内来源部署 Vanilla 时，版本清单改为只从 Mojang 获取：BMCLAPI 会把清单转到社区节点，节点改了清单就能连同后续文件的校验值一起改。版本详情和服务端 jar 仍可走镜像，地址必须是 Mojang 的 https 地址，缺校验值时直接报错，不再退回到不校验的下载。连不上 Mojang 时国内来源也无法部署 Vanilla，错误会说明清单必须从 Mojang 读取。
-- 核心缓存不再不经核对就复用：计划带校验值时每次使用前重新核对，不符的删掉重新下载（Forge/NeoForge 安装器因此会先取官方 `.sha256`；离线取不到时仍直接使用缓存）。
-- https 下载被跳转到 http 时拒绝，元数据和文件下载都一样。
-- Windows 上面板被结束后重启，再停止、关闭虚拟局域网或删除实例时，之前加的防火墙规则不再残留：面板启动时按本面板已知的实例清扫一次，没有运行状态时也会按名字补删。EasyTier 监听端口的两条规则现在只放行面板启动的 easytier-core 程序，加不上时退回不限程序。
-- Windows 便携包可以用系统自带的 `tar` 解压。原来包里带着依赖的一个测试夹具目录（名字含雪人符号「☃」），非 UTF-8 代码页下（已在中文 GBK 下实测）`tar` 会跳过它并报错退出；现在打包时排除名称含非 ASCII 字符的依赖文件，面板自己的文件出现这类名称时打包直接失败。
+- When the install path contains a symlink or junction (for example Linux distros where `/home` itself is a link), the panel no longer exits silently right after starting with only "did not start within 60 seconds", and deploy and file operations no longer report the instance directory as out of bounds. A data directory that is itself a link is still rejected.
+- When the repository path contains a symlink, scripts such as `knowledge:check` and `lockfile:check` no longer do nothing and count as passed.
+- Closing the foreground window or terminal makes the panel attempt a safe shutdown.
+- A foreground start no longer floods the screen: the window shows only readable, important logs without per-request records, and the full log is written to `logs/panel.stdout.log`.
+- The default Forge version is now always the latest build. It used to follow the order BMCLAPI returned, which could pick a slightly older build.
+- Old versions with a branch suffix, such as Forge 1.7.10, now produce the correct installer URL.
+- Installing the frp client on Windows no longer depends on the system `tar`. Previously, when the GNU tar shipped with Git came first on `PATH` (for example when started from Git Bash), extraction failed after a successful download.
+- NeoForge Minecraft versions now display correctly: 26.3 is no longer shown as 1.26.3, 26.1.2 can be selected on its own, the China source lists the matching builds, and the records and Java recommendations of newly deployed instances are correct accordingly. The deploy page lists only releases, without snapshots and April Fools versions mixed in.
+- NeoForge under the China source always takes the latest build when the build is left empty. It used to follow the order BMCLAPI returned, and 1.21 would pick 21.0.98-beta.
+- The version dropdown on the deploy page can reach every option with the mouse wheel at desktop width. Previously the first 10 items did not fill the panel, there was no scrollbar, and only the keyboard could load later versions.
+- Scrolling on after reaching the bottom of the version dropdown no longer moves the page. Previously the dropdown shifted with the page, and a click then landed outside it and collapsed it.
+- The "Multiplayer" page now has a browser tab title.
+- The note about friends joining under "After deploying" on the deploy page now points to the "Multiplayer" page, instead of only telling users to find the address and open the port themselves.
+- In the task center, a message identical to the status word after a task ends is shown only once.
+- In the English UI the top bar title is no longer truncated at phone width ("Instance Workspace" becomes "Instance").
+- When deploying Vanilla under the China source, the version manifest now comes only from Mojang: BMCLAPI redirects the manifest to community nodes, and a node that altered the manifest could alter the checksums of the later files along with it. Version details and the server jar can still use mirrors, their URLs must be Mojang https URLs, and a missing checksum fails outright instead of falling back to an unverified download. When Mojang is unreachable the China source cannot deploy Vanilla either, and the error explains that the manifest must be read from Mojang.
+- The core cache is no longer reused without verification: when the plan carries a checksum it is re-checked before every use, and a mismatch is deleted and downloaded again (the Forge/NeoForge installer therefore fetches the official `.sha256` first; the cache is still used directly when it cannot be fetched offline).
+- An https download redirected to http is rejected, for both metadata and file downloads.
+- On Windows, after the panel is killed and restarted, firewall rules added earlier no longer linger when stopping, disabling the virtual LAN or deleting the instance: the panel sweeps once at startup by the instances known to it, and also deletes by name when there is no runtime state. The two rules for the EasyTier listen port now allow only the easytier-core program the panel starts, falling back to no program restriction when they cannot be added.
+- The Windows portable package can be extracted with the system's built-in `tar`. Previously the package carried a dependency's test fixture directory (with the snowman character "☃" in its name), which `tar` skipped with an error exit under a non-UTF-8 code page (verified under Chinese GBK); packaging now excludes dependency files with non-ASCII names, and fails outright when one of the panel's own files has such a name.
 
 ## [0.2.0-preview.3] - 2026-11-05
 
 ### Changed
 
-- 接口错误响应改为 `{ error, code, params }`：`error` 为英文文本（原来是中文），`code` 是 `server.*` 消息键。直接读取 `error` 的脚本会看到英文；实例操作冲突（409）的 `code` 由 `INSTANCE_OPERATION_CONFLICT` 改为具体的消息键。任务的 `message` / `error` 同样改为英文，并新增 `messageI18n` / `errorI18n`；`tasks` 表启动时自动新增两列，无需手动迁移。
-- 一键部署默认选中 Paper 和最新正式版；Build、Loader、Installer 改为可选，留空时由服务端取最新（Paper 优先稳定构建）。部署页右侧的实现说明卡改为新手指引，说明怎么选核心和部署后怎么进服。
-- 部署、导入、创建空实例三个入口的 EULA 同意默认不勾选；部署必须主动勾选才能开始。
-- 界面文案去掉内部术语：「节点监控」改为「本机环境」，去掉远程集群锁定卡；「同机目录交接」改为「从本机文件夹导入」；「PATH 中的 java」改为「系统默认 Java」；「堆内存上限 (Xmx)」改为「最大内存」等。导入与部分启动错误提示同步改写。
-- 初始化页说明令牌已由启动器复制到剪贴板，并写明各配置文件的位置；设置密码时提示长度要求，并说明无法找回密码。
-- 「第一次开服」教程改为按便携版和启动器的实际流程编写，新增 Java 版本对照表和看到 `Done` 再进服的说明。
-- 统一界面与错误信息的叫法，术语表写入 `CONTRIBUTING.md`：「任务队列」「后台异步任务中心」统一为「任务中心」，「指令」统一为「命令」，所有 401 统一提示「登录已失效，请重新登录」；ZIP、链接、凭证、临时目录相关的错误信息不再夹带 entry、symlink/junction、ticket、staging marker 等英文术语。部署按钮改为「开始部署」，去掉「请耐心等待」「敬请期待」等措辞；标点、引号统一为全角与「」，内存单位统一为 MiB / GiB。
-- Windows 源码启动器 `PanelManager.cmd` 改为只负责检查 Node、安装依赖和构建，启停、状态、日志交给 `mystryctl`，与 Linux 的 `PanelManager.sh` 一致（脚本从约 1200 行减到约 340 行）。配置仍是仓库根目录的 `.env`，不用迁移；日志从 `data/launcher/logs/` 改到仓库根目录的 `logs/`。升级前请先停止正在运行的面板。三个入口的命令清单按同一顺序列出，Windows 补上 `open` 和 `help`。菜单和日志输出去掉 `=====` 分隔线，`logs` 的分节标题改为「最近的错误输出」「最近的标准输出」。
-- 文档整理：同一件事只在一处写全，其他地方改为链接。从本机文件夹导入、旧版实例接管、控制台限制、Java 版本对照表、数据目录结构各保留一份正文；使用指南和教程去掉接口路径、HTTP 状态码、内部模块名等实现细节，部署与导入的内部流程移到 `docs/architecture.md`。按实际界面修正了侧栏、Tab 和按钮名称（如「导入服务端」「参数配置」「接管托管目录」）、文件页的编辑方式，以及总览刷新间隔（5 秒）。
-- 根 README 改为英文默认，中文版移至 `README.zh-CN.md`；两份都补上备份与还原，去掉过时的「没有备份功能」说明。
-- GitHub Release 正文和便携包内 `README.txt` 改为中英双语，英文在前。此前只有中文。
-- 便携说明 `docs/portable-release.md` 改为英文，中文版移至 `docs/portable-release.zh-CN.md`。
-- Linux `PanelManager.sh rebuild` 改为和 Windows 相同的顺序：先安全停止面板，再强制重新安装依赖、构建，然后启动。此前它在面板运行时直接构建再重启，也不会重新安装依赖。
-- 发布冒烟不再固定中文界面，只看退出码、文件、健康检查和日志内容，界面语言不影响发布结果。
-- `package-lock.json` 只记录官方下载地址，`npm run verify` 会检查这一点；本机 npm 配了镜像时用 `npm run lockfile:fix` 改回。
-- README 补上联机功能和使用前提，改正配置文件位置（便携版和 Linux 源码是 `config/panel.env`，Windows 源码是 `.env`）。
+- API error responses change to `{ error, code, params }`: `error` is English text (previously Chinese) and `code` is a `server.*` message key. Scripts reading `error` directly will see English; the `code` of instance operation conflicts (409) changes from `INSTANCE_OPERATION_CONFLICT` to a specific message key. Task `message` / `error` likewise become English, with `messageI18n` / `errorI18n` added; the `tasks` table gains two columns automatically at startup, with no manual migration.
+- One-click deploy selects Paper and the latest release by default; Build, Loader and Installer become optional, and the server takes the latest when they are empty (Paper prefers stable builds). The implementation notes card on the right of the deploy page becomes a beginner guide on how to choose a core and how to join the server after deploying.
+- EULA acceptance is unchecked by default in all three entries (deploy, import, create empty instance); a deploy can start only after it is checked.
+- UI text drops internal terms: "Node Monitoring" becomes "Local Environment", and the locked remote cluster card is removed; "Same-machine directory handoff" becomes "Import from a local folder"; "java on PATH" becomes "System default Java"; "Heap limit (Xmx)" becomes "Max memory", and so on. Import messages and some startup error messages are rewritten to match.
+- The setup page says the token has been copied to the clipboard by the launcher and states where each config file is; setting a password shows the length requirement and notes that the password cannot be recovered.
+- The "First server" tutorial is rewritten to follow the actual flow of the portable version and the launcher, with a new Java version table and a note to join only after seeing `Done`.
+- Terminology in the UI and error messages is unified, with the glossary written into `CONTRIBUTING.md`: the task queue and background task center are uniformly "Task Center", all 401s uniformly say "Your session has expired. Please sign in again."; error messages about ZIPs, links, credentials and temp directories no longer carry English terms such as entry, symlink/junction, ticket and staging marker. The deploy button becomes "Start Deploy", and phrases such as "please be patient" and "coming soon" are removed; Chinese punctuation and quotation marks are unified, and memory units are unified as MiB / GiB.
+- The Windows source launcher `PanelManager.cmd` now only checks Node, installs dependencies and builds, handing start/stop, status and logs to `mystryctl`, the same as `PanelManager.sh` on Linux (the script shrinks from about 1200 lines to about 340). The config is still `.env` in the repository root, with no migration; logs move from `data/launcher/logs/` to `logs/` in the repository root. Stop the running panel before upgrading. The command lists of the three entries are in the same order, and Windows gains `open` and `help`. Menu and log output drop the `=====` separators, and the section headings of `logs` become "Recent error output" and "Recent standard output".
+- Documentation tidied: each thing is written out in one place only, and linked from elsewhere. Importing from a local folder, taking over legacy instances, console limits, the Java version table and the data directory layout each keep one full text; the user guide and tutorials drop implementation details such as API paths, HTTP status codes and internal module names, and the internal flow of deploy and import moves to `docs/architecture.md`. Sidebar, tab and button names, how files are edited on the files page, and the overview refresh interval (5 seconds) are corrected to match the actual UI.
+- The root README defaults to English, with the Chinese version moved to `README.zh-CN.md`; both add backup and restore and drop the outdated "no backup feature" note.
+- The GitHub Release body and `README.txt` in the portable package become bilingual, English first. Previously they were Chinese only.
+- The portable doc `docs/portable-release.md` becomes English, with the Chinese version moved to `docs/portable-release.zh-CN.md`.
+- `PanelManager.sh rebuild` on Linux now follows the same order as Windows: stop the panel safely first, then force a dependency reinstall, build, and start. Previously it built while the panel was running and then restarted, without reinstalling dependencies.
+- The release smoke test no longer fixes the UI to Chinese and looks only at exit codes, files, the health check and log content, so the UI language does not affect the release result.
+- `package-lock.json` records only official download URLs, which `npm run verify` checks; when the local npm is configured with a mirror, `npm run lockfile:fix` rewrites them.
+- The README adds the multiplayer feature and prerequisites, and corrects the config file locations (`config/panel.env` for the portable version and Linux source, `.env` for Windows source).
 
 ### Added
 
-- 实例页新增「备份」分段：一键备份整个服务器目录（世界、配置、mods、plugins），运行中也能备份，面板会先暂停自动保存并把世界写入磁盘，完成后恢复。备份可下载、上传、删除；还原前需停服，默认先自动备份当前文件，备份经逐文件校验后才替换实例目录，中途失败或面板退出都会恢复原目录。备份默认存于 `DATA_DIR/backups/`，可用新变量 `BACKUP_DIR` 指定目录，上传上限由 `MAX_BACKUP_UPLOAD_BYTES`（默认 10 GiB）控制。备份或还原期间不能启动、重启、删除该实例；还原期间不能修改其文件。还原后若备份里的服务端 jar 与当前不同，面板记录的服务端文件、核心类型和版本会改回备份时的值。删除实例时默认连同它的备份一起删除，可在确认框里选择保留。备份与还原任务的时限由新变量 `BACKUP_TASK_TIMEOUT_MS`（默认 6 小时）控制。备份不包含账号、面板中的其他实例设置，以及运行时被锁住的 `session.lock`。
-- Web 界面支持英文、简体中文和繁體中文，英文为默认语言。工具栏和登录页右上角新增「语言」按钮，可选自动（浏览器是繁体中文显示繁體中文，其他中文显示简体中文，其他语言显示英文）、English、简体中文或繁體中文，选择保存在本浏览器；从旧版本升级且浏览器为中文时仍显示中文。数字、日期和文件大小按所选语言格式化。服务端返回的错误信息、部署/导入任务进度和控制台错误也随界面语言显示：接口错误改为 `{ error, code, params }`，`error` 默认英文；升级前创建的任务仍显示原来的中文。
-- `PanelManager.cmd`、`PanelManager.sh` 和 `mystryctl` 的菜单与提示按系统语言显示：中文系统显示中文，其他系统显示英文；可用环境变量 `MYSTRY_LANG=zh-CN` / `en-US` 固定。此前 Linux 源码版和便携版只有中文。
-- 侧栏「部署与维护」新增「联机」（排在「本机环境」前面）：先选择实例，再用分段在「虚拟局域网」和「frp 穿透」之间切换，一次只显示一种，切换不会改掉另一种已保存的设置。两种方式都只转发这个实例的游戏端口，不会暴露面板本身，也不会要求填写程序路径；游戏没在运行、或 `server.properties` 把 `server-ip` 写成了某一块网卡时不会启动。
-  - **虚拟局域网**：不需要公网 IP 或注册账号。面板下载钉死版本的官方 EasyTier，把实例放进一个私有虚拟局域网；朋友复制或下载一条锁定命令，用管理员权限运行后按显示的虚拟地址加入。网络密钥只出现在给朋友的说明里。
-  - **frp 穿透**：用你自己的 frp 服务器。面板下载钉死版本的官方 frp 客户端；公网模式下朋友直接添加显示的地址，内网模式下把下载的配置发给朋友，对方用官方客户端打开后连接自己的 `127.0.0.1`。
-- 源码启动器新增 `mirror` 命令，Windows 菜单里也能选：安装依赖时可以跟随 npm 自身配置，或使用 npm 官方、npmmirror、腾讯云、华为云。
+- The instance page gains a "Backups" tab: one-click backup of the whole server directory (world, config, mods, plugins), also while running, where the panel first pauses autosave and writes the world to disk, then resumes afterwards. Backups can be downloaded, uploaded and deleted; a restore requires the server to be stopped, backs up the current files first by default, and replaces the instance directory only after the backup passes per-file verification, restoring the original directory on a failure midway or a panel exit. Backups are stored in `DATA_DIR/backups/` by default, the directory can be set with the new variable `BACKUP_DIR`, and the upload limit is controlled by `MAX_BACKUP_UPLOAD_BYTES` (10 GiB by default). During a backup or restore the instance cannot be started, restarted or deleted; during a restore its files cannot be modified. After a restore, if the server jar in the backup differs from the current one, the server file, core type and version recorded by the panel go back to the values at backup time. Deleting an instance deletes its backups too by default, and keeping them can be chosen in the confirmation dialog. The time limit for backup and restore tasks is controlled by the new variable `BACKUP_TASK_TIMEOUT_MS` (6 hours by default). Backups do not include accounts, other instance settings in the panel, or `session.lock`, which is locked while running.
+- The Web UI supports English, Simplified Chinese and Traditional Chinese, with English as the default. A new "Language" button in the toolbar and the top right of the login page offers auto (Traditional Chinese for a Traditional Chinese browser, Simplified Chinese for other Chinese, English for other languages), English, Simplified Chinese or Traditional Chinese, with the choice saved in this browser; after upgrading from an older version a Chinese browser still shows Chinese. Numbers, dates and file sizes are formatted for the chosen language. Server error messages, deploy/import task progress and console errors follow the UI language too: API errors change to `{ error, code, params }`, with `error` in English by default; tasks created before the upgrade still show the original Chinese.
+- The menus and messages of `PanelManager.cmd`, `PanelManager.sh` and `mystryctl` follow the system language: Chinese on a Chinese system and English elsewhere; it can be fixed with the environment variable `MYSTRY_LANG=zh-CN` / `en-US`. Previously the Linux source version and the portable version were Chinese only.
+- "Multiplayer" is added under "Deploy and Maintain" in the sidebar (before "Local Environment"): choose an instance first, then switch between "Virtual LAN" and "frp Tunneling" with a segmented control, showing one at a time; switching does not change the saved settings of the other. Both modes forward only this instance's game port, do not expose the panel itself, and do not ask for a program path; they do not start while the game is not running or when `server.properties` sets `server-ip` to one specific interface.
+  - **Virtual LAN**: no public IP or account needed. The panel downloads a pinned version of the official EasyTier and puts the instance into a private virtual LAN; friends copy or download a locked-down command, run it with administrator rights, and join at the virtual address shown. The network secret appears only in the instructions for friends.
+  - **frp Tunneling**: uses your own frp server. The panel downloads a pinned version of the official frp client; in public mode friends add the address shown directly, and in private modes you send the downloaded config to friends, who open it with the official client and connect to their own `127.0.0.1`.
+- The source launcher adds a `mirror` command, also available in the Windows menu: dependency installs can follow npm's own config, or use npm official, npmmirror, Tencent Cloud or Huawei Cloud.
 
 ### Removed
 
-- Windows 源码启动器去掉 `--lang` 参数和菜单中按 `L` 切换语言；改为自动跟随系统语言，需要固定时设置 `MYSTRY_LANG`。
-- 删除截图展示：产品介绍页 `docs/product-intro/` 与其中 8 张界面截图一并移除，README 和文档中心不再链接「界面导览」；界面说明以 [使用指南](docs/user-guide.zh-CN.md) 为准。
-- 删除 `docs/wiki/` 导航页（内容都是指向正文的链接，与 `docs/README.md` 重复），以及产品介绍的 PDF、生成脚本 `build-pdf.py` 和旧截图。
-- 删除旧的一阶段 ZIP 导入接口 `POST /api/import`。Web 早已改用「上传预检 → 确认配置」的 `/api/import/previews` 流程；直接调用旧接口的脚本需要改走预览流程，否则会收到 404。
+- The Windows source launcher drops the `--lang` option and switching language with `L` in the menu; it now follows the system language automatically, and `MYSTRY_LANG` fixes it when needed.
+- Screenshot showcase removed: the product intro page `docs/product-intro/` and its 8 UI screenshots are removed together, and the README and documentation hub no longer link to the "UI tour"; the [user guide](docs/user-guide.md) is the reference for the UI.
+- The `docs/wiki/` navigation pages (all links to the main docs, duplicating `docs/README.md`) are removed, along with the product intro PDF, the generator script `build-pdf.py` and old screenshots.
+- The old one-phase ZIP import endpoint `POST /api/import` is removed. Web switched long ago to the `/api/import/previews` flow of "upload precheck → confirm config"; scripts calling the old endpoint directly have to move to the preview flow, or they get a 404.
 
 ### Fixed
 
-- 前台启动（`foreground`）时在终端按 Ctrl+C，面板会被直接结束，跳过任务清理、实例停止和释放数据目录锁。终端会把 Ctrl+C 发给面板和启动器，启动器又转发一次，面板收到第二次信号时已经移除了处理器。现在关闭途中的重复信号会被忽略，连按 Ctrl+C 时启动器也会等面板关完再退出；Windows 上启动器不再转发 Ctrl+C（Node 在 Windows 上转发等于强制结束进程）。
-- 浏览器开着面板时停止面板，偶尔会卡在最后一步：实例已停、端口已关，但面板进程不退出，数据目录锁也不释放，要关掉浏览器标签页才结束。关闭流程会一直等浏览器残留的连接断开。现在最多等 5 秒，之后强制断开剩余连接并完成关闭，日志会记一条「等待连接断开超时，已强制断开剩余连接」。
-- 同一个核心的下载被所有等待的任务取消后，紧接着开始的新部署不会再被误报为「任务已取消」。此前旧下载收尾期间，新任务会加入这次已中止的下载，拿到前一批任务的取消原因。
-- Windows 批处理（`PanelManager.cmd`、便携版 `mystryctl.cmd` 等）检出时改为 CRLF 行尾。此前所有文本文件统一为 LF，cmd.exe 读 LF 行尾的批处理时，跳转标签和多字节字符可能错位，把半行内容当命令执行。仓库里仍按 LF 存储，已有的本地仓库需要删掉这几个 `.cmd` 后重新检出（`git checkout -- <文件>`）才会生效。
-- 在 PowerShell 7 终端里运行 `PanelManager.cmd start` 不再报「Get-FileHash 无法识别」后退出。此前 Windows PowerShell 5.1 会沿用 PowerShell 7 的模块路径，加载到不兼容的模块；从资源管理器双击或在 cmd 里运行不受影响。
-- 一键部署 Paper 时指定的构建号不存在，现在任务会失败并提示「Paper <版本> 没有构建 #<号>」；此前会悄悄改装最新构建。
-- `mystryctl` 现在和服务端一样读取配置文件里的 `DATA_DIR` / `MYSTRY_DATA_DIR`；此前它总是把数据目录定为 `data`，配置文件里改了数据目录也会被覆盖。配置值两侧的引号也按 dotenv 的规则去掉。
-- `mystryctl` 的配置备份改放到数据目录下的 `launcher/config-backups/`，不再写到配置文件旁边的 `backups/`。
-- 页面不再从 Google Fonts 加载字体，改用系统字体栈，离线或国内网络下首屏不再被外部样式阻塞。
-- 主按钮、当前标签与任务徽标的文字改用各主题的 `--on-accent`，修复 Grok 暗色主题下白字配浅色背景看不清的问题。
-- 打开文件很多的目录（如 `world/region`）时，文件列表不再逐项重复校验整条路径；此前 300 个文件约需 1 秒，期间会阻塞其他请求。
-- 文件页不再列出实例根目录的面板标记文件 `.mystry-instance.json`；此前它带着编辑、重命名、删除按钮，但点了都会被服务端拒绝。
-- 双击便携版 `mystryctl.cmd` 时，菜单命令执行完或出错后窗口会停住，按回车再关闭，不再一闪而过、看不到令牌提示和错误信息。带参数的命令行调用不受影响。
-- 已识别为 Java 25 的运行时现在可以选择 G1 均衡和 Paper Aikar 预设，便携版启动器也不再对 Java 25 报兼容性警告。此前 MC 26.x 推荐 Java 25，但这两处只认 Java 8、17、21。
-- 1.13 及更早的服务端：参数配置把数字形式的难度和游戏模式显示成第一项，保存后又被服务端重置。现在读取时转成名称，写回时保持数字，这类实例的默认配置也改用数字。
-- 服务器简介等文字里的中文在旧版服务端上变成乱码：写入时改用 `\uXXXX`。
+- Pressing Ctrl+C in the terminal during a foreground start (`foreground`) killed the panel outright, skipping task cleanup, instance stop and releasing the data directory lock. The terminal sends Ctrl+C to both the panel and the launcher, the launcher forwarded it once more, and by the second signal the panel had already removed its handler. Repeated signals during shutdown are now ignored, and with repeated Ctrl+C the launcher also waits for the panel to finish closing before exiting; on Windows the launcher no longer forwards Ctrl+C (forwarding in Node on Windows is a forced termination).
+- Stopping the panel while a browser had it open sometimes stalled at the last step: instances stopped and the port closed, but the panel process did not exit and the data directory lock was not released until the browser tab was closed. The shutdown flow waited indefinitely for the browser's leftover connections to close. It now waits at most 5 seconds, then force-closes the remaining connections and completes the shutdown, with a log entry saying the wait for connections timed out and the remaining connections were closed.
+- After a download of the same core was cancelled by all waiting tasks, a new deploy started right afterwards is no longer wrongly reported as "task cancelled". Previously, while the old download was finishing up, the new task joined the aborted download and received the previous batch's cancel reason.
+- Windows batch files (`PanelManager.cmd`, the portable `mystryctl.cmd`, etc.) are now checked out with CRLF line endings. Previously all text files were LF, and when cmd.exe reads a batch file with LF endings, jump labels and multi-byte characters may be misaligned and half a line gets executed as a command. They are still stored as LF in the repository; in an existing local repository these `.cmd` files have to be deleted and checked out again (`git checkout -- <file>`) for it to take effect.
+- Running `PanelManager.cmd start` in a PowerShell 7 terminal no longer exits with "Get-FileHash is not recognized". Previously Windows PowerShell 5.1 inherited PowerShell 7's module path and loaded incompatible modules; double-clicking in Explorer or running in cmd was unaffected.
+- When a one-click Paper deploy specifies a build number that does not exist, the task now fails saying "Paper <version> has no build #<number>"; previously it silently installed the latest build.
+- `mystryctl` now reads `DATA_DIR` / `MYSTRY_DATA_DIR` from the config file like the server; previously it always set the data directory to `data`, overriding a data directory changed in the config file. Quotes around config values are stripped by the dotenv rules as well.
+- `mystryctl` config backups now go to `launcher/config-backups/` under the data directory, no longer to `backups/` next to the config file.
+- Pages no longer load fonts from Google Fonts and use the system font stack, so the first paint is not blocked by external styles offline or on networks in China.
+- Text on primary buttons, the current tab and the task badge uses each theme's `--on-accent`, fixing unreadable white text on a light background in the Grok dark theme.
+- Opening a directory with many files (such as `world/region`) no longer re-validates the whole path per item; previously 300 files took about 1 second, blocking other requests meanwhile.
+- The files page no longer lists the panel marker file `.mystry-instance.json` in the instance root; previously it had edit, rename and delete buttons, all of which were rejected by the server.
+- When the portable `mystryctl.cmd` is double-clicked, the window stays open after a menu command finishes or fails and closes on Enter, instead of flashing by before the token hint and error messages can be read. Command-line calls with arguments are unaffected.
+- A runtime recognized as Java 25 can now choose the G1 Balanced and Paper Aikar presets, and the portable launcher no longer warns about compatibility for Java 25. Previously MC 26.x recommended Java 25, but these two places recognized only Java 8, 17 and 21.
+- Servers at 1.13 and earlier: the config editor displayed numeric difficulty and gamemode as the first item, and after saving the server reset them. They are now converted to names on read and kept numeric on write, and the default config of such instances uses numbers too.
+- Chinese in text such as the server description turned into mojibake on old servers: it is now written as `\uXXXX`.
 
 ### Performance
 
-- 前端构建后生成 `.br` / `.gz` 预压缩资源，服务端按 `Accept-Encoding` 直接发送；带 hash 的 `/assets/*` 设为一年 `immutable` 缓存，`index.html` 每次重新校验。
+- The frontend build generates `.br` / `.gz` precompressed assets, which the server sends directly by `Accept-Encoding`; hashed `/assets/*` get a one-year `immutable` cache, and `index.html` is revalidated every time.
 
 ### Security
 
-- `react-router-dom` / `react-router` 从 6.30.4 升到 6.30.6，修复 6.30.2–6.30.5 的开放重定向导致 XSS 公告（GHSA-jjmj-jmhj-qwj2）。仍留在 6 系。
-- `@fastify/static` 升到 10.1.10，随之把 `glob` 升到 14.0.3、`minimatch` 升到 11.0.4，消除 AbortSignal 取消绕过（GHSA-3g3m-2fjr-6pw4）与 globparts 放大拒绝服务（GHSA-g3hv-75wg-m249）两条公告。
-- 生产依赖审计剩余 2 条 moderate，都来自 React Router 6 系、只在 7.18 以上修复（反斜杠开放重定向 GHSA-wrjc-x8rr-h8h6、SSR hydration 构造注入 GHSA-337j-9hxr-rhxg）；本面板不用 SSR，导航目标都是站内固定路径或服务端生成的实例 ID，作为残余风险记录在 [便携预览版](docs/portable-release.md)。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入发布包，升级需跨大版本，本次未处理。
+- `react-router-dom` / `react-router` go from 6.30.4 to 6.30.6, fixing the open-redirect-to-XSS advisory for 6.30.2–6.30.5 (GHSA-jjmj-jmhj-qwj2). Still on the 6 line.
+- `@fastify/static` goes to 10.1.10, bringing `glob` to 14.0.3 and `minimatch` to 11.0.4, which removes the AbortSignal cancellation bypass (GHSA-3g3m-2fjr-6pw4) and globparts amplification denial of service (GHSA-g3hv-75wg-m249) advisories.
+- The production dependency audit has 2 moderate advisories left, both from the React Router 6 line and fixed only in 7.18 and above (backslash open redirect GHSA-wrjc-x8rr-h8h6, SSR hydration construct injection GHSA-337j-9hxr-rhxg); this panel does not use SSR, and navigation targets are all fixed in-site paths or instance IDs generated by the server, so they are recorded as residual risk in [Portable Preview](docs/portable-release.md). The critical `tinypool` advisory in the dev dependency `vitest` 3 does not enter the release package; upgrading needs a major version jump and was not handled this time.
 
 ## [0.2.0-preview.2] - 2026-10-21
 
 ### Changed
 
-- 品牌更名为 **Mystry Dashboard**（不再绑定 Minecraft，为后续支持其他游戏服务端预留）。根包名改为 `mystry-dashboard`，健康检查 `service` 同步改名；缩写 MMD 全部改为 mystry：工作区包 `@mystry/*`、便携控制器 `mystryctl`、环境变量 `MYSTRY_HOME` / `MYSTRY_CONFIG_PATH` / `MYSTRY_DATA_DIR` 等、数据目录内 `.mystry-staging` / `.mystry-panel-lock`、浏览器存储键 `mystry_*`、发布文件 `mystry-v*` 与 `mystry-release-signing-key.asc`。不保留旧名称兼容：已有 `.env` 中的 `MMD_*` 需手动改名，旧数据目录里遗留的 `.mmd-*` 目录不会再被识别或清理。
+- The brand is renamed **Mystry Dashboard** (no longer tied to Minecraft, leaving room to support other game servers later). The root package is renamed `mystry-dashboard`, and the health check `service` is renamed to match; the abbreviation MMD becomes mystry everywhere: workspace packages `@mystry/*`, the portable controller `mystryctl`, environment variables such as `MYSTRY_HOME` / `MYSTRY_CONFIG_PATH` / `MYSTRY_DATA_DIR`, `.mystry-staging` / `.mystry-panel-lock` in the data directory, browser storage keys `mystry_*`, and the release files `mystry-v*` and `mystry-release-signing-key.asc`. No compatibility with the old names is kept: `MMD_*` in an existing `.env` has to be renamed manually, and leftover `.mmd-*` directories in an old data directory are no longer recognized or cleaned up.
 
 ### Added
 
-- Web 文件页：普通文件流式下载（一次性 download ticket + `Content-Disposition`）与同目录重命名入口
-- 实例详情与总览操作栏：强制停止（`ConfirmDialog` + `stop?force=1`）
-- 总览「创建空实例」入口：创建 custom 实例并跳转文件页上传 Jar
-- `server.properties` 保留式文档模型与原子写入；Paper/Fabric 核心缓存键基于解析后的不可变版本
+- Web files page: streaming download of regular files (one-time download ticket + `Content-Disposition`) and an entry for renaming within the same directory
+- Instance detail and overview action bars: force stop (`ConfirmDialog` + `stop?force=1`)
+- A "Create Empty Instance" entry on the overview: creates a custom instance and jumps to the files page to upload a jar
+- A preserving document model and atomic writes for `server.properties`; Paper/Fabric core cache keys based on the resolved immutable version
 
 ### Fixed
 
-- 数据目录锁与实例/暂存/上传/缓存等子目录在 Unix 上显式 `0700`（此前受 umask 影响为 `755`，会触发权限门禁拒绝启动），`owner.json` 显式 `0600`。
-- CI 覆盖缺口：根 `verify` 并入批次 A–F 回归测试（数据锁、任务恢复、进程生命周期、文件/下载路由等）；同步修正过期的 Beta 门禁知识库文档。
-- 文件下载：占槽/开流失败时归还未过期 download ticket；前端用新标签页触发下载，避免错误 JSON 冲掉 SPA
-- 已有服务端来源列表改为有界 ModLoader 预检；任务中心轮询失败时标注状态可能已过期
-- 部署表单与移动抽屉可访问性（标签关联、LazyScrollSelect 键盘、焦点陷阱）
-- `mmdctl` 包装脚本尊重用户已设置的 `MMD_HOME`
+- The data directory lock and subdirectories such as instances/staging/uploads/cache are explicitly `0700` on Unix (previously `755` under the umask, which tripped the permission gate and refused startup), and `owner.json` is explicitly `0600`.
+- CI coverage gaps: the root `verify` now includes the batch A–F regression tests (data lock, task recovery, process lifecycle, file/download routes, etc.); the outdated Beta gate knowledge base docs are corrected to match.
+- File downloads: an unexpired download ticket is returned when claiming the slot or opening the stream fails; the frontend triggers downloads in a new tab, so an error JSON does not replace the SPA
+- The existing-server source list now uses a bounded ModLoader precheck; the task center marks the status as possibly stale when polling fails
+- Accessibility of the deploy form and mobile drawer (label association, LazyScrollSelect keyboard, focus trap)
+- The `mmdctl` wrapper scripts respect an `MMD_HOME` the user has already set
 
 ### Security
 
-- 2026-10-21 官方 registry 生产依赖审计为 0 critical、0 high、2 moderate。通过 `npm audit fix` 升级传递依赖 `fastify`（5.12.7）、`fast-jwt`（6.3.5）、`@fastify/busboy`（3.2.3）、`fast-uri`（3.1.9 / 4.2.3）与 `brace-expansion`（5.0.12），消除 5 项阻断公开发布的 high 公告；React Router 6 的两项 moderate 公告仍作为 Preview 残余风险记录。
+- The production dependency audit against the official registry on 2026-10-21 shows 0 critical, 0 high, 2 moderate. `npm audit fix` upgraded the transitive dependencies `fastify` (5.12.7), `fast-jwt` (6.3.5), `@fastify/busboy` (3.2.3), `fast-uri` (3.1.9 / 4.2.3) and `brace-expansion` (5.0.12), removing 5 high advisories that blocked a public release; the two moderate React Router 6 advisories are still recorded as Preview residual risk.
 
 ## [0.2.0-preview.1] - 2026-08-06
 
 ### Added
 
-- 开源仓库文档：`LICENSE`、`CONTRIBUTING.md`、`SECURITY.md`、`CODE_OF_CONDUCT.md`
-- GitHub Issue / Pull Request 模板
-- Windows x64 与 Linux x64 便携包构建，以及跨平台 `mmdctl`（后台启停、前台运行、PID 指纹、健康检查、状态、日志和浏览器打开）。打包脚本仍可本地组装 Linux ARM64 / macOS，但不纳入本 Preview 公开发布。
-- 最终压缩包冒烟测试、文件级 `manifest.json`、SHA-256、CycloneDX SBOM 和 GitHub Preview Release 流水线。
-- Java 运行时注册表：扫描 `JAVA_HOME` 与常见安装目录，实例和部署可按 ID 绑定已验证运行时。
-- 任务中心、亮暗主题、窄屏侧栏、配置表单和危险操作确认弹窗。
-- 从固定 `DATA_DIR/imports` 交接区复制接管同机已有服务端。
+- Open-source repository documents: `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`
+- GitHub Issue / Pull Request templates
+- Windows x64 and Linux x64 portable package builds, and the cross-platform `mmdctl` (background start/stop, foreground run, PID fingerprint, health check, status, logs and opening the browser). The packaging script can still assemble Linux ARM64 / macOS locally, but they are not part of this Preview's public release.
+- A smoke test of the final archive, a file-level `manifest.json`, SHA-256, a CycloneDX SBOM and the GitHub Preview Release pipeline.
+- Java runtime registry: scans `JAVA_HOME` and common install directories, and instances and deploys can bind a verified runtime by ID.
+- Task center, light and dark themes, a narrow-screen sidebar, config forms and confirmation dialogs for dangerous actions.
+- Copying and taking over existing servers on the same machine from the fixed `DATA_DIR/imports` handoff area.
 
 ### Changed
 
-- 版本进入 `0.2.0-preview.1`；便携包内置固定 Node.js 22 和生产依赖，不捆绑 Minecraft Java。
-- Preview 公开发布矩阵收窄为 Windows x64 与 Linux x64；Linux ARM64 与 macOS 不纳入本版本 Release。
-- 运行布局新增 `MMD_HOME`、`MMD_CONFIG_PATH`、`MMD_DATA_DIR`，配置与数据不再绑定源码仓库目录。
-- 升级生产依赖并移除未使用的 `adm-zip`，公开发布门禁拒绝 high / critical 生产依赖漏洞。
-- 实例统一托管在 `DATA_DIR/instances/<id>`，移除自定义实例目录和全盘目录浏览约定。
-- 实例默认使用 PATH 中的 `java`，也可按 ID 绑定扫描并验证的运行时；Java 接口提供默认状态和运行时注册表。
-- 首次初始化要求两个互不相同的 64 位十六进制 `JWT_SECRET` 与 `SETUP_TOKEN`，setup 使用 `X-Setup-Token` header，且仅在用户表为空时可用。
-- 增加旧版外部实例的手动接管流程；面板不会自动搬迁、访问或删除旧外部目录。
-- 补充 JSON、上传、任务、下载、Installer、文本、命令和控制台的默认限制配置。
-- 同步阶段二资源防护配置：`HTTP_REQUEST_TIMEOUT_MS`、`HTTP_CONNECTION_TIMEOUT_MS`、`HTTP_KEEP_ALIVE_TIMEOUT_MS`、`UPLOAD_IDLE_TIMEOUT_MS` 分别为 `900000`、`300000`、`72000`、`30000` 毫秒；`MAX_CORE_METADATA_BYTES` / `CORE_METADATA_TIMEOUT_MS` 为 `2097152` 字节 / `15000` 毫秒。
-- 上传超限返回 413，上传容量耗尽返回 429；核心缓存改为完整文件校验后原子发布，任务支持排队并受执行超时保护。
-- 文件下载增加 `MAX_CONCURRENT_FILE_DOWNLOADS=4` 与 `FILE_DOWNLOAD_IDLE_TIMEOUT_MS=60000`；并发容量耗尽返回 429，下载空闲超时会释放下载资源。
-- 控制台增加 `MAX_CONSOLE_CONNECTIONS=20`、每 `CONSOLE_COMMAND_WINDOW_MS=60000` 毫秒最多 `MAX_CONSOLE_COMMANDS_PER_WINDOW=60` 条命令、`MAX_CONSOLE_INCOMING_BYTES=4352` 字节入站消息和 `MAX_CONSOLE_STDIN_BYTES=65536` 字节 stdin 缓冲限制；Installer 取消后按 `INSTALLER_KILL_GRACE_MS=5000` 毫秒宽限期再强制结束。
-- 澄清用户可见能力：Web UI 提供实例创建（含空实例上传 Jar）、启停与重启、强制停止、文件下载与重命名；控制台与任务中心提供异步操作反馈。
+- The version enters `0.2.0-preview.1`; the portable package bundles a pinned Node.js 22 and production dependencies, and does not bundle Minecraft Java.
+- The Preview public release matrix narrows to Windows x64 and Linux x64; Linux ARM64 and macOS are not part of this version's Release.
+- The runtime layout adds `MMD_HOME`, `MMD_CONFIG_PATH` and `MMD_DATA_DIR`, so config and data are no longer tied to the source repository directory.
+- Production dependencies are upgraded and the unused `adm-zip` removed, and the public release gate rejects high / critical production dependency vulnerabilities.
+- Instances are all managed in `DATA_DIR/instances/<id>`, removing custom instance directories and the whole-disk directory browsing convention.
+- Instances use the `java` on PATH by default, and can bind a scanned and verified runtime by ID; the Java endpoints provide the default status and the runtime registry.
+- First-time setup requires two different 64-digit hex values for `JWT_SECRET` and `SETUP_TOKEN`; setup uses the `X-Setup-Token` header and is available only while the users table is empty.
+- A manual takeover flow for legacy external instances is added; the panel does not automatically move, access or delete old external directories.
+- Default limit settings for JSON, uploads, tasks, downloads, the installer, text, commands and the console are added.
+- Phase-two resource protection settings are synced: `HTTP_REQUEST_TIMEOUT_MS`, `HTTP_CONNECTION_TIMEOUT_MS`, `HTTP_KEEP_ALIVE_TIMEOUT_MS` and `UPLOAD_IDLE_TIMEOUT_MS` are `900000`, `300000`, `72000` and `30000` milliseconds; `MAX_CORE_METADATA_BYTES` / `CORE_METADATA_TIMEOUT_MS` are `2097152` bytes / `15000` milliseconds.
+- An upload over the limit returns 413, and exhausted upload capacity returns 429; the core cache is published atomically after full-file verification, and tasks can queue and are protected by an execution timeout.
+- File downloads add `MAX_CONCURRENT_FILE_DOWNLOADS=4` and `FILE_DOWNLOAD_IDLE_TIMEOUT_MS=60000`; exhausted concurrency returns 429, and a download idle timeout releases download resources.
+- The console adds `MAX_CONSOLE_CONNECTIONS=20`, at most `MAX_CONSOLE_COMMANDS_PER_WINDOW=60` commands per `CONSOLE_COMMAND_WINDOW_MS=60000` milliseconds, `MAX_CONSOLE_INCOMING_BYTES=4352` bytes per inbound message and a `MAX_CONSOLE_STDIN_BYTES=65536` byte stdin buffer limit; after an installer cancel, a forced kill follows the `INSTALLER_KILL_GRACE_MS=5000` millisecond grace period.
+- User-visible capabilities clarified: the Web UI provides instance creation (including uploading a jar to an empty instance), start/stop and restart, force stop, and file download and rename; the console and task center provide feedback for asynchronous operations.
 
 ### Security
 
-- 2026-08-06 官方 registry 生产依赖审计为 0 critical、0 high、2 moderate；React Router 6 的两项 moderate 公告仍作为 Preview 残余风险记录。
-- 升级传递依赖 `brace-expansion`（至 5.0.9）与 `fast-uri`（至 3.1.5 / 4.1.2），消除此前阻断公开发布的 high 公告。
+- The production dependency audit against the official registry on 2026-08-06 shows 0 critical, 0 high, 2 moderate; the two moderate React Router 6 advisories are still recorded as Preview residual risk.
+- The transitive dependencies `brace-expansion` (to 5.0.9) and `fast-uri` (to 3.1.5 / 4.1.2) are upgraded, removing the high advisories that previously blocked a public release.
 
 ## [0.1.0] - 2026-07-26
 
 ### Added
 
-- 单机一体 Minecraft 服务端管理面板（Fastify + React）
-- 实例 CRUD、启停 / 重启；强杀 API（`?force=1`）
-- WebSocket 实时控制台（xterm.js）
-- 实例根目录内的文件浏览、上传、文本编辑；下载与重命名后端接口
-- `server.properties` 编辑与 EULA 确认
-- 一键部署 Vanilla / Paper / Fabric / Forge / NeoForge
-- 导入服务端 zip 安装包（路径逃逸防护）
-- 首启管理员账号与 JWT 登录
-- PATH 中 `java` 的可用状态检测
-- 中文用户文档（快速开始、教程、使用指南、配置、架构、API、开发）
+- A single-machine, all-in-one Minecraft server management panel (Fastify + React)
+- Instance CRUD, start/stop / restart; force kill API (`?force=1`)
+- Live WebSocket console (xterm.js)
+- File browsing, upload and text editing inside the instance root; backend endpoints for download and rename
+- `server.properties` editing and EULA confirmation
+- One-click deploy of Vanilla / Paper / Fabric / Forge / NeoForge
+- Importing a server zip package (with path escape protection)
+- First-start admin account and JWT sign-in
+- Availability detection of `java` on PATH
+- Chinese user documentation (getting started, tutorials, user guide, configuration, architecture, API, development)

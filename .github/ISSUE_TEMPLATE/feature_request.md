@@ -1,23 +1,23 @@
 ---
-name: 功能建议
-about: 提出新功能或改进想法
+name: Feature request
+about: Suggest a new feature or an improvement
 title: "[Feature] "
 labels: enhancement
 assignees: ""
 ---
 
-## 问题 / 场景
+## Problem / Use Case
 
-你想解决什么使用场景？
+What use case do you want to solve?
 
-## 期望方案
+## Proposed Solution
 
-描述你希望的行为或交互。
+Describe the behavior or interaction you would like.
 
-## 替代方案
+## Alternatives
 
-你是否尝试过其他做法？有没有可接受的折中？
+Have you tried other approaches? Is there an acceptable compromise?
 
-## 补充信息
+## Additional Information
 
-截图、相关 Issue、参考实现等。
+Screenshots, related Issues, reference implementations, etc.

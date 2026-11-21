@@ -21,7 +21,7 @@ Linux ARM64 与 macOS（Intel / Apple Silicon）打包脚本仍可本地使用�
 
 ### 1. 取得并信任发布公钥
 
-维护者首次启用签名前须按 [`.github/RELEASE_SIGNING.md`](../.github/RELEASE_SIGNING.md) 提交公钥与 [`.github/release-signing-key.fingerprint`](../.github/release-signing-key.fingerprint) 单行指纹。
+维护者首次启用签名前须按 [`.github/RELEASE_SIGNING.md`](../.github/RELEASE_SIGNING.zh-CN.md) 提交公钥与 [`.github/release-signing-key.fingerprint`](../.github/release-signing-key.fingerprint) 单行指纹。
 
 用户侧：
 

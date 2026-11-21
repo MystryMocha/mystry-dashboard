@@ -1,34 +1,34 @@
 ---
-name: Bug 报告
-about: 报告一个可复现的问题
+name: Bug report
+about: Report a reproducible problem
 title: "[Bug] "
 labels: bug
 assignees: ""
 ---
 
-## 描述
+## Description
 
-简明说明发生了什么。
+Briefly describe what happened.
 
-## 复现步骤
+## Steps to Reproduce
 
 1.
 2.
 3.
 
-## 期望行为
+## Expected Behavior
 
-## 实际行为
+## Actual Behavior
 
-## 环境
+## Environment
 
-- 操作系统：
-- Node.js 版本：
-- Java 版本（如相关）：
-- 项目版本 / commit：
+- Operating system:
+- Node.js version:
+- Java version (if relevant):
+- Project version / commit:
 
-## 日志 / 截图
+## Logs / Screenshots
 
-（请打码路径、令牌等敏感信息）
+(Please redact sensitive information such as paths and tokens)
 
-## 补充信息
+## Additional Information

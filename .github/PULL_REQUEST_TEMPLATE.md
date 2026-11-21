@@ -1,33 +1,33 @@
-## 变更说明
+## Summary
 
-<!-- 简要说明这次 PR 解决了什么问题、为什么需要改 -->
+<!-- Briefly describe what problem this PR solves and why the change is needed -->
 
-## 改动类型
+## Type of Change
 
-- [ ] Bug 修复
-- [ ] 新功能
-- [ ] 文档
-- [ ] 重构 / 内部改进
-- [ ] 其他：
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Documentation
+- [ ] Refactoring / internal improvement
+- [ ] Other:
 
-## 测试
+## Testing
 
-<!-- 你如何验证这些改动？ -->
+<!-- How did you verify these changes? -->
 
-- [ ] `npm run verify` 通过
-- [ ] `npm run ci:local` 通过（远程不再自动检查 PR）
-- [ ] 手动验证相关流程（请注明）
+- [ ] `npm run verify` passes
+- [ ] `npm run ci:local` passes (PRs are no longer checked automatically on the remote)
+- [ ] Related flows verified manually (please describe)
 
-<!-- 分别说明：已实现、已验证、未验证、剩余风险或警告 -->
+<!-- State separately: implemented, verified, unverified, remaining risks or warnings -->
 
-## 关联 Issue
+## Related Issues
 
-<!-- 例如：Closes #123 -->
+<!-- For example: Closes #123 -->
 
-## 检查清单
+## Checklist
 
-- [ ] 已阅读 [CONTRIBUTING.md](../CONTRIBUTING.md)
-- [ ] 如涉及 API / 配置，已同步更新文档
-- [ ] 如涉及路由、环境变量、脚本或架构事实，已同步更新 AI 知识库
-- [ ] 未把后端接口、提交标题或构建通过当作端到端功能完成证明
-- [ ] 未提交 `.env`、`data/` 或密钥
+- [ ] I have read [CONTRIBUTING.md](../CONTRIBUTING.md)
+- [ ] If the API / configuration is involved, the documentation is updated to match
+- [ ] If routes, environment variables, scripts or architectural facts are involved, the AI knowledge base is updated to match
+- [ ] A backend endpoint, a commit title or a passing build is not treated as proof that a feature works end to end
+- [ ] No `.env`, `data/` or secrets are committed

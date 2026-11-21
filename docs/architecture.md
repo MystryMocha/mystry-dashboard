@@ -1,29 +1,31 @@
-# 架构设计
+# Architecture
 
-## 总体架构
+**English** · [简体中文](architecture.zh-CN.md)
+
+## Overview
 
 ```mermaid
 flowchart LR
-  subgraph client [浏览器]
-    Web[React 前端]
+  subgraph client [Browser]
+    Web[React frontend]
   end
-  subgraph server [Node 后端]
+  subgraph server [Node backend]
     Fastify[Fastify HTTP]
-    WS[WebSocket 控制台]
+    WS[WebSocket console]
     PM[ProcessManager]
-    FS[文件服务]
-    Core[核心部署 / 导入]
-    Nodes[节点注册]
+    FS[File service]
+    Core[Core deploy / import]
+    Nodes[Node registry]
     DB[(SQLite panel.db)]
-    JavaStatus[Java 状态与运行时探测]
+    JavaStatus[Java status and runtime detection]
   end
-  subgraph host [本机]
-    Java[PATH java 或已注册运行时]
+  subgraph host [This machine]
+    Java[PATH java or a registered runtime]
     Dirs[DATA_DIR/instances/<id>]
-    Imports[DATA_DIR/imports/<目录名>]
+    Imports[DATA_DIR/imports/<directory>]
   end
   Web -->|REST + Bearer JWT| Fastify
-  Web -->|WS + 一次性 ticket| WS
+  Web -->|WS + one-time ticket| WS
   Fastify --> DB
   Fastify --> PM
   Fastify --> FS
@@ -34,37 +36,37 @@ flowchart LR
   Java --> Dirs
   FS --> Dirs
   Core --> Dirs
-  Imports -->|只读扫描并流式复制| Core
+  Imports -->|read-only scan and streamed copy| Core
   JavaStatus -->|exec java -version| Java
 ```
 
-核心边界是：实例唯一工作目录为 `DATA_DIR/instances/<id>`。`DATA_DIR` 可相对于项目根目录配置，也可使用绝对路径；实例服务、文件服务、部署和导入目标都只解析这个托管根目录。同机已有服务端的交接区见 [实例目录与安全边界](#实例目录与安全边界)，ZIP 预览的暂存见 [部署与导入流水线](#部署与导入流水线)。不存在用户可指定的安装目录，也不存在面向整台机器的目录浏览能力。实例默认通过 PATH 中的 `java` 启动；也只能按 ID 使用面板扫描、注册并在执行前复验的运行时，客户端不能提交路径。
+The core boundary: the only working directory of an instance is `DATA_DIR/instances/<id>`. `DATA_DIR` can be configured relative to the project root or as an absolute path; the instance service, the file service, and deploy and import targets all resolve only this managed root. The handoff area for existing servers on the same machine is described in [Instance Directories and Security Boundary](#instance-directories-and-security-boundary), and the staging of ZIP previews in [Deploy and Import Pipeline](#deploy-and-import-pipeline). There is no user-specified install directory, and no ability to browse directories across the whole machine. Instances start with the `java` on PATH by default; otherwise only a runtime the panel scanned, registered and re-verifies before execution can be used, by ID, and clients cannot submit a path.
 
-当前为多机扩展**阶段一**：内置本机节点 `local` 承担全部执行；远程节点创建与 Agent 连接尚未开放（由共享常量 `REMOTE_NODE_CREATION_ENABLED` 控制）。
+Multi-machine support is currently at **phase one**: the built-in local node `local` does all execution; creating remote nodes and Agent connections are not open yet (controlled by the shared constant `REMOTE_NODE_CREATION_ENABLED`).
 
-## Monorepo 布局
+## Monorepo Layout
 
-| 包名 | 路径 | 职责 |
+| Package | Path | Responsibility |
 |------|------|------|
-| `@mystry/shared` | `packages/shared` | 共享类型与接口定义 |
-| `@mystry/server` | `apps/server` | API、进程、文件、部署 |
-| `@mystry/web` | `apps/web` | 管理面板 UI |
+| `@mystry/shared` | `packages/shared` | Shared types and interface definitions |
+| `@mystry/server` | `apps/server` | API, processes, files, deploy |
+| `@mystry/web` | `apps/web` | Management panel UI |
 
-根 `package.json` 通过 npm workspaces 聚合 `apps/*` 与 `packages/*`。
+The root `package.json` aggregates `apps/*` and `packages/*` through npm workspaces.
 
-## 便携发布布局
+## Portable Release Layout
 
-便携包不从源码目录运行。`scripts/portable/package-portable.mjs` 在目标平台原生组装以下布局：
+The portable package does not run from the source directory. `scripts/portable/package-portable.mjs` assembles the following layout natively on the target platform:
 
 ```text
 mystry-dashboard/
-├── runtime/                 # 官方 Node.js 固定版本
+├── runtime/                 # Official Node.js, pinned version
 ├── app/
 │   ├── server/dist/
 │   ├── web/dist/
 │   ├── shared/dist/
 │   ├── mystryctl.mjs
-│   └── node_modules/        # 仅生产依赖
+│   └── node_modules/        # Production dependencies only
 ├── config/
 ├── data/
 ├── logs/
@@ -74,89 +76,89 @@ mystry-dashboard/
 └── VERSION
 ```
 
-工作区 `@mystry/shared` 会被物理复制到 `app/node_modules/@mystry/shared`，发布包拒绝符号链接，避免 Windows ZIP 保留指向构建仓库的 junction。`config/`、`data/` 和 `logs/` 在发布产物中为空。
+The workspace package `@mystry/shared` is physically copied to `app/node_modules/@mystry/shared`, and the release package rejects symlinks, so a Windows ZIP does not keep a junction pointing back at the build repository. `config/`, `data/` and `logs/` are empty in the release artifact.
 
-便携包的 `mystryctl.cmd` 和 `mystryctl` 只负责调用包内 Node；Linux / WSL 源码入口 `PanelManager.sh` 先完成 Node 版本、依赖和构建预检，再调用同一跨平台生命周期控制器 `scripts/portable/mystryctl.mjs`。后台启动会记录 PID、随机进程指纹、启动时间和健康地址，并通过 `LAUNCHER_TOKEN` 调用回环关闭接口。若 PID 被复用或健康检查不匹配，控制器不会直接强杀未知进程。
+`mystryctl.cmd` and `mystryctl` in the portable package only call the Node inside the package; the Linux / WSL source entry `PanelManager.sh` first completes the Node version, dependency and build prechecks, then calls the same cross-platform lifecycle controller `scripts/portable/mystryctl.mjs`. A background start records the PID, a random process fingerprint, the start time and the health URL, and calls the loopback shutdown endpoint with `LAUNCHER_TOKEN`. If the PID was reused or the health check does not match, the controller does not force-kill an unknown process.
 
-运行目录由 `MYSTRY_HOME` 定位；配置和数据可分别通过 `MYSTRY_CONFIG_PATH`、`MYSTRY_DATA_DIR` 解耦。默认实例边界仍为便携根目录的 `data/instances/<id>`。
+The runtime directory is located by `MYSTRY_HOME`; config and data can be decoupled through `MYSTRY_CONFIG_PATH` and `MYSTRY_DATA_DIR`. The default instance boundary is still `data/instances/<id>` in the portable root.
 
-## 后端模块
+## Backend Modules
 
-### 入口 `apps/server/src/index.ts`
+### Entry `apps/server/src/index.ts`
 
-- 注册 CORS、JWT、multipart、WebSocket、静态资源（`frontend-assets.ts`：发送构建时生成的 `.br` / `.gz` 预压缩副本，`/assets/*` 长期缓存，`index.html` 每次校验）。
-- 挂载路由：`auth`、`instances`、`files`、`backups`、`cores`、`console`、`system`、`nodes`、`frp`、`lan`、`launcher`。
-- 健康检查：`GET /api/health`。
+- Registers CORS, JWT, multipart, WebSocket and static assets (`frontend-assets.ts`: sends the `.br` / `.gz` precompressed copies generated at build time, caches `/assets/*` long-term, and revalidates `index.html` every time).
+- Mounts routes: `auth`, `instances`, `files`, `backups`, `cores`, `console`, `system`, `nodes`, `frp`, `lan`, `launcher`.
+- Health check: `GET /api/health`.
 
-### 路由层 `apps/server/src/routes/`
+### Route Layer `apps/server/src/routes/`
 
-| 文件 | 前缀 / 路径 | 功能 |
+| File | Prefix / path | Function |
 |------|-------------|------|
-| `auth.ts` | `/api/auth/*` | 初始化、登录、当前用户 |
-| `instances.ts` | `/api/instances/*` | CRUD、接管、启停、控制台命令 |
-| `files.ts` | `/api/instances/:id/files/*` | 实例根目录内的文件与 `server.properties` |
-| `cores.ts` | `/api/cores/*`、`/api/import*` | 版本列表、部署、ZIP 导入和同机目录交接 |
-| `console.ts` | `/api/instances/:id/console-ticket`、`/ws/console/:id` | 控制台 ticket 与 WebSocket |
-| `system.ts` | `/api/system/java`、`/api/system/java-runtimes` | PATH `java` 状态和本机运行时探测 |
-| `nodes.ts` | `/api/nodes/*` | 本机/远程节点列表与管理（阶段一） |
-| `frp.ts` | `/api/frp/*`、`/api/instances/:id/tunnel` | 官方 frpc 联机。不接受可执行路径或原始配置 |
-| `lan.ts` | `/api/lan/*`、`/api/instances/:id/lan` | 官方 EasyTier 虚拟局域网。不接受可执行路径或原始配置 |
-| `launcher.ts` | `/api/launcher/shutdown` | PanelManager 本机令牌关闭通道 |
+| `auth.ts` | `/api/auth/*` | Setup, sign-in, current user |
+| `instances.ts` | `/api/instances/*` | CRUD, takeover, start/stop, console commands |
+| `files.ts` | `/api/instances/:id/files/*` | Files inside the instance root and `server.properties` |
+| `cores.ts` | `/api/cores/*`, `/api/import*` | Version lists, deploy, ZIP import and same-machine directory handoff |
+| `console.ts` | `/api/instances/:id/console-ticket`, `/ws/console/:id` | Console ticket and WebSocket |
+| `system.ts` | `/api/system/java`, `/api/system/java-runtimes` | PATH `java` status and local runtime detection |
+| `nodes.ts` | `/api/nodes/*` | Local/remote node list and management (phase one) |
+| `frp.ts` | `/api/frp/*`, `/api/instances/:id/tunnel` | Multiplayer through the official frpc. Executable paths and raw config are not accepted |
+| `lan.ts` | `/api/lan/*`, `/api/instances/:id/lan` | Virtual LAN through the official EasyTier. Executable paths and raw config are not accepted |
+| `launcher.ts` | `/api/launcher/shutdown` | Shutdown channel for PanelManager with a local token |
 
-路由的错误响应统一经 `src/http-errors.ts` 的 `sendRouteError`：服务层已知错误（排队任务过多、面板正在关闭、上传超限、预览失效、重命名冲突）映射为对应状态码，其余用路由给定的默认状态码。
+Route error responses all go through `sendRouteError` in `src/http-errors.ts`: known service-layer errors (too many queued tasks, panel shutting down, upload too large, preview expired, rename conflict) map to their status codes, and the rest use the default status code given by the route.
 
-除 `auth/status`、`auth/setup`、`auth/login`、健康检查与本机 launcher 关闭通道外，业务路由经 `authenticate` 校验 JWT。`auth/setup` 另需 `X-Setup-Token`，且只在用户表为空时有效；launcher 通道（安全关闭、重置管理员密码）只接受回环地址与有效 `X-Launcher-Token`。
+Apart from `auth/status`, `auth/setup`, `auth/login`, the health check and the local launcher shutdown channel, business routes verify the JWT through `authenticate`. `auth/setup` additionally needs `X-Setup-Token` and is valid only while the users table is empty; the launcher channel (safe shutdown, resetting the admin password) accepts only a loopback address and a valid `X-Launcher-Token`.
 
-### 服务层 `apps/server/src/services/`
+### Service Layer `apps/server/src/services/`
 
-| 服务 | 说明 |
+| Service | Description |
 |------|------|
-| `auth-service` | bcrypt 密码、单用户 setup |
-| `instance-service` | 实例 CRUD、托管目录接管，与 DB 同步 |
-| `process-manager` | 解析 PATH 或已绑定运行时、参数解析、缓冲输出、启停重启与终态快照 |
-| `file-service` | 实例根目录路径规范化、防目录逃逸 |
-| `config-service` | `server.properties` 解析与写入 |
-| `core-depot` | 部署任务编排：准备 staging、获取核心、探测启动目标，以及统一落地/注册收尾 |
-| `core-metadata` | 有界元数据请求、版本列表、下载地址解析与不可变版本缓存文件名 |
-| `core-download` | 流式下载、独立 part 文件、按缓存路径合并并发请求和等待者取消 |
-| `core-installer` | Forge / NeoForge Installer 进程、输出与进度、网络失败重试、取消和退出收尾，以及 JVM argfile 写入 |
-| `core-utils` | 核心下载与元数据请求共用的超时中止器和请求 User-Agent |
-| `zip-service` | ZIP 中央目录校验、受限 JVM 参数预览和流式解压；预览与解压共用条目数据范围校验 |
-| `import-service` | 调度 ZIP 导入任务，整理 staging 单层目录、探测启动目标、落地注册及清理临时文件 |
-| `import-preview-service` | 管理按用户隔离、限时限量且不持久化的 ZIP 待确认预览 |
-| `existing-server-import-service` | 枚举固定交接区，只读校验并流式复制已有服务端 |
-| `jvm-detection-service` | 有界读取根目录 `user_jvm_args.txt` 并返回结构化诊断 |
-| `jvm-validation-service` | 使用共享规则在保存、任务入队和启动前规范化与复验 JVM 参数 |
-| `server-launch-detect` | 探测普通 jar 与现代 Forge/NeoForge args 启动目标 |
-| `task-service` | 内存任务调度、持久化状态、启动中断收敛与半成品清理 |
-| `java-detect` | 执行 `java -version` 并返回可用状态与版本 |
-| `java-runtime-service` | 扫描、验证、注册 Java 运行时，合并刷新并在执行前复验绑定条目 |
-| `node-service` | 节点 CRUD、密钥哈希；远程创建受 `REMOTE_NODE_CREATION_ENABLED` 控制 |
-| `node-registry` | 节点在线态 / 心跳（内存；Agent 接入前本机恒为 online） |
+| `auth-service` | bcrypt passwords, single-user setup |
+| `instance-service` | Instance CRUD, managed directory takeover, synced with the DB |
+| `process-manager` | Resolves PATH or the bound runtime, argument parsing, buffered output, start/stop/restart and final-state snapshots |
+| `file-service` | Path normalization inside the instance root, protection against directory escape |
+| `config-service` | Parsing and writing `server.properties` |
+| `core-depot` | Deploy task orchestration: prepares staging, fetches the core, detects the launch target, and the common landing/registration wrap-up |
+| `core-metadata` | Bounded metadata requests, version lists, download URL resolution and immutable-version cache file names |
+| `core-download` | Streaming download, separate part files, merging concurrent requests by cache path, and waiter cancellation |
+| `core-installer` | The Forge / NeoForge installer process, output and progress, retry on network failure, cancellation and exit wrap-up, and writing the JVM argfile |
+| `core-utils` | The timeout aborter and request User-Agent shared by core downloads and metadata requests |
+| `zip-service` | ZIP central directory validation, size-limited JVM argument preview and streaming extraction; preview and extraction share the entry data range validation |
+| `import-service` | Schedules ZIP import tasks, flattens a single-directory staging, detects the launch target, lands and registers, and cleans up temp files |
+| `import-preview-service` | Manages per-user, time- and count-limited, non-persistent ZIP previews awaiting confirmation |
+| `existing-server-import-service` | Enumerates the fixed handoff area, validates read-only and stream-copies existing servers |
+| `jvm-detection-service` | Bounded read of `user_jvm_args.txt` in the root, returning structured diagnostics |
+| `jvm-validation-service` | Normalizes and re-verifies JVM arguments with the shared rules before saving, before queuing a task and before starting |
+| `server-launch-detect` | Detects plain jar and modern Forge/NeoForge args launch targets |
+| `task-service` | In-memory task scheduling, persisted state, settling interrupted tasks at startup, and cleaning up half-finished output |
+| `java-detect` | Runs `java -version` and returns availability and version |
+| `java-runtime-service` | Scans, verifies and registers Java runtimes, merges refreshes, and re-verifies the bound entry before execution |
+| `node-service` | Node CRUD and secret hashing; remote creation is controlled by `REMOTE_NODE_CREATION_ENABLED` |
+| `node-registry` | Node online state / heartbeat (in memory; the local node is always online until the Agent exists) |
 
-### 部署与导入流水线
+### Deploy and Import Pipeline
 
-部署由 `core-metadata` 解析版本与地址，`core-download` 管理下载和缓存，`core-installer` 管理 Installer，`core-depot` 编排任务。核心文件先写入独立的 part 文件，完整完成后才原子发布到 `DATA_DIR/cache/cores/`，未完成的文件不会被当作缓存复用。相同缓存路径的并发任务共享一次下载；单个等待者取消不影响其他等待者，全部退出才中止下载并清理 part 文件；中止时立即把这次下载移出合并表，之后的请求会重新下载，不会拿到前一批的取消原因。
+For a deploy, `core-metadata` resolves versions and URLs, `core-download` manages downloads and the cache, `core-installer` manages the installer, and `core-depot` orchestrates the task. A core file is first written to a separate part file and atomically published to `DATA_DIR/cache/cores/` only once complete; an unfinished file is never reused as cache. Concurrent tasks for the same cache path share one download; one waiter cancelling does not affect the others, and only when all have left is the download aborted and the part file cleaned up; on abort the download is removed from the merge table immediately, so later requests download again instead of receiving the previous batch's cancel reason.
 
-ZIP 预览与解压由 `zip-service` 统一做条目文件头和数据范围校验，不支持的压缩方式在打开文件流前拒绝；任务入队与实例落地由 `import-service` 负责。ZIP 预览只在 `uploads/.tmp-import-preview-*` 暂存，绑定登录用户且不跨重启，确认入队后由导入任务接管清理。
+ZIP preview and extraction go through `zip-service` for entry header and data range validation, and unsupported compression methods are rejected before the file stream is opened; task queuing and instance landing are handled by `import-service`. A ZIP preview is staged only in `uploads/.tmp-import-preview-*`, bound to the signed-in user and not kept across restarts; after it is confirmed and queued, the import task takes over cleanup.
 
-所有部署和导入统一按「staging 原子落地 → 注册实例 → 更新实例元数据」收尾。目录落地后不再检查取消信号，必须继续注册，正常返回的 worker 仍记为成功。落地前失败只清理 staging，最终实例目录不参与该清理。
+All deploys and imports finish the same way: "atomic landing from staging → register the instance → update instance metadata". Once the directory has landed the cancel signal is no longer checked and registration must continue; a worker that returned normally is still recorded as successful. A failure before landing cleans up only the staging, and the final instance directory takes no part in that cleanup.
 
-### 数据层 `apps/server/src/db.ts`
+### Data Layer `apps/server/src/db.ts`
 
-SQLite 表：
+SQLite tables:
 
-- `users` — 管理员
-- `instances` — 实例元数据、jar、JVM 参数、托管状态、`node_id`、`java_runtime_id` 等
-- `tasks` — 部署 / 导入任务
-- `nodes` — 执行节点元数据与密钥哈希（含内置 `local`）
-- `java_runtimes` — 面板扫描、验证过的 Java 运行时及当前可用状态
+- `users` — administrators
+- `instances` — instance metadata, jar, JVM arguments, managed state, `node_id`, `java_runtime_id`, etc.
+- `tasks` — deploy / import tasks
+- `nodes` — execution node metadata and secret hashes (including the built-in `local`)
+- `java_runtimes` — Java runtimes the panel scanned and verified, with their current availability
 
-使用 `node:sqlite` 的 `DatabaseSync`，WAL 模式。实例文件不存入数据库，统一位于 `DATA_DIR/instances/<id>`。
+It uses `DatabaseSync` from `node:sqlite` in WAL mode. Instance files are not stored in the database; they all live in `DATA_DIR/instances/<id>`.
 
-## 实例目录与安全边界
+## Instance Directories and Security Boundary
 
-默认数据结构：
+Default data layout:
 
 ```text
 DATA_DIR/
@@ -164,129 +166,129 @@ DATA_DIR/
 ├── instances/
 │   └── <id>/
 ├── imports/
-│   └── <目录名>/
+│   └── <directory>/
 ├── cache/cores/
-├── frp/<实例 id>/
-├── lan/<实例 id>/
-├── runtimes/frp/<版本>/
-├── runtimes/easytier/<版本>/
+├── frp/<instance id>/
+├── lan/<instance id>/
+├── runtimes/frp/<version>/
+├── runtimes/easytier/<version>/
 └── uploads/
 ```
 
-`defaultInstanceDir(id)` 将实例 ID 解析为 `DATA_DIR/instances/<id>`；文件读写和进程工作目录都必须经过实例根目录校验。文件 API 接收的 `path` 是相对实例根目录的逻辑路径，并拒绝 `..` 逃逸。
+`defaultInstanceDir(id)` resolves an instance ID to `DATA_DIR/instances/<id>`; file reads and writes and the process working directory must all pass the instance root validation. The `path` received by the file API is a logical path relative to the instance root, and `..` escapes are rejected.
 
-`DATA_DIR/imports` 不是实例根目录，而是管理员通过系统工具放入已有服务端副本的固定交接区。接口不接受绝对路径，只列出直接子目录；复制任务拒绝 symlink/junction、特殊文件、ownership marker、超配额目录和磁盘空间不足。源目录从不由面板删除，任务失败时只清理带有效 ownership marker 的新托管半成品实例。
+`DATA_DIR/imports` is not an instance root but a fixed handoff area where the administrator places copies of existing servers with system tools. The API accepts no absolute paths and lists only direct subdirectories; the copy task rejects symlinks/junctions, special files, ownership markers, directories over quota and insufficient disk space. The source directory is never deleted by the panel, and when a task fails only the new, half-finished managed instance carrying a valid ownership marker is cleaned up.
 
-### 旧版外部实例接管
+### Taking Over Legacy External Instances
 
-历史记录可能保留旧版外部目录的迁移状态。面板不会读取、扫描、搬迁或删除该外部目录。用户必须先停止实例和面板服务，用系统工具将完整目录复制到 `DATA_DIR/instances/<id>`，再通过 `POST /api/instances/:id/adopt-managed-directory` 或实例页的 **接管托管目录**。接管只确认并登记面板托管副本；面板不会自动操作旧位置。
+Historical records may keep the migration state of a legacy external directory. The panel does not read, scan, move or delete that external directory. The user must first stop the instance and the panel service, copy the complete directory to `DATA_DIR/instances/<id>` with system tools, and then use `POST /api/instances/:id/adopt-managed-directory` or **Take Over Managed Directory** on the instance page. Takeover only confirms and registers the panel-managed copy; the panel never operates on the old location automatically.
 
-## 进程模型
+## Process Model
 
-`ProcessManager` 对每个实例维护：
+For each instance `ProcessManager` maintains:
 
-- 子进程引用
-- 状态（与前端 `InstanceStatus` 一致）
-- 受 `MAX_CONSOLE_BUFFER_BYTES` 限制的环形文本缓冲
+- A reference to the child process
+- The status (matching the frontend `InstanceStatus`)
+- A ring text buffer limited by `MAX_CONSOLE_BUFFER_BYTES`
 
-子进程退出后，活动进程引用会释放，但 `stopped` / `crashed` 终态和最后一段受限控制台历史会保留到下一次启动或实例删除，供页面刷新和 WebSocket 重连读取。
+After the child process exits the active process reference is released, but the `stopped` / `crashed` final state and the last, size-limited part of the console history are kept until the next start or until the instance is deleted, for page refreshes and WebSocket reconnects to read.
 
-普通 jar 的启动命令形态：
+The launch command for a plain jar has the form:
 
 ```text
-<PATH java 或已绑定运行时> <jvmArgs...> -jar <jarFile> nogui
+<PATH java or the bound runtime> <jvmArgs...> -jar <jarFile> nogui
 ```
 
-工作目录固定为 `DATA_DIR/instances/<id>`。未绑定时 `java` 由运行面板的进程环境通过 PATH 解析；绑定时只允许使用注册表 ID 对应、且执行前重新通过 `-version` 验证的运行时。数据库和请求均不能替换为任意可执行路径。
+The working directory is always `DATA_DIR/instances/<id>`. When unbound, `java` is resolved through PATH from the environment of the process running the panel; when bound, only the runtime matching the registry ID, re-verified with `-version` before execution, is allowed. Neither the database nor a request can substitute an arbitrary executable path.
 
-共享包的 `jvm-config.ts` 负责直接参数与 Java argfile 解析、内存公式、版本化预设和结构化诊断。数据库不保存配置器字段，只继续保存规范化 `jvmArgs` 字符串。普通 jar 将解析后的 JVM 参数直接放在 `-jar` 前；Forge / NeoForge 在启动前把同一规范参数重写为 `user_jvm_args.txt`，再组合面板控制的两个 argfile 和 `nogui`。
+`jvm-config.ts` in the shared package handles parsing of direct arguments and Java argfiles, the memory formula, versioned presets and structured diagnostics. The database does not store configurator fields and keeps storing only the normalized `jvmArgs` string. A plain jar gets the parsed JVM arguments directly before `-jar`; for Forge / NeoForge the same normalized arguments are rewritten into `user_jvm_args.txt` before start, then combined with the two panel-controlled argfiles and `nogui`.
 
-联机穿透另起一个官方 `frpc` 子进程，工作目录是 `DATA_DIR/frp/<实例 id>`，环境同样经过 `getMinecraftChildEnv()`。它只在实例处于运行中且联机已启用时存在；实例停止、崩溃或面板关闭时退出。面板不管理 frps。
+Multiplayer tunneling starts a separate official `frpc` child process, with `DATA_DIR/frp/<instance id>` as its working directory and an environment that likewise goes through `getMinecraftChildEnv()`. It exists only while the instance is running and multiplayer is enabled; it exits when the instance stops or crashes or the panel shuts down. The panel does not manage frps.
 
-虚拟局域网另起一个官方 `easytier-core` 子进程，工作目录是 `DATA_DIR/lan/<实例 id>`，环境同样经过 `getMinecraftChildEnv()`。它只在实例处于运行中且虚拟局域网已启用时存在；实例停止、崩溃或面板关闭时退出。面板不提供公共虚拟网络，也不接受用户粘贴的 EasyTier 配置。
+The virtual LAN starts a separate official `easytier-core` child process, with `DATA_DIR/lan/<instance id>` as its working directory and an environment that likewise goes through `getMinecraftChildEnv()`. It exists only while the instance is running and the virtual LAN is enabled; it exits when the instance stops or crashes or the panel shuts down. The panel does not provide a public virtual network and does not accept EasyTier config pasted by users.
 
-## 前端结构
+## Frontend Structure
 
-| 路径 | 说明 |
+| Path | Description |
 |------|------|
-| `src/App.tsx` | 路由与侧栏布局 |
-| `src/auth.tsx` | 登录态、setup 检测 |
-| `src/api.ts` | `fetch` 封装、实例接口路径编码、实例启停、任务轮询、认证下载 |
-| `src/errors.ts` | 异常转可展示文本与中止判断 |
-| `src/instance-status.ts` | 实例状态对应的术语表键与可执行操作判断 |
-| `src/i18n/` | 多语言：语言检测与切换（`locale.ts`）、`useI18n()` 与 Intl 格式化（`index.ts`）、按区域拆分的 `en/`、`zh-CN/`、`zh-TW/` 文案表 |
-| `src/components/LanguageToggle.tsx`、`ThemeToggle.tsx` | 工具栏与登录页的语言、外观弹层（共用 `hooks/usePopover.ts`） |
-| `src/hooks/*` | 统一间隔的页面轮询（隐藏时暂停）、实例操作、未保存修改拦截、原生 dialog 开关、按 key 缓存的元数据加载 |
-| `src/pages/*` | 各功能页 |
-| `src/components/FilesTab.tsx` | 实例文件管理（列表、上传、编辑、重命名、删除、下载） |
+| `src/App.tsx` | Routing and the sidebar layout |
+| `src/auth.tsx` | Sign-in state, setup detection |
+| `src/api.ts` | `fetch` wrapper, instance API path encoding, instance start/stop, task polling, authenticated downloads |
+| `src/errors.ts` | Turning exceptions into displayable text, and abort detection |
+| `src/instance-status.ts` | Glossary keys for instance statuses and which actions are allowed |
+| `src/i18n/` | Localization: language detection and switching (`locale.ts`), `useI18n()` and Intl formatting (`index.ts`), and the `en/`, `zh-CN/`, `zh-TW/` string tables split by area |
+| `src/components/LanguageToggle.tsx`, `ThemeToggle.tsx` | Language and appearance popovers in the toolbar and login page (sharing `hooks/usePopover.ts`) |
+| `src/hooks/*` | Page polling at a common interval (paused while hidden), instance actions, unsaved-change guard, native dialog toggling, metadata loading cached by key |
+| `src/pages/*` | The feature pages |
+| `src/components/FilesTab.tsx` | Instance file management (list, upload, edit, rename, delete, download) |
 | `src/components/ConsolePanel.tsx` | xterm + WebSocket |
-| `src/components/JvmSettingsEditor.tsx` | 四处复用的内存、预设、高级参数、检测选择与诊断界面 |
-| `src/components/EulaCheckbox.tsx` | 同样四处复用的 EULA 同意勾选框 |
+| `src/components/JvmSettingsEditor.tsx` | The memory, preset, advanced argument, detection choice and diagnostics UI reused in four places |
+| `src/components/EulaCheckbox.tsx` | The EULA acceptance checkbox, likewise reused in four places |
 
-路由表：
+Route table:
 
-- `/login` — 登录 / 初始化
-- `/` — 实例总览
-- `/deploy` — 一键部署
-- `/import` — 同机目录交接或 zip 导入
-- `/multiplayer` — 联机。选择实例后，用分段切换虚拟局域网或 frp
-- `/nodes` — 本机环境（当前只有内置本机节点）
-- `/settings` — 面板设置：这台设备的语言和外观，面板的登录有效期、下载来源和「在其他设备上打开」，修改密码，只读的运行信息。入口是侧栏底部用户区的齿轮
-- `/instances/:id/*` — 实例详情 Tab
+- `/login` — sign-in / setup
+- `/` — instance overview
+- `/deploy` — one-click deploy
+- `/import` — same-machine directory handoff or zip import
+- `/multiplayer` — multiplayer. After choosing an instance, a segmented control switches between the virtual LAN and frp
+- `/nodes` — local environment (currently only the built-in local node)
+- `/settings` — panel settings: language and appearance for this device; the panel's session duration, download source and "Open on other devices"; change password; read-only runtime info. The entry is the gear in the user area at the bottom of the sidebar
+- `/instances/:id/*` — instance detail tabs
 
-## 认证流程
+## Authentication Flow
 
-1. `GET /api/auth/status` → `needsSetup`。
-2. 若需 setup：`POST /api/auth/setup`，携带 `X-Setup-Token: <SETUP_TOKEN>` → `{ token, user }`。
-3. `setup` 只在用户表为空时接受；管理员创建后可以移除 `SETUP_TOKEN`。
-4. 否则：`POST /api/auth/login` → `{ token, user }`。
-5. 后续 HTTP 请求：`Authorization: Bearer <token>`。
-6. 控制台先用 JWT 获取一次性 ticket，再通过 WebSocket query `ticket` 连接。
+1. `GET /api/auth/status` → `needsSetup`.
+2. If setup is needed: `POST /api/auth/setup` with `X-Setup-Token: <SETUP_TOKEN>` → `{ token, user }`.
+3. `setup` is accepted only while the users table is empty; `SETUP_TOKEN` can be removed after the administrator is created.
+4. Otherwise: `POST /api/auth/login` → `{ token, user }`.
+5. Subsequent HTTP requests: `Authorization: Bearer <token>`.
+6. The console first gets a one-time ticket with the JWT, then connects through the WebSocket query parameter `ticket`.
 
-## 外部依赖 API
+## External Dependency APIs
 
-### 下载来源
+### Download Sources
 
-面板有「官方来源」和「国内镜像」两种下载来源，默认官方。设置在「面板设置」页，保存在 `panel.db` 的 `panel_settings` 表。官方来源绝不访问第三方；国内镜像按下表顺序尝试，失败后回到官方。
+The panel has two download sources, "official" and "China mirrors", defaulting to official. The setting is on the "Panel Settings" page and stored in the `panel_settings` table of `panel.db`. The official source never contacts third parties; China mirrors are tried in the order of the table below, falling back to official on failure.
 
-| 文件 | 官方来源 | 国内镜像（依次尝试） | 校验 |
+| File | Official source | China mirrors (tried in order) | Verification |
 |------|----------|----------------------|------|
-| Vanilla 版本列表 | Mojang | BMCLAPI → Mojang | 无 |
-| Vanilla 部署用的版本清单 | Mojang | 同官方：清单是校验链的根，不走镜像 | — |
-| Vanilla 版本详情与 jar | Mojang | BMCLAPI → Mojang | 详情按清单里的 SHA-1，jar 按详情里的 SHA-1 |
-| Paper 版本与 jar | `fill.papermc.io` | 同官方，没有可靠镜像 | jar 按 Fill 接口的 SHA-256 |
-| Fabric 版本列表 | Fabric Meta | BMCLAPI `/fabric-meta` → Fabric Meta | 无 |
-| Fabric 服务端 jar | Fabric Meta 现场生成 | 同官方，BMCLAPI 不提供 | 无 |
-| Forge 版本列表 | `files.minecraftforge.net` 的 `maven-metadata.json` | BMCLAPI → 官方 | 无 |
-| NeoForge 版本列表 | `maven.neoforged.net` | BMCLAPI → 官方 | 无 |
-| Forge / NeoForge 安装器 | 官方 Maven | BMCLAPI `/maven` → 官方 Maven | 按官方 Maven 的 `.sha256` |
-| 安装器依赖与 Vanilla jar | 安装器自行下载 | 面板先经 BMCLAPI 预取，缺的由安装器补齐 | 按安装器清单里的 SHA-1 |
-| frpc | GitHub | 南京大学镜像 → `ghfast.top` → `gh-proxy.com` → GitHub | 钉死的 SHA-256 |
-| EasyTier | GitHub | `ghfast.top` → `gh-proxy.com` → GitHub | 钉死的 SHA-256 |
+| Vanilla version list | Mojang | BMCLAPI → Mojang | None |
+| Vanilla version manifest used for deploy | Mojang | Same as official: the manifest is the root of the verification chain and does not use mirrors | — |
+| Vanilla version details and jar | Mojang | BMCLAPI → Mojang | Details by the SHA-1 in the manifest, jar by the SHA-1 in the details |
+| Paper versions and jar | `fill.papermc.io` | Same as official; there is no reliable mirror | Jar by the SHA-256 from the Fill API |
+| Fabric version list | Fabric Meta | BMCLAPI `/fabric-meta` → Fabric Meta | None |
+| Fabric server jar | Generated on the fly by Fabric Meta | Same as official; BMCLAPI does not provide it | None |
+| Forge version list | `maven-metadata.json` on `files.minecraftforge.net` | BMCLAPI → official | None |
+| NeoForge version list | `maven.neoforged.net` | BMCLAPI → official | None |
+| Forge / NeoForge installer | Official Maven | BMCLAPI `/maven` → official Maven | By the `.sha256` on the official Maven |
+| Installer dependencies and Vanilla jar | Downloaded by the installer itself | The panel prefetches through BMCLAPI first, and the installer fills in what is missing | By the SHA-1 in the installer manifest |
+| frpc | GitHub | Nanjing University mirror → `ghfast.top` → `gh-proxy.com` → GitHub | Pinned SHA-256 |
+| EasyTier | GitHub | `ghfast.top` → `gh-proxy.com` → GitHub | Pinned SHA-256 |
 
-规则：
+Rules:
 
-- **校验值未知时不用镜像**。`createDownloadPlan()` 在没有校验值时丢弃所有镜像地址，只留官方地址。BMCLAPI 的 Maven 路径会跳转到社区节点，公共 GitHub 代理的运营方也不可知，所以镜像给的文件必须能和可信的校验值对上才用。
-- **校验值不能来自社区节点**。BMCLAPI 只有 JSON 列表接口由主站直接返回，`/maven`、`/v1/packages`、`/v1/objects` 都会 302 到 USTC、CERNET 或志愿者节点。Forge / NeoForge 的 `.sha256` 因此只读官方 Maven。Vanilla 的清单在 BMCLAPI 上同样会被 302 到社区节点，所以部署时清单只从 Mojang 取（版本列表仍可走镜像）：清单里的 SHA-1 核对版本详情，版本详情里的 SHA-1 核对 jar，详情和 jar 才能用镜像。详情和 jar 的地址必须是 Mojang 的 https 地址，清单或详情缺 SHA-1 时直接报错，不退回到不校验的下载。
-- **缓存复用前复核**。核心缓存只按核心类型和版本命名、不分来源，计划带校验值时每次使用前按它重新核对，不符就删除重下；计划没有校验值时（Fabric、离线取不到 `.sha256` 的安装器）只看文件非空。
-- **https 不降级**。请求 https 地址时，跟随跳转后的最终地址不是 https 就拒绝，元数据和文件下载都一样；只检查最终地址，中间经过 http 再回到 https 的跳转链目前拦不住。
-- **校验在写入最终路径之前**。文件边下载边算摘要，不符就丢弃，换下一个来源。
-- **列表结果不算校验**。版本列表来自镜像时最多显示错版本，不会让未校验的文件进入实例。
-- **BMCLAPI 有限流**。实测同一地址 60 秒内超过 10 次返回 429（2026-11-05，按地址计，不同文件互不影响）。这里不做等待：429 和其他失败一样换下一个来源。
-- 有后备来源时，等待响应头的时限是 `CORE_METADATA_TIMEOUT_MS`，卡住的镜像不会耗尽整段下载超时。全部失败时错误里列出每个来源的原因，并提示到「面板设置」更换来源。
+- **No mirrors when the checksum is unknown.** `createDownloadPlan()` drops all mirror URLs when there is no checksum and keeps only the official URL. BMCLAPI's Maven paths redirect to community nodes, and the operators of public GitHub proxies are unknown too, so a file from a mirror is used only if it can be matched against a trusted checksum.
+- **Checksums cannot come from community nodes.** On BMCLAPI only the JSON list APIs are answered directly by the main site; `/maven`, `/v1/packages` and `/v1/objects` all 302 to USTC, CERNET or volunteer nodes. The `.sha256` of Forge / NeoForge is therefore read only from the official Maven. The Vanilla manifest is likewise 302'd to community nodes on BMCLAPI, so for a deploy the manifest comes only from Mojang (the version list can still use the mirror): the SHA-1 in the manifest verifies the version details, and the SHA-1 in the details verifies the jar, which is what allows the details and jar to use mirrors. The details and jar URLs must be Mojang https URLs, and a manifest or details missing a SHA-1 fails outright instead of falling back to an unverified download.
+- **Re-verify before reusing the cache.** The core cache is named only by core type and version, not by source; when the plan carries a checksum the cache is re-checked against it before every use, and deleted and downloaded again on mismatch; when the plan has no checksum (Fabric, or an installer whose `.sha256` cannot be fetched offline) only non-emptiness is checked.
+- **No https downgrade.** When an https URL is requested, a final URL after redirects that is not https is rejected, for both metadata and file downloads; only the final URL is checked, and a redirect chain passing through http and returning to https currently cannot be blocked.
+- **Verification happens before writing to the final path.** The digest is computed while downloading, and on mismatch the file is discarded and the next source tried.
+- **List results are not verification.** A version list from a mirror can at worst show wrong versions; it cannot let an unverified file into an instance.
+- **BMCLAPI is rate limited.** Measured: more than 10 requests to the same URL within 60 seconds returns 429 (2026-11-05, counted per URL, so different files do not affect each other). No waiting is done here: 429 switches to the next source like any other failure.
+- When fallback sources remain, the time limit for waiting for response headers is `CORE_METADATA_TIMEOUT_MS`, so a stalled mirror does not use up the whole download timeout. When everything fails the error lists the reason for each source and suggests changing the source in "Panel Settings".
 
-国内镜像下仍会连接官方的部分：安装器的 `--mirror` 不改写 `libraries.minecraft.net`，NeoForge 安装器也不使用它，所以面板改为预取：两种安装器都会跳过 SHA-1 相符的已有文件。但安装器在 1.17+ 仍要从 Mojang 下载映射文件，且会检测官方站点能否连接。Fabric 和 Forge 服务端第一次启动时也可能自己下载文件。
+What still contacts official servers under China mirrors: the installer's `--mirror` does not rewrite `libraries.minecraft.net`, and the NeoForge installer does not use it, so the panel prefetches instead: both installers skip existing files whose SHA-1 matches. But on 1.17+ the installer still has to download mapping files from Mojang and checks whether the official site is reachable. Fabric and Forge servers may also download files themselves on first start.
 
-Forge / NeoForge 由 `--installServer` 完成安装。
+Forge / NeoForge are installed with `--installServer`.
 
-下载文件可缓存在 `DATA_DIR/cache/cores/` 以减少重复拉取；下载大小和超时受对应环境变量限制。
+Downloaded files can be cached in `DATA_DIR/cache/cores/` to reduce repeated fetches; download size and timeouts are limited by the matching environment variables.
 
-核心缓存下载先写入临时文件，完整下载并通过校验后才原子发布到最终缓存路径，失败、取消或超时不会留下可复用的部分文件。ZIP Web 导入先创建不持久化的用户预览，只有确认且后台任务成功入队才消费；队列满时保留预览。部署 / 导入任务由并发槽位和等待队列调度，队列满时拒绝新任务；任务执行超过配置的超时会被取消，Installer 结束时先等待 `INSTALLER_KILL_GRACE_MS` 再强制结束。任务 worker 不跨进程恢复；启动时遗留的 `pending` / `running` 会转为失败，并尝试删除任务已关联的半成品实例。
+A core cache download is first written to a temp file and atomically published to the final cache path only after it is complete and verified, so a failure, cancel or timeout leaves no reusable partial file. A ZIP import from the Web first creates a non-persistent user preview, which is consumed only once confirmed and the background task is queued successfully; the preview is kept when the queue is full. Deploy / import tasks are scheduled by concurrency slots and a waiting queue, and new tasks are rejected when the queue is full; a task running past the configured timeout is cancelled, and when the installer ends, `INSTALLER_KILL_GRACE_MS` is waited before a forced kill. Task workers are not resumed across processes; leftover `pending` / `running` tasks at startup are turned into failures, with an attempt to delete the half-finished instance the task was associated with.
 
-HTTP 请求与上传还有总请求、连接、keep-alive 和上传空闲超时。上传大小超限返回 413，上传并发容量或任务队列耗尽返回 429。实例文件下载受 `MAX_CONCURRENT_FILE_DOWNLOADS=4` 并发槽位限制，容量耗尽返回 429；`FILE_DOWNLOAD_IDLE_TIMEOUT_MS=60000` 空闲超时会关闭下载并释放槽位。控制台 transport、并发连接、命令速率、stdin 待处理输入和历史输出均有独立字节 / 数量上限。
+HTTP requests and uploads also have total request, connection, keep-alive and upload idle timeouts. An upload over the size limit returns 413, and exhausted upload concurrency or a full task queue returns 429. Instance file downloads are limited to `MAX_CONCURRENT_FILE_DOWNLOADS=4` concurrent slots and return 429 when exhausted; the `FILE_DOWNLOAD_IDLE_TIMEOUT_MS=60000` idle timeout closes the download and releases the slot. The console transport, concurrent connections, command rate, pending stdin input and history output each have their own byte / count limits.
 
-## 类型共享
+## Type Sharing
 
-`packages/shared/src/index.ts` 导出 `InstanceInfo`、`DeployCoreInput`、`TaskInfo`、`ConsoleMessage`、`NodeInfo` 等类型，以及请求体 JSON Schema（如 `createInstanceBodySchema`），供 Fastify AJV 与 TypeScript 契约共用，减少路由内双写漂移。
+`packages/shared/src/index.ts` exports types such as `InstanceInfo`, `DeployCoreInput`, `TaskInfo`, `ConsoleMessage` and `NodeInfo`, plus request body JSON Schemas (such as `createInstanceBodySchema`), shared by Fastify AJV and the TypeScript contract to reduce drift from writing things twice in routes.
 
-构建顺序：**必须先构建 `@mystry/shared`**，再构建 server / web。独立类型检查：`npm run typecheck`。
+Build order: **`@mystry/shared` must be built first**, then server / web. Standalone type checking: `npm run typecheck`.

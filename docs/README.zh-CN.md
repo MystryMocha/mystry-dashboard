@@ -12,10 +12,10 @@ Mystry Dashboard 是独立的 Minecraft Java 服务端 Web 管理面板，在本
 | 创建首个管理员或处理登录问题 | [初始化管理员](getting-started.zh-CN.md#初始化管理员) | [启动与认证排查](getting-started.zh-CN.md#故障排查) |
 | 开出第一个服务端 | [分步教程](tutorials.zh-CN.md) | [使用指南](user-guide.zh-CN.md) |
 | 导入、配置或管理实例 | [使用指南](user-guide.zh-CN.md) | [备份与迁移](tutorials.zh-CN.md#教程-8备份与迁移) |
-| 让朋友加入服务器 | [联机](user-guide.zh-CN.md#联机) | [安全政策](../SECURITY.md) |
-| 修改监听、密钥或资源限制 | [配置说明](configuration.zh-CN.md) | [安全政策](../SECURITY.md) |
-| 修改代码或提交 PR | [开发指南](development.md) | [贡献指南](../CONTRIBUTING.md)、[验证矩阵](ai/verification.md) |
-| 接入接口或理解实现 | [API 参考](api.md) | [架构设计](architecture.md) |
+| 让朋友加入服务器 | [联机](user-guide.zh-CN.md#联机) | [安全政策](../SECURITY.zh-CN.md) |
+| 修改监听、密钥或资源限制 | [配置说明](configuration.zh-CN.md) | [安全政策](../SECURITY.zh-CN.md) |
+| 修改代码或提交 PR | [开发指南](development.zh-CN.md) | [贡献指南](../CONTRIBUTING.zh-CN.md)、[验证矩阵](ai/verification.md) |
+| 接入接口或理解实现 | [API 参考](api.zh-CN.md) | [架构设计](architecture.zh-CN.md) |
 | 设计界面或撰写界面文案 | [设计系统](design-system.md) | [多语言规范](localization.md) |
 | 使用 AI 协助开发 | [项目开发规则](../CLAUDE.md) | [AI 项目知识库](ai/README.md) |
 
@@ -32,10 +32,10 @@ Mystry Dashboard 是独立的 Minecraft Java 服务端 Web 管理面板，在本
 
 | 文档 | 用途 |
 |---|---|
-| [变更日志](../CHANGELOG.md) | 版本历史 |
-| [贡献指南](../CONTRIBUTING.md) | Issue、PR 和文档维护约定 |
-| [安全政策](../SECURITY.md) | 漏洞私下披露 |
-| [行为准则](../CODE_OF_CONDUCT.md) | 社区参与规范 |
+| [变更日志](../CHANGELOG.zh-CN.md) | 版本历史 |
+| [贡献指南](../CONTRIBUTING.zh-CN.md) | Issue、PR 和文档维护约定 |
+| [安全政策](../SECURITY.zh-CN.md) | 漏洞私下披露 |
+| [行为准则](../CODE_OF_CONDUCT.zh-CN.md) | 社区参与规范 |
 | [许可证](../LICENSE) | MIT |
 
 ## 维护与校验

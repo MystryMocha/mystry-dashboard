@@ -1,37 +1,39 @@
-# 开发指南
+# Development Guide
 
-## 前置步骤
+**English** · [简体中文](development.zh-CN.md)
 
-先阅读 [项目开发规则](../CLAUDE.md)，运行 `git status --short --branch` 确认当前分支和已有修改。使用 Node.js ≥ 22，在仓库根目录执行命令。
+## Before You Start
 
-首次运行须完成 [手动安装与密钥配置](getting-started.zh-CN.md#手动安装与首次配置)，然后分别运行 `npm.cmd run dev:server` 与 `npm.cmd run dev:web`。Windows PowerShell 使用 `npm.cmd`；下文 `npm` 示例适用于 Linux/macOS，脚本名相同。
+Read the [project development rules](../CLAUDE.md) first, and run `git status --short --branch` to confirm the current branch and existing changes. Use Node.js ≥ 22 and run commands from the repository root.
 
-后端默认 `http://127.0.0.1:3000`，开发界面 `http://127.0.0.1:5173`，Vite 代理 `/api` 和 `/ws`。修改后端端口时同步检查 `apps/web/vite.config.ts`。
+The first run requires completing [manual install and secret configuration](getting-started.md#manual-install-and-first-time-configuration), then running `npm.cmd run dev:server` and `npm.cmd run dev:web` separately. On Windows PowerShell use `npm.cmd`; the `npm` examples below apply to Linux/macOS, with the same script names.
+
+The backend defaults to `http://127.0.0.1:3000` and the development UI to `http://127.0.0.1:5173`, with Vite proxying `/api` and `/ws`. When changing the backend port, check `apps/web/vite.config.ts` as well.
 
 ```bash
 npm install
 npm run build -w @mystry/shared
 ```
 
-Linux / WSL 中需要以整合面板方式运行源码时，可使用根目录 `PanelManager.sh`。它会检查 Node.js 22、按锁文件补装依赖、构建并复用跨平台安全生命周期控制器：
+When the source needs to run as an integrated panel on Linux / WSL, use `PanelManager.sh` in the root. It checks for Node.js 22, installs missing dependencies from the lockfile, builds, and reuses the cross-platform safe lifecycle controller:
 
 ```bash
 chmod +x PanelManager.sh
 ./PanelManager.sh start
 ```
 
-默认配置为 `config/panel.env`、数据根为仓库 `data/`；两者均不应提交。需要隔离测试数据时，在每次启动/停止/状态命令前设置相同的 `MYSTRY_CONFIG_PATH` 与 `MYSTRY_DATA_DIR`。
+The default config is `config/panel.env` and the data root is `data/` in the repository; neither should be committed. To isolate test data, set the same `MYSTRY_CONFIG_PATH` and `MYSTRY_DATA_DIR` before every start/stop/status command.
 
-修改 `packages/shared` 后需重新构建 shared，server / web 才能拿到最新类型。
+After changing `packages/shared`, rebuild shared so that server / web pick up the latest types.
 
-独立类型检查（不产出构建物）：
+Standalone type checking (no build output):
 
 ```bash
 npm run build -w @mystry/shared
 npm run typecheck
 ```
 
-## 工作区包
+## Workspace Packages
 
 ### `@mystry/shared`
 
@@ -39,78 +41,78 @@ npm run typecheck
 npm run build -w @mystry/shared
 ```
 
-输出：`packages/shared/dist/`。新增前后端共用字段时应先改此处；请求体校验 schema 放在 `src/schemas.ts`，由路由直接引用。
+Output: `packages/shared/dist/`. Fields shared by the frontend and backend should be added here first; request body validation schemas live in `src/schemas.ts` and are referenced directly by routes.
 
 ### `@mystry/server`
 
-- 开发：`npm run dev -w @mystry/server`（通常通过根目录 `npm run dev:server`）
-- 构建：`npm run build -w @mystry/server`
-- 入口：`apps/server/src/index.ts`
+- Development: `npm run dev -w @mystry/server` (usually through `npm run dev:server` in the root)
+- Build: `npm run build -w @mystry/server`
+- Entry: `apps/server/src/index.ts`
 
 ### `@mystry/web`
 
-- 开发：`npm run dev -w @mystry/web`
-- 构建：`npm run build -w @mystry/web`
-- 别名：`@` → `src/`
+- Development: `npm run dev -w @mystry/web`
+- Build: `npm run build -w @mystry/web`
+- Alias: `@` → `src/`
 
-## 添加 REST 接口的建议流程
+## Suggested Flow for Adding a REST Endpoint
 
-1. 在 `packages/shared` 中补充请求 / 响应类型（如需要），并同步 `schemas.ts` 中对应 JSON Schema。
-2. 在 `apps/server/src/services/` 实现业务逻辑。
-3. 在 `apps/server/src/routes/` 注册路由，挂 `authenticate`（若需登录），body schema 优先从 `@mystry/shared` 引入。
-4. 在 `apps/web/src/api.ts` 或页面中调用。
-5. 确认用户可见入口、加载状态和错误反馈，并在新增路由模块时更新 `apps/server/src/index.ts` 的注册。
-6. 更新 [API 参考](api.md) 与相关知识库，按 [验证矩阵](ai/verification.md) 检查契约和真实操作链路。
+1. Add request / response types in `packages/shared` (if needed), and sync the matching JSON Schema in `schemas.ts`.
+2. Implement the business logic in `apps/server/src/services/`.
+3. Register the route in `apps/server/src/routes/`, attach `authenticate` (if sign-in is required), and prefer importing the body schema from `@mystry/shared`.
+4. Call it from `apps/web/src/api.ts` or a page.
+5. Confirm the user-visible entry, loading state and error feedback, and when adding a route module update its registration in `apps/server/src/index.ts`.
+6. Update the [API reference](api.md) and the related knowledge base, and check the contract and the real operation path against the [verification matrix](ai/verification.md).
 
-## 路径与安全
+## Paths and Security
 
-- 实例目录解析：`apps/server/src/utils/path.ts`（`resolveDirFromRow` 等）。
-- 文件操作必须经过 `file-service` 的路径校验，避免目录穿越。
+- Instance directory resolution: `apps/server/src/utils/path.ts` (`resolveDirFromRow`, etc.).
+- File operations must go through the path validation in `file-service`, to prevent directory traversal.
 
-## 进程与控制台
+## Processes and Console
 
-- 所有实例进程由单例 `processManager` 管理。
-- 扩展多实例并发时注意：`start` / `stop` 已有状态锁，避免重复 spawn。
-- 控制台事件：`output`、`status`（EventEmitter）。
+- All instance processes are managed by the singleton `processManager`.
+- When extending multi-instance concurrency, note that `start` / `stop` already hold a state lock, to avoid spawning twice.
+- Console events: `output`, `status` (EventEmitter).
 
-## 数据库
+## Database
 
-- 初始化：`initDb()` 在 `index.ts` 启动时调用。
-- 表结构变更：当前无迁移框架；改表时需手动处理已有 `panel.db` 或编写一次性迁移脚本。
+- Initialization: `initDb()` is called at startup in `index.ts`.
+- Schema changes: there is currently no migration framework; when changing a table, existing `panel.db` files have to be handled manually or with a one-off migration script.
 
-## 代码风格
+## Code Style
 
-- 与现有文件保持一致：ESM（`import`）、TypeScript、服务端文件后缀 `.ts` 编译为 `.js`。
-- 注释使用英文。Web 界面文案写进 `apps/web/src/i18n/` 的英文、简体中文与繁體中文文案表，规则见 [贡献指南](../CONTRIBUTING.md#用户可见文案)。
-- 避免无关重构；小范围修复优先。
+- Match the existing files: ESM (`import`), TypeScript, and server files with the `.ts` suffix compiled to `.js`.
+- Comments are written in English. Web UI text goes into the English, Simplified Chinese and Traditional Chinese string tables in `apps/web/src/i18n/`; the rules are in the [contributing guide](../CONTRIBUTING.md#user-facing-text).
+- Avoid unrelated refactoring; prefer small, focused fixes.
 
-## AI 项目知识库
+## AI Project Knowledge Base
 
-- 根目录 `CLAUDE.md` 是 Claude Code 的强制入口，详细资料位于 `docs/ai/`。
-- 路由、环境变量、workspaces、入口或验证脚本变化时，必须同步 `docs/ai/project-facts.json`。
-- 当前事实、计划、已否决方案和历史故障必须分层记录，不得把旧计划当成已实现能力。
-- 快速检查：`npm run knowledge:check`；检查器负向测试：`npm run knowledge:test`。
-- 锁文件只记录官方地址。本机 npm 配了镜像时，装完新依赖运行 `npm run lockfile:fix`。
-- 完整门禁：`npm run verify`。Windows PowerShell 从终端直接执行时使用 `npm.cmd run verify`。
-- 本机 CI：`npm run ci:local`，对当前提交做干净安装并跑 `verify`；只在 Windows 上运行，依次跑 Windows 与 WSL Linux，Node 固定为便携包内置版本。远程 Quality Gate 已不随推送和 PR 自动运行，推送前用它代替（见 [验证矩阵](ai/verification.md#本机-ci)）。
+- `CLAUDE.md` in the root is the mandatory entry for Claude Code, and the detailed material is in `docs/ai/`.
+- When routes, environment variables, workspaces, entry points or verification scripts change, `docs/ai/project-facts.json` must be synced.
+- Current facts, plans, rejected options and historical failures must be recorded in separate layers; an old plan must not be treated as an implemented capability.
+- Quick check: `npm run knowledge:check`; negative tests for the checker: `npm run knowledge:test`.
+- The lockfile records only official URLs. When your local npm is configured with a mirror, run `npm run lockfile:fix` after installing a new dependency.
+- Full gate: `npm run verify`. When running directly from a Windows PowerShell terminal use `npm.cmd run verify`.
+- Local CI: `npm run ci:local` does a clean install of the current commit and runs `verify`; it runs only on Windows, covering Windows and then WSL Linux, with Node pinned to the version bundled in the portable package. The remote Quality Gate no longer runs automatically on pushes and PRs, so use this instead before pushing (see the [verification matrix](ai/verification.md)).
 
-## 本地验证清单
+## Local Verification Checklist
 
-提交前运行和改动相关的检查；推送前运行 `npm.cmd run ci:local`，它在干净检出上跑完整 `npm run verify`。完整门禁不包含生产依赖审计；依赖变更与发布需另跑 `npm.cmd run audit:production`。下面的人工项目按改动范围选择，使用独立测试数据；数据库演练仅使用副本。自动检查通过不能替代真实交互验证。
+Before committing, run the checks related to your change; before pushing, run `npm.cmd run ci:local`, which runs the full `npm run verify` on a clean checkout. The full gate does not include the production dependency audit; dependency changes and releases also need `npm.cmd run audit:production`. Choose the manual items below by the scope of the change, and use separate test data; database drills use copies only. Passing automated checks is no substitute for verifying real interaction.
 
-- [ ] `npm run knowledge:check` 与 `npm run knowledge:test` 无错误
-- [ ] `npm run build -w @mystry/shared` 后 `npm run test:smoke`（已包含在 `verify` 中；不启动 Minecraft，不使用仓库 `data/`）
-- [ ] `npm run typecheck` 无错误
-- [ ] `GET /api/health` 返回 ok
-- [ ] 登录 / setup 流程
-- [ ] 创建或部署实例并启动
-- [ ] WebSocket 控制台有输出且可发命令
-- [ ] 文件列表与 `server.properties` 读写
-- [ ] `npm run build` 无错误，`npm start` 可打开整合页面
+- [ ] `npm run knowledge:check` and `npm run knowledge:test` report no errors
+- [ ] `npm run test:smoke` after `npm run build -w @mystry/shared` (already included in `verify`; it does not start Minecraft or use `data/` in the repository)
+- [ ] `npm run typecheck` reports no errors
+- [ ] `GET /api/health` returns ok
+- [ ] Sign-in / setup flow
+- [ ] Create or deploy an instance and start it
+- [ ] The WebSocket console shows output and accepts commands
+- [ ] File listing, and reading and writing `server.properties`
+- [ ] `npm run build` reports no errors, and `npm start` opens the integrated page
 
-## 便携包开发与发布
+## Portable Package Development and Release
 
-便携工具位于 `scripts/portable/`。每个压缩包必须在相同操作系统和架构的原生 runner 上组装，再从最终压缩包解压验证：
+The portable tools are in `scripts/portable/`. Each archive must be assembled on a native runner of the same operating system and architecture, then verified by extracting the final archive:
 
 ```bash
 npm run portable:test
@@ -120,14 +122,14 @@ node scripts/portable/package-portable.mjs --platform win32 --arch x64 --output-
 node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.4-windows-x64.zip
 ```
 
-`package-portable.mjs` 会从官方 Node.js 发布站下载固定版本运行时并按 `SHASUMS256.txt` 校验，使用 `npm ci --omit=dev` 创建独立生产依赖树，物理复制 `@mystry/shared`，并拒绝包内符号链接。不要从当前仓库的 `node_modules` 直接打包。
+`package-portable.mjs` downloads the pinned runtime from the official Node.js release site and verifies it against `SHASUMS256.txt`, creates a separate production dependency tree with `npm ci --omit=dev`, physically copies `@mystry/shared`, and rejects symlinks inside the package. Do not package directly from `node_modules` in the current repository.
 
-`.github/workflows/portable-release.yml` 在 Windows x64 与 Linux x64 矩阵全部通过后生成 Release。发布前还必须通过 `npm run verify` 和 `npm run audit:production`；签名密钥缺失会阻止公开 Release。维护操作和数据升级流程见 [便携预览版](portable-release.zh-CN.md)。
+`.github/workflows/portable-release.yml` creates the Release after the Windows x64 and Linux x64 matrix both pass. Before a release, `npm run verify` and `npm run audit:production` must also pass; a missing signing key blocks a public Release. Maintenance operations and the data upgrade flow are in [Portable Preview](portable-release.md).
 
-## 相关文档
+## Related Documents
 
-- [贡献指南](../CONTRIBUTING.md)
-- [架构设计](architecture.md)
-- [配置说明](configuration.zh-CN.md)
-- [便携预览版](portable-release.zh-CN.md)
-- [AI 项目知识库](ai/README.md)
+- [Contributing guide](../CONTRIBUTING.md)
+- [Architecture](architecture.md)
+- [Configuration](configuration.md)
+- [Portable Preview](portable-release.md)
+- [AI project knowledge base](ai/README.md)

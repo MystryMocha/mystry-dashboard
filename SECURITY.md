@@ -1,63 +1,65 @@
-# 安全政策
+# Security Policy
 
-## 支持的版本
+**English** · [简体中文](SECURITY.zh-CN.md)
 
-| 版本 | 支持状态 |
+## Supported Versions
+
+| Version | Support status |
 |------|----------|
-| `0.2.0-preview.x` | 当前 Preview，接收安全报告 |
-| `0.1.x` | 仅在未发布更新 Preview 前临时维护 |
+| `0.2.0-preview.x` | Current Preview, accepts security reports |
+| `0.1.x` | Maintained temporarily only until a newer Preview is released |
 
-发布正式稳定版本后，仅对仍受支持的小版本接收安全修复。Preview 不承诺与正式版同等的长期安全支持窗口。
+Once a stable release is published, security fixes are accepted only for minor versions that are still supported. Preview does not promise the same long-term security support window as a stable release.
 
-## 报告漏洞
+## Reporting a Vulnerability
 
-本项目是本机高权限管理面板（可读写实例文件、启动 Java 进程）。若你发现安全问题，请**不要**公开创建 Issue 或讨论帖。
+This project is a high-privilege local management panel (it can read and write instance files and start Java processes). If you find a security problem, please do **not** open a public Issue or discussion.
 
-请通过以下方式私下联系维护者：
+Contact the maintainers privately through one of these:
 
-1. 使用 GitHub 仓库的 **Private vulnerability reporting**（若已启用：Security → Report a vulnerability）；或
-2. 向仓库维护者发送私信 / 邮件（在仓库 About 或 Profile 中查看联系方式）。
+1. GitHub **Private vulnerability reporting** for the repository (if enabled: Security → Report a vulnerability); or
+2. A private message / email to the repository maintainers (see the contact details in the repository About section or profile).
 
-报告时尽量包含：
+Please include as much of the following as you can:
 
-- 影响版本与运行环境（OS、Node 版本）
-- 漏洞类型与影响范围（例如未授权访问、路径穿越、命令注入）
-- 最小复现步骤或 PoC（请勿在公开渠道粘贴）
-- 你认为的修复方向（可选）
+- Affected version and environment (OS, Node version)
+- Vulnerability type and impact (for example unauthorized access, path traversal, command injection)
+- Minimal reproduction steps or a PoC (do not paste it in public channels)
+- The direction of a fix as you see it (optional)
 
-我们会尽快确认并回复；在修复发布前请勿公开细节。
+We will confirm and reply as soon as we can; please do not disclose details before a fix is released.
 
-## 安全相关设计原则（摘要）
+## Security Design Principles (Summary)
 
-- 默认监听 `127.0.0.1`，避免无意暴露公网。需要从其他设备访问时，由已登录的管理员在面板里（或用本机启动器的 `remote` 命令）开启：面板在所选网卡上另开监听，默认用自签名证书的 HTTPS，另有「只允许同一网段的设备」开关。自签名证书防窃听，不防主动冒充，可核对界面和终端里显示的证书指纹；关掉 HTTPS 后密码和登录令牌明文传输。开启后登录页可能面向公网，保护是登录本身（随机初始密码、至少 12 位的密码、按「来源 IP + 用户名」的失败限流）。
-- 本机启动器接口（关闭、重置密码、开关访问）只认回环来源加 `LAUNCHER_TOKEN`，从其他设备进不来；健康检查里的进程指纹只返回给本机请求。
-- 面板自带的 EasyTier 网络只放行面板端口，和实例的联机网络互相独立；它的网络密钥等同于访问面板登录页的凭据，只用在自己的设备上。经它进来的连接在面板看来来自本机。
-- 首次初始化使用 `X-Setup-Token` header；setup 仅在用户表为空时接受请求。管理员创建后应移除 `SETUP_TOKEN`。
-- `JWT_SECRET` 和 `SETUP_TOKEN` 均须为 64 位十六进制随机值，且必须互不相同、不得提交到仓库。
-- 所有实例严格位于 `DATA_DIR/instances/<id>`；面板不接受自定义实例目录，也不提供全盘目录浏览。
-- 实例文件和 zip 解压做路径逃逸校验，文件 API 的路径始终相对于实例根目录。
-- 实例默认通过 PATH 中的 `java` 启动，也可按注册表 ID 使用面板扫描并验证的运行时；请求不能提交 Java 完整路径。扫描仅执行候选的 `-version`，且使用脱敏子进程环境；`JAVA_HOME` 与扫描目录必须由受信任的本机管理员控制。
-- 旧版外部实例目录不会被面板访问或删除；迁移由用户在停止服务后使用系统工具完成。
-- `DATA_DIR` 可相对于项目根目录配置，也可使用绝对路径；实例仍只能位于该目录下的 `instances/<id>`。
-- 上传超过大小上限返回 413，上传并发容量耗尽返回 429；核心缓存仅原子发布已完整写入的文件。
-- 文件下载默认最多 4 个并发；下载并发容量耗尽返回 429，下载空闲超时会关闭下载并释放并发资源（由 `MAX_CONCURRENT_FILE_DOWNLOADS` 和 `FILE_DOWNLOAD_IDLE_TIMEOUT_MS` 控制）。
-- 联机只开放所选实例的游戏端口，不暴露面板。面板下载钉死版本的官方 frpc 和 EasyTier，并校验 SHA-256。虚拟局域网打洞失败时，流量经社区共享节点中转，内容用网络密钥加密；Windows 上需要以管理员身份运行面板。网络密钥和 frp 朋友配置都等同于连接该游戏端口的凭据，只发给信任的人。
-- 部署 / 导入任务支持排队并受执行超时保护；控制台限制并发连接、命令大小与速率、入站消息和 stdin 缓冲。
+- Listens on `127.0.0.1` by default, to avoid unintended exposure to the public internet. When access from other devices is needed, a signed-in administrator turns it on in the panel (or with the local launcher's `remote` command): the panel opens extra listeners on the chosen interfaces, using HTTPS with a self-signed certificate by default, plus a "same subnet only" switch. A self-signed certificate protects against eavesdropping but not against active impersonation; the certificate fingerprint shown in the UI and the terminal can be compared. With HTTPS turned off, the password and sign-in token are transmitted in plaintext. Once enabled the login page may face the public internet, and the protection is the sign-in itself (a random initial password, passwords of at least 12 characters, and failure rate limiting by "source IP + username").
+- The local launcher endpoints (shutdown, password reset, toggling access) accept only a loopback origin plus `LAUNCHER_TOKEN` and cannot be reached from other devices; the process fingerprint in the health check is returned only to requests from this machine.
+- The panel's built-in EasyTier network allows only the panel port and is independent of the instances' multiplayer networks; its network secret is equivalent to a credential for reaching the panel login page and should be used only on your own devices. Connections arriving through it appear to the panel as coming from this machine.
+- First-time setup uses the `X-Setup-Token` header; setup accepts requests only while the users table is empty. `SETUP_TOKEN` should be removed after the administrator is created.
+- `JWT_SECRET` and `SETUP_TOKEN` must both be 64-digit hex random values, must differ from each other, and must not be committed to the repository.
+- Every instance lives strictly in `DATA_DIR/instances/<id>`; the panel does not accept custom instance directories and offers no whole-disk directory browsing.
+- Instance files and zip extraction are validated against path escape, and file API paths are always relative to the instance root.
+- Instances start with the `java` on PATH by default, or with a runtime the panel scanned and verified, referenced by registry ID; requests cannot submit a full Java path. Scanning only runs `-version` on candidates, with a sanitized child process environment; `JAVA_HOME` and the scanned directories must be controlled by a trusted local administrator.
+- Legacy external instance directories are neither accessed nor deleted by the panel; migration is done by the user with system tools after stopping the server.
+- `DATA_DIR` can be configured relative to the project root or as an absolute path; instances can still only live in `instances/<id>` under it.
+- An upload over the size limit returns 413, and exhausted upload concurrency returns 429; the core cache atomically publishes only files that were written completely.
+- File downloads allow at most 4 concurrent by default; exhausted download concurrency returns 429, and an idle download times out, is closed and releases its slot (controlled by `MAX_CONCURRENT_FILE_DOWNLOADS` and `FILE_DOWNLOAD_IDLE_TIMEOUT_MS`).
+- Multiplayer opens only the game port of the chosen instance and does not expose the panel. The panel downloads pinned versions of the official frpc and EasyTier and verifies their SHA-256. When hole punching fails on the virtual LAN, traffic is relayed through community shared peers with content encrypted by the network secret; on Windows the panel has to run as administrator. The network secret and the frp friend config are both equivalent to credentials for connecting to that game port and should be given only to people you trust.
+- Deploy / import tasks can queue and are protected by an execution timeout; the console limits concurrent connections, command size and rate, inbound messages and the stdin buffer.
 
-详见 [docs/configuration.zh-CN.md](docs/configuration.zh-CN.md)。
+See [docs/configuration.md](docs/configuration.md) for details.
 
-## 致谢
+## Acknowledgements
 
-负责任披露并协助修复的贡献者，可在修复发布后按意愿致谢（可匿名）。
+Contributors who disclose responsibly and help with a fix can be credited after the fix is released if they wish (anonymously if preferred).
 
-## 发布资产完整性
+## Release Asset Integrity
 
-公开 Preview 的 GitHub Release 提供压缩包、`SHA256SUMS`、`SHA256SUMS.asc` 与 `mystry-release-signing-key.asc`。维护者配置与指纹说明见 [`.github/RELEASE_SIGNING.md`](.github/RELEASE_SIGNING.md)；用户验证步骤见 [docs/portable-release.zh-CN.md](docs/portable-release.zh-CN.md#下载与校验)。
+The GitHub Release of a public Preview provides the archives, `SHA256SUMS`, `SHA256SUMS.asc` and `mystry-release-signing-key.asc`. Maintainer setup and fingerprint notes are in [`.github/RELEASE_SIGNING.md`](.github/RELEASE_SIGNING.md); user verification steps are in [docs/portable-release.md](docs/portable-release.md).
 
-验证要点：
+Key points of verification:
 
-1. 导入 Release 附带的公钥，核对指纹与仓库 [`.github/release-signing-key.fingerprint`](.github/release-signing-key.fingerprint) 一致。
-2. 用 `sha256sum -c` 或等效方式确认压缩包哈希与 `SHA256SUMS` 匹配。
-3. 使用 `gpg --verify SHA256SUMS.asc SHA256SUMS` 确认校验和列表由该公钥签名。
+1. Import the public key attached to the Release and check that its fingerprint matches [`.github/release-signing-key.fingerprint`](.github/release-signing-key.fingerprint) in the repository.
+2. Confirm with `sha256sum -c` or an equivalent that the archive hashes match `SHA256SUMS`.
+3. Use `gpg --verify SHA256SUMS.asc SHA256SUMS` to confirm the checksum list was signed by that public key.
 
-CI 在创建 Release 前会在独立 keyring 中完成相同验证；私钥、指纹与 Environment 审批由仓库管理员配置，不由应用运行时读取。
+Before creating a Release, CI performs the same verification in a standalone keyring; the private key, fingerprint and Environment approval are configured by the repository administrator and are not read by the application at runtime.

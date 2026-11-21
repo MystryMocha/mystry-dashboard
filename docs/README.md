@@ -12,10 +12,10 @@ Mystry Dashboard is a standalone web panel for Minecraft Java servers. It manage
 | Create the first administrator or fix sign-in problems | [Set Up Administrator](getting-started.md#set-up-administrator) | [Startup and authentication troubleshooting](getting-started.md#troubleshooting) |
 | Get your first server running | [Step-by-Step Tutorials](tutorials.md) | [User Guide](user-guide.md) |
 | Import, configure or manage instances | [User Guide](user-guide.md) | [Backup and migration](tutorials.md#tutorial-8-backup-and-migration) |
-| Let friends join your server | [Multiplayer](user-guide.md#multiplayer) | [Security policy](../SECURITY.md) (Chinese) |
-| Change the listen address, secrets or resource limits | [Configuration](configuration.md) | [Security policy](../SECURITY.md) (Chinese) |
-| Change the code or open a PR | [Development guide](development.md) (Chinese) | [Contributing guide](../CONTRIBUTING.md) (Chinese), [Verification matrix](ai/verification.md) (Chinese) |
-| Integrate with the API or understand the implementation | [API reference](api.md) (Chinese) | [Architecture](architecture.md) (Chinese) |
+| Let friends join your server | [Multiplayer](user-guide.md#multiplayer) | [Security policy](../SECURITY.md) |
+| Change the listen address, secrets or resource limits | [Configuration](configuration.md) | [Security policy](../SECURITY.md) |
+| Change the code or open a PR | [Development guide](development.md) | [Contributing guide](../CONTRIBUTING.md), [Verification matrix](ai/verification.md) (Chinese) |
+| Integrate with the API or understand the implementation | [API reference](api.md) | [Architecture](architecture.md) |
 | Design the interface or write interface copy | [Design system](design-system.md) | [Localization guide](localization.md) |
 | Develop with AI assistance | [Project development rules](../CLAUDE.md) (Chinese) | [AI project knowledge base](ai/README.md) (Chinese) |
 
@@ -32,10 +32,10 @@ If this is your first time, read in this order: Getting Started → Step-by-Step
 
 | Document | Purpose |
 |---|---|
-| [Changelog](../CHANGELOG.md) (Chinese) | Version history |
-| [Contributing guide](../CONTRIBUTING.md) (Chinese) | Conventions for issues, PRs and doc maintenance |
-| [Security policy](../SECURITY.md) (Chinese) | Private vulnerability disclosure |
-| [Code of conduct](../CODE_OF_CONDUCT.md) (Chinese) | Rules for taking part in the community |
+| [Changelog](../CHANGELOG.md) | Version history |
+| [Contributing guide](../CONTRIBUTING.md) | Conventions for issues, PRs and doc maintenance |
+| [Security policy](../SECURITY.md) | Private vulnerability disclosure |
+| [Code of conduct](../CODE_OF_CONDUCT.md) | Rules for taking part in the community |
 | [License](../LICENSE) | MIT |
 
 ## Maintenance and Checks
