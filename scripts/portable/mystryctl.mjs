@@ -502,8 +502,8 @@ function showCredentials(title, { username, password }) {
   console.log(text(`  密码：${password}`, `  Password: ${password}`));
   console.log('');
   console.log(text(
-    '密码只显示这一次，请现在记下。登录后点左下角的钥匙图标修改密码。',
-    'This password is shown only once, so note it now. After signing in, click the key icon at the bottom left to change it.',
+    '密码只显示这一次，请现在记下。登录后点左下角的齿轮进入「面板设置」修改密码。',
+    'This password is shown only once, so note it now. After signing in, open Panel Settings (the gear at the bottom left) to change it.',
   ));
   console.log(text(
     `忘记密码时，在面板运行期间执行：${managerCommand} reset-password`,

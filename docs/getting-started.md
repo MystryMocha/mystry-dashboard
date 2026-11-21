@@ -157,7 +157,7 @@ Open the panel address in your browser (`http://127.0.0.1:3000` by default, or `
 ### Started with `mystryctl` or `PanelManager` (Recommended)
 
 1. On the first run, the launcher has already created the `admin` account with a random 16-character password (shown once in the launcher window), so the browser opens directly to **Sign In**.
-2. Sign in with `admin` and the password from the launcher window, then click the key icon at the bottom left to set your own password (at least 12 characters).
+2. Sign in with `admin` and the password from the launcher window, then open **Panel Settings** (the gear at the bottom left) and click **Change Password** to set your own password (at least 12 characters).
 3. If you forget the password later, run `reset-password` in a terminal while the panel is running to generate a new one.
 
 ### Started Manually (`npm start` / `npm run dev:server`)

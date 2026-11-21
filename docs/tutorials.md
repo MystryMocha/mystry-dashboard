@@ -33,7 +33,7 @@ After installing, you can run `java -version` in a terminal to confirm. It's fin
 2. The launcher generates the configuration and opens your browser. If the browser doesn't open, go to `http://127.0.0.1:3000` yourself.
 3. On the first run, the launcher creates the administrator `admin` with a random password and shows them in the launcher window. The password is shown only this once, so note it down right away.
 4. The page shows "Sign In". Enter the username and password from the window, then click "Sign In".
-5. After signing in, click the key icon at the bottom left and change the password to your own (at least 12 characters). If you forget it, run the `reset-password` command while the panel is running (for example `.\mystryctl.cmd reset-password` for the portable build on Windows). The window shows a new password.
+5. After signing in, open **Panel Settings** (the gear at the bottom left), click **Change Password** and change the password to your own (at least 12 characters). If you forget it, run the `reset-password` command while the panel is running (for example `.\mystryctl.cmd reset-password` for the portable build on Windows). The window shows a new password.
 
 Don't send the password, the config file, or screenshots that contain them to anyone. To write the configuration by hand or run in development mode, see [Getting Started](getting-started.md#manual-install-and-first-time-configuration).
 

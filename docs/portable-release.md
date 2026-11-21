@@ -94,7 +94,7 @@ Commands:
 | `remote` | While the panel is running, control access from other devices: `remote on`, `remote off`, `remote status`, `remote https off`, `remote renew-cert` |
 | `menu` | Opens the interactive command menu |
 
-The first start creates `config/panel.env`, generates distinct random secrets, and creates the `admin` account with a random 16-character password. The password is shown once in the window and isn't written to the log files. After signing in, click the key icon at the bottom left to change it. If you forget it, run `.\mystryctl.cmd reset-password` in a terminal window while the panel is running; it refuses when its output is redirected or piped, so the new password never lands in a file. The config file contains secrets, so don't upload or share it.
+The first start creates `config/panel.env`, generates distinct random secrets, and creates the `admin` account with a random 16-character password. The password is shown once in the window and isn't written to the log files. After signing in, open **Panel Settings** (the gear at the bottom left) and click **Change Password** to change it. If you forget it, run `.\mystryctl.cmd reset-password` in a terminal window while the panel is running; it refuses when its output is redirected or piped, so the new password never lands in a file. The config file contains secrets, so don't upload or share it.
 
 ## Folders and Data
 
