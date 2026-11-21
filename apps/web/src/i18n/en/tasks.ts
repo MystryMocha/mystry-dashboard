@@ -31,7 +31,6 @@ export default {
   'dialog.error.copied': 'Copied',
   'dialog.error.copyFailed': 'Copy Failed',
   'dialog.error.viewDetails': 'View Details',
-  'dialog.error.detailHint': 'The full error. You can copy it for troubleshooting.',
   'dialog.error.closeLabel': 'Close Error Details',
   'dialog.error.copiedStatus': 'The error was copied to the clipboard.',
   'dialog.error.copyFailedStatus': "Couldn't copy. Select the text in the content area and copy it manually.",

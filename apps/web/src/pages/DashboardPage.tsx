@@ -454,7 +454,7 @@ export function DashboardPage() {
                 <span className="overview-status-issues">{tp('dashboard.subtitle.issues', issueCount)}</span>
               )}
             </span>
-          ) : t('dashboard.subtitle.default')
+          ) : undefined
         }
         // 还没有实例时，列表区的三种添加方式就是入口，顶部不再重复一套按钮；加载中也先不画，避免空面板上按钮闪一下又消失。
         actions={loadState === 'loading' || (loaded && instances.length === 0) ? undefined : (

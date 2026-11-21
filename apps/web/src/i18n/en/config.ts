@@ -1,6 +1,6 @@
 /** 参数配置（server.properties）文案（英文主表）。 */
 export default {
-  'config.lead': 'Edit server.properties. Changes take effect after you restart the instance.',
+  'config.lead': 'These settings are saved to server.properties and take effect after you restart the instance.',
   'config.loading': 'Loading properties…',
   'config.select.placeholder': 'Choose…',
   'config.advanced.summary_one': 'Advanced ({count} more property)',

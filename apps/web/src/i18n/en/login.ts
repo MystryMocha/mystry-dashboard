@@ -9,7 +9,6 @@ export default {
   'login.setup.title': 'Set Up Administrator',
   'login.setup.subtitle': 'This is the first launch. Create an administrator account.',
   'login.signin.title': 'Sign In',
-  'login.signin.subtitle': 'Sign in to Mystry Dashboard with your administrator account.',
 
   'login.form.username': 'Username',
   'login.form.setupToken': 'Setup Token',

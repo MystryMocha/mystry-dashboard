@@ -170,11 +170,7 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
     <div className="login-stack">
       <BrandMark size="lg" />
       <h1 className="login-title">{needsSetup ? t('login.setup.title') : t('login.signin.title')}</h1>
-      <p className="login-subtitle">
-        {needsSetup
-          ? t('login.setup.subtitle')
-          : t('login.signin.subtitle')}
-      </p>
+      {needsSetup && <p className="login-subtitle">{t('login.setup.subtitle')}</p>}
 
       <form className="login-form" onSubmit={onSubmit} onKeyDown={onKeyDown}>
         <div className="field-stack">

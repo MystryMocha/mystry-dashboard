@@ -87,10 +87,7 @@ export function ErrorSummary({
       >
         <div className="error-dialog-panel">
           <header className="error-dialog-header">
-            <div>
-              <h2 id={dialogTitleId}>{detailTitle}</h2>
-              <p>{t('dialog.error.detailHint')}</p>
-            </div>
+            <h2 id={dialogTitleId}>{detailTitle}</h2>
             <button
               className="btn btn-plain"
               type="button"

@@ -2775,6 +2775,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .login-stack > .callout { width: 100%; text-align: left; }
 .login-title { margin: 0; font-size: var(--text-large); font-weight: 700; letter-spacing: -0.026em; }
 .login-subtitle { margin: 0 0 14px; font-size: var(--text-body); color: var(--label-2); }
+/* 登录页没有说明行，标题和表单之间补上同样的间距。 */
+.login-title + .login-form { margin-top: 10px; }
 
 .login-form { display: flex; flex-direction: column; gap: 14px; width: 100%; text-align: left; }
 

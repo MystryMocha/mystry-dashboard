@@ -2,13 +2,13 @@ import type en from '../en/deploy';
 
 /** 一键部署页文案（简体中文）。 */
 export default {
-  'deploy.page.subtitle': '从官方源下载服务端核心，自动完成安装与启动配置。',
+  'deploy.page.subtitle': '选好核心和版本，面板会下载并安装服务端。',
 
   'deploy.core.title': '选择服务端核心',
   'deploy.core.paper.desc': '插件服，新手推荐',
-  'deploy.core.fabric.desc': '轻量现代化模组',
-  'deploy.core.forge.desc': '经典重型模组',
-  'deploy.core.neoforge.desc': '新一代模组端',
+  'deploy.core.fabric.desc': '模组服',
+  'deploy.core.forge.desc': '模组服',
+  'deploy.core.neoforge.desc': '模组服',
   'deploy.core.vanilla.desc': 'Mojang 原版',
 
   'deploy.basic.title': '基本信息',

@@ -33,7 +33,6 @@ export default {
   'dialog.error.copied': '已複製',
   'dialog.error.copyFailed': '複製失敗',
   'dialog.error.viewDetails': '檢視詳細資料',
-  'dialog.error.detailHint': '完整的錯誤內容，可以複製後用於排查問題。',
   'dialog.error.closeLabel': '關閉錯誤詳細資料',
   'dialog.error.copiedStatus': '錯誤內容已複製到剪貼簿',
   'dialog.error.copyFailedStatus': '複製失敗，請在內容區域中手動選取並複製',

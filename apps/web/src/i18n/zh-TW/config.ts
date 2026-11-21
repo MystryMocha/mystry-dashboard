@@ -2,7 +2,7 @@ import type en from '../en/config';
 
 /** 参数配置（server.properties）文案（繁體中文）。 */
 export default {
-  'config.lead': '編輯 server.properties（修改後需重新啟動實例才會生效）。',
+  'config.lead': '這些設定儲存在 server.properties，重新啟動實例後生效。',
   'config.loading': '正在讀取參數…',
   'config.select.placeholder': '請選擇',
   'config.advanced.summary_one': '進階選項（其餘 {count} 項）',

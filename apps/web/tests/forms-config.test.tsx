@@ -137,7 +137,7 @@ test('参数配置保存栏：有修改才出现并写明几项，状态文字�
   await user.click(onlineMode);
   expect(screen.getByRole('status').textContent).toBe('2 项修改未保存');
   // 页首已经说过要重启，栏里不再重复。
-  expect(screen.getAllByText(/修改后需重启实例生效/)).toHaveLength(1);
+  expect(screen.getAllByText(/重启实例后生效/)).toHaveLength(1);
   // 主按钮是提交按钮，其余按钮都明确写了 type="button"。
   expect(saveButton()!.type).toBe('submit');
   expect(document.querySelectorAll('form button:not([type])')).toHaveLength(0);
