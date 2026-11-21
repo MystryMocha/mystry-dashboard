@@ -132,8 +132,9 @@ export interface NodeSecretResult {
 /**
  * 面板从控制台输出里认出的启动失败原因：
  * eula 为尚未同意 Minecraft EULA；java-too-new / java-too-old 为所用 Java 版本过新或过旧。
+ * java-unavailable 不来自控制台输出：实例绑定的 Java 运行时已不可用或已不在登记表里，不用启动就能判断。
  */
-export type InstanceStartIssueKind = 'eula' | 'java-too-new' | 'java-too-old';
+export type InstanceStartIssueKind = 'eula' | 'java-too-new' | 'java-too-old' | 'java-unavailable';
 
 export interface InstanceStartIssue {
   kind: InstanceStartIssueKind;
@@ -185,7 +186,10 @@ export interface InstanceInfo {
   createdAt: string;
   updatedAt: string;
   acceptEula: boolean;
-  /** 最近一次启动没成功且原因可识别时给出；再次启动、面板重启或实例正常运行后清空。 */
+  /**
+   * 最近一次启动没成功且原因可识别时给出；再次启动、面板重启或实例正常运行后清空。
+   * 绑定的 Java 已不可用时（java-unavailable）不等启动就给出，改选 Java 或重新扫描到它之后消失。
+   */
   startIssue?: InstanceStartIssue | null;
   /** 本次运行服务端已完成启动（打印过 Done），玩家可以进服；没在运行或还在加载时为 false。 */
   ready?: boolean;

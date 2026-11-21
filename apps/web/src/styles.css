@@ -2349,6 +2349,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .task-card.status-pending { --tone: var(--c-orange); }
 .task-card.status-completed { --tone: var(--c-green); }
 .task-card.status-failed { --tone: var(--c-red); }
+/* 被取消的任务不是出错：图标用中性灰，状态词保持默认的次级文字色。 */
+.task-card.status-cancelled { --tone: var(--label-3); }
 
 .task-card-head { display: flex; align-items: center; gap: 10px; }
 .task-card-icon {
@@ -2958,6 +2960,15 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .file-edit-dialog,
   .error-dialog { background: var(--sheet-bg-solid); }
 
+  /* 总览：底部标签栏已有「部署」「导入」，页头不再重复，只留「创建空实例」并和标题排在同一行；
+     本机资源排到实例列表后面，首屏先看到实例。 */
+  .overview-page .overview-nav-action { display: none; }
+  .overview-page .page-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 12px; }
+  .overview-page .page-header-text { display: contents; }
+  .overview-page .page-subtitle { grid-column: 1 / -1; }
+  .overview-page .page-header-actions { grid-column: 2; grid-row: 1; }
+  .overview-page .host-strip { order: 1; }
+
   .instance-title-row { gap: 12px 14px; }
   .instance-title-row .core-icon-lg { width: 48px; height: 48px; border-radius: 13px; }
   .instance-title-text { flex-basis: 180px; }
@@ -2975,7 +2986,11 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .action-bar { border-radius: var(--radius-lg); padding: 10px 10px 10px 16px; }
   .action-bar > .btn { flex: 1 1 auto; }
 
-  .console-output { height: clamp(260px, calc(100dvh - 440px), 520px); }
+  /* 510px 是手机上控制台上下固定占掉的高度（工具栏、实例页头、标签、控制台标题栏、命令输入栏和底部标签栏）：
+     留够了，命令输入栏才落在底部标签栏上方，不被它盖住。 */
+  .console-output { height: clamp(200px, calc(100dvh - 510px), 520px); }
+  /* 服务器启动完成后上方多一条「可以进服了」提示（手机上折成几行，约 150px）：这时正要输入命令，再让出它的高度。 */
+  .ready-strip + .console-panel .console-output { height: clamp(200px, calc(100dvh - 660px), 520px); }
   .console-output .xterm { padding: 8px 4px 4px 10px; }
   .quick-cmd-bar { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; scrollbar-width: none; }
   .quick-cmd-bar::-webkit-scrollbar { display: none; }
@@ -3044,8 +3059,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .multiplayer-mode-switch .segmented-item svg { display: none; }
   .page-header-actions { width: 100%; }
   .page-header-actions > .btn { flex: 1 1 auto; }
+  /* 总览页头只剩一个按钮，留在标题右侧，不拉成整行。 */
+  .overview-page .page-header-actions { width: auto; }
+  .overview-page .page-header-actions > .btn { flex: 0 0 auto; }
   .instance-actions { width: 100%; }
-  .instance-actions > .btn { flex: 1 1 auto; }
+  /* 「⋯」保持图标按钮的大小，其余按钮平分一行。 */
+  .instance-actions > .btn:not(.action-menu-trigger) { flex: 1 1 auto; }
 }
 
 /*

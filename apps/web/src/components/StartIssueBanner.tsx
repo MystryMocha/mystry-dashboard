@@ -6,8 +6,8 @@ import { useI18n } from '../i18n';
 import { javaDownloadUrl } from '../java-download';
 
 /**
- * 启动失败且原因可识别时显示在控制台上方：说明原因并给出下一步。
- * 未同意 EULA 时可以在这里同意并启动；Java 版本不符时给出下载和切换入口。
+ * 启动失败且原因可识别，或选的 Java 已不可用时显示在控制台上方：说明原因并给出下一步。
+ * 未同意 EULA 时可以在这里同意并启动；Java 版本不符时给出下载和切换入口；Java 不可用时带去设置里重新选。
  */
 export function StartIssueBanner({
   issue,
@@ -42,6 +42,25 @@ export function StartIssueBanner({
               <Play size={14} aria-hidden="true" />
               {t('instance.startIssue.eula.action')}
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 选的 Java 已不可用：不是版本问题，不给下载入口，只带去设置里重新选。
+  if (issue.kind === 'java-unavailable') {
+    return (
+      <div className="callout callout-warning start-issue" role="alert">
+        <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
+        <div>
+          <p><strong>{t('instance.startIssue.javaUnavailable.title')}</strong></p>
+          <p>{t('instance.startIssue.javaUnavailable.body')}</p>
+          <div className="start-issue-actions">
+            <Link className="btn btn-primary" to={`/instances/${instanceId}/settings`}>
+              <Settings size={14} aria-hidden="true" />
+              {t('instance.startIssue.java.openSettings')}
+            </Link>
           </div>
         </div>
       </div>

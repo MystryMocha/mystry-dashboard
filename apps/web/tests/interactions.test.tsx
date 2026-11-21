@@ -1721,3 +1721,200 @@ test('Java 选择器：安装失败显示原因，保留手动下载入口', asy
   expect(screen.getByRole('button', { name: '安装 Java 21' })).toBeTruthy();
   expect(screen.getByRole('link', { name: '自己下载安装' })).toBeTruthy();
 });
+
+test('总览：选的 Java 已不可用的实例算异常，行里写明原因并带去实例设置', async () => {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
+    url === '/api/instances'
+      ? new Response(JSON.stringify([{ ...instance, id: 'gone', name: '旧服', javaRuntimeId: 'rt-gone', startIssue: { kind: 'java-unavailable', requiredJava: null } }]))
+      : baseFetch(url, options)
+  )));
+  mount(<DashboardPage />);
+  expect(await screen.findByText('这个服务器选择的 Java 已不可用')).toBeTruthy();
+  expect(screen.getByRole('link', { name: '打开实例设置' }).getAttribute('href')).toBe('/instances/gone/settings');
+  expect(screen.getByRole('button', { name: '异常 1' })).toBeTruthy();
+});
+
+test('实例页：选的 Java 已不可用时控制台上方提示重新选择，不给 Java 下载链接', async () => {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
+    url === '/api/instances/test'
+      ? new Response(JSON.stringify({ ...instance, name: '测试服', javaRuntimeId: 'rt-gone', startIssue: { kind: 'java-unavailable', requiredJava: null } }))
+      : baseFetch(url, options)
+  )));
+  render(<RouterProvider router={createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  )} />);
+  const banner = await screen.findByRole('alert');
+  expect(banner.textContent).toContain('这个服务器选择的 Java 已不可用');
+  expect(banner.textContent).toContain('重新选择 Java');
+  expect(within(banner).getByRole('link', { name: '打开实例设置' }).getAttribute('href')).toBe('/instances/test/settings');
+  expect(within(banner).queryByRole('link', { name: /下载/ })).toBeNull();
+});
+
+test('实例页头按钮跟着状态走：停着只有「启动」，运行中是停止、重启和「⋯」里的强制停止', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  let status = 'stopped';
+  const calls: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const method = options?.method ?? 'GET';
+    if (url === '/api/instances/test' && method === 'GET') return new Response(JSON.stringify({ ...instance, name: '测试服', status }));
+    if (method === 'POST' && String(url).startsWith('/api/instances/test/') && !String(url).includes('console-ticket')) {
+      calls.push(`${url} ${options?.body ?? ''}`.trim());
+      return new Response('{}');
+    }
+    return baseFetch(url, options);
+  }));
+  const open = () => render(<RouterProvider router={createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  )} />);
+
+  const stopped = open();
+  expect(await screen.findByRole('button', { name: '启动' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: '停止' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '重启' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '更多操作' })).toBeNull();
+  stopped.unmount();
+
+  status = 'running';
+  const running = open();
+  expect(await screen.findByRole('button', { name: '停止' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
+  expect((screen.getByRole('button', { name: '重启' }) as HTMLButtonElement).disabled).toBe(false);
+  await user.click(screen.getByRole('button', { name: '更多操作' }));
+  await user.click(screen.getByRole('menuitem', { name: '强制停止' }));
+  await user.click(within(screen.getByRole('dialog', { name: '强制停止实例「测试服」？' })).getByRole('button', { name: '确认强制停止' }));
+  await waitFor(() => expect(calls).toEqual(['/api/instances/test/stop?force=1']));
+  running.unmount();
+
+  // 启动中既不能停也不能重启，只留得下强制停止。
+  status = 'starting';
+  open();
+  expect(await screen.findByRole('button', { name: '更多操作' })).toBeTruthy();
+  expect((screen.getByRole('button', { name: '重启' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '停止' })).toBeNull();
+});
+
+test('实例设置：页面底部可以删除实例，没停时不能删；有没保存的修改也能删，删完回到总览', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  let status = 'running';
+  let failDelete = true;
+  const deletes: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const method = options?.method ?? 'GET';
+    if (url === '/api/instances/test' && method === 'GET') {
+      return new Response(JSON.stringify({ ...instance, name: '测试服', status, acceptEula: true, javaRuntimeId: null }));
+    }
+    if (method === 'DELETE') {
+      deletes.push(String(url));
+      return failDelete
+        ? new Response(JSON.stringify({ error: '测试删除失败' }), { status: 500 })
+        : new Response(JSON.stringify({ ok: true }));
+    }
+    return baseFetch(url, options);
+  }));
+  // 路由跳转时会用 jsdom 的 AbortSignal 构造 Node 自带的 Request，两者不认对方；换成只带路由用得到的字段的替身。
+  vi.stubGlobal('Request', class {
+    method = 'GET';
+    headers = new Headers();
+    signal: AbortSignal | undefined;
+    constructor(public url: string, init?: { signal?: AbortSignal }) { this.signal = init?.signal; }
+  });
+  const open = () => render(<RouterProvider router={createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }, { path: '/', element: <p>总览页</p> }],
+    { initialEntries: ['/instances/test/settings'] },
+  )} />);
+
+  const running = open();
+  const blocked = await screen.findByRole('button', { name: '删除实例' }) as HTMLButtonElement;
+  expect(blocked.disabled).toBe(true);
+  expect(screen.getByText('实例仍在运行，请先停止后再删除')).toBeTruthy();
+  running.unmount();
+
+  status = 'stopped';
+  open();
+  const remove = await screen.findByRole('button', { name: '删除实例' }) as HTMLButtonElement;
+  expect(remove.disabled).toBe(false);
+  // 先改一项不保存：删除后离开页面不应再被「未保存的修改」拦住。
+  await user.type(screen.getByRole('textbox', { name: '名称' }), '改');
+  await user.click(remove);
+  const dialog = screen.getByRole('dialog', { name: '删除实例「测试服」？' });
+  const confirm = within(dialog).getByRole('button', { name: '永久删除' }) as HTMLButtonElement;
+  expect(confirm.disabled).toBe(true);
+  await user.type(within(dialog).getByRole('textbox', { name: /请输入/ }), '测试服');
+  await user.click(confirm);
+  // 删除失败：弹窗不关，原因显示在弹窗里。
+  expect((await within(dialog).findByRole('alert')).textContent).toContain('测试删除失败');
+  expect(screen.queryByText('总览页')).toBeNull();
+  failDelete = false;
+  await user.click(within(dialog).getByRole('button', { name: '永久删除' }));
+  expect(await screen.findByText('总览页')).toBeTruthy();
+  expect(deletes).toEqual(['/api/instances/test', '/api/instances/test']);
+});
+
+test('联机页：实例没在运行时可以直接启动；有要先处理的问题时带去实例页', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  let current: Record<string, unknown> = { ...instance, name: '测试服' };
+  const starts: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances' && !options?.method) return new Response(JSON.stringify([current]));
+    if (url === '/api/instances/test/start' && options?.method === 'POST') {
+      starts.push(String(url));
+      current = { ...current, status: 'starting' };
+      return new Response('{}');
+    }
+    if (url === '/api/instances/test/local-network') {
+      return new Response(JSON.stringify({ port: 25565, addresses: ['192.168.1.23'], publicIpv4: [], publicIpv6: [], publicHost: null, serverIpBlocked: false, serverIpIsUnboundPublicHost: false, panelPort: 3000, platform: 'win32' }));
+    }
+    return baseFetch(url, options);
+  }));
+
+  const first = mount(<MultiplayerPage />);
+  expect(await screen.findByText('服务器没在运行，启动后玩家才能加入。')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '启动' }));
+  await waitFor(() => expect(starts).toEqual(['/api/instances/test/start']));
+  // 启动请求发出后马上重新读取状态：提示换成「正在启动」，按钮收起，不会被再点一次。
+  expect(await screen.findByText('服务器正在启动，启动完成后玩家才能加入。')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
+  first.unmount();
+
+  current = { ...instance, name: '测试服', startIssue: { kind: 'eula', requiredJava: null } };
+  mount(<MultiplayerPage />);
+  expect(await screen.findByText('服务器没在运行，要先处理一个问题才能启动。')).toBeTruthy();
+  expect(screen.getByRole('link', { name: '打开实例' }).getAttribute('href')).toBe('/instances/test');
+  expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
+});
+
+test('任务中心：没有任务在跑时入口不显示数字；被取消的任务写「已取消」，不写「失败」', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const createdAt = new Date().toISOString();
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
+    url === '/api/tasks'
+      ? new Response(JSON.stringify({ tasks: [
+        { id: 'cancelled', type: 'deploy', status: 'failed', progress: 40, message: 'Cancelled', messageI18n: { key: 'server.tasks.cancelled' }, error: 'You cancelled this task.', errorI18n: { key: 'server.tasks.cancelledByUser' }, createdAt },
+        { id: 'broken', type: 'import', status: 'failed', progress: 10, message: 'Failed', messageI18n: { key: 'server.tasks.failed' }, error: '磁盘空间不足', createdAt },
+      ] }))
+      : baseFetch(url, options)
+  )));
+  mount(<TaskCenter />);
+  const trigger = screen.getByRole('button', { name: /打开任务中心/ });
+  await user.click(trigger);
+  const cancelled = (await screen.findByText('你取消了这个任务')).closest('article') as HTMLElement;
+  // 历史里有两条任务，但都已结束：入口上没有数字。
+  expect(trigger.querySelector('.toolbar-badge')).toBeNull();
+  expect(cancelled.className).toContain('status-cancelled');
+  expect(within(cancelled).getAllByText('已取消')).toHaveLength(1);
+  expect(within(cancelled).queryByText('失败')).toBeNull();
+  expect(cancelled.querySelector('.task-card-error')).toBeNull();
+  const broken = screen.getByText('磁盘空间不足').closest('article') as HTMLElement;
+  expect(broken.className).toContain('status-failed');
+  expect(within(broken).getAllByText('失败')).toHaveLength(1);
+  expect(broken.querySelector('.task-card-error')?.textContent).toBe('磁盘空间不足');
+});

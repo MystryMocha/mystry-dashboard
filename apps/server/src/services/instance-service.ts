@@ -37,6 +37,16 @@ function assertValidJavaRuntime(javaRuntimeId: string | null | undefined): void 
   }
 }
 
+/**
+ * 启动前就能判断的问题：绑定的 Java 已标记为不可用，或已不在登记表里。
+ * 只查登记表，不碰磁盘；文件被删、被替换这类情况仍由启动前的复验发现。
+ */
+function boundJavaUnavailable(row: InstanceRow): boolean {
+  if (row.java_runtime_id === null || row.java_runtime_id === undefined) return false;
+  const runtime = getJavaRuntime(row.java_runtime_id);
+  return !runtime || !runtime.available;
+}
+
 function rowToInfo(row: InstanceRow): InstanceInfo {
   const requiresMigration = row.install_path !== null;
   return {
@@ -55,7 +65,10 @@ function rowToInfo(row: InstanceRow): InstanceInfo {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     acceptEula: Boolean(row.accept_eula),
-    startIssue: processManager.getStartIssue(row.id),
+    // 选的 Java 用不了时怎么启动都会失败，排在上次启动留下的原因前面。
+    startIssue: boundJavaUnavailable(row)
+      ? { kind: 'java-unavailable', requiredJava: null }
+      : processManager.getStartIssue(row.id),
     ready: processManager.isReady(row.id),
   };
 }

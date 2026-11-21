@@ -10,15 +10,18 @@ import {
   Settings,
   Sliders,
   Terminal,
+  Trash2,
   TriangleAlert,
 } from 'lucide-react';
 import { parseLaunchTarget, type InstanceInfo } from '@mystry/shared';
 import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
+import { ActionMenu } from '../components/ActionMenu';
 import { BackupsTab } from '../components/BackupsTab';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ConfigTab } from '../components/ConfigTab';
 import { ConsolePanel } from '../components/ConsolePanel';
 import { CoreIcon, coreDisplayName } from '../components/CoreIcon';
+import { DeleteInstanceDialog } from '../components/DeleteInstanceDialog';
 import { EulaCheckbox } from '../components/EulaCheckbox';
 import { Field, FormFeedbackProvider, focusFirstInvalidField, useFormFeedback } from '../components/Field';
 import { FilesTab } from '../components/FilesTab';
@@ -119,13 +122,18 @@ function SettingsTab({
   instance,
   restart,
   onSaved,
+  onDeleted,
 }: {
   instance: InstanceInfo;
   /** 实例页的重启入口：实例在运行时，保存后的提示里给出「重启实例」。 */
   restart: RestartControl;
   onSaved: () => void;
+  /** 实例已从这里删除：由实例页离开当前页面。 */
+  onDeleted: () => void;
 }) {
   const { t } = useI18n();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const alive = isProcessAlive(instance.status);
   const [name, setName] = useState(instance.name);
   const [jarFile, setJarFile] = useState(instance.jarFile);
   const [jvmArgs, setJvmArgs] = useState(instance.jvmArgs);
@@ -336,6 +344,33 @@ function SettingsTab({
 
           {error && <p className="callout callout-danger" role="alert">{error}</p>}
 
+          {/* 删除和日常设置分开，放在页面最下面；实例没停时不能删，原因写在这一行里。 */}
+          <section className="form-section">
+            <h3 className="form-section-title">{t('instance.settings.section.danger')}</h3>
+            <div className="list-group">
+              <div className="list-row">
+                <div className="list-row-text">
+                  <p className="list-row-title">{t('dashboard.row.menu.delete')}</p>
+                  <p className="list-row-desc" id="instance-settings-delete-desc">
+                    {alive ? t('dashboard.row.menu.deleteRunning') : t('instance.settings.delete.desc')}
+                  </p>
+                </div>
+                <div className="list-row-control">
+                  <button
+                    className="btn btn-danger"
+                    type="button"
+                    disabled={alive || saving}
+                    aria-describedby="instance-settings-delete-desc"
+                    onClick={() => setDeleteOpen(true)}
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                    {t('dashboard.row.menu.delete')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <SaveBar
             dirtyCount={changed.length}
             saving={saving}
@@ -357,6 +392,12 @@ function SettingsTab({
         title={t('instance.settings.unsaved.title')}
         savingTitle={t('instance.settings.unsaved.savingTitle')}
         description={t('instance.settings.unsaved.description')}
+      />
+
+      <DeleteInstanceDialog
+        instance={deleteOpen ? instance : null}
+        onDeleted={onDeleted}
+        onCancel={() => setDeleteOpen(false)}
       />
     </>
   );
@@ -380,6 +421,7 @@ export function InstancePage() {
   const [loadError, setLoadError] = useState('');
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [confirmForceStop, setConfirmForceStop] = useState(false);
+  const [deleted, setDeleted] = useState(false);
   // 每确认一次重启加一：保存栏里「重启实例后生效」的提示据此收起。
   const [restartSignal, setRestartSignal] = useState(0);
 
@@ -419,6 +461,9 @@ export function InstancePage() {
       await controlInstance(id, 'start');
     });
   }
+
+  // 实例已删除：整页换成跳转。设置表单随之卸载，没保存的修改不会再弹「离开前保存」。
+  if (deleted) return <Navigate to="/" replace />;
 
   if (!instance) {
     return (
@@ -471,47 +516,49 @@ export function InstancePage() {
             </div>
           </div>
 
-          <div className="instance-actions">
-            {canStartInstance(instance.status) && (
-              <button
-                className="btn btn-ok"
-                type="button"
-                disabled={busy || instance.requiresMigration}
-                onClick={() => act('start')}
-              >
-                <Play size={14} aria-hidden="true" />
-                {t('action.start')}
-              </button>
-            )}
-            {canStopInstance(instance.status) && (
-              <button
-                className="btn btn-danger"
-                type="button"
-                disabled={busy || instance.requiresMigration}
-                onClick={() => act('stop')}
-              >
-                <Power size={14} aria-hidden="true" />
-                {t('action.stop')}
-              </button>
-            )}
-            <button
-              className="btn"
-              type="button"
-              disabled={busy || instance.requiresMigration || isLifecycleBusy(instance.status)}
-              onClick={() => setConfirmRestart(true)}
-            >
-              <RotateCcw size={14} aria-hidden="true" />
-              {t('action.restart')}
-            </button>
-            <button
-              className="btn btn-plain is-danger"
-              type="button"
-              disabled={busy || instance.requiresMigration || !isProcessAlive(instance.status)}
-              onClick={() => setConfirmForceStop(true)}
-            >
-              {t('action.forceStop')}
-            </button>
-          </div>
+          {/* 只放当前状态下能做的事：停着时只有「启动」；进程还在时才有停止、重启，强制停止收进「⋯」。
+              待迁移的实例先处理下方的迁移说明，这里不放按钮。 */}
+          {!instance.requiresMigration && (
+            <div className="instance-actions">
+              {canStartInstance(instance.status) && (
+                <button className="btn btn-ok" type="button" disabled={busy} onClick={() => act('start')}>
+                  <Play size={14} aria-hidden="true" />
+                  {t('action.start')}
+                </button>
+              )}
+              {canStopInstance(instance.status) && (
+                <button className="btn btn-danger" type="button" disabled={busy} onClick={() => act('stop')}>
+                  <Power size={14} aria-hidden="true" />
+                  {t('action.stop')}
+                </button>
+              )}
+              {isProcessAlive(instance.status) && (
+                <>
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={busy || isLifecycleBusy(instance.status)}
+                    onClick={() => setConfirmRestart(true)}
+                  >
+                    <RotateCcw size={14} aria-hidden="true" />
+                    {t('action.restart')}
+                  </button>
+                  <ActionMenu
+                    items={[
+                      {
+                        key: 'force-stop',
+                        label: t('action.forceStop'),
+                        icon: <Power size={14} />,
+                        danger: true,
+                        disabled: busy,
+                        onSelect: () => setConfirmForceStop(true),
+                      },
+                    ]}
+                  />
+                </>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
@@ -555,7 +602,10 @@ export function InstancePage() {
             <Route path="files" element={<FilesTab instanceId={instance.id} />} />
             <Route path="config" element={<ConfigTab instanceId={instance.id} mcVersion={instance.mcVersion} restart={restart} />} />
             <Route path="backups" element={<BackupsTab instance={instance} onRestored={() => void load()} />} />
-            <Route path="settings" element={<SettingsTab instance={instance} restart={restart} onSaved={load} />} />
+            <Route
+              path="settings"
+              element={<SettingsTab instance={instance} restart={restart} onSaved={load} onDeleted={() => setDeleted(true)} />}
+            />
             <Route path="multiplayer" element={<Navigate to={`/multiplayer?instance=${encodeURIComponent(id ?? '')}`} replace />} />
             <Route path="*" element={<Navigate to={`/instances/${id}`} replace />} />
           </Routes>

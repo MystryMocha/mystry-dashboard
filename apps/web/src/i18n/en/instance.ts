@@ -26,6 +26,8 @@ export default {
   'instance.settings.section.basic': 'Basic Info',
   'instance.settings.section.runtime': 'Runtime',
   'instance.settings.section.eula': 'License Agreement',
+  'instance.settings.section.danger': 'Danger Zone',
+  'instance.settings.delete.desc': "Permanently deletes the instance folder and all its files. This can't be undone.",
   'instance.settings.name.label': 'Name',
   'instance.settings.jarFile.label': 'Jar File Name',
   'instance.settings.launchFile.label': 'Launch File',
@@ -50,6 +52,8 @@ export default {
   'instance.startIssue.javaTooOld.body': 'The Java that started it is too old, so the server stopped right away. Install Java {java}. Then open Settings, select "Rescan", choose Java {java}, save, and start again.',
   'instance.startIssue.java.bodyUnknown': 'The Java that started it doesn\'t match this server, so it stopped right away. Check which Java version the server or modpack asks for and install it. Then open Settings, select "Rescan", choose that Java, save, and start again.',
   'instance.startIssue.java.openSettings': 'Open Settings',
+  'instance.startIssue.javaUnavailable.title': 'The Java chosen for this server is no longer available',
+  'instance.startIssue.javaUnavailable.body': 'The server can\'t start with it. Open Settings, select "Rescan", choose a Java, save, and start again.',
 
   // 启动成功后的下一步提示（控制台上方）
   'instance.ready.title': 'The server is up. You can join now.',

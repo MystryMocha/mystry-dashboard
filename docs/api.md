@@ -164,7 +164,7 @@ Java 状态响应准确结构为：
 | POST | `/api/instances/:id/command` | Body：`{ command: string }`，发送控制台命令 |
 | GET | `/api/instances/:id/local-network` | 直连用的地址 `InstanceLocalNetwork`：`{ port, addresses, publicIpv4, publicIpv6, publicHost, serverIpBlocked, serverIpIsUnboundPublicHost, panelPort, platform }`。只读，不开端口也不改配置 |
 
-`InstanceInfo.startIssue` 在最近一次启动没成功且原因可识别时给出 `{ kind, requiredJava }`，否则为 `null`：`kind` 为 `eula`（尚未同意 Minecraft EULA）、`java-too-new` 或 `java-too-old`（所用 Java 过新或过旧，`requiredJava` 是需要的主版本，无法判断时为 `null`）。它由面板从该次进程的控制台输出里按固定句式识别，只存在内存里；再次启动、删除实例或面板重启后清空。服务端打印过 `Done (` 之后的退出不归因于 Java 版本。进程自己以退出码 0 结束（未同意 EULA、游戏内执行 `stop`）时状态为 `stopped`，非 0 才是 `crashed`。
+`InstanceInfo.startIssue` 在最近一次启动没成功且原因可识别时给出 `{ kind, requiredJava }`，否则为 `null`：`kind` 为 `eula`（尚未同意 Minecraft EULA）、`java-too-new` 或 `java-too-old`（所用 Java 过新或过旧，`requiredJava` 是需要的主版本，无法判断时为 `null`）。这三种由面板从该次进程的控制台输出里按固定句式识别，只存在内存里；再次启动、删除实例或面板重启后清空。`kind` 还可以是 `java-unavailable`（`requiredJava` 恒为 `null`）：实例的 `javaRuntimeId` 指向的运行时在登记表里已标为不可用或已不存在。它不需要启动就给出，每次读取实例时按登记表现算，排在上面三种之前；改选 Java 或重新扫描找回该运行时后消失。服务端打印过 `Done (` 之后的退出不归因于 Java 版本。进程自己以退出码 0 结束（未同意 EULA、游戏内执行 `stop`）时状态为 `stopped`，非 0 才是 `crashed`。
 
 `InstanceInfo.ready` 表示本次运行服务端已打印过完成启动的 `Done (` 行、玩家可以进服；状态为 `running` 但世界还在加载时为 `false`，正在停止或没在运行时也为 `false`。它同样只存在内存里。
 
