@@ -73,7 +73,8 @@
 | 游戏 | 状态 |
 |---|---|
 | **Minecraft: Java Edition** | 当前预览版已支持 |
-| **Left 4 Dead 2（求生之路 2）** | 计划中 |
+| **Left 4 Dead 2（求生之路 2）** | 计划中，首个通过 SteamCMD 支持的服务端 |
+| **SteamCMD 上的其他主流服务端** | 计划中 |
 
 ### 使用边界
 
@@ -175,7 +176,8 @@ Linux/macOS 将 `npm.cmd` 换成 `npm`。后端直接托管预压缩（`.br` / `
 
 - 发布 Windows x64 与 Linux x64 便携预览版
 - 定时自动备份与备份保留策略
-- 支持 Left 4 Dead 2（求生之路 2）服务端管理
+- 完整支持 SteamCMD 上的主流游戏服务端，先从 Left 4 Dead 2（求生之路 2）做起
+- 在一个面板里管理多台机器上的服务端
 
 已发布版本记录见 [变更日志](CHANGELOG.zh-CN.md)。
 
