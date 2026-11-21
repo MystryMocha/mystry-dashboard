@@ -6,7 +6,6 @@ export default {
   'dashboard.subtitle.summary_other': '共 {count} 个实例，{running} 个正在运行',
   'dashboard.subtitle.issues_one': '，{count} 个需要处理',
   'dashboard.subtitle.issues_other': '，{count} 个需要处理',
-  'dashboard.subtitle.default': '本机 Minecraft Java 服务端',
   'dashboard.action.createEmpty': '创建空实例',
 
   'dashboard.metrics.errorStale': '{error}，数据可能过期',

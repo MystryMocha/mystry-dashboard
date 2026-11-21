@@ -96,7 +96,7 @@ export function NodesPage() {
 
   return (
     <div className="page">
-      <PageHeader title={t('nav.machine')} subtitle={t('nodes.subtitle')} />
+      <PageHeader title={t('nav.machine')} />
 
       {loadError && (
         <div className="callout callout-danger" role="alert">

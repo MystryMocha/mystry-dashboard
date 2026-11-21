@@ -1,12 +1,12 @@
 /** 一键部署页文案（英文主表）。 */
 export default {
-  'deploy.page.subtitle': 'Download a server core from the official source. Installation and launch settings are configured for you.',
+  'deploy.page.subtitle': 'Pick a core and a version. The panel downloads and installs the server.',
 
   'deploy.core.title': 'Choose a Server Core',
   'deploy.core.paper.desc': 'Plugins, best for beginners',
-  'deploy.core.fabric.desc': 'Lightweight, modern mods',
-  'deploy.core.forge.desc': 'Classic, heavyweight mods',
-  'deploy.core.neoforge.desc': 'Next-generation mod server',
+  'deploy.core.fabric.desc': 'Mod server',
+  'deploy.core.forge.desc': 'Mod server',
+  'deploy.core.neoforge.desc': 'Mod server',
   'deploy.core.vanilla.desc': 'Official Mojang server',
 
   'deploy.basic.title': 'Basic Info',

@@ -2,7 +2,7 @@ import type en from '../en/config';
 
 /** 参数配置（server.properties）文案（简体中文）。 */
 export default {
-  'config.lead': '编辑 server.properties（修改后需重启实例生效）。',
+  'config.lead': '这些设置保存在 server.properties，重启实例后生效。',
   'config.loading': '正在读取配置…',
   'config.select.placeholder': '请选择',
   'config.advanced.summary_one': '高级选项（其余 {count} 项）',

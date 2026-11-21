@@ -370,9 +370,9 @@ test('恢复预览和上传期间锁定 ZIP 选择与拖放', async () => {
 test('节点页展示空态，失败后可主动重试恢复真实离线状态', async () => {
   const user = userEvent.setup();
   mount(<NodesPage />);
-  expect(await screen.findByText('暂无节点。')).toBeTruthy();
+  expect(await screen.findByText('读不到本机信息。')).toBeTruthy();
   failNodes = true;
-  await user.click(screen.getByRole('button', { name: '刷新节点' }));
+  await user.click(screen.getByRole('button', { name: '重新读取' }));
   expect(await screen.findByRole('alert')).toBeTruthy();
   failNodes = false;
   nodes = [{ id: 'local', isLocal: true, name: '本机', status: 'offline', instanceCount: 0 }];

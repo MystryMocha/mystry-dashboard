@@ -4,7 +4,6 @@ export default {
   'dashboard.subtitle.summary_other': '{count} instances, {running} running',
   'dashboard.subtitle.issues_one': ', {count} needs attention',
   'dashboard.subtitle.issues_other': ', {count} need attention',
-  'dashboard.subtitle.default': 'Minecraft Java servers on this machine',
   'dashboard.action.createEmpty': 'Create Empty Instance',
 
   'dashboard.metrics.errorStale': '{error}. Data may be out of date.',

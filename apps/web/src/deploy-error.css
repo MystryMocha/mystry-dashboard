@@ -58,20 +58,10 @@
   padding: 20px 16px 12px 24px;
 }
 
-.error-dialog-header h2,
-.error-dialog-header p {
-  margin: 0;
-}
-
 .error-dialog-header h2 {
+  margin: 0;
   font-size: 18px;
   font-weight: 700;
-}
-
-.error-dialog-header p {
-  margin-top: 3px;
-  color: var(--label-2);
-  font-size: 13px;
 }
 
 .error-dialog-output {

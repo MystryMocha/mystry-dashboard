@@ -2,13 +2,13 @@ import type en from '../en/deploy';
 
 /** 一键部署页文案（繁體中文）。 */
 export default {
-  'deploy.page.subtitle': '從官方來源下載伺服器核心，自動完成安裝與啟動設定。',
+  'deploy.page.subtitle': '選好核心與版本，面板會下載並安裝伺服器。',
 
   'deploy.core.title': '選擇伺服器核心',
   'deploy.core.paper.desc': '插件伺服器，新手推薦',
-  'deploy.core.fabric.desc': '輕量的現代模組',
-  'deploy.core.forge.desc': '經典的大型模組',
-  'deploy.core.neoforge.desc': '新一代模組伺服器',
+  'deploy.core.fabric.desc': '模組伺服器',
+  'deploy.core.forge.desc': '模組伺服器',
+  'deploy.core.neoforge.desc': '模組伺服器',
   'deploy.core.vanilla.desc': 'Mojang 原版',
 
   'deploy.basic.title': '基本資訊',

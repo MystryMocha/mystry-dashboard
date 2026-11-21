@@ -11,7 +11,6 @@ export default {
   'login.setup.title': '初始化管理员',
   'login.setup.subtitle': '首次启动，请创建管理员账号。',
   'login.signin.title': '登录面板',
-  'login.signin.subtitle': '使用管理员账号登录 Mystry Dashboard。',
 
   'login.form.username': '用户名',
   'login.form.setupToken': '初始化令牌',
