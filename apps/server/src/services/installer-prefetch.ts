@@ -9,7 +9,7 @@ import { readZipEntryBuffer } from './zip-service.js';
 
 const PROFILE_BYTE_LIMIT = 4 * 1024 * 1024;
 const PREFETCH_CONCURRENCY = 6;
-/** 连续失败这么多次就认为镜像不可用，剩下的交给安装器自己下载。 */
+/** After this many consecutive failures the mirror is considered unavailable, and the rest is left for the installer to download itself. */
 const MAX_CONSECUTIVE_FAILURES = 3;
 
 const DEFAULT_SERVER_JAR_PATH = '{ROOT}/minecraft_server.{MINECRAFT_VERSION}.jar';
@@ -32,7 +32,7 @@ async function readJsonEntry<T>(installerJar: string, entry: string, signal: Abo
   return JSON.parse(bytes.toString('utf8')) as T;
 }
 
-/** 从安装器的依赖清单里挑出能走镜像的文件；没有校验值或不在已知仓库内的留给安装器处理。 */
+/** Picks the files that can go through the mirror from the installer's dependency list; those without a checksum or outside known repositories are left to the installer. */
 export function collectPrefetchTargets(libraries: LibraryEntry[]): PrefetchTarget[] {
   const targets = new Map<string, PrefetchTarget>();
   for (const library of libraries) {
@@ -44,7 +44,7 @@ export function collectPrefetchTargets(libraries: LibraryEntry[]): PrefetchTarge
   return [...targets.values()];
 }
 
-/** 安装器放置 Vanilla 服务端的相对路径，由它自己的 serverJarPath 模板决定。 */
+/** Relative path where the installer places the Vanilla server, decided by its own serverJarPath template. */
 export function resolveServerJarPath(template: string | undefined, mcVersion: string): string {
   return (template ?? DEFAULT_SERVER_JAR_PATH)
     .replaceAll('{LIBRARY_DIR}', 'libraries')
@@ -52,7 +52,7 @@ export function resolveServerJarPath(template: string | undefined, mcVersion: st
     .replaceAll('{MINECRAFT_VERSION}', mcVersion);
 }
 
-/** Vanilla 服务端经核心缓存下载，再复制到安装器要找的位置；文件存在时安装器不再联系 Mojang 下载它。 */
+/** The Vanilla server is downloaded through the core cache and then copied to where the installer looks for it; when the file exists the installer no longer contacts Mojang to download it. */
 async function prefetchServerJar(profile: InstallProfile, dir: string, signal: AbortSignal): Promise<void> {
   const mcVersion = profile.minecraft;
   if (!mcVersion) return;
@@ -60,7 +60,7 @@ async function prefetchServerJar(profile: InstallProfile, dir: string, signal: A
   const basename = buildResolvedCoreCacheBasename('vanilla', mcVersion, {});
   const cachePath = path.join(config.cacheDir, basename.replace(/[^\w.-]+/g, '_'));
   const plan = await resolveVanillaDownload(mcVersion, signal);
-  // 校验值未知时计划里只有官方地址，这种情况让安装器自己下载。
+  // When the checksum is unknown the plan has only the official URL; in that case the installer downloads it itself.
   if (!plan.expected) return;
   await ensureCoreCache(plan, cachePath, basename, undefined, signal);
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
@@ -99,10 +99,10 @@ async function prefetchLibraries(
 }
 
 /**
- * 国内来源下，在运行 Forge / NeoForge 安装器前把依赖经镜像下到实例目录。
- * 安装器的 --mirror 不覆盖 libraries.minecraft.net，NeoForge 的安装器不支持它，
- * 但两者都会跳过 SHA-1 相符的已有文件，所以预取对任何版本都安全。
- * 这一步只是加速：任何失败都不影响部署，缺的文件由安装器按官方地址补齐。
+ * Under the China source, downloads dependencies through the mirror into the instance directory before running the Forge / NeoForge installer.
+ * The installer's --mirror does not cover libraries.minecraft.net and NeoForge's installer does not support it,
+ * but both skip existing files whose SHA-1 matches, so prefetching is safe for any version.
+ * This step is only a speedup: no failure affects the deploy, and missing files are fetched by the installer from the official URLs.
  */
 export async function prefetchInstallerFiles(
   installerJar: string,
@@ -112,7 +112,7 @@ export async function prefetchInstallerFiles(
 ): Promise<void> {
   try {
     const profile = await readJsonEntry<InstallProfile>(installerJar, 'install_profile.json', signal);
-    // 1.12 及更早的安装器是另一种清单格式，没有 json 字段，保持原有流程。
+    // Installers for 1.12 and earlier use a different manifest format without a json field, so the original flow is kept.
     if (!profile.json) return;
     const version = await readJsonEntry<{ libraries?: LibraryEntry[] }>(
       installerJar,

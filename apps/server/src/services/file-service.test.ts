@@ -1,5 +1,5 @@
 /**
- * 文件重命名与路径安全回归。
+ * File rename and path safety regression.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -15,7 +15,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
       const { closeDb } = await import('../db.js');
       closeDb();
     } catch {
-      /* 模块可能尚未加载 */
+      /* The module may not be loaded yet */
     }
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
@@ -93,7 +93,7 @@ test('目录列表目录优先并按自然序排序，大目录不逐项重复�
   assert.equal(entries[0]?.isDirectory, true);
   assert.equal(entries[1]?.path, 'world/region/r.1.mca');
   assert.equal(entries.at(-1)?.name, 'r.300.mca');
-  // 只校验目标目录本身的路径段，与条目数量无关。
+  // Only the path segments of the target directory itself are validated, regardless of the number of entries.
   assert.ok(realpath.mock.callCount() < 10, `realpathSync 调用 ${realpath.mock.callCount()} 次`);
 });
 

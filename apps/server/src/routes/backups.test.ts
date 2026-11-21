@@ -1,5 +1,5 @@
 /**
- * 备份接口回归：认证、创建、列表、ticket 下载、上传、还原参数校验、删除，以及还原期间拒绝改文件。
+ * Backup endpoint regression: authentication, create, list, ticket download, upload, restore parameter validation, delete, and rejecting file changes during a restore.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -73,7 +73,7 @@ test('备份接口完整流程', async (t) => {
   assert.ok(backup);
   assert.equal(backup.id, task.result?.backupId);
 
-  // 下载：ticket 只能用于签发它的备份，且只能用一次。
+  // Download: a ticket can only be used for the backup it was issued for, and only once.
   const ticketResponse = await app.inject({
     method: 'POST',
     url: `/api/instances/${id}/backups/${backup.id}/download-ticket`,
@@ -150,7 +150,7 @@ test('备份接口完整流程', async (t) => {
   const missing = await app.inject({ method: 'DELETE', url: `/api/instances/${id}/backups/${backup.id}`, headers: authorization });
   assert.equal(missing.statusCode, 404);
 
-  // 删除实例：默认连同备份目录一起删除，keepBackups=1 时保留。
+  // Deleting an instance: the backup directory is deleted with it by default, and kept when keepBackups=1.
   const { backupRoot } = await import('../services/backup-service.js');
   async function instanceWithBackup(name: string): Promise<string> {
     const response = await app.inject({ method: 'POST', url: '/api/instances', headers: authorization, payload: { name } });

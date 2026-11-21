@@ -1,4 +1,4 @@
-/** 任务中心、通用弹窗、错误汇总、菜单与请求错误文案（英文主表）。 */
+/** Task center, common dialogs, error summary, menu and request error strings (English primary table). */
 export default {
   'tasks.type.download': 'Download Core',
   'tasks.type.extract': 'Extract Files',

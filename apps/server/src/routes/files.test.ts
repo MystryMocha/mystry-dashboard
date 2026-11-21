@@ -1,5 +1,5 @@
 /**
- * 认证下载 ticket 协议回归。
+ * Authenticated download ticket protocol regression.
  */
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -67,7 +67,7 @@ test('GET 开流失败应通过 ticket 状态查询反馈 SPA', async () => {
   assert.equal(status?.errorI18n?.key, 'server.files.fileNotFound');
   assert.equal(status?.error, 'File not found.');
 
-  // Node.js 流的原始错误文本原样保留，不附带消息键。
+  // Raw error text from Node.js streams is kept as is, without a message key.
   const raw = reserveDownloadTicket('user-1', 'inst-1', 'raw.txt', () => {});
   failDownloadStream(raw.ticket, 'EACCES: permission denied');
   assert.deepEqual(getDownloadTicketStatus(raw.ticket, 'user-1'), {

@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { JvmSettingsEditor } from '../src/components/JvmSettingsEditor';
 import { setupFormTestEnv } from './form-test-env';
 
-/** 本机节点上报的内存（MiB）；null 表示读不到主机信息。 */
+/** Memory reported by the local node (MiB); null means host info cannot be read. */
 let totalMemMb: number | null;
 let emitted: string[];
 let validity: boolean[];
@@ -26,7 +26,7 @@ beforeEach(() => {
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-/** 和四个入口页一样：上层自己存 jvmArgs 字符串，这里顺便记下每次外发的值和合法性。 */
+/** Like the four entry pages: the parent stores the jvmArgs string itself, and this also records each emitted value and its validity. */
 function Host({ initial }: { initial: string }) {
   const [value, setValue] = useState(initial);
   return (
@@ -40,11 +40,11 @@ function Host({ initial }: { initial: string }) {
   );
 }
 
-/** 渲染并等主机内存读回来（档位按它过滤）。 */
+/** Renders and waits for host memory to be read back (presets are filtered by it). */
 async function open(initial: string) {
   render(<Host initial={initial} />);
   await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
-  // 让 fetch 之后的几层 Promise 都走完，主机内存才算读回来。
+  // Let the several layers of Promises after fetch all settle before host memory counts as read back.
   await act(() => new Promise((resolve) => { setTimeout(resolve, 0); }));
   return {
     max: screen.getByLabelText('最大内存') as HTMLInputElement,
@@ -58,12 +58,12 @@ const tierNames = (tiers: HTMLElement | null) => (tiers ? within(tiers).getAllBy
 test('内存：按 GB 填，发出的仍是 MiB 的 jvmArgs，小数也能填', async () => {
   const user = userEvent.setup();
   const { max } = await open('-Xms1024M -Xmx2048M');
-  // 两个内存框都不再是 type="number"。
+  // Neither memory box is type="number" anymore.
   expect(screen.queryByRole('spinbutton')).toBeNull();
   expect(max.type).toBe('text');
   expect(max.inputMode).toBe('decimal');
   expect(max.value).toBe('2');
-  // 单位读给读屏；不再写「这台电脑共……」。
+  // The unit is read out to screen readers; "This computer has … in total" is no longer written.
   const described = max.getAttribute('aria-describedby')!.split(' ').map((id) => document.getElementById(id)!.textContent);
   expect(described).toEqual(['GB']);
   expect(screen.queryByText(/这台电脑共/)).toBeNull();
@@ -78,7 +78,7 @@ test('内存：按 GB 填，发出的仍是 MiB 的 jvmArgs，小数也能填', 
   await user.type(max, '1.5');
   expect(max.value).toBe('1.5');
   expect(emitted.at(-1)).toBe('-Xms1024M -Xmx1536M');
-  // 「1.」这种没输完的中间状态不会被改写成「1」。
+  // An unfinished intermediate state such as "1." is not rewritten to "1".
   expect(emitted).not.toContain('-Xms1024M -Xmx15360M');
   expect(validity.at(-1)).toBe(true);
 });
@@ -92,10 +92,10 @@ test('内存：能删空，不弹回原数字；失焦后才说原因，这期�
   expect(max.value).toBe('');
   expect(emitted).toEqual([]);
   expect(validity.at(-1)).toBe(false);
-  // 还在这个框里：不打断。
+  // Still in this box: no interruption.
   expect(screen.queryByText('请填写内存大小，单位是 GB。')).toBeNull();
   expect(max.getAttribute('aria-invalid')).toBeNull();
-  // 「最终参数」还是上一个合法值。
+  // "Final arguments" is still the previous valid value.
   expect(within(screen.getByLabelText('最终 JVM 参数')).getByText('-Xmx4096M')).toBeTruthy();
 
   await user.tab();
@@ -105,12 +105,12 @@ test('内存：能删空，不弹回原数字；失焦后才说原因，这期�
   expect(max.getAttribute('aria-describedby')!.split(' ')).toContain(error.id);
   expect(max.closest('.field')!.hasAttribute('data-field-invalid')).toBe(true);
 
-  // 小于下限：换成对应的原因，仍然不外发。
+  // Below the lower bound: switches to the corresponding reason, and still nothing is emitted.
   await user.type(max, '0.2');
   expect(screen.getByText('内存不能小于 0.5 GB。')).toBeTruthy();
   expect(emitted).toEqual([]);
 
-  // 改对了错误马上消失。
+  // The error disappears as soon as it is fixed.
   await user.clear(max);
   await user.type(max, '8');
   expect(screen.queryByText(/内存不能小于|请填写内存大小/)).toBeNull();
@@ -124,19 +124,19 @@ test('内存：不是整数 GB 的旧值显示两位小数，不动它就原样�
   const { max } = await open('-Xms1024M -Xmx2500M');
   expect(max.value).toBe('2.44');
 
-  // 点进去再离开：没改就不外发，也不算不合法。
+  // Click in and leave: nothing is emitted when unchanged, and it does not count as invalid.
   await user.click(max);
   await user.tab();
   expect(emitted).toEqual([]);
   expect(validity).not.toContain(false);
   expect(max.value).toBe('2.44');
 
-  // 改别的项时用的还是原来的 2500M，不是 2.44 × 1024；G1 均衡下初始内存跟着它。
+  // When changing other items the original 2500M is still used, not 2.44 × 1024; under G1 Balanced the initial memory follows it.
   await user.selectOptions(screen.getByLabelText('优化方案'), 'g1-balanced');
   expect(emitted.at(-1)).toContain('-Xmx2500M');
   expect(emitted.at(-1)).toContain('-Xms2500M');
 
-  // 删掉又填回同一个数，也还是 2500M。
+  // Deleting and typing the same number back still gives 2500M.
   await user.clear(max);
   await user.type(max, '2.44');
   expect(max.value).toBe('2.44');
@@ -149,38 +149,38 @@ test('内存：框里的上下箭头和 ↑ ↓ 键按 1 GB 加减，走到相�
   const { max } = await open('-Xms1024M -Xmx2500M');
   const up = screen.getByRole('button', { name: '最大内存加 1 GB' });
   const down = screen.getByRole('button', { name: '最大内存减 1 GB' });
-  // 和原生箭头一样不进 Tab 顺序，也不能是提交按钮。
+  // Like the native arrows it stays out of the Tab order, and cannot be a submit button.
   expect(up.getAttribute('type')).toBe('button');
   expect(up.tabIndex).toBe(-1);
 
-  // 2.44 往下是 2；点箭头不抢输入框的焦点。
+  // Down from 2.44 is 2; clicking the arrow does not take focus from the input.
   await user.click(max);
   await user.click(down);
   expect(max.value).toBe('2');
   expect(emitted.at(-1)).toBe('-Xms1024M -Xmx2048M');
   expect(document.activeElement).toBe(max);
 
-  // 键盘 ↑ 两下到 4。
+  // Keyboard ↑ twice goes to 4.
   await user.keyboard('{ArrowUp}{ArrowUp}');
   expect(max.value).toBe('4');
   expect(emitted.at(-1)).toBe('-Xms1024M -Xmx4096M');
-  // 滚轮不改数字。
+  // The wheel does not change the number.
   fireEvent.wheel(max, { deltaY: -100 });
   expect(max.value).toBe('4');
 
-  // 1 往下到下限 0.5，再往下不动。
+  // Down from 1 goes to the lower bound 0.5, and does not move further down.
   await user.clear(max);
   await user.type(max, '1');
   await user.keyboard('{ArrowDown}');
   expect(max.value).toBe('0.5');
-  // 兼容优先下初始内存取 1 GB 和最大内存中小的那个。
+  // Under Compatibility First the initial memory is the smaller of 1 GB and max memory.
   expect(emitted.at(-1)).toBe('-Xms512M -Xmx512M');
   const count = emitted.length;
   await user.click(down);
   expect(max.value).toBe('0.5');
   expect(emitted.length).toBe(count);
 
-  // 删空后点箭头：从上一个合法值算，错误随之消失。
+  // Clicking an arrow after clearing: computed from the previous valid value, and the error disappears with it.
   await user.clear(max);
   await user.tab();
   expect(screen.getByText('请填写内存大小，单位是 GB。')).toBeTruthy();
@@ -211,7 +211,7 @@ test('初始内存：箭头加减算手动设置；Paper Aikar 锁定时箭头�
   await user.click(screen.getByRole('button', { name: '初始内存加 1 GB' }));
   expect(initial.value).toBe('2');
   expect(emitted.at(-1)).toBe('-Xms2048M -Xmx8192M');
-  // 手动设置过，改最大内存不再带着它走。
+  // Once set manually, changing max memory no longer carries it along.
   await user.click(screen.getByRole('button', { name: '最大内存加 1 GB' }));
   expect(emitted.at(-1)).toBe('-Xms2048M -Xmx9216M');
 
@@ -220,7 +220,7 @@ test('初始内存：箭头加减算手动设置；Paper Aikar 锁定时箭头�
   for (const name of ['初始内存加 1 GB', '初始内存减 1 GB']) {
     expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
   }
-  // 最大内存照常能加减，初始内存跟着。
+  // Max memory can be stepped up and down as usual, and initial memory follows.
   await user.click(screen.getByRole('button', { name: '最大内存减 1 GB' }));
   expect(emitted.at(-1)).toMatch(/^-Xms8192M -Xmx8192M /);
 });
@@ -229,10 +229,10 @@ test('内存：最大内存只给 8 / 10 / 12 GB 三档，点档位直接填入'
   const user = userEvent.setup();
   const { max, tiers } = await open('-Xms1024M -Xmx2048M');
   expect(tierNames(tiers)).toEqual(['8 GB', '10 GB', '12 GB']);
-  // 当前 2 GB 不在档位里，哪一档都不算选中；也不再标「推荐」。
+  // The current 2 GB is not among the presets, so no preset counts as selected; "Recommended" is no longer marked either.
   expect(within(tiers!).getAllByRole('button').some((button) => button.getAttribute('aria-pressed') === 'true')).toBe(false);
   const eight = within(tiers!).getByRole('button', { name: '8 GB' });
-  // 档位不能是提交按钮，否则在 <form> 里点一下就提交了。
+  // Presets cannot be submit buttons, or one click inside a <form> would submit.
   expect(eight.getAttribute('type')).toBe('button');
 
   await user.click(eight);
@@ -240,11 +240,11 @@ test('内存：最大内存只给 8 / 10 / 12 GB 三档，点档位直接填入'
   expect(emitted.at(-1)).toBe('-Xms1024M -Xmx8192M');
   expect(eight.getAttribute('aria-pressed')).toBe('true');
 
-  // 框里填错时点档位：直接换成这一档，错误消失。
+  // Clicking a preset while the box is filled in wrong: it switches straight to that preset and the error disappears.
   await user.clear(max);
   await user.tab();
   const error = screen.getByText('请填写内存大小，单位是 GB。');
-  // 错误行必须排在档位后面：排在前面的话它一出现就把档位顶下去，正要点的那一下会点空（jsdom 没有布局，只能查顺序）。
+  // The error row must come after the presets: if it came before, it would push the presets down the moment it appears and the click in progress would miss (jsdom has no layout, so only the order can be checked).
   expect(tiers!.compareDocumentPosition(error) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   await user.click(within(tiers!).getByRole('button', { name: '10 GB' }));
   expect(max.value).toBe('10');
@@ -263,7 +263,7 @@ test('内存：档位按主机内存过滤；读不到主机内存时三档都�
 
   totalMemMb = 4096;
   const tiny = await open('-Xms1024M -Xmx2048M');
-  // 一档都放不下时整组不显示，免得留一个空的按钮组。
+  // When not even one preset fits, the whole group is not shown, rather than leaving an empty button group.
   expect(tiny.tiers).toBeNull();
   expect(initialTiers()).toEqual(['2 GB', '4 GB']);
   cleanup();
@@ -290,7 +290,7 @@ test('初始内存：下面有 2 / 4 / 6 GB 三档，点了算手动设置，之
   await user.click(within(screen.getByRole('group', { name: '常用最大内存' })).getByRole('button', { name: '12 GB' }));
   expect(emitted.at(-1)).toBe('-Xms4096M -Xmx12288M');
 
-  // 比最大内存还大时照样填进去，由下面的诊断说明为什么不能保存。
+  // A value larger than max memory is still filled in, and the diagnostic below explains why it cannot be saved.
   await user.click(within(screen.getByRole('group', { name: '常用最大内存' })).getByRole('button', { name: '8 GB' }));
   await user.clear(screen.getByLabelText('最大内存'));
   await user.type(screen.getByLabelText('最大内存'), '3');
@@ -305,11 +305,11 @@ test('初始内存：在基础区直接填，没改过时跟着最大内存走�
   expect(initial.type).toBe('text');
   expect(initial.disabled).toBe(false);
   expect(initial.value).toBe('1');
-  // 高级区里不再有「手动设置初始内存」，初始内存也不藏在折叠区里。
+  // The advanced section no longer has "set initial memory manually", and initial memory is not hidden in the collapsible section either.
   expect(screen.queryByRole('checkbox')).toBeNull();
   expect(initial.closest('details')).toBeNull();
 
-  // 兼容优先：没改过时初始内存取 1 GB。
+  // Compatibility First: initial memory is 1 GB when untouched.
   await user.clear(max);
   await user.type(max, '6');
   expect(emitted.at(-1)).toBe('-Xms1024M -Xmx6144M');
@@ -324,7 +324,7 @@ test('初始内存：在基础区直接填，没改过时跟着最大内存走�
   expect(emitted.at(-1)).toBe('-Xms2048M -Xmx6144M');
   expect(validity.at(-1)).toBe(true);
 
-  // 改过初始内存后再改最大内存，初始内存不跟着变。
+  // After initial memory is changed, changing max memory does not change initial memory with it.
   await user.click(within(screen.getByRole('group', { name: '常用最大内存' })).getByRole('button', { name: '8 GB' }));
   expect(emitted.at(-1)).toBe('-Xms2048M -Xmx8192M');
   expect(initial.value).toBe('2');
@@ -333,7 +333,7 @@ test('初始内存：在基础区直接填，没改过时跟着最大内存走�
 test('G1 均衡：切过去时初始内存自动等于最大内存，之后跟着最大内存走；切回兼容优先变回 1 GB', async () => {
   const user = userEvent.setup();
   const { max, initial } = await open('-Xms1024M -Xmx4096M');
-  // 先手动改过初始内存，切到 G1 时也照样改成和最大内存一样。
+  // Even after initial memory was changed manually, switching to G1 still sets it equal to max memory.
   await user.clear(initial);
   await user.type(initial, '2');
   expect(emitted.at(-1)).toBe('-Xms2048M -Xmx4096M');
@@ -347,13 +347,13 @@ test('G1 均衡：切过去时初始内存自动等于最大内存，之后跟�
   expect(emitted.at(-1)).toMatch(/^-Xms12288M -Xmx12288M /);
   expect(initial.value).toBe('12');
 
-  // G1 下也能自己改初始内存，改了说明就去掉。
+  // Initial memory can be changed under G1 too, and the explanation goes away once it is changed.
   await user.clear(initial);
   await user.type(initial, '4');
   expect(emitted.at(-1)).toMatch(/^-Xms4096M -Xmx12288M /);
   expect(screen.queryByText('G1 均衡下和最大内存相同。')).toBeNull();
 
-  // 切回兼容优先不动用户改过的；再切 G1 又对齐，然后切回兼容优先就是 1 GB。
+  // Switching back to Compatibility First leaves what the user changed alone; switching to G1 aligns again, and then switching back to Compatibility First gives 1 GB.
   await user.selectOptions(screen.getByLabelText('优化方案'), 'compatibility');
   expect(emitted.at(-1)).toBe('-Xms4096M -Xmx12288M');
   await user.selectOptions(screen.getByLabelText('优化方案'), 'g1-balanced');
@@ -369,7 +369,7 @@ test('Paper Aikar：初始内存锁定成和最大内存相同，并说明原因
   expect(emitted.at(-1)).toMatch(/^-Xms6144M -Xmx6144M /);
   expect(initial.disabled).toBe(true);
   expect(initial.value).toBe('6');
-  // 锁定时初始内存的档位也点不了。
+  // While locked, the initial memory presets cannot be clicked either.
   for (const button of within(screen.getByRole('group', { name: '常用初始内存' })).getAllByRole('button')) {
     expect((button as HTMLButtonElement).disabled).toBe(true);
   }

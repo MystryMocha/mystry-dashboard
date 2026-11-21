@@ -28,7 +28,7 @@ test('Java 选择器：列表读取失败时状态是「不知道」，不说没
   expect(alert.textContent).toContain('重新扫描');
   expect(statuses.at(-1)).toBe('unknown');
   expect(statuses).not.toContain('mismatch');
-  // 没读到就不能说「没检测到」。
+  // Without a successful read it cannot say "not detected".
   expect(screen.queryByText(/未检测到|没有检测到/)).toBeNull();
 
   fail = false;
@@ -51,7 +51,7 @@ test('frp：第一次读取就失败时不显示「添加服务器」表单，�
   render(<MultiplayerTab instanceId="test" guide={{ open: false, onClose: () => {} }} />);
   const retry = await screen.findByRole('button', { name: '重试' });
   expect(screen.getByText('测试读取失败')).toBeTruthy();
-  // 读取失败不等于一台都没配过。
+  // A failed read does not mean none has ever been configured.
   expect(screen.queryByLabelText('服务器地址')).toBeNull();
   expect(screen.queryByRole('button', { name: '保存 frp 服务器' })).toBeNull();
 
@@ -63,7 +63,7 @@ test('frp：第一次读取就失败时不显示「添加服务器」表单，�
 
 test('导入：切到 ZIP 后不带着文件夹来源识别出的核心和版本，切回文件夹时再填上', async () => {
   const user = userEvent.setup();
-  // 已有一份 ZIP 预检，切到 ZIP 时配置区会显示出来。
+  // A ZIP precheck already exists, so the config area shows when switching to ZIP.
   sessionStorage.setItem('mystry_import_preview_id', 'p1');
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).includes('/import/sources')) {
@@ -76,13 +76,13 @@ test('导入：切到 ZIP 后不带着文件夹来源识别出的核心和版本
     return json({});
   }));
   render(<MemoryRouter><ImportPage /></MemoryRouter>);
-  // 恢复预检后停在 ZIP 模式；此时文件夹来源也已经读到并自动选中。
+  // After restoring the precheck it stays in ZIP mode; by now the folder sources have also been read and one is selected automatically.
   const zipTab = await screen.findByRole('button', { name: '上传 ZIP 压缩包' });
   await waitFor(() => expect(zipTab.getAttribute('aria-pressed')).toBe('true'));
   const version = await screen.findByRole('textbox', { name: 'Minecraft 版本（可选）' }) as HTMLInputElement;
   const core = screen.getByRole('combobox', { name: '核心类型' }) as HTMLSelectElement;
   await waitFor(() => expect(screen.getByRole('button', { name: '从 imports 文件夹复制' })).toBeTruthy());
-  // 给来源列表一点时间回来，再确认它没有写进 ZIP 的表单。
+  // Give the source list a moment to come back, then confirm it was not written into the ZIP form.
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(version.value).toBe('');
   expect(core.value).toBe('custom');

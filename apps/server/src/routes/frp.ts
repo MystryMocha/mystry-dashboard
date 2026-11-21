@@ -43,7 +43,7 @@ function runtimeInfo(): FrpRuntimeInfo {
   };
 }
 
-/** 联机穿透。只管理官方 frpc，不接受任意配置或可执行路径。 */
+/** frp tunneling. Only manages the official frpc; arbitrary config or executable paths are not accepted. */
 export async function frpRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
 
@@ -59,7 +59,7 @@ export async function frpRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // 连不上 GitHub 时，用户在别处下载同名官方压缩包再上传；只按钉死的 SHA-256 接受。
+  // When GitHub is unreachable, the user downloads the same official archive elsewhere and uploads it; it is accepted only by the pinned SHA-256.
   app.post('/api/frp/runtime/upload', async (req, reply) => {
     let temp: string | null = null;
     try {
@@ -99,7 +99,7 @@ export async function frpRoutes(app: FastifyInstance): Promise<void> {
       if (req.validationError) return reply.code(400).send(panelErrorBody('server.frp.invalidParams'));
       try {
         const endpoint = updateFrpEndpoint(req.params.id, req.body);
-        // 地址、端口、令牌等变化后让已启用的隧道按新配置重启；失败记入隧道状态，不会抛出。
+        // After the address, port, token, etc. change, enabled tunnels restart with the new config; failures are recorded in the tunnel state and are not thrown.
         await syncEnabledTunnels();
         return endpoint;
       } catch (err) {

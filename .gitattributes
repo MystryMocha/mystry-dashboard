@@ -1,12 +1,12 @@
-# 统一使用 LF 行尾，避免 Windows / Linux 之间产生整文件噪声 diff
+# Use LF line endings everywhere, to avoid whole-file noise diffs between Windows and Linux
 * text=auto eol=lf
 
-# Windows 批处理必须是 CRLF：cmd.exe 读 LF 行尾的批处理时，跳转标签和多字节字符可能错位，
-# 把半行内容当命令执行。仓库里仍按 LF 存储，只有检出到工作区时转成 CRLF。
+# Windows batch files must be CRLF: when cmd.exe reads a batch file with LF endings, jump labels and multi-byte characters may be misaligned,
+# and half a line gets executed as a command. They are still stored as LF in the repo and converted to CRLF only on checkout to the working tree.
 *.cmd text eol=crlf
 *.bat text eol=crlf
 
-# 二进制文件不做行尾转换
+# No line ending conversion for binary files
 *.png binary
 *.jpg binary
 *.jpeg binary

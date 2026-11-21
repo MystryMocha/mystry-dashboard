@@ -1,13 +1,13 @@
 import type { PanelMessage } from './messages/index.js';
 
-/** 面板代管的官方 frpc。只描述联机方式，不接受任意配置或可执行路径。 */
+/** The official frpc binary managed by the panel. Only describes the connection mode; arbitrary config or executable paths are not accepted. */
 
 export const FRP_CLIENT_VERSION = '0.71.1';
 
 export const FRP_TRANSPORTS = ['tcp', 'kcp', 'quic', 'websocket', 'wss'] as const;
 export type FrpTransport = (typeof FRP_TRANSPORTS)[number];
 
-/** public：朋友直连穿透服务器上的端口。stcp：经穿透服务器中转的内网。xtcp：点对点内网。 */
+/** public: friends connect straight to a port on the frp server. stcp: private, relayed through the frp server. xtcp: private, peer-to-peer. */
 export const TUNNEL_MODES = ['public', 'stcp', 'xtcp'] as const;
 export type TunnelMode = (typeof TUNNEL_MODES)[number];
 
@@ -19,11 +19,11 @@ export interface FrpEndpoint {
   name: string;
   serverAddr: string;
   serverPort: number;
-  /** 朋友要连接的主机名。空字符串表示与 serverAddr 相同。 */
+  /** Hostname friends connect to. An empty string means the same as serverAddr. */
   visitHost: string;
   transport: FrpTransport;
   tls: boolean;
-  /** 令牌只写不回读。 */
+  /** The token is write-only and is never returned. */
   tokenSet: boolean;
 }
 
@@ -34,7 +34,7 @@ export interface FrpEndpointInput {
   visitHost?: string;
   transport: FrpTransport;
   tls?: boolean;
-  /** 更新时省略或空字符串表示保留原令牌。 */
+  /** On update, omitted or an empty string keeps the existing token. */
   token?: string;
 }
 
@@ -42,16 +42,16 @@ export interface FrpRuntimeInfo {
   version: string;
   installed: boolean;
   platformSupported: boolean;
-  /** 本机平台对应的官方压缩包。连不上 GitHub 时，用户可从任意镜像下载同名文件再上传，面板按摘要核对。 */
+  /** The official archive for this machine's platform. When GitHub is unreachable, the user can download the same file from any mirror and upload it; the panel verifies it by digest. */
   archive: RuntimeArchiveInfo | null;
 }
 
-/** 钉死的官方压缩包：文件名、SHA-256 与官方下载地址。平台不支持时为 null。 */
+/** The pinned official archive: file name, SHA-256 and official download URL. null when the platform is unsupported. */
 export interface RuntimeArchiveInfo {
   name: string;
   sha256: string;
   url: string;
-  /** 上传上限（字节） */
+  /** Upload size limit (bytes) */
   maxBytes: number;
 }
 
@@ -61,12 +61,12 @@ export interface InstanceTunnel {
   endpointId: string | null;
   mode: TunnelMode;
   remotePort: number | null;
-  /** 朋友运行 visitor 后，在他自己的电脑上连接的本地端口。 */
+  /** The local port a friend connects to on their own computer after running the visitor. */
   visitorBindPort: number;
-  /** 本机 Minecraft 正在监听的端口，来自 server.properties。 */
+  /** The port Minecraft is listening on locally, read from server.properties. */
   localPort: number;
   status: TunnelStatus;
-  /** 公网模式是朋友要填的地址；内网模式是朋友本机的 127.0.0.1 端口。未启用时为 null。 */
+  /** In public mode, the address friends enter; in private modes, the 127.0.0.1 port on the friend's machine. null when not enabled. */
   joinAddress: string | null;
   serverIpBlocked: boolean;
   runtimeInstalled: boolean;

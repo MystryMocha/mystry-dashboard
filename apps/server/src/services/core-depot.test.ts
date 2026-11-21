@@ -17,7 +17,7 @@ process.env.JWT_SECRET = randomBytes(32).toString('hex');
 process.env.SETUP_TOKEN = randomBytes(32).toString('hex');
 process.env.LAUNCHER_TOKEN = randomBytes(32).toString('hex');
 
-/** 只有一个官方地址的下载计划。 */
+/** A download plan with only one official URL. */
 function planFor(url: string): DownloadPlan {
   return { candidates: [{ label: 'Fixture', url, mirror: false }] };
 }
@@ -25,7 +25,7 @@ function planFor(url: string): DownloadPlan {
 const sha1 = (data: string | Buffer) => createHash('sha1').update(data).digest('hex');
 const sha256 = (data: string | Buffer) => createHash('sha256').update(data).digest('hex');
 
-/** 断言为可翻译错误且消息键一致（不依赖具体语言的文案）。 */
+/** Asserts a translatable error with a matching message key (independent of the wording in any language). */
 function hasMessageKey(error: unknown, key: ServerMessageKey): boolean {
   return error instanceof PanelError && error.messageKey === key;
 }
@@ -202,7 +202,7 @@ test('所有等待者取消后立刻重试：发起新下载，不继承别人�
   await waitUntil(() => progressSeen);
   controller.abort(new PanelError('server.tasks.aborted'));
   await canceled;
-  // 不等旧下载收尾就重试：旧下载此时可能还没从合并表中移除。
+  // Retry without waiting for the old download to finish up: at this point it may not have been removed from the merge table yet.
   const retry = ensureCoreCache(planFor(url), dest, 'core.jar');
   await waitUntil(() => responses.length === 2);
   responses[1]!.end('def');
@@ -223,7 +223,7 @@ test('缓存校验值不符时删掉重新下载，相符时直接复用', async
   };
   const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response(content));
 
-  // 别的来源或旧版面板留下的缓存：非空，但与本次计划的校验值不符。
+  // A cache left by another source or an older panel: non-empty, but not matching this plan's checksum.
   fs.writeFileSync(dest, '被篡改的缓存');
   assert.equal(await verifyCoreCache(dest, plan.expected), false);
   assert.equal(fs.existsSync(dest), false, '不符的缓存被删除');
@@ -236,7 +236,7 @@ test('缓存校验值不符时删掉重新下载，相符时直接复用', async
   await ensureCoreCache(plan, dest, 'core.jar');
   assert.equal(fetchMock.mock.callCount(), 1, '相符的缓存不重复下载');
   assert.equal(await verifyCoreCache(dest, plan.expected), true);
-  // 计划没有校验值时无从核对，非空缓存照旧可用（例如离线时）。
+  // When the plan has no checksum there is nothing to check against, and a non-empty cache is usable as before (for example when offline).
   assert.equal(await verifyCoreCache(dest, undefined), true);
 });
 
@@ -320,7 +320,7 @@ function installerFixture(t: import('node:test').TestContext, onSpawn?: (child: 
     onSpawn?.(child, (args[2] as { cwd: string }).cwd);
     return child;
   });
-  // 内建模块的具名导入需同步替身；任何测试都不向真实 PID 发送信号。
+  // Named imports of built-in modules need a synchronous stub; no test sends a signal to a real PID.
   const killMock = t.mock.method(process, 'kill', (...args: unknown[]) => { kills.push(args); return true; });
   syncBuiltinESMExports();
   t.after(() => {
@@ -417,7 +417,7 @@ test('部署落地后关闭：五种核心均继续注册并完成任务', async
     if (originalDataDir === undefined) delete process.env.MYSTRY_DATA_DIR;
     else process.env.MYSTRY_DATA_DIR = originalDataDir;
   });
-  // Vanilla 的详情和 jar 必须在 Mojang 地址上且带校验值，替身按真实格式给出。
+  // Vanilla's details and jar must be on Mojang URLs and carry checksums; the stub provides them in the real format.
   const vanillaDetail = JSON.stringify({
     downloads: { server: { url: 'https://piston-data.mojang.com/v1/objects/fixture/server.jar', sha1: sha1('测试核心文件') } },
   });
@@ -498,7 +498,7 @@ test('部署 Forge 时缓存的安装器按官方校验值复核；离线取不�
     if (value === installerUrl) return new Response(genuine);
     throw new TypeError('fetch failed');
   });
-  // 记录安装器运行时拿到的内容，确认执行的是哪一份。
+  // Records the content the installer gets when it runs, to confirm which copy was executed.
   const ran: string[] = [];
   installerFixture(t, (child, cwd) => {
     const jar = fs.readdirSync(cwd).find((name) => name.endsWith('-installer.jar'))!;
@@ -522,7 +522,7 @@ test('部署 Forge 时缓存的安装器按官方校验值复核；离线取不�
   assert.deepEqual(ran, [genuine]);
   assert.equal(fs.readFileSync(cachePath, 'utf8'), genuine);
 
-  // 离线：取不到 .sha256，计划不带校验值，非空缓存照旧使用，不尝试下载。
+  // Offline: .sha256 cannot be fetched, the plan carries no checksum, the non-empty cache is used as before, and no download is attempted.
   online = false;
   calls.length = 0;
   fs.writeFileSync(cachePath, '离线时的缓存');

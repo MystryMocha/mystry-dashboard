@@ -9,12 +9,12 @@ import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n, type MessageKey } from '../i18n';
 
-// 弹窗连同二维码库只在点开时加载。
+// The dialog, together with the QR code library, is loaded only when opened.
 const RemoteAccessDialog = lazy(() =>
   import('../components/RemoteAccessDialog').then(({ RemoteAccessDialog }) => ({ default: RemoteAccessDialog })),
 );
 
-/** 服务端 db.ts 写入的内置本机节点默认名称。 */
+/** Default name of the built-in local node written by the server's db.ts. */
 const DEFAULT_LOCAL_NODE_NAME = '本机节点';
 
 const statusLabel: Record<string, MessageKey> = {
@@ -22,7 +22,7 @@ const statusLabel: Record<string, MessageKey> = {
   offline: 'nodes.status.offline',
 };
 
-/** Node.js 平台标识转成用户看得懂的系统名。 */
+/** Turns a Node.js platform identifier into an OS name users understand. */
 const platformLabel: Record<string, string> = {
   win32: 'Windows',
   linux: 'Linux',
@@ -125,7 +125,7 @@ export function NodesPage() {
           <div className="about-hero">
             <span className="about-icon" aria-hidden="true"><Monitor size={34} strokeWidth={1.6} /></span>
             <div className="about-title">
-              {/* 服务端内置的默认名称按当前语言显示；用户改过的名称原样显示。 */}
+              {/* The server's built-in default name is shown in the current language; a name the user changed is shown as is. */}
               <h2>{localNode.name === DEFAULT_LOCAL_NODE_NAME ? t('nodes.local.defaultName') : localNode.name}</h2>
               <StatusPill
                 tone={loadError ? 'warning' : localNode.status === 'online' ? 'running' : 'stopped'}

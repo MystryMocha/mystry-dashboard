@@ -3,15 +3,15 @@ import path from 'node:path';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
 
 /**
- * Windows 防火墙规则。EasyTier 的虚拟网卡通常被识别为「公用网络」，
- * 而 Java 的入站放行往往只在「专用网络」生效，结果朋友进了虚拟网却连不上游戏端口。
- * 面板只加三条范围很窄的放行规则，并在虚拟局域网停止时按名字删除：
- * - 游戏 TCP 端口，且只限目标地址是本实例的虚拟 IP（只有虚拟网卡上的流量能命中）；
- * - EasyTier 监听端口的 TCP 与 UDP，供 IPv6 / 局域网直连，且只限实际启动的 easytier-core（program=）。
- * 游戏端口规则不限程序：实例默认用 PATH 里的 java 启动，真正监听的映像路径（javapath 链接、shim 转发等）
- * 面板拿不准，限错了反而连不上；localip 已把它限在虚拟网卡上。
- * 面板异常退出留下的规则由 lan-manager 在启动清扫、之后的停止 / 关闭 / 删除时按名字补删。
- * 其他系统不处理，由用户自己的防火墙决定。
+ * Windows firewall rules. EasyTier's virtual interface is usually classified as a "Public network",
+ * while Java's inbound allow rule often applies only on "Private networks", so friends get into the virtual network but cannot reach the game port.
+ * The panel adds only three narrowly scoped allow rules and deletes them by name when the virtual LAN stops:
+ * - the game TCP port, restricted to the destination address being this instance's virtual IP (only traffic on the virtual interface can match);
+ * - TCP and UDP on the EasyTier listen port, for IPv6 / LAN direct connections, restricted to the easytier-core actually started (program=).
+ * The game port rule has no program restriction: instances start with the java on PATH by default, and the panel cannot be sure of the image path that actually listens
+ * (javapath links, shim forwarding, etc.); restricting it wrongly would break connectivity, and localip already confines it to the virtual interface.
+ * Rules left behind by a crashed panel are deleted by name by lan-manager, in the startup sweep and on later stop / shutdown / delete.
+ * Other systems are not handled; the user's own firewall decides.
  */
 
 const INSTANCE_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -26,33 +26,33 @@ export interface LanFirewallInput {
   gamePort: number;
   listenPort: number;
   /**
-   * 实际启动的 easytier-core 绝对路径，只来自面板自己的运行时目录，不来自请求。
-   * 为 null 或不适合交给 netsh 时，监听端口规则不限程序（与收窄前相同）。
+   * Absolute path of the easytier-core actually started; it comes only from the panel's own runtime directory, never from a request.
+   * When null or not suitable to pass to netsh, the listen port rules have no program restriction (same as before narrowing).
    */
   corePath: string | null;
 }
 
 export interface LanFirewallRule {
   args: string[];
-  /** 首选参数加不上时改用的参数（不限程序），保证连通性不比收窄前差。 */
+  /** Arguments used instead when the preferred ones cannot be added (no program restriction), so connectivity is never worse than before narrowing. */
   fallback: string[] | null;
 }
 
 let runner: LanFirewallRunner = runNetsh;
 let platform: NodeJS.Platform = process.platform;
 
-/** 测试用：替换 netsh 执行器和平台判断；传 null 恢复默认。 */
+/** For tests: replaces the netsh runner and the platform check; pass null to restore the defaults. */
 export function setLanFirewallForTests(next: { runner: LanFirewallRunner; platform: NodeJS.Platform } | null): void {
   runner = next?.runner ?? runNetsh;
   platform = next?.platform ?? process.platform;
 }
 
-/** 只有 Windows 由面板管理防火墙规则；其他系统上开、关、清扫都是空操作。 */
+/** Only on Windows does the panel manage firewall rules; on other systems open, close and sweep are all no-ops. */
 export function lanFirewallApplies(): boolean {
   return platform === 'win32';
 }
 
-/** 规则名不含空格，避免 Windows 命令行引号处理的差异。 */
+/** Rule names contain no spaces, to avoid differences in Windows command-line quoting. */
 export function lanFirewallRuleName(instanceId: string): string {
   if (!INSTANCE_ID.test(instanceId)) throw new Error('invalid instance id');
   return `MystryDashboard-LAN-${instanceId}`;
@@ -67,7 +67,7 @@ export function lanFirewallRuleArgs(input: LanFirewallInput): LanFirewallRule[] 
   const program = usableProgramPath(input.corePath);
   const listener = (protocol: 'TCP' | 'UDP'): LanFirewallRule => {
     const broad = [...base, `protocol=${protocol}`, `localport=${input.listenPort}`];
-    // 路径作为单独的数组参数传给 netsh，不拼命令行字符串。
+    // The path is passed to netsh as a separate array argument, not concatenated into a command-line string.
     return program ? { args: [...broad, `program=${program}`], fallback: broad } : { args: broad, fallback: null };
   };
   return [
@@ -77,14 +77,14 @@ export function lanFirewallRuleArgs(input: LanFirewallInput): LanFirewallRule[] 
   ];
 }
 
-/** 先删同名旧规则再添加，重复调用结果一致。任何一条（含退回参数）都加不上就整体回滚。 */
+/** Deletes the old rule of the same name before adding, so repeated calls give the same result. If any rule (including its fallback arguments) cannot be added, everything is rolled back. */
 export async function openLanFirewall(input: LanFirewallInput): Promise<LanFirewallResult> {
   if (!lanFirewallApplies()) return 'skipped';
   let rules: LanFirewallRule[];
   try {
     rules = lanFirewallRuleArgs(input);
   } catch {
-    // 规则只是尽力而为：参数不合法时提示加不上，不能让虚拟局域网整个起不来。
+    // Rules are best effort only: with invalid arguments, report that they could not be added rather than keeping the whole virtual LAN from starting.
     return 'failed';
   }
   await closeLanFirewall(input.instanceId);
@@ -98,8 +98,8 @@ export async function openLanFirewall(input: LanFirewallInput): Promise<LanFirew
 }
 
 /**
- * 按名字删掉本实例的全部规则，可重复调用。规则不存在时 netsh 也返回非零，所以只要 netsh 跑完就算处理过；
- * 返回 false 表示 netsh 没能运行或超时，规则是否还在不确定，调用方之后应再试。
+ * Deletes all rules of this instance by name; safe to call repeatedly. netsh also returns non-zero when the rule does not exist, so it counts as handled as long as netsh ran to completion;
+ * false means netsh could not run or timed out, so it is unknown whether the rules are still there and the caller should try again later.
  */
 export async function closeLanFirewall(instanceId: string): Promise<boolean> {
   if (!lanFirewallApplies()) return true;
@@ -113,7 +113,7 @@ async function runSucceeded(args: readonly string[]): Promise<boolean> {
   return (await runner(args).catch(() => -1)) === 0;
 }
 
-/** 只接受绝对路径；引号、控制字符和 %（防火墙会把成对的 % 当环境变量展开）都放弃收窄。 */
+/** Only absolute paths are accepted; quotes, control characters and % (the firewall expands paired % as environment variables) all give up narrowing. */
 function usableProgramPath(value: string | null): string | null {
   if (!value || !path.isAbsolute(value) || /["%\u0000-\u001f]/.test(value)) return null;
   return value;
@@ -123,7 +123,7 @@ function assertPort(port: number): void {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('invalid port');
 }
 
-/** 用系统目录里的 netsh，不经 PATH 查找。面板端口的规则（panel-firewall.ts）也用它。 */
+/** Uses the netsh in the system directory, without a PATH lookup. The panel port rules (panel-firewall.ts) use it as well. */
 export function runNetsh(args: readonly string[]): Promise<number> {
   const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? 'C:\\Windows';
   const netsh = path.join(systemRoot, 'System32', 'netsh.exe');

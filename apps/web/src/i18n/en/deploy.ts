@@ -1,4 +1,4 @@
-/** 一键部署页文案（英文主表）。 */
+/** One-click deploy page strings (English primary table). */
 export default {
   'deploy.page.subtitle': 'Pick a core and a version. The panel downloads and installs the server.',
 

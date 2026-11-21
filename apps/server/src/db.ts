@@ -12,7 +12,7 @@ export type UserRow = {
   id: string;
   username: string;
   password_hash: string;
-  /** 令牌版本：每次修改或重置密码加 1，签发的 JWT 带上它，版本不符即失效 */
+  /** Token version: incremented on every password change or reset; issued JWTs carry it, and a mismatch invalidates them */
   token_version: number;
   created_at: string;
 };
@@ -27,17 +27,17 @@ export type InstanceRow = {
   jvm_args: string;
   accept_eula: number;
   install_path: string | null;
-  /** 默认托管目录的 ownership marker；旧实例为空 */
+  /** Ownership marker of the default managed directory; empty for legacy instances */
   ownership_marker: string | null;
-  /** 所属节点 ID，默认为内置本机节点 'local' */
+  /** ID of the owning node, defaults to the built-in local node 'local' */
   node_id: string;
-  /** 绑定的 Java 运行时 ID（java_runtimes.id）；NULL 表示使用 PATH 中的 java */
+  /** ID of the bound Java runtime (java_runtimes.id); NULL means use the java on PATH */
   java_runtime_id: string | null;
   created_at: string;
   updated_at: string;
 };
 
-/** 面板探测并验证过的 Java 运行时；路径只允许来自面板扫描，不接受请求提交 */
+/** Java runtimes the panel detected and verified; paths may only come from the panel's scan and are never accepted from requests */
 export type JavaRuntimeRow = {
   id: string;
   path: string;
@@ -45,18 +45,18 @@ export type JavaRuntimeRow = {
   major_version: number | null;
   source: 'env' | 'scan' | 'panel';
   verified_at: string;
-  /** 最近一次完整扫描是否仍发现并验证此运行时 */
+  /** Whether the latest full scan still found and verified this runtime */
   available: number;
 };
 
-/** 节点：本机节点（内置，id='local'）或远程 Agent 节点 */
+/** Node: the local node (built in, id='local') or a remote Agent node */
 export type NodeRow = {
   id: string;
   name: string;
-  /** 节点密钥的哈希值（sha256 hex）；本机节点无需密钥，为空字符串 */
+  /** Hash of the node secret (sha256 hex); the local node needs no secret, so it is an empty string */
   secret_hash: string;
   is_local: number;
-  /** Agent 上报的主机信息（JSON 字符串），本机节点可为空 */
+  /** Host info reported by the Agent (JSON string); may be empty for the local node */
   host_info: string | null;
   created_at: string;
   updated_at: string;
@@ -66,15 +66,15 @@ export type TaskRow = {
   id: string;
   type: string;
   status: string;
-  /** 任务文件阶段：staging / finalizing / completed / failed；旧库可为 NULL */
+  /** Task file phase: staging / finalizing / completed / failed; may be NULL in old databases */
   phase: string | null;
   progress: number;
   message: string;
-  /** 进度消息键与参数（JSON）；旧库与旧任务为 NULL，此时只显示 message 原文 */
+  /** Progress message key and params (JSON); NULL in old databases and old tasks, in which case only the message text is shown */
   message_i18n: string | null;
   result_json: string | null;
   error: string | null;
-  /** 失败原因消息键与参数（JSON）；旧任务或无法归类的原始错误为 NULL */
+  /** Failure reason message key and params (JSON); NULL for old tasks and raw errors that cannot be classified */
   error_i18n: string | null;
   created_at: string;
   updated_at: string;
@@ -109,7 +109,7 @@ export function initDb(): void {
   db = new DatabaseSync(config.dbPath);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
-  // SQLite 按进程 umask 创建主库与 WAL/SHM 文件，立即收紧为 0600
+  // SQLite creates the main database and WAL/SHM files with the process umask; tighten them to 0600 right away
   forceSecureSensitiveFile(config.dbPath);
   forceSecureSensitiveFile(`${config.dbPath}-wal`);
   forceSecureSensitiveFile(`${config.dbPath}-shm`);
@@ -219,14 +219,14 @@ export function initDb(): void {
     );
   `);
 
-  // 兼容已有数据库：旧用户表补令牌版本列，已有用户从 0 开始。
-  // 单条 ALTER 本身是原子的，失败不会留下半迁移状态；旧令牌不带版本，按 0 处理，升级后仍可用到过期或改密。
+  // Compatibility with existing databases: add the token version column to old users tables, with existing users starting at 0.
+  // A single ALTER is atomic, so a failure leaves no half-migrated state; old tokens carry no version and are treated as 0, so after the upgrade they keep working until they expire or the password changes.
   const userCols = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
   if (!userCols.some((c) => c.name === 'token_version')) {
     db.exec('ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0');
   }
 
-  // 兼容已有数据库：补齐实例目录安全字段
+  // Compatibility with existing databases: add the instance directory safety fields
   let cols = db.prepare(`PRAGMA table_info(instances)`).all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === 'install_path')) {
     db.exec('ALTER TABLE instances ADD COLUMN install_path TEXT');
@@ -241,7 +241,7 @@ export function initDb(): void {
   if (!cols.some((c) => c.name === 'java_runtime_id')) {
     db.exec('ALTER TABLE instances ADD COLUMN java_runtime_id TEXT');
   }
-  // 虚拟局域网的自定义中继节点：旧库补列，默认沿用社区共享节点，行为不变。
+  // Custom relay peers for the virtual LAN: add the column to old databases, defaulting to the community shared peers so behavior is unchanged.
   const lanCols = db.prepare('PRAGMA table_info(instance_lans)').all() as Array<{ name: string }>;
   if (!lanCols.some((c) => c.name === 'custom_peers')) {
     db.exec("ALTER TABLE instance_lans ADD COLUMN custom_peers TEXT NOT NULL DEFAULT '[]'");
@@ -260,7 +260,7 @@ export function initDb(): void {
   }
   taskCols = db.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>;
   migrateLegacyTaskPhases(taskCols);
-  // 多语言任务消息：只新增可空列，旧任务保持 NULL 并继续显示原有文本。
+  // Localized task messages: only nullable columns are added; old tasks stay NULL and keep showing their existing text.
   if (!taskCols.some((c) => c.name === 'message_i18n')) {
     db.exec('ALTER TABLE tasks ADD COLUMN message_i18n TEXT');
   }
@@ -268,7 +268,7 @@ export function initDb(): void {
     db.exec('ALTER TABLE tasks ADD COLUMN error_i18n TEXT');
   }
 
-  // 索引必须放在列迁移之后，旧库缺列时 CREATE INDEX 会失败。
+  // Indexes must come after the column migrations; CREATE INDEX fails when an old database is missing the column.
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
@@ -283,7 +283,7 @@ export function initDb(): void {
   }
 }
 
-/** 为旧任务行补齐 phase，幂等且可重复执行。 */
+/** Backfills phase for old task rows; idempotent and safe to run repeatedly. */
 function migrateLegacyTaskPhases(taskCols: Array<{ name: string }>): void {
   if (!taskCols.some((c) => c.name === 'phase')) return;
   getDb().exec(`
@@ -296,7 +296,7 @@ function migrateLegacyTaskPhases(taskCols: Array<{ name: string }>): void {
   `);
 }
 
-/** 确保内置本机节点存在（面板自身，代表当前直接 spawn 的本机执行能力） */
+/** Ensures the built-in local node exists (the panel itself, representing the local execution capability that spawns directly) */
 function ensureLocalNode(): void {
   const row = getDb().prepare('SELECT id FROM nodes WHERE id = ?').get('local');
   if (row) return;

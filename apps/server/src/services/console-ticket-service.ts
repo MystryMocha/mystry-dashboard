@@ -10,7 +10,7 @@ type ConsoleTicket = {
 
 const tickets = new Map<string, ConsoleTicket>();
 
-/** 未过期票据数量上限，防止异常客户端反复签发耗尽内存。 */
+/** Limit on the number of unexpired tickets, so an abnormal client cannot exhaust memory by issuing them repeatedly. */
 const MAX_CONSOLE_TICKETS = 1000;
 
 function pruneExpired(now = Date.now()): void {
@@ -37,14 +37,14 @@ export function issueConsoleTicket(userId: string, instanceId: string): {
   return { ticket, expiresIn: config.consoleTicketTtlSeconds };
 }
 
-/** 密码修改或重置后作废该用户所有尚未使用的控制台 ticket。 */
+/** After a password change or reset, voids all of that user's console tickets that have not been used yet. */
 export function revokeConsoleTickets(userId: string): void {
   for (const [ticket, value] of tickets) {
     if (value.userId === userId) tickets.delete(ticket);
   }
 }
 
-/** 校验并立即消费 ticket；无论实例是否匹配，成功找到的 ticket 都不会再次可用。 */
+/** Validates and immediately consumes the ticket; whether or not the instance matches, a ticket that was found can never be used again. */
 export function consumeConsoleTicket(
   ticket: string,
   instanceId: string,

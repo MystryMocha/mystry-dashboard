@@ -1,5 +1,5 @@
-// 构建后为 dist 中的文本资源生成 .br / .gz 预压缩副本，
-// 服务端 @fastify/static 开启 preCompressed 后按 Accept-Encoding 直接发送，运行时不再压缩。
+// After the build, generates .br / .gz precompressed copies of the text assets in dist;
+// with preCompressed enabled the server's @fastify/static sends them directly based on Accept-Encoding, with no compression at runtime.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +7,7 @@ import zlib from 'node:zlib';
 
 const distDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const COMPRESSIBLE_EXTENSIONS = new Set(['.html', '.js', '.css', '.svg', '.json', '.txt', '.webmanifest']);
-// 过小的文件压缩收益低于额外请求头开销，直接跳过。
+// For very small files the compression gain is less than the extra header overhead, so they are skipped.
 const MIN_BYTES = 1024;
 
 function* walkFiles(dir) {

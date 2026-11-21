@@ -12,12 +12,12 @@ import { fileURLToPath } from 'node:url';
 
 const SERVICE_NAME = 'mystry-dashboard';
 const SECRET_PATTERN = /^[0-9a-f]{64}$/i;
-// 供源码启动器判断面板是否在运行：运行中退出码 0，否则 1。
+// Lets the source launcher tell whether the panel is running: exit code 0 when running, otherwise 1.
 const INTERNAL_IS_RUNNING = '__is-running';
 
 /**
- * 启动器界面语言：MYSTRY_LANG 优先，其次系统语言；系统语言是中文时用中文，其余一律英文。
- * Windows 上 LANG 常由 Git Bash 等终端写死，不代表系统语言，所以只看 Intl 给出的系统区域。
+ * Launcher UI language: MYSTRY_LANG first, then the system language; Chinese when the system language is Chinese, English for everything else.
+ * On Windows LANG is often hard-coded by terminals such as Git Bash and does not reflect the system language, so only the system locale given by Intl is used.
  */
 function detectLanguage() {
   const candidates = [process.env.MYSTRY_LANG];
@@ -26,14 +26,14 @@ function detectLanguage() {
   }
   for (const value of candidates) {
     const trimmed = value?.trim();
-    // C / POSIX 表示没有设置语言，继续看下一项。
+    // C / POSIX means no language is set, so move on to the next item.
     if (trimmed && !/^(C|POSIX)([.@]|$)/i.test(trimmed)) return /^zh/i.test(trimmed) ? 'zh' : 'en';
   }
   return /^zh/i.test(Intl.DateTimeFormat().resolvedOptions().locale) ? 'zh' : 'en';
 }
 
 const chinese = detectLanguage() === 'zh';
-/** 按界面语言二选一，中英文写在同一处便于对照。 */
+/** Picks one of two by UI language, with Chinese and English written in the same place for easy comparison. */
 const text = (zh, en) => (chinese ? zh : en);
 const scriptPath = fileURLToPath(import.meta.url);
 const scriptDir = path.dirname(scriptPath);
@@ -56,7 +56,7 @@ const configPath = resolveFromHome(
   process.env.MYSTRY_CONFIG_PATH?.trim() || path.join('config', 'panel.env'),
   homeDir,
 );
-// 与服务端 config.ts 相同：MYSTRY_DATA_DIR 优先于 DATA_DIR，进程环境变量优先于配置文件。
+// Same as the server's config.ts: MYSTRY_DATA_DIR takes precedence over DATA_DIR, and process environment variables over the config file.
 const fileValues = fs.existsSync(configPath) ? parseEnv(fs.readFileSync(configPath, 'utf8')) : new Map();
 const configValue = (name) => process.env[name]?.trim() || fileValues.get(name);
 const dataDir = resolveFromHome(configValue('MYSTRY_DATA_DIR') || configValue('DATA_DIR') || 'data', homeDir);
@@ -148,7 +148,7 @@ async function databaseNeedsSetup() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      // 面板重启收尾期间数据库可能短暂被写锁占用，等待后重试。
+      // While the panel finishes restarting the database may be briefly held by a write lock, so wait and retry.
       if (!/database is locked|SQLITE_BUSY/.test(message)) {
         throw new Error(text(`无法检查管理员初始化状态：${message}`, `Cannot check administrator setup status: ${message}`));
       }
@@ -405,7 +405,7 @@ async function releaseCurrentManagerLock() {
   await unlinkIfExists(lockPath);
 }
 
-/** 只有 state.json 记录的进程仍存活、且健康检查返回同一指纹，才算本管理器启动的面板。 */
+/** Only when the process recorded in state.json is still alive, and the health check returns the same fingerprint, does it count as a panel started by this manager. */
 async function isManagedPanelRunning(values, state) {
   return Boolean(
     values
@@ -465,7 +465,7 @@ async function openBrowser(values, { announce = true } = {}) {
   const url = getConnection(values).url;
   if (announce) console.log(text(`面板地址：${url}`, `Panel URL: ${url}`));
   if (process.env.MYSTRY_NO_BROWSER === '1') return;
-  // 经 SSH 登录时浏览器会开在服务器上，用户看不到；改由 showRemoteAccessOnStart 说明怎么从外面打开。
+  // Under SSH login the browser would open on the server where the user cannot see it; showRemoteAccessOnStart explains how to open it from outside instead.
   if (isRemoteLogin()) return;
   const command = OPEN_URL_COMMANDS[process.platform] ?? 'xdg-open';
   try {
@@ -480,7 +480,7 @@ async function openBrowser(values, { announce = true } = {}) {
   }
 }
 
-// 去掉容易看错的 0/O、1/l/I，方便用户照着窗口输入。
+// The easily misread 0/O and 1/l/I are left out, so users can type it by reading the window.
 const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
 const GENERATED_PASSWORD_LENGTH = 16;
 const INITIAL_ADMIN_USERNAME = 'admin';
@@ -492,7 +492,7 @@ function randomPassword() {
   ).join('');
 }
 
-/** 账号和密码只进用户的窗口，不进日志文件，所以这里用 console.log 而不是服务端日志。 */
+/** The account and password go only to the user's window, not into log files, which is why console.log is used here rather than the server log. */
 function showCredentials(title, { username, password }) {
   const divider = '='.repeat(64);
   console.log(`\n${divider}`);
@@ -512,7 +512,7 @@ function showCredentials(title, { username, password }) {
   console.log(`${divider}\n`);
 }
 
-/** 用内部令牌创建首个管理员，用户不用接触令牌；创建后令牌立即从配置中移除。 */
+/** Creates the first admin with the internal token, so the user never handles the token; after creation the token is removed from the config immediately. */
 async function createInitialAdmin({ setupToken }, connection) {
   const credentials = { username: INITIAL_ADMIN_USERNAME, password: randomPassword() };
   try {
@@ -543,8 +543,8 @@ async function createInitialAdmin({ setupToken }, connection) {
 }
 
 async function resetPassword() {
-  // 新密码只能显示在终端里（D-027）：输出被重定向或走管道时会进文件或日志。
-  // 必须在请求服务端之前判断并拒绝；先重置再隐藏密码会让用户登录不了。
+  // A new password may only be shown in a terminal (D-027): when output is redirected or piped it would end up in a file or log.
+  // This must be checked and refused before contacting the server; resetting first and then hiding the password would leave the user unable to sign in.
   if (!process.stdout.isTTY) {
     throw new Error(text(
       `当前输出不是终端（被重定向或通过管道传出），为避免新密码写进文件或日志，没有重置密码。请在终端窗口里直接运行：${managerCommand} reset-password`,
@@ -578,8 +578,8 @@ async function rotateLogs() {
 }
 
 /**
- * 前台与后台启动共用的启动前检查。
- * 面板已由本管理器启动时只打开浏览器并返回 null；端口被未知面板或其他程序占用时抛错。
+ * Pre-start checks shared by foreground and background starts.
+ * When the panel was already started by this manager, only the browser is opened and null is returned; throws when the port is taken by an unknown panel or another program.
  */
 async function prepareStart() {
   if (!fs.existsSync(serverEntry)) {
@@ -620,7 +620,7 @@ async function announceStarted({ configuration, connection }) {
     : null;
   await openBrowser(configuration.values, { announce: false });
   if (credentials) {
-    // 输出被重定向时可能进日志文件，不写出密码，用户可以随时重置。
+    // When output is redirected it may end up in a log file, so the password is not written; the user can reset it at any time.
     if (process.stdout.isTTY) {
       showCredentials(text('首次启动，已创建管理员账号：', 'First run. The administrator account has been created:'), credentials);
     } else {
@@ -633,9 +633,9 @@ async function announceStarted({ configuration, connection }) {
   await showRemoteAccessOnStart(configuration, { adminCreated: Boolean(credentials) });
 }
 
-// ---- 从其他设备访问面板：首次启动问答与 remote 命令（D-033） ----
+// ---- Access the panel from other devices: first-start prompt and the remote command (D-033) ----
 
-/** 是否经 SSH 登录。不用「没有图形界面」来猜：WSL 和不接显示器的家用电脑也没有图形界面。 */
+/** Whether logged in through SSH. "No graphical interface" is not used to guess: WSL and home computers without a monitor have no graphical interface either. */
 function isRemoteLogin(env = process.env) {
   return Boolean(env.SSH_CONNECTION || env.SSH_CLIENT || env.SSH_TTY);
 }
@@ -648,7 +648,7 @@ const REMOTE_ERROR_TEXT = {
   'server.remoteAccess.certificateFailed': [`HTTPS 证书生成或读取失败。可以先运行 ${managerCommand} remote https off 改用不加密的连接。`, `The HTTPS certificate could not be created or read. You can run ${managerCommand} remote https off to use an unencrypted connection.`],
 };
 
-/** 调用只认本机和 LAUNCHER_TOKEN 的启动器接口；令牌不进输出。 */
+/** Calls the launcher endpoints that accept only this machine and LAUNCHER_TOKEN; the token does not go into output. */
 async function launcherRequest(values, method, pathname, body) {
   const response = await fetchWithTimeout(`http://127.0.0.1:${parsePort(values)}${pathname}`, {
     method,
@@ -662,7 +662,7 @@ async function launcherRequest(values, method, pathname, body) {
   try {
     payload = await response.json();
   } catch {
-    // 不是 JSON 时按状态码报错
+    // When it is not JSON, report the error by status code
   }
   if (!response.ok) {
     const known = REMOTE_ERROR_TEXT[payload?.code];
@@ -674,7 +674,7 @@ async function launcherRequest(values, method, pathname, body) {
 const getRemoteStatus = (values) => launcherRequest(values, 'GET', '/api/launcher/remote-access');
 const setDirectAccess = (values, body) => launcherRequest(values, 'PUT', '/api/launcher/remote-access/direct', body);
 
-/** 和界面的默认值一样：所有网卡、HTTPS、不限来源；已有设置时沿用安全选项。 */
+/** Same defaults as the UI: all interfaces, HTTPS, no source restriction; existing settings keep their security options. */
 function directAccessRequest(status, overrides) {
   const current = status?.direct ?? {};
   return {
@@ -686,7 +686,7 @@ function directAccessRequest(status, overrides) {
   };
 }
 
-/** 可以从其他设备打开的网址及说明，供首次启动、remote on 和 remote status 打印。 */
+/** The URLs that can be opened from other devices, with notes, printed on first start, remote on and remote status. */
 function remoteAccessLines(status) {
   const direct = status.direct;
   const port = status.port;
@@ -744,8 +744,8 @@ async function askYesNo(question, defaultYes) {
 }
 
 /**
- * 面板启动后：经 SSH 登录时说明怎么从外面打开。
- * 只在首次启动、管理员已建好、输入输出都是终端时才提问；其余情况只打印一行提示，不改任何设置。
+ * After the panel starts: under SSH login, explains how to open it from outside.
+ * A question is asked only on first start, with the admin created, and with both input and output being terminals; otherwise only one line of hint is printed and no setting is changed.
  */
 async function showRemoteAccessOnStart(configuration, { adminCreated }) {
   if (!isRemoteLogin()) return;
@@ -753,7 +753,7 @@ async function showRemoteAccessOnStart(configuration, { adminCreated }) {
   try {
     status = await getRemoteStatus(configuration.values);
   } catch {
-    // 读不到状态（例如旧版面板）时只给提示，不影响启动。
+    // When the status cannot be read (for example an older panel) only a hint is given, without affecting startup.
     console.log(remoteHintLine());
     return;
   }
@@ -827,7 +827,7 @@ function remoteUsage() {
   );
 }
 
-/** remote 系列命令。启动器不直接读写数据库，全部经面板的启动器接口，所以面板必须在运行。 */
+/** The remote commands. The launcher does not read or write the database directly; everything goes through the panel's launcher endpoints, so the panel must be running. */
 async function remoteCommand(args) {
   const [action = '', argument] = args;
   const values = await loadConfiguration();
@@ -844,7 +844,7 @@ async function remoteCommand(args) {
     return;
   }
   if (action === '') {
-    // 菜单里的「从其他设备访问」：显示状态，在终端里可以直接开关。
+    // "Access from other devices" in the menu: shows the status, and can toggle it directly in a terminal.
     const status = await getRemoteStatus(values);
     printRemoteStatus(status);
     if (status.managedByConfig || !process.stdin.isTTY || !process.stdout.isTTY) return;
@@ -889,7 +889,7 @@ async function remoteCommand(args) {
   throw new Error(remoteUsage());
 }
 
-/** 后台面板没有窗口，用户容易以为它已经退出，所以每次后台启动都说清楚。 */
+/** A background panel has no window and users easily assume it has exited, so every background start says so clearly. */
 function showDaemonReminder() {
   console.log(text(
     `提醒：面板在后台运行，没有窗口，不会自动停止。要停止时运行：${managerCommand} stop`,
@@ -929,7 +929,7 @@ async function startBackground() {
 const LOG_LEVEL_LABELS = { 10: 'TRACE', 20: 'DEBUG', 30: 'INFO', 40: 'WARN', 50: 'ERROR', 60: 'FATAL' };
 const REQUEST_LOG_MESSAGES = new Set(['incoming request', 'request completed']);
 
-/** 把一行服务端 JSON 日志转成给人看的短文本；逐请求记录返回 null，不是 JSON 的行原样返回。 */
+/** Turns a line of server JSON log into short human-readable text; returns null for per-request records, and lines that are not JSON as is. */
 function formatForegroundLogLine(line) {
   let entry;
   try {
@@ -943,9 +943,9 @@ function formatForegroundLogLine(line) {
   return `${time} ${(LOG_LEVEL_LABELS[entry.level] ?? 'LOG').padEnd(5)} ${entry.msg}`;
 }
 
-/** 前台窗口只显示可读日志，完整原始日志仍写入日志文件，排错时不丢信息。 */
+/** The foreground window shows only readable logs, while the full raw log is still written to the log file, so nothing is lost for troubleshooting. */
 function relayForegroundLogs(stream) {
-  // 窗口关闭后输出端已失效，面板还在安全关闭，这时写屏失败不能中断转发。
+  // After the window closes the output is no longer valid while the panel is still shutting down safely, and a failed write to the screen must not interrupt forwarding.
   process.stdout.on('error', () => {});
   const rawLog = fs.createWriteStream(stdoutLog, { flags: 'a', mode: 0o600 });
   rawLog.on('error', () => {});
@@ -958,7 +958,7 @@ function relayForegroundLogs(stream) {
   lines.once('close', () => rawLog.end());
 }
 
-// 用户主动结束时窗口直接关闭，不用再按回车。
+// When the user ends it deliberately the window closes directly, with no need to press Enter again.
 let windowCanClose = false;
 
 async function startForeground() {
@@ -976,9 +976,9 @@ async function startForeground() {
   });
   await writeState(child.pid, startedAt, nonce, connection.url);
 
-  // 用 on 而不是 once：再按一次 Ctrl+C 时控制器不能先被默认动作杀掉，要等面板自己关完。
-  // Windows 控制台的 Ctrl+C 本来就会送到同一控制台里的面板；而 Node 在 Windows 上的
-  // child.kill('SIGINT') 等于强制结束进程，转发反而会打断安全关闭，所以 Windows 不转发。
+  // on rather than once: on a second Ctrl+C the controller must not be killed first by the default action, and has to wait for the panel to finish closing on its own.
+  // Ctrl+C in a Windows console already reaches the panel in the same console; and Node's
+  // child.kill('SIGINT') on Windows is a forced termination, so forwarding would interrupt the safe shutdown instead, which is why Windows does not forward.
   const forwardInterrupt = () => {
     if (process.platform === 'win32') return;
     if (isProcessAlive(child.pid)) child.kill('SIGINT');
@@ -986,7 +986,7 @@ async function startForeground() {
   const forwardTerminate = () => {
     if (isProcessAlive(child.pid)) child.kill('SIGTERM');
   };
-  // 窗口关闭时面板自己也会收到 SIGHUP；控制器要活到面板关完，否则面板写日志的管道会断。
+  // When the window closes the panel receives SIGHUP itself too; the controller has to stay alive until the panel finishes closing, or the pipe the panel logs to would break.
   const keepRelayingOnHangup = () => {};
   process.on('SIGINT', forwardInterrupt);
   process.on('SIGTERM', forwardTerminate);
@@ -1016,7 +1016,7 @@ async function startForeground() {
 
 const WATCH_POLL_MS = 500;
 
-/** 读出日志文件新增的完整行。文件轮转后变短时从头读，结尾没写完的行留到下一轮。 */
+/** Reads the complete lines newly added to the log file. When the file gets shorter after rotation it is read from the start, and an unfinished last line is left for the next round. */
 async function readNewLogLines(cursor) {
   let handle;
   try {
@@ -1044,7 +1044,7 @@ async function readNewLogLines(cursor) {
   }
 }
 
-/** 监听 Ctrl+C。终端切到原始模式后它只是一个按键，批处理不会再问「终止批处理操作吗」。 */
+/** Listens for Ctrl+C. Once the terminal is in raw mode it is just a key, and the batch file no longer asks "Terminate batch job?". */
 function onStopKey(callback) {
   const rawTerminal = process.stdin.isTTY && typeof process.stdin.setRawMode === 'function';
   const onKey = (chunk) => {
@@ -1074,7 +1074,7 @@ async function stopWithLock() {
   }
 }
 
-/** 查看窗口只读日志文件，和面板没有进程关系，所以关掉窗口不影响面板和服务端。 */
+/** The viewer window only reads the log file and has no process relationship with the panel, so closing it does not affect the panel or the servers. */
 async function watchPanel() {
   const state = await readState();
   console.log(text(
@@ -1099,7 +1099,7 @@ async function watchPanel() {
     stopping = stopWithLock().finally(() => {
       stopSettled = true;
     });
-    // 错误在循环结束后再抛出，这里只避免未处理的拒绝。
+    // The error is thrown after the loop ends; this only avoids an unhandled rejection.
     stopping.catch(() => {});
   });
   try {
@@ -1275,7 +1275,7 @@ function printHelp() {
   ].join('\n'));
 }
 
-// 菜单项：[按键, 命令, 说明]。直接回车等同于 1，无法识别的输入显示帮助。
+// Menu items: [key, command, description]. A bare Enter equals 1, and unrecognized input shows help.
 const RUNNING_MENU = [
   ['1', 'open', text('打开面板（直接回车）', 'Open the panel (Enter)')],
   ['2', 'logs', text('查看日志', 'View logs')],
@@ -1308,7 +1308,7 @@ async function interactiveMenu() {
   }
 }
 
-/** 双击启动时控制台窗口会随进程退出立即关闭，先等待回车，让结果、令牌提示与错误留在屏幕上。 */
+/** When started by double-click the console window closes as soon as the process exits, so wait for Enter first, keeping the result, token hint and errors on screen. */
 async function waitForCloseKey() {
   const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
@@ -1396,11 +1396,11 @@ async function main() {
     await runAndHoldWindow(selected);
     return;
   }
-  // 无参数且有终端：通常是双击启动。面板进后台，窗口只用来看账号和日志。
+  // No arguments and a terminal: usually started by double-click. The panel goes to the background, and the window is only for viewing the account and logs.
   await runAndHoldWindow('watch');
 }
 
-/** 交互运行的命令结束后暂停，让结果和错误留在屏幕上；用户按 Ctrl+C 停止面板成功时不用再按键。 */
+/** Pauses after a command run interactively ends, keeping the result and errors on screen; no key press is needed when the user stops the panel successfully with Ctrl+C. */
 async function runAndHoldWindow(command) {
   try {
     await runCommand(command);

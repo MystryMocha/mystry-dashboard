@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-/** 按 open 打开或关闭原生 <dialog> 的模态层，返回要挂到 dialog 上的 ref。 */
+/** Opens or closes the modal layer of a native <dialog> according to open, and returns the ref to attach to the dialog. */
 export function useDialogOpen(open: boolean) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {

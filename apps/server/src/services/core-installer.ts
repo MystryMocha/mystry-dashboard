@@ -8,7 +8,7 @@ import { abortError, PanelError } from '../utils/errors.js';
 
 const INSTALLER_MAX_ATTEMPTS = 2;
 
-/** 安装器进度回调：进度文字为消息键加参数，由任务记录后交给 Web 翻译。 */
+/** Installer progress callback: the progress text is a message key plus params, recorded by the task and handed to Web for translation. */
 type InstallerReport = (progress: number, message: PanelMessage) => void;
 
 class InstallerProcessError extends PanelError {
@@ -16,7 +16,7 @@ class InstallerProcessError extends PanelError {
     readonly exitCode: number | null,
     readonly output: string,
   ) {
-    // 安装器输出是 Java 原文，只作为参数附带，不做翻译。
+    // Installer output is original Java text; it is only attached as a param and not translated.
     super(
       exitCode === null ? 'server.deploy.installerExitUnknown' : 'server.deploy.installerExitCode',
       exitCode === null ? { output } : { exitCode, output },
@@ -30,7 +30,7 @@ export function isRetryableInstallerFailure(output: string): boolean {
     || /(?:SocketTimeoutException|ConnectException|UnknownHostException|SSL(?:Handshake)?Exception)/i.test(output);
 }
 
-/** 把安装器的依赖下载失败输出归纳为可翻译的诊断消息。 */
+/** Summarizes the installer's dependency download failure output into a translatable diagnostic message. */
 export function summarizeInstallerDownloadFailure(output: string, attempts: number): PanelMessage {
   const failedBlock = output.match(
     /These libraries failed to download\. Try again\.\s*([\s\S]*?)\s*There was an error during installation/i,
@@ -46,7 +46,7 @@ export function summarizeInstallerDownloadFailure(output: string, attempts: numb
     try {
       failedHost = new URL(failedUrl).host;
     } catch {
-      // URL 只用于优化错误提示，解析失败不影响任务收尾。
+      // The URL is only used to improve the error hint; a parse failure does not affect finishing the task.
     }
   }
 
@@ -55,7 +55,7 @@ export function summarizeInstallerDownloadFailure(output: string, attempts: numb
   else if (/UnknownHostException/i.test(output)) reason = { key: 'server.deploy.installerReason.dnsFailed' };
   else if (/SSL(?:Handshake)?Exception/i.test(output)) reason = { key: 'server.deploy.installerReason.tlsFailed' };
 
-  // 依赖坐标是安装器原文，各语言统一用逗号分隔。
+  // Dependency coordinates are the installer's original text, comma-separated in every language.
   const libraries: PanelMessage | string = failedLibraries?.length
     ? { key: 'server.deploy.installerFailedLibraries', params: { libraries: failedLibraries.join(', ') } }
     : '';
@@ -73,7 +73,7 @@ type InstallerProgressState = {
   completedDownloads: number;
 };
 
-/** 从下载地址取文件名；取不到时返回 undefined，由调用方改用通用的「依赖文件」文案。 */
+/** Takes the file name from a download URL; returns undefined when it cannot, and the caller uses the generic "dependency file" wording instead. */
 function installerArtifactName(urlText: string): string | undefined {
   try {
     const pathname = new URL(urlText).pathname;
@@ -168,7 +168,7 @@ function runInstallerAttempt(
       const pid = child.pid;
       if (!pid) return;
       if (process.platform === 'win32') {
-        // 只针对 installer 的 PID 杀进程树，不能使用面板自身的 PID。
+        // Kill the process tree only for the installer's PID; the panel's own PID must never be used.
         const killer = spawn('taskkill', ['/PID', String(pid), '/T', '/F'], {
           windowsHide: true,
           stdio: 'ignore',
@@ -177,7 +177,7 @@ function runInstallerAttempt(
           try {
             child.kill('SIGKILL');
           } catch {
-            /* 子进程可能已经退出 */
+            /* The child process may have already exited */
           }
         });
         return;
@@ -189,7 +189,7 @@ function runInstallerAttempt(
         try {
           child.kill(force ? 'SIGKILL' : 'SIGTERM');
         } catch {
-          /* 子进程可能已经退出 */
+          /* The child process may have already exited */
         }
       }
     };
@@ -199,7 +199,7 @@ function runInstallerAttempt(
       killProcessTree(false);
       forceTimer = setTimeout(() => {
         killProcessTree(true);
-        // 某些平台在强制杀进程后不会再发送 close 事件，不能永久占用任务槽。
+        // Some platforms never send the close event after a forced kill, and the task slot must not be held forever.
         finish(abortError(signal));
       }, config.installerKillGraceMs);
     };
@@ -209,7 +209,7 @@ function runInstallerAttempt(
     child.stderr.on('data', (c: Buffer) => {
       appendOutput(c);
     });
-    // 管道流 error 无监听器会成为未捕获异常；子进程退出时管道 EPIPE 属正常现象。
+    // A pipe stream error without a listener becomes an uncaught exception; EPIPE on the pipe when the child exits is normal.
     child.stdout.on('error', () => {});
     child.stderr.on('error', () => {});
     child.once('error', (error) => finish(aborted || signal.aborted ? abortError(signal) : error));
@@ -259,7 +259,7 @@ export async function runInstaller(
   }
 }
 
-/** Forge/NeoForge 的启动脚本从 user_jvm_args.txt 读取 JVM 参数。 */
+/** Forge/NeoForge launch scripts read JVM arguments from user_jvm_args.txt. */
 export function writeUserJvmArgs(dir: string, jvmArgs: string): void {
   const file = resolveSafePath(dir, 'user_jvm_args.txt');
   const lines = serializeJvmArgFile(parseJvmArgs(jvmArgs));

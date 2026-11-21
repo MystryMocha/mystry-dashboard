@@ -12,7 +12,7 @@ import { ImportPage } from '../src/pages/ImportPage';
 import { InstancePage } from '../src/pages/InstancePage';
 import { setupFormTestEnv } from './form-test-env';
 
-// 策划案第 8 节「后来考察出的显示逻辑问题」里中优先级的几条：表单显示的和实际要提交的不一致。
+// The medium-priority items in section 8 of the design doc, "display logic problems found later": what the form shows differs from what is actually submitted.
 
 beforeEach(() => {
   setupFormTestEnv();
@@ -24,7 +24,7 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
 
 const javaDefault = { available: true, version: '21.0.4', majorVersion: 21 };
 
-/** 选中的 option 的文字；值不在选项里时浏览器会选中第一项，这里要看到的是实际显示的那一项。 */
+/** Text of the selected option; when the value is not among the options the browser selects the first item, and what needs checking here is the item actually displayed. */
 const shownOption = (select: HTMLSelectElement) => select.options[select.selectedIndex]?.textContent ?? '';
 
 test('Java 选择器：选中的 Java 不在列表里时照样显示它，读取中、没读到、确实没有三种说法不同', async () => {
@@ -33,7 +33,7 @@ test('Java 选择器：选中的 Java 不在列表里时照样显示它，读取
   let fail = false;
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (String(url).startsWith('/api/system/java-runtimes')) {
-      // 第一次读取先挂着，看读取中的显示。
+      // Keep the first read pending, to look at the loading display.
       if (!respond) await new Promise<void>((resolve) => { respond = resolve; });
       return fail ? json({ error: '测试读取失败' }, 500) : json({ runtimes: [], installable: [] });
     }
@@ -50,7 +50,7 @@ test('Java 选择器：选中的 Java 不在列表里时照样显示它，读取
   expect(select.value).toBe('rt-gone');
   expect(screen.getByRole('alert').textContent).toContain('之前选择的 Java 已不可用');
 
-  // 重新扫描失败但之前读到过：列表还在，照旧说已不可用。
+  // The rescan failed but it was read before: the list is still there and still says unavailable.
   fail = true;
   await user.click(screen.getByRole('button', { name: '重新扫描' }));
   await waitFor(() => expect(screen.getByText(/测试读取失败/)).toBeTruthy());
@@ -71,7 +71,7 @@ test('Java 选择器：列表一次都没读到时，选中的 Java 显示为「
   expect(screen.queryByText(/已不可用/)).toBeNull();
 });
 
-/** 挂载实例设置，记下所有写请求的请求体。 */
+/** Mounts instance settings and records the request bodies of all write requests. */
 function mountSettings(instance: Record<string, unknown>) {
   const patches: Record<string, unknown>[] = [];
   const full = {
@@ -127,7 +127,7 @@ test('组网网卡：打开时还没有网卡、之后才出现，下拉框写�
   const select = screen.getByRole('combobox', { name: '网卡' }) as HTMLSelectElement;
   expect(shownOption(select)).toBe('无');
 
-  // 轮询读到了刚连上的组网网卡。
+  // Polling picked up an overlay interface that just connected.
   rerender(<RemoteAccessMode
     mode="overlay"
     status={remoteStatus([
@@ -152,7 +152,7 @@ const detectedWithExtra: DetectedJvmConfig = {
   issues: [],
 };
 
-/** 只看提示条：上层存「是否沿用」，参数本身不动。 */
+/** Looks at the notice bar only: the parent stores "whether to adopt", and the arguments themselves are untouched. */
 function DetectedHost({ detected }: { detected: DetectedJvmConfig }) {
   const [applied, setApplied] = useState(Boolean(detected.canonicalArgs));
   return (
@@ -173,7 +173,7 @@ test('JVM：检测到配置文件时只有一行说明加「取消」，取消�
   vi.stubGlobal('fetch', vi.fn(async () => json([])));
   render(<DetectedHost detected={detectedWithExtra} />);
   expect(screen.getByText('已检测到配置文件 user_jvm_args.txt，已自动配置。')).toBeTruthy();
-  // 不再有三选一的单选框，也不用先选才能填内存。
+  // No more three-way radio group, and no need to choose first before filling in memory.
   expect(screen.queryByRole('radio')).toBeNull();
   expect((screen.getByLabelText('最大内存') as HTMLInputElement).disabled).toBe(false);
 
@@ -215,13 +215,13 @@ test('导入：检测到配置文件就自动沿用，可取消、可重新应�
   await waitFor(() => expect(sourceRadio('with-args').checked).toBe(true));
   const maxMemory = () => (screen.getByLabelText('最大内存') as HTMLInputElement).value;
   const preview = () => screen.getByLabelText('最终 JVM 参数').textContent;
-  // 不用点任何东西就沿用了；带附加参数时高级区展开，不把它藏着提交。
+  // Adopted without clicking anything; with extra arguments the advanced section expands, so they are not submitted while hidden.
   await screen.findByText('已检测到配置文件 user_jvm_args.txt，已自动配置。');
   expect(maxMemory()).toBe('6');
   expect(preview()).toContain('-Dfoo=bar');
   expect(screen.getByText('高级 JVM 参数').closest('details')!.open).toBe(true);
 
-  // 取消：回到沿用之前的参数；重新应用：再沿用一次。
+  // Cancel: back to the arguments from before adopting; reapply: adopt once more.
   await user.click(screen.getByRole('button', { name: '取消' }));
   expect(maxMemory()).toBe('2');
   expect(preview()).not.toContain('-Dfoo=bar');
@@ -229,13 +229,13 @@ test('导入：检测到配置文件就自动沿用，可取消、可重新应�
   expect(maxMemory()).toBe('6');
 
   await user.click(sourceRadio('plain'));
-  // 来源列表里 with-args 那一行仍写着它带 user_jvm_args.txt，只看导入设置区。
+  // The with-args row in the source list still says it comes with user_jvm_args.txt; only the import settings area is checked.
   expect(within(screen.getByRole('heading', { name: '导入设置' }).closest('section')!).queryByText(/user_jvm_args\.txt/)).toBeNull();
   expect(maxMemory()).toBe('2');
   expect(preview()).not.toContain('-Dfoo=bar');
 
-  // 自己填的不是检测结果：换到另一个没有检测结果的文件夹时保留；
-  // 中途换到有检测结果的文件夹会沿用它，再换走时还原成自己填的。
+  // What the user filled in is not a detection result: it is kept when switching to another folder without a detection result;
+  // switching midway to a folder with a detection result adopts it, and switching away restores what the user filled in.
   await user.clear(screen.getByLabelText('最大内存'));
   await user.type(screen.getByLabelText('最大内存'), '3');
   await user.click(sourceRadio('plain-2'));
@@ -269,7 +269,7 @@ test('实例设置：模组加载器还没装好的实例不显示「@modloader�
   mountSettings({ coreType: 'neoforge', jarFile: '@modloader' });
   const launch = await screen.findByRole('textbox', { name: '启动文件' }) as HTMLInputElement;
   expect(launch.readOnly).toBe(true);
-  // 状态按正文显示，不用低对比度的占位符。
+  // The state is shown as body text, not as a low-contrast placeholder.
   expect(launch.value).toBe('未安装');
   expect(launch.placeholder).toBe('');
   expect(screen.queryByDisplayValue('@modloader')).toBeNull();

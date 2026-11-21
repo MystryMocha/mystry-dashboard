@@ -145,9 +145,9 @@ function workspaceEntry(relative) {
 }
 
 /**
- * 便携包里的路径只用可打印 ASCII。Windows 自带的 tar（bsdtar）在非 UTF-8 代码页下（已在中文 GBK 下实测）
- * 转换不了 ZIP 里的非 ASCII 文件名，会跳过该条目并以错误退出，冒烟和用户用 tar 解压都会失败。
- * 生产依赖里这样命名的只有测试夹具（例如 @fastify/send 的 `test/fixtures/snow ☃`），运行时用不到。
+ * Paths in the portable package use only printable ASCII. Under a non-UTF-8 code page (verified under Chinese GBK), the tar shipped with Windows (bsdtar)
+ * cannot convert non-ASCII file names in a ZIP, skips the entry and exits with an error, so both the smoke test and users extracting with tar would fail.
+ * Among production dependencies only test fixtures are named this way (for example `test/fixtures/snow ☃` in @fastify/send), and they are not needed at runtime.
  */
 export function isArchiveSafeName(name) {
   return /^[ -~]+$/.test(name);
@@ -160,7 +160,7 @@ async function copyProductionDependencies(source, destination) {
     force: true,
     filter: (current) => {
       const relative = path.relative(path.dirname(source), current);
-      // 目录被过滤时整棵子树都不复制。
+      // When a directory is filtered out its whole subtree is not copied.
       return !workspaceEntry(relative) && isArchiveSafeName(path.basename(current));
     },
   });
@@ -191,7 +191,7 @@ async function collectFiles(rootDir) {
       const absolute = path.join(current, entry.name);
       const relative = path.relative(rootDir, absolute).split(path.sep).join('/');
       if (entry.isSymbolicLink()) throw new Error(`便携包中不允许出现符号链接：${relative}`);
-      // 依赖已在复制时过滤；面板自己的文件出现非 ASCII 名称时在打包阶段就失败，不留到用户解压时。
+      // Dependencies were already filtered while copying; a non-ASCII name among the panel's own files fails at packaging time, rather than being left until the user extracts.
       if (!isArchiveSafeName(entry.name)) throw new Error(`便携包中不允许出现非 ASCII 文件名：${relative}`);
       if (entry.isDirectory()) {
         await visit(absolute);
@@ -220,7 +220,7 @@ function assertCleanWorktreeForRelease(allowDirty) {
     }
   } catch (error) {
     if (error instanceof Error && error.message.includes('工作树不干净')) throw error;
-    // 非 Git 仓库时跳过（仅本地非发布场景）
+    // Skipped when not a Git repo (local, non-release cases only)
   }
 }
 
@@ -233,7 +233,7 @@ function getGitSha() {
   }
 }
 
-// 公开用户直接看到的说明：英文在前、中文在后，改事实时两段要一起改
+// Notes that public users read directly: English first, Chinese after, and both sections must be changed together when a fact changes
 export async function createPortableReadme(destination, version) {
   const content = `Mystry Dashboard ${version} Portable Preview
 中文说明在英文之后。

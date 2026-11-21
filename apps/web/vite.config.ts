@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-// 界面上显示的版本号取自根 package.json，避免写死在组件里。
+// The version number shown in the UI comes from the root package.json, so it is not hard-coded in components.
 const rootPackage = JSON.parse(readFileSync(path.resolve(__dirname, '../../package.json'), 'utf8')) as {
   version: string;
 };
@@ -21,8 +21,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // 拆分大依赖与语言包，避免单个代码块超过 1 MiB：esbuild 对超过 1 MiB 的输入会经 %TEMP% 临时文件中转，
-        // Windows 上杀毒软件扫描占用该文件时删除失败，导致构建报 "Access is denied"。
+        // Large dependencies and language packs are split so no single chunk exceeds 1 MiB: for inputs over 1 MiB esbuild goes through a temp file in %TEMP%,
+        // and on Windows, deleting it fails while antivirus is scanning the file, making the build report "Access is denied".
         manualChunks(id) {
           const file = id.replace(/\\/g, '/');
           if (/\/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(file)) return 'react';
@@ -38,7 +38,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // 本机 3000 被系统拒绝绑定时，可用 MYSTRY_DEV_API_PORT 指向实际的面板端口。
+      // When binding local port 3000 is refused by the system, MYSTRY_DEV_API_PORT can point at the actual panel port.
       '/api': `http://127.0.0.1:${process.env.MYSTRY_DEV_API_PORT || '3000'}`,
       '/ws': {
         target: `ws://127.0.0.1:${process.env.MYSTRY_DEV_API_PORT || '3000'}`,

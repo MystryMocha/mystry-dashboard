@@ -5,8 +5,8 @@ import { DownloadSourceHint } from './DownloadSourceSection';
 import { useI18n } from '../i18n';
 
 /**
- * 连不上 GitHub 时的备用安装：用户在任意设备（官方或镜像）下载同名压缩包再上传，
- * 服务端只按钉死的 SHA-256 接受。平时只露一行「连不上 GitHub？手动安装」，点开才显示校验值和按钮。
+ * Fallback install when GitHub is unreachable: the user downloads the same archive on any device (official or mirror) and uploads it,
+ * and the server accepts it only by the pinned SHA-256. Normally only one line shows, "Can't reach GitHub? Install manually", and the checksum and button appear only when opened.
  */
 export function RuntimeArchiveUpload({
   archive,
@@ -22,7 +22,7 @@ export function RuntimeArchiveUpload({
   const { t } = useI18n();
   const panelId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
-  // 上传中保持展开，免得按钮状态看不到。
+  // Stay expanded while uploading, so the button state remains visible.
   const [open, setOpen] = useState(false);
   const expanded = open || uploading;
   const accept = archive.name.endsWith('.zip') ? '.zip,application/zip' : '.tar.gz,.tgz,application/gzip';
@@ -62,7 +62,7 @@ export function RuntimeArchiveUpload({
               hidden
               onChange={(event) => {
                 const file = event.target.files?.[0];
-                // 清空后同一个文件可以再选一次。
+                // After clearing, the same file can be chosen once more.
                 event.target.value = '';
                 if (file) void onUpload(file);
               }}
@@ -75,8 +75,8 @@ export function RuntimeArchiveUpload({
 }
 
 /**
- * 虚拟局域网和 frp 共用的「客户端未安装」区块：一行状态和下载按钮，下面是下载来源和手动安装入口，
- * 合在同一个提示条里，不再拆成两块。
+ * The "client not installed" block shared by the virtual LAN and frp: one line with the status and download button, and below it the download source and the manual install entry,
+ * combined in one notice bar rather than split into two blocks.
  */
 export function RuntimeInstallCallout({
   missing,

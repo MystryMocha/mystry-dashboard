@@ -1,6 +1,6 @@
-/** 服务端返回给用户的消息：JVM 参数解析与诊断。值为英文模板，`{name}` 为参数占位；其他语言由 Web 文案表按键翻译。 */
+/** User-facing server messages: JVM argument parsing and diagnostics. Values are English templates with `{name}` placeholders; the Web string tables translate other languages by key. */
 export const JVM_MESSAGES = {
-  // 诊断：键名为 issue.code 的 camelCase；解析错误（PARSE_ERROR / ARGFILE_PARSE_ERROR）使用解析器给出的键
+  // Diagnostics: the key name is issue.code in camelCase; parse errors (PARSE_ERROR / ARGFILE_PARSE_ERROR) use the key given by the parser
   'server.jvm.issue.argsTooLong': "JVM arguments can't exceed {max} characters.",
   'server.jvm.issue.unclosedQuote': 'JVM arguments contain an unclosed quote.',
   'server.jvm.issue.xmsCount': 'JVM arguments must include exactly one -Xms initial memory argument.',
@@ -17,7 +17,7 @@ export const JVM_MESSAGES = {
   'server.jvm.issue.paperMemoryMismatch': 'The Paper Aikar preset requires Xms and Xmx to match.',
   'server.jvm.issue.paperMemoryLow': 'PaperMC recommends at least 6 GiB of memory for Aikar flags.',
 
-  // 面板自动安装 Java（Eclipse Temurin JRE）
+  // Java installed automatically by the panel (Eclipse Temurin JRE)
   'server.jvm.javaInstall.queued': 'Waiting to install Java {major}',
   'server.jvm.javaInstall.downloading': 'Downloading Java {major}',
   'server.jvm.javaInstall.extracting': 'Extracting Java {major}',
@@ -30,7 +30,7 @@ export const JVM_MESSAGES = {
   'server.jvm.javaInstall.verifyFailed': "The installed Java {major} didn't run correctly, so it wasn't added.",
   'server.jvm.javaInstall.notCancellable': 'This Java installation has already finished, so it can\'t be cancelled.',
 
-  // 预设名称：作为诊断里的 {preset} 嵌套参数
+  // Preset names: used as the nested {preset} param in diagnostics
   'server.jvm.preset.compatibility': 'Compatibility First',
   'server.jvm.preset.g1Balanced': 'G1 Balanced',
   'server.jvm.preset.paperAikar': 'Paper Aikar',

@@ -84,7 +84,7 @@ test('Intl 格式化随语言变化，数字与单位之间留空格', () => {
 });
 
 test('Intl 格式化器按语言与选项缓存，useI18n().fmt 引用稳定，切换语言后换新', () => {
-  // 内容相同的新选项对象也命中同一个实例；选项或语言不同则是另一个实例。
+  // A new options object with the same content hits the same instance too; different options or language give another instance.
   expect(numberFormat('en', { maximumFractionDigits: 1 })).toBe(numberFormat('en', { maximumFractionDigits: 1 }));
   expect(numberFormat('en', { maximumFractionDigits: 2 })).not.toBe(numberFormat('en', { maximumFractionDigits: 1 }));
   expect(numberFormat('zh-CN')).not.toBe(numberFormat('en'));
@@ -149,7 +149,7 @@ test('服务端消息：按键翻译、嵌套参数、无键时显示服务端�
   expect(translatePanelMessage('zh-CN', nested)).toBe('面板重启，未完成的任务无法恢复；临时目录清理失败：临时目录中的任务标记与任务记录不匹配，已跳过自动清理');
   expect(translatePanelMessage('en', nested)).toMatch(/^The panel restarted .*: The task marker/);
   expect(translatePanelMessage('zh-TW', { key: 'server.tasks.timeout' })).toBe('任務執行逾時');
-  // 旧任务没有键：原样显示存库的中文
+  // Old tasks have no key: the Chinese stored in the database is shown as is
   expect(translatePanelMessage('en', undefined, '下载失败')).toBe('下载失败');
 
   document.documentElement.lang = 'zh-CN';

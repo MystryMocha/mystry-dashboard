@@ -1,4 +1,4 @@
-/** 实例备份文案（英文主表）。 */
+/** Instance backup strings (English primary table). */
 export default {
   'backups.hint.running': 'The server is running. Backups pause auto-save and flush the world first, then turn auto-save back on.',
   'backups.hint.stopped': 'Each backup is a complete copy of this server folder. Stop the server before restoring one.',

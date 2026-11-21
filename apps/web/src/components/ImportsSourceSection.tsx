@@ -6,12 +6,12 @@ import { coreDisplayName } from './CoreIcon';
 import { useI18n } from '../i18n';
 
 type Props = {
-  /** imports 文件夹在面板电脑上的路径；还没读到时为 null。 */
+  /** Path of the imports folder on the panel's computer; null before it is read. */
   importDir: string | null;
   sources: ExistingServerSourceInfo[];
   sourceId: string;
   loading: boolean;
-  /** 读取 imports 失败时的说明，已按界面语言翻译。 */
+  /** Description when reading imports fails, already translated into the UI language. */
   error: string;
   busy: boolean;
   onSelect: (id: string) => void;
@@ -19,8 +19,8 @@ type Props = {
 };
 
 /**
- * 「从 imports 文件夹复制」：先告诉用户 imports 在面板电脑上的哪里、怎么放，再列出里面的服务端供选择。
- * 路径只用来显示和复制，面板不接收任何客户端提交的路径（D-015、D-041）。
+ * "Copy from the imports folder": first tells the user where imports is on the panel's computer and how to put things there, then lists the servers inside to choose from.
+ * The path is only for display and copying; the panel accepts no path submitted by the client (D-015, D-041).
  */
 export function ImportsSourceSection({ importDir, sources, sourceId, loading, error, busy, onSelect, onRefresh }: Props) {
   const { t, tm } = useI18n();
@@ -40,7 +40,7 @@ export function ImportsSourceSection({ importDir, sources, sourceId, loading, er
     noticeTimer.current = setTimeout(() => setNotice(''), 6000);
   }
 
-  /** 每一行下方的说明：识别出的核心和版本、启动 jar、有没有 user_jvm_args.txt；不能导入时写原因。 */
+  /** Description under each row: the recognized core and version, the launch jar, and whether there is a user_jvm_args.txt; the reason is written when it cannot be imported. */
   function sourceDetail(source: ExistingServerSourceInfo): string {
     if (!source.ready) return tm(source.errorI18n, source.error ?? '');
     if (!source.launchTarget) return t('import.directory.source.pendingCheck');
@@ -48,7 +48,7 @@ export function ImportsSourceSection({ importDir, sources, sourceId, loading, er
     const server = source.mcVersion
       ? t('import.directory.source.server', { core, version: source.mcVersion })
       : source.coreType === 'custom' ? core : t('import.directory.source.serverNoVersion', { core });
-    // Forge / NeoForge 的参数文件路径很长，核心和版本已经说明了是什么，这里只给普通 jar 写文件名。
+    // The Forge / NeoForge args file path is long, and the core and version already say what it is, so the file name is written only for a plain jar.
     const target = parseLaunchTarget(source.launchTarget);
     const detail = target.kind === 'jar' ? `${server} · ${target.path}` : server;
     return source.detectedJvmConfig
@@ -94,7 +94,7 @@ export function ImportsSourceSection({ importDir, sources, sourceId, loading, er
             <div className="list-group import-source-list" role="radiogroup" aria-labelledby={listTitleId}>
               {sources.map((source, index) => {
                 const disabled = busy || !source.ready;
-                // 文件夹名里可能有空格，不能拼进 id 引用列表，用序号。
+                // Folder names may contain spaces and cannot be put into an id reference list, so an index is used.
                 const titleId = `${groupName}-${index}-title`;
                 const detailId = `${groupName}-${index}-detail`;
                 return (

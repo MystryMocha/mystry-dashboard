@@ -25,7 +25,7 @@ import { sendRouteError } from '../http-errors.js';
 import { errorBody, errorMessage, panelErrorBody, toPanelMessage } from '../utils/errors.js';
 import { sendFileStream } from './files.js';
 
-/** 备份下载复用文件下载 ticket，用伪路径区分，避免与实例内真实文件路径混淆。 */
+/** Backup downloads reuse file download tickets, told apart by a pseudo path so they are not confused with real file paths inside an instance. */
 function backupTicketPath(backupId: string): string {
   return `@backup/${backupId}`;
 }
@@ -41,7 +41,7 @@ function requireInstance(reply: FastifyReply, id: string): boolean {
 }
 
 export async function backupRoutes(app: FastifyInstance): Promise<void> {
-  // 下载可用一次性 ticket 代替 JWT（浏览器原生导航无法带 Authorization）
+  // Downloads can use a one-time ticket instead of the JWT (native browser navigation cannot send Authorization)
   app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
     if (isBackupDownloadRoute(req)) {
       const ticket = (req.query as { ticket?: string }).ticket;
@@ -146,7 +146,7 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
       try {
         const { info, archive: abs } = getBackupWithArchive(req.params.id, req.params.backupId);
         if (!hasTicket) releaseDownload = acquireFileDownloadSlot();
-        // 文件名保留实例名（含中文），只替换系统不允许的字符；Content-Disposition 另有 ASCII 回退。
+        // The file name keeps the instance name (including Chinese characters), replacing only characters the OS does not allow; Content-Disposition has a separate ASCII fallback.
         const safeName = info.instanceName.replace(/[\\/:*?"<>|\x00-\x1f]+/g, '_').trim();
         const downloadName = `${safeName || info.instanceId}-${info.id}.tar.gz`;
         return await sendFileStream(reply, abs, downloadName, ticketRef, releaseDownload);

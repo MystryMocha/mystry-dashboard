@@ -15,13 +15,13 @@ import { useI18n } from '../i18n';
 const METHODS = ['direct', 'lan', 'frp'] as const;
 type MultiplayerMethod = (typeof METHODS)[number];
 
-/** 没指定或不认识的方式落到「同一网络」：它不用安装和配置，是最容易成功的一种。 */
+/** An unspecified or unrecognized mode falls to "same network": it needs no install or configuration and is the one most likely to succeed. */
 function multiplayerMethod(value: string | null): MultiplayerMethod {
   return METHODS.find((method) => method === value) ?? 'direct';
 }
 /**
- * 联机是面板级入口。实例选择和方式切换在同一行，下面一次只显示一种方式；
- * 每种方式自己决定右侧指引栏的内容，开关状态在这里统一保存。
+ * Multiplayer is a panel-level entry. Instance selection and the mode switcher share one row, and below them only one mode is shown at a time;
+ * each mode decides the content of the guide column on the right itself, and the open/closed state is saved here in one place.
  */
 export function MultiplayerPage() {
   const { t } = useI18n();
@@ -31,7 +31,7 @@ export function MultiplayerPage() {
   const [guideOpen, setGuideOpen] = useGuideOpen();
   const guideToggleRef = useRef<HTMLButtonElement>(null);
   const guideCloseRef = useRef<HTMLButtonElement>(null);
-  // 关闭或打开指引后，被点的按钮会消失；把焦点交给接替它的按钮，键盘用户不会掉回页面开头。
+  // After the guide is closed or opened the clicked button disappears; focus is handed to the button that takes its place, so keyboard users do not fall back to the start of the page.
   const guideFocus = useRef(false);
   useEffect(() => {
     if (!guideFocus.current) return;

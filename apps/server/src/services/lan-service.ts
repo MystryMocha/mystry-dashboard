@@ -20,7 +20,7 @@ import {
 export interface InstanceLanRow extends LanIdentity {
   instance_id: string;
   enabled: number;
-  /** 用户填写的节点（已规范化） */
+  /** Peers entered by the user (normalized) */
   peers: string[];
   useSharedPeers: boolean;
   created_at: string;
@@ -38,7 +38,7 @@ export function listEnabledLanInstanceIds(): string[] {
   return rows.map((row) => row.instance_id);
 }
 
-/** 第一次保存才生成网络名、密钥和网段。之后关闭再打开仍用原来的，朋友不用重装。 */
+/** The network name, secret and subnet are generated only on the first save. Disabling and enabling again later reuses them, so friends do not have to set up again. */
 export function saveInstanceLan(instanceId: string, input: InstanceLanInput): InstanceLanRow {
   if (!getInstanceRow(instanceId)) {
     throw new PanelError('server.lan.instanceNotFound', undefined, { statusCode: 404 });
@@ -51,7 +51,7 @@ export function saveInstanceLan(instanceId: string, input: InstanceLanInput): In
   const existing = getInstanceLanRow(instanceId);
   const peers = input.peers !== undefined ? normalizeLanPeers(input.peers) : (existing?.peers ?? []);
   const useSharedPeers = input.useSharedPeers ?? existing?.useSharedPeers ?? true;
-  // 先确认至少有一个节点，再写库，避免保存出一份永远连不上的设置。
+  // Confirm there is at least one peer before writing to the database, so a setting that can never connect is not saved.
   resolveLanPeers(peers, useSharedPeers);
   const now = nowIso();
   if (!existing) {
@@ -92,7 +92,7 @@ export function saveInstanceLan(instanceId: string, input: InstanceLanInput): In
   return requireLanRow(instanceId);
 }
 
-/** listenPort 为 null 时得到的是比较用的配置键：监听端口每次启动都会重新分配，不应触发重启。 */
+/** With listenPort null the result is the config key used for comparison: the listen port is reallocated on every start and should not trigger a restart. */
 export function lanRenderInput(row: InstanceLanRow, gamePort: number, listenPort: number | null): LanRenderInput {
   return {
     networkName: row.networkName,
@@ -118,7 +118,7 @@ export function removeLanFiles(instanceId: string): void {
   fs.rmSync(path.join(config.dataDir, 'lan', instanceId), { recursive: true, force: true });
 }
 
-/** 实例虚拟局域网的工作目录（存放 core.toml），先校验实例 ID 再拼路径。 */
+/** Work directory of an instance's virtual LAN (holds core.toml); the instance ID is validated before the path is built. */
 export function lanWorkDir(instanceId: string): string {
   if (!INSTANCE_ID.test(instanceId)) throw new PanelError('server.lan.invalidParams');
   return path.join(config.dataDir, 'lan', instanceId);
@@ -156,7 +156,7 @@ function readLanRow(instanceId: string): InstanceLanRow | null {
   };
 }
 
-/** 库里的节点列表坏掉时只丢弃无法识别的条目，不让整个虚拟局域网读不出来。 */
+/** When the peer list in the database is corrupted, only unrecognized entries are dropped, so the whole virtual LAN does not become unreadable. */
 function parseStoredPeers(text: string | null): string[] {
   if (!text) return [];
   let parsed: unknown;
@@ -173,7 +173,7 @@ function parseStoredPeers(text: string | null): string[] {
       const peer = normalizeLanPeer(item);
       if (!peers.includes(peer)) peers.push(peer);
     } catch {
-      // 跳过无法识别的条目
+      // Skip unrecognized entries
     }
   }
   return peers;

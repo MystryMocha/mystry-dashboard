@@ -124,7 +124,7 @@ test('Claude Code 入口缺失会失败', async (t) => {
 test('经符号链接或 junction 路径运行时仍会执行检查，不会静默通过', async (t) => {
   const root = await createFixture(t);
   await fs.rm(path.join(root, 'CLAUDE.md'));
-  // 复制脚本到临时目录再建链接，测试不在仓库里创建链接。
+  // Copy the script to a temp directory and create the link there, so tests do not create links in the repo.
   const base = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-knowledge-link-'));
   const real = path.join(base, 'real');
   const link = path.join(base, 'link');

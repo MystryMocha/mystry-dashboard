@@ -9,9 +9,9 @@ import { Field, FormFeedbackProvider, focusFirstInvalidField, useFormFeedback } 
 import { PasswordInput } from './PasswordInput';
 
 /**
- * 修改当前管理员密码。打开时才挂载：表单不留旧密码，输入框的 autoFocus 也不会抢走页面焦点。
- * 成功后服务端让所有旧令牌失效，这里换上响应里的新令牌，当前页面保持登录，其他设备需要重新登录。
- * 密码框可以点开看，所以不再要求把新密码输两遍。
+ * Changes the current admin's password. Mounted only when opened: the form keeps no old password, and the input's autoFocus does not steal page focus.
+ * On success the server invalidates all old tokens; the new token from the response is swapped in here, so the current page stays signed in and other devices have to sign in again.
+ * The password box can be revealed, so the new password is no longer required to be typed twice.
  */
 export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
@@ -33,7 +33,7 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
     }
     if (busy) return;
     if (!canSubmit) {
-      // 按 Enter 却提交不了时，把原因显示出来并跳到要改的那一项；没有填错、只是还空着时不标红。
+      // When Enter is pressed but it cannot submit, show the reason and jump to the item to fix; when nothing is wrong and it is just still empty, nothing is marked red.
       feedback.revealAll();
       focusFirstInvalidField(fieldsRef.current);
       return;

@@ -1,9 +1,9 @@
 /**
- * 界面语言管理：与 theme.ts 的外观模型一致，用户可选「自动」或固定语言。
- * - 自动：按浏览器语言列表匹配，繁体（zh-Hant、zh-TW/HK/MO）用繁體中文，其他 zh* 用简体中文，其余一律英文；
- * - en 为默认语言，也是缺键时的回落语言。
- * 初始值由 index.html 内联脚本在渲染前写入 <html lang> 与 data 属性，
- * 这里负责读取、切换、跟随浏览器语言变化，并广播事件让所有订阅者重新渲染。
+ * UI language management: same model as appearance in theme.ts, where the user can choose "auto" or a fixed language.
+ * - Auto: matched against the browser's language list; Traditional (zh-Hant, zh-TW/HK/MO) uses Traditional Chinese, other zh* use Simplified Chinese, and everything else English;
+ * - en is the default language and also the fallback for missing keys.
+ * The initial value is written to <html lang> and data attributes before rendering by the inline script in index.html;
+ * this module reads it, switches it, follows browser language changes, and broadcasts an event so all subscribers re-render.
  */
 
 export const LOCALES = ['en', 'zh-CN', 'zh-TW'] as const;
@@ -14,7 +14,7 @@ export type LocalePreference = (typeof LOCALE_PREFERENCES)[number];
 
 export const DEFAULT_LOCALE: Locale = 'en';
 
-/** 语言名称始终用该语言自身书写（English / 简体中文），切换时才认得出来。 */
+/** Language names are always written in the language itself (English / 简体中文), so they are recognizable when switching. */
 export const LOCALE_NATIVE_NAMES: Record<Locale, string> = {
   en: 'English',
   'zh-CN': '简体中文',
@@ -32,14 +32,14 @@ export function isLocalePreference(value: string | null | undefined): value is L
   return (LOCALE_PREFERENCES as readonly string[]).includes(value ?? '');
 }
 
-/** 繁体标记：显式 Hant 脚本，或未写 Hans 时地区为台湾、香港、澳门。 */
+/** Traditional marker: an explicit Hant script, or a region of Taiwan, Hong Kong or Macau when Hans is not written. */
 function isTraditionalChinese(tag: string): boolean {
   if (/(^|-)hant(-|$)/.test(tag)) return true;
   if (/(^|-)hans(-|$)/.test(tag)) return false;
   return /(^|-)(tw|hk|mo)(-|$)/.test(tag);
 }
 
-/** 按浏览器语言列表挑选界面语言；规则必须与 index.html 内联脚本保持一致。 */
+/** Picks the UI language from the browser's language list; the rules must stay in sync with the inline script in index.html. */
 export function detectLocale(languages: readonly string[]): Locale {
   for (const language of languages) {
     const tag = language.toLowerCase();
@@ -62,13 +62,13 @@ function resolveLocale(preference: LocalePreference): Locale {
   return preference === 'auto' ? detectLocale(browserLanguages()) : preference;
 }
 
-/** 用户选择的语言（可能是「自动」）。 */
+/** The language the user chose (possibly "auto"). */
 export function getLocalePreference(): LocalePreference {
   const current = document.documentElement.dataset.localePreference;
   return isLocalePreference(current) ? current : 'auto';
 }
 
-/** 当前实际生效的界面语言。 */
+/** The UI language actually in effect. */
 export function getLocale(): Locale {
   const current = document.documentElement.lang;
   return isLocale(current) ? current : resolveLocale(getLocalePreference());
@@ -85,12 +85,12 @@ export function setLocalePreference(preference: LocalePreference): void {
   try {
     localStorage.setItem(LOCALE_KEY, preference);
   } catch {
-    /* 隐私模式等场景下静默降级为仅本次会话生效 */
+    /* In cases such as private mode, silently degrade to taking effect for this session only */
   }
   apply(preference);
 }
 
-/** 「自动」语言下跟随浏览器语言设置变化；返回取消监听函数。 */
+/** Follows browser language setting changes under the "auto" language; returns a function that removes the listener. */
 export function watchBrowserLocale(): () => void {
   const onChange = () => {
     if (getLocalePreference() === 'auto') apply('auto');

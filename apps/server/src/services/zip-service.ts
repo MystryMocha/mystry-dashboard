@@ -43,8 +43,8 @@ function zipPathFromEntry(name: string): string {
 }
 
 /**
- * 解析中央目录。maxArchiveBytes 只给面板内部固定来源（如 EasyTier 压缩包）使用，
- * 省略时沿用上传上限，旧调用方行为不变。
+ * Parses the central directory. maxArchiveBytes is only for fixed sources inside the panel (such as the EasyTier archive);
+ * when omitted the upload limit is used, so the behavior of legacy callers is unchanged.
  */
 function readZipEntries(zipPath: string, signal: AbortSignal, maxArchiveBytes?: number): ZipEntry[] {
   const archiveLimit = maxArchiveBytes ?? config.maxUploadBytes;
@@ -138,7 +138,7 @@ function readZipEntries(zipPath: string, signal: AbortSignal, maxArchiveBytes?: 
       offset = end;
     }
     if (offset !== central.length) {
-      // 条目解析完后中央目录仍有剩余字节，说明 EOCD 记录的条目数与目录内容不符。
+      // Bytes remaining in the central directory after the entries are parsed mean the entry count recorded in the EOCD does not match the directory content.
       const remaining = central.length - offset;
       if (remaining > 0) throw new PanelError('server.files.zip.entryCountMismatch');
     }
@@ -148,7 +148,7 @@ function readZipEntries(zipPath: string, signal: AbortSignal, maxArchiveBytes?: 
   }
 }
 
-/** 预览和解压共用本地文件头与数据范围校验。 */
+/** Preview and extraction share the local file header and data range validation. */
 function zipEntryDataStart(zipPath: string, entry: ZipEntry): number {
   const fd = fs.openSync(zipPath, 'r');
   try {
@@ -194,7 +194,7 @@ async function extractZipEntry(
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
   if (fs.existsSync(target)) throw new PanelError('server.files.zip.entryWouldOverwrite', { name: entry.name });
 
-  // 必须在创建文件流前拒绝不支持的压缩方式，避免留下无人处理的异步错误。
+  // Unsupported compression methods must be rejected before the file stream is created, so no unhandled asynchronous error is left behind.
   if (entry.compression !== 0 && entry.compression !== 8) {
     throw new PanelError('server.files.zip.unsupportedCompression', { name: entry.name });
   }
@@ -264,7 +264,7 @@ async function readZipEntryText(
 }
 
 function invalidDetectedJvmConfig(message: PanelMessage | string): DetectedJvmConfig {
-  // 可翻译消息同时带上键与参数，前端按界面语言显示；原始错误只给原文。
+  // Translatable messages carry both the key and params, and the frontend shows them in the UI language; raw errors give only the original text.
   const issue = typeof message === 'string'
     ? { code: 'ZIP_ARGFILE_ERROR', severity: 'error' as const, message }
     : {
@@ -282,7 +282,7 @@ function invalidDetectedJvmConfig(message: PanelMessage | string): DetectedJvmCo
   };
 }
 
-/** ZIP 预览只读取中央目录和受限的 user_jvm_args.txt，不解压完整安装包。 */
+/** A ZIP preview reads only the central directory and a size-limited user_jvm_args.txt, without extracting the full package. */
 export async function inspectZipJvmConfig(
   zipPath: string,
   signal: AbortSignal = new AbortController().signal,
@@ -311,7 +311,7 @@ export async function inspectZipJvmConfig(
   }
 }
 
-/** 流式解压 ZIP；只在内存中保留中央目录，不会把整个上传包读入内存。 */
+/** Stream-extracts a ZIP; only the central directory is kept in memory, and the whole upload is never read into memory. */
 export async function safeExtract(
   zipPath: string,
   destDir: string,
@@ -334,7 +334,7 @@ export async function safeExtract(
   }
 }
 
-/** 列出 ZIP 中所有非目录条目的规范化名称；只读中央目录，不解压数据。 */
+/** Lists the normalized names of all non-directory entries in a ZIP; reads only the central directory without extracting data. */
 export function listZipEntryNames(
   zipPath: string,
   signal: AbortSignal = new AbortController().signal,
@@ -345,7 +345,7 @@ export function listZipEntryNames(
     .map((entry) => entry.normalizedName);
 }
 
-/** 按规范化名称把单个条目解压到内存；只支持存储与 Deflate，解压结果超过 maxBytes 即中止。 */
+/** Extracts a single entry into memory by normalized name; only stored and Deflate are supported, and it aborts once the extracted result exceeds maxBytes. */
 export async function readZipEntryBuffer(
   zipPath: string,
   entryName: string,
@@ -356,10 +356,10 @@ export async function readZipEntryBuffer(
   throwIfAborted(signal);
   const entry = readZipEntries(zipPath, signal, maxArchiveBytes)
     .find((candidate) => !candidate.directory && candidate.normalizedName === entryName);
-  // 调用方给的条目不存在，按压缩包内容不符处理。
+  // The entry given by the caller does not exist; treated as the archive content not matching.
   if (!entry) throw new PanelError('server.files.zip.corrupted');
   if (entry.uncompressedSize > maxBytes) throw new PanelError('server.files.zip.tooLarge');
-  // 先拒绝不支持的压缩方式，再打开文件流，避免留下无人处理的异步错误。
+  // Reject unsupported compression methods first, then open the file stream, so no unhandled asynchronous error is left behind.
   if (entry.compression !== 0 && entry.compression !== 8) {
     throw new PanelError('server.files.zip.unsupportedCompression', { name: entry.name });
   }
@@ -370,7 +370,7 @@ export async function readZipEntryBuffer(
   const sink = new Writable({
     write(chunk: Buffer, _encoding, callback) {
       bytes += chunk.length;
-      // 不信任中央目录里的声明大小，按实际解压字节数再次限流。
+      // The declared size in the central directory is not trusted; the limit is applied again by the actual number of bytes extracted.
       if (bytes > maxBytes) {
         callback(new PanelError('server.files.zip.tooLarge'));
         return;

@@ -5,7 +5,7 @@ import { useI18n } from '../i18n';
 
 const GUIDE_KEY = 'mystry_multiplayer_guide';
 
-/** 指引栏开关只是本机浏览器的偏好；存储不可用（隐私模式等）时按默认展开处理。 */
+/** The guide column's open/closed state is only a preference in the local browser; when storage is unavailable (private mode, etc.) it is treated as expanded by default. */
 export function useGuideOpen() {
   const [open, setOpen] = useState(() => {
     try {
@@ -20,15 +20,15 @@ export function useGuideOpen() {
       if (next) localStorage.removeItem(GUIDE_KEY);
       else localStorage.setItem(GUIDE_KEY, 'closed');
     } catch {
-      // 记不住也不影响本次使用
+      // Failing to remember it does not affect this use
     }
   }
   return [open, change] as const;
 }
 
 /**
- * 页面最上面的总开关「对玩家开放这个实例」：点了立即保存，不再是「勾选 + 保存」两步。
- * checked 必须来自服务端状态，保存失败时开关自然回到原位。关闭时不显示状态，免得和开关重复。
+ * The master switch at the very top of the page, "Open this instance to players": it saves immediately on click, no longer the two steps of "check + save".
+ * checked must come from server state, so on a save failure the switch naturally returns to its place. No status is shown while off, to avoid repeating the switch.
  */
 export function OpenSwitch({
   checked,
@@ -71,10 +71,10 @@ export function OpenSwitch({
   );
 }
 
-/** 「让玩家加入」的步骤列表：编号是真实的先后顺序，每步一句话，操作按钮跟在那一步下面。 */
+/** The step list for "let players join": the numbering is the real order, one sentence per step, with the action button right under that step. */
 export function JoinSteps({ steps }: { steps: ReactNode[] }) {
   const { t } = useI18n();
-  // 只有一步（frp 公网端口）时不编号，一个「1」没有顺序可言。
+  // With only one step (frp public port) there is no numbering; a lone "1" has no order to speak of.
   if (steps.length === 1) {
     return (
       <section className="form-section">
@@ -98,7 +98,7 @@ export function JoinSteps({ steps }: { steps: ReactNode[] }) {
   );
 }
 
-/** 复制之类的结果就近显示在按钮下面，几秒后自己消失；手机上页面顶部的提示看不到。 */
+/** Results such as a copy are shown close by, below the button, and disappear on their own after a few seconds; on phones a notice at the top of the page would not be seen. */
 export function useFlash() {
   const [text, setText] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,12 +113,12 @@ export function useFlash() {
   return [text, show] as const;
 }
 
-/** 就近提示：没有内容时也保留空的 role="status"，读屏才会播报后来填进去的文字。 */
+/** Nearby notice: an empty role="status" is kept even with no content, so screen readers announce text filled in later. */
 export function FlashNote({ text }: { text: string }) {
   return <p className={text ? 'field-help' : 'visually-hidden'} role="status">{text}</p>;
 }
 
-/** 最后一步：玩家在 Minecraft 里连的地址；还没有地址（服务器没在运行）时只说什么时候会有。 */
+/** The last step: the address players connect to in Minecraft; when there is no address yet (the server is not running) it only says when there will be one. */
 export function JoinAddressStep({ address }: { address: string | null }) {
   const { t } = useI18n();
   const [flash, showFlash] = useFlash();
@@ -146,14 +146,14 @@ export function JoinAddressStep({ address }: { address: string | null }) {
 export interface GuideControl {
   open: boolean;
   onClose: () => void;
-  /** 重新打开指引时把焦点放回关闭按钮。 */
+  /** Puts focus back on the close button when the guide is reopened. */
   closeRef?: RefObject<HTMLButtonElement | null>;
 }
 
 /**
- * 联机三种方式共用的两栏：左边按「开关 → 让玩家加入 → 高级设置」排，右边是出问题时才看的指引（排查、模式说明）。
- * 指引栏沿用一键部署页的 deploy-layout / deploy-guide，≤1180px 时落到主栏下方；关闭后主栏占满。
- * 加入步骤和不做就一定连不上的前提（先启动服务器、Windows 管理员身份、密钥只发给玩家）留在主栏，不放这里。
+ * The two columns shared by the three multiplayer modes: the left is ordered "switch → let players join → advanced settings", and the right is the guide looked at only when something goes wrong (troubleshooting, mode notes).
+ * The guide column reuses deploy-layout / deploy-guide from the one-click deploy page, dropping below the main column at ≤1180px; when closed the main column takes the full width.
+ * The join steps and the prerequisites without which it can never connect (start the server first, run as Windows admin, give the secret only to players) stay in the main column, not here.
  */
 export function MultiplayerLayout({
   guide,

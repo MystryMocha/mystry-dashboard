@@ -148,7 +148,7 @@ export function deleteFrpEndpoint(id: string): void {
   let staleInstanceIds: string[] = [];
   db.exec('BEGIN IMMEDIATE');
   try {
-    // 只有仍在启用的隧道才算占用；已关闭的隧道行在前端没有删除入口，留着会让端点永远删不掉。
+    // Only tunnels that are still enabled count as in use; rows of disabled tunnels have no delete entry in the frontend, and keeping them would make the endpoint impossible to delete.
     const used = db.prepare(
       'SELECT COUNT(*) AS c FROM instance_tunnels WHERE endpoint_id = ? AND enabled = 1',
     ).get(id) as { c: number };
@@ -164,7 +164,7 @@ export function deleteFrpEndpoint(id: string): void {
     db.exec('ROLLBACK');
     throw error;
   }
-  // 文件系统不在事务内，提交成功后再清理这些已关闭隧道留下的配置和令牌文件。
+  // The filesystem is outside the transaction, so the config and token files left by these disabled tunnels are cleaned up after the commit succeeds.
   for (const instanceId of staleInstanceIds) removeTunnelDir(instanceId);
 }
 
@@ -259,7 +259,7 @@ export function renderInputForTunnel(instanceId: string, localPort: number): Frp
   };
 }
 
-/** 把令牌和 frpc 配置写到数据目录。配置正文不含令牌。 */
+/** Writes the token and frpc config to the data directory. The config body does not contain the token. */
 export function writeTunnelFiles(input: FrpcRenderInput, toml: string): void {
   const dir = tunnelWorkDir(input.instanceId);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -271,7 +271,7 @@ export function writeTunnelFiles(input: FrpcRenderInput, toml: string): void {
   forceSecureSensitiveFile(configPath);
 }
 
-/** 只删 DATA_DIR/frp/<instanceId> 目录，不动数据库。实例 ID 不合法时直接跳过。 */
+/** Deletes only the DATA_DIR/frp/<instanceId> directory, leaving the database alone. Skipped when the instance ID is invalid. */
 function removeTunnelDir(instanceId: string): void {
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(instanceId)) return;
   fs.rmSync(path.join(config.dataDir, 'frp', instanceId), { recursive: true, force: true });

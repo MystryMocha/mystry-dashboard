@@ -1,6 +1,6 @@
 import { SERVER_MESSAGES } from '@mystry/shared';
 
-/** 服务端返回的消息：英文模板以共享包为唯一来源，这里直接合并进英文主表。 */
+/** Messages returned by the server: the shared package is the single source of the English templates, which are merged straight into the English primary table here. */
 export default {
   ...SERVER_MESSAGES,
 } satisfies Record<string, string>;

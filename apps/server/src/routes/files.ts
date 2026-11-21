@@ -93,7 +93,7 @@ const serverPropertiesBodySchema = {
   additionalProperties: { type: 'string', maxLength: maxTextFileBytes },
 } as const;
 
-/** 还原会整体替换实例目录，期间拒绝所有改写类文件操作，避免改动落在即将被替换的旧目录里。 */
+/** A restore replaces the whole instance directory; all modifying file operations are rejected meanwhile, so changes do not land in the old directory that is about to be replaced. */
 function rejectWhileRestoring(instanceId: string): void {
   if (processManager.getMaintenance(instanceId) === 'server.backups.busyRestoring') {
     throw new PanelError('server.backups.busyRestoring', undefined, { statusCode: 409 });
@@ -104,7 +104,7 @@ function validationMessage(reply: { code: (statusCode: number) => { send: (paylo
   return reply.code(400).send(panelErrorBody(key));
 }
 
-/** 开流失败只透出「文件不存在 / 不是普通文件」，其余原因（含路径校验）统一为「文件打开失败」。 */
+/** A failure to open the stream only exposes "file does not exist / not a regular file"; all other causes (including path validation) are reported as "failed to open file". */
 function fileOpenErrorBody(err: unknown): ApiErrorBody {
   if (isPanelError(err)
     && (err.messageKey === 'server.files.fileNotFound' || err.messageKey === 'server.files.notRegularFile')) {
@@ -113,7 +113,7 @@ function fileOpenErrorBody(err: unknown): ApiErrorBody {
   return panelErrorBody('server.files.download.openFailed');
 }
 
-/** 仅用 basename，附带 RFC 5987 filename*，禁止路径注入。 */
+/** Uses the basename only, with an RFC 5987 filename* attached; path injection is not allowed. */
 function contentDispositionAttachment(fileName: string): string {
   const basename = path.basename(fileName);
   const asciiFallback = basename
@@ -157,8 +157,8 @@ export function waitForDownloadStreamOpen(stream: EventEmitter): Promise<void> {
 }
 
 /**
- * 流式发送文件：下载槽位与 ticket 状态在完成、失败、空闲超时或连接断开时各结算一次。
- * activeTicket 结算后被置空，调用方的 catch 据此判断是否还需标记失败。
+ * Streams a file: the download slot and ticket state are each settled once on completion, failure, idle timeout or disconnect.
+ * activeTicket is set to null after settling, and the caller's catch uses that to tell whether it still needs to mark a failure.
  */
 export async function sendFileStream(
   reply: FastifyReply,
@@ -174,7 +174,7 @@ export async function sendFileStream(
     try {
       reply.raw.setTimeout(0);
     } catch {
-      // 响应可能已经关闭。
+      // The response may already be closed.
     }
     reply.raw.off('finish', finishSuccess);
     reply.raw.off('close', onConnectionClosed);
@@ -203,7 +203,7 @@ export async function sendFileStream(
     releaseResources();
   }
   function onStreamError(error: Error): void {
-    // Node.js 流错误保留原文，无文本时使用可翻译的兜底消息。
+    // Node.js stream errors keep their original text; a translatable fallback message is used when there is no text.
     finishFailure(error.message || { key: 'server.files.download.readFailed' });
     if (responseStarted && !reply.raw.destroyed) {
       reply.raw.destroy();
@@ -255,7 +255,7 @@ export function cancelDownloadTicketRoute(
 }
 
 export async function fileRoutes(app: FastifyInstance): Promise<void> {
-  // 下载可用一次性 ticket 代替 JWT（浏览器原生导航无法带 Authorization）
+  // Downloads can use a one-time ticket instead of the JWT (native browser navigation cannot send Authorization)
   app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
     if (isDownloadRoute(req)) {
       const ticket = (req.query as { ticket?: string }).ticket;

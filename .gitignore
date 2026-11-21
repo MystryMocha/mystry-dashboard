@@ -14,6 +14,6 @@ release/
 /sbom.cdx.json
 *.tsbuildinfo
 
-# Linux / WSL 源码启动器运行数据与日志
+# Runtime data and logs of the Linux / WSL source launcher
 /config/
 /logs/

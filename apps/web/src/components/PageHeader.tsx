@@ -1,4 +1,4 @@
-/** 页面大标题区：左侧标题与说明，右侧放主要操作；窄屏时操作换到标题下方。 */
+/** Page title area: the title and description on the left, primary actions on the right; on narrow screens the actions move below the title. */
 export function PageHeader({
   title,
   subtitle,

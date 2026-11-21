@@ -7,7 +7,7 @@ import { PanelError, throwIfAborted } from '../utils/errors.js';
 export type ServerLaunchTarget = {
   value: string;
   coreType: CoreType;
-  /** 从启动文件名里认出的 Minecraft 版本；认不出时为 null。 */
+  /** Minecraft version recognized from the launch file name; null when unrecognized. */
   mcVersion: string | null;
 };
 
@@ -35,7 +35,7 @@ function isRegularFile(root: string, relativePath: string): boolean {
   }
 }
 
-/** 探测实例根目录中的普通 jar 文件，不接受 symlink/junction。 */
+/** Detects regular jar files in the instance root; symlinks/junctions are not accepted. */
 export function detectJarFile(dir: string): string | null {
   assertSafeInstanceRoot(dir);
   const preferred = ['server.jar', 'paper.jar', 'fabric-server-launch.jar', 'minecraft_server.jar'];
@@ -58,8 +58,8 @@ function modLoaderRelativeBase(kind: 'forge' | 'neoforge'): string {
 }
 
 /**
- * 异步、有界地查找 Forge/NeoForge args 启动文件。
- * 返回相对实例根目录的路径，并拒绝遍历 symlink/junction。
+ * Asynchronously finds the Forge/NeoForge args launch file within bounds.
+ * Returns a path relative to the instance root, and refuses to traverse symlinks/junctions.
  */
 export async function findModLoaderArgsFile(
   dir: string,
@@ -119,7 +119,7 @@ export async function findModLoaderArgsFile(
       if (entry.name.endsWith('_args.txt')) fallback.push(normalized);
     }
 
-    // 让出事件循环，避免长时间阻塞
+    // Yield to the event loop, to avoid blocking for a long time
     await new Promise<void>((resolve) => {
       setImmediate(resolve);
     });
@@ -139,15 +139,15 @@ function inferJarCoreType(jarFile: string): CoreType {
 }
 
 /**
- * 「1.7」到「1.21.x」样式的版本号。前面不能紧挨数字或「数字.」，后面不能再跟数字段，
- * 这样 Forge 自己的版本号（14.23.5.2860）和 NeoForge 的（21.1.77）不会被当成 Minecraft 版本。
+ * Version numbers in the "1.7" to "1.21.x" style. It must not be immediately preceded by a digit or "digit.", nor followed by another numeric segment,
+ * so Forge's own version numbers (14.23.5.2860) and NeoForge's (21.1.77) are not taken as Minecraft versions.
  */
 const MC_VERSION_IN_NAME_RE = /(?<!\d)(?<!\d\.)1\.(\d{1,2})(?:\.\d{1,2})?(?!\.?\d)/;
 
 /**
- * 从启动文件名（如 forge-1.12.2-14.23.5.2860.jar、minecraft_server.1.12.2.jar，
- * 或 Forge args 文件所在的 1.20.1-47.2.0 目录）里认 Minecraft 版本。
- * 只在核心类型已认出时才用：自定义 jar 名字里的数字不一定是游戏版本。
+ * Recognizes the Minecraft version from a launch file name (such as forge-1.12.2-14.23.5.2860.jar or minecraft_server.1.12.2.jar,
+ * or the 1.20.1-47.2.0 directory holding a Forge args file).
+ * Used only when the core type is already recognized: numbers in a custom jar name are not necessarily the game version.
  */
 export function inferMcVersionFromLaunchTarget(target: string, coreType: CoreType): string | null {
   if (coreType === 'custom' || coreType === 'neoforge') return null;
@@ -161,17 +161,17 @@ function launchTarget(value: string, coreType: CoreType): ServerLaunchTarget {
   return { value, coreType, mcVersion: inferMcVersionFromLaunchTarget(value, coreType) };
 }
 
-/** 根目录里已找到的 jar 属于哪种核心、哪个版本。 */
+/** Which core and version the jar found in the root belongs to. */
 export function describeJarLaunchTarget(jarFile: string): ServerLaunchTarget {
   return launchTarget(jarFile, inferJarCoreType(jarFile));
 }
 
-/** 导入表单的「自动识别 / 自定义」提交的是 custom：有识别结果时以识别结果为准。 */
+/** "Auto-detect / Custom" in the import form submits custom: when there is a detection result, it wins. */
 export function resolveImportedCoreType(requested: CoreType | undefined, detected: CoreType): CoreType {
   return requested && requested !== 'custom' ? requested : detected;
 }
 
-/** 自动识别普通 jar 或现代 Forge/NeoForge args 启动目标。 */
+/** Auto-detects a regular jar or a modern Forge/NeoForge args launch target. */
 export async function detectServerLaunchTarget(
   dir: string,
   budget: ModLoaderScanBudget,

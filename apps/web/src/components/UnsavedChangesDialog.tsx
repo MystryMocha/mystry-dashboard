@@ -2,7 +2,7 @@ import type { Blocker } from 'react-router-dom';
 import { useI18n } from '../i18n';
 import { ConfirmDialog } from './ConfirmDialog';
 
-/** 配合 useUnsavedGuard：导航被拦下时询问是否放弃修改；保存期间只提示等待。 */
+/** Works with useUnsavedGuard: asks whether to discard changes when a navigation is blocked; during a save it only says to wait. */
 export function UnsavedChangesDialog({
   blocker,
   saving,
@@ -12,9 +12,9 @@ export function UnsavedChangesDialog({
 }: {
   blocker: Blocker;
   saving: boolean;
-  /** 询问是否放弃的标题，如「放弃未保存的设置修改？」；整句由调用方传入，便于各语言调整语序。 */
+  /** The title asking whether to discard, such as "Discard unsaved settings changes?"; the whole sentence is passed in by the caller, so each language can adjust word order. */
   title: string;
-  /** 保存期间的标题，如「正在保存设置…」。 */
+  /** The title during a save, such as "Saving settings…". */
   savingTitle: string;
   description: string;
 }) {

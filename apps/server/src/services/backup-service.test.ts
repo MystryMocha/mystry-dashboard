@@ -1,6 +1,6 @@
 /**
- * 实例备份与还原回归：停服备份、运行中备份（save-off/flush/save-on）、还原覆盖与自动备份、
- * 维护期间互斥、上传校验与崩溃后的换目录恢复。
+ * Instance backup and restore regression: backup while stopped, backup while running (save-off/flush/save-on), restore overwrite and automatic backup,
+ * mutual exclusion during maintenance, upload verification, and directory swap recovery after a crash.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -34,7 +34,7 @@ const hasKey = (key: string) => (error: unknown) =>
 let dbReady = false;
 
 async function setup() {
-  // initDb 每调用一次都会打开新连接，旧连接不会关闭；Windows 上会占住 panel.db 导致清理失败。
+  // Every initDb call opens a new connection and the old one is not closed; on Windows that keeps panel.db held and makes cleanup fail.
   if (!dbReady) {
     const { initDb } = await import('../db.js');
     initDb();
@@ -48,7 +48,7 @@ async function setup() {
   fs.mkdirSync(path.join(dir, 'world', 'region'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'world', 'level.dat'), 'level-v1');
   fs.writeFileSync(path.join(dir, 'world', 'region', 'r.0.0.mca'), Buffer.alloc(4096, 1));
-  // 运行中被 JVM 锁住的文件：不应进入备份（fileCount 仍为 3）。
+  // A file locked by the JVM while running: it should not go into the backup (fileCount is still 3).
   fs.writeFileSync(path.join(dir, 'world', 'session.lock'), '☃');
   return { id: info.id, dir };
 }
@@ -96,7 +96,7 @@ test('停服备份后还原：覆盖文件、删除新增文件、保留归属�
   const preRestore = backups.find((item) => item.source === 'pre-restore');
   assert.ok(preRestore, '应自动生成还原前备份');
 
-  // 还原前备份里应是被覆盖前的内容。
+  // The pre-restore backup should contain the content from before it was overwritten.
   const undo = await waitForTask(await startRestoreTask(id, preRestore.id, { backupCurrent: false }));
   assert.equal(undo.status, 'completed', undo.error);
   assert.equal(fs.readFileSync(path.join(dir, 'world', 'level.dat'), 'utf8'), 'level-v2');
@@ -128,7 +128,7 @@ test('运行中的服务器先暂停自动保存并刷盘，打包后恢复自�
   const { id, dir } = await setup();
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-fake-java-'));
   const log = path.join(bin, 'commands.log');
-  // 假 java：回显启动信息，收到 save-all flush 时输出保存完成提示，收到 stop 时退出。
+  // Fake java: echoes startup info, prints the save-complete notice on save-all flush, and exits on stop.
   fs.writeFileSync(
     path.join(bin, 'java'),
     [
@@ -137,7 +137,7 @@ test('运行中的服务器先暂停自动保存并刷盘，打包后恢复自�
       'while IFS= read -r line; do',
       `  echo "$line" >> '${log}'`,
       '  case "$line" in',
-      // 先输出一条伪造的聊天，再输出真正的保存日志：只有后者算保存完成。
+      // Print a forged chat line first, then the real save log: only the latter counts as save complete.
       '    "save-all flush") echo "[00:00:00] [Server thread/INFO]: <Steve> Saved the game"; echo "[00:00:01] [Server thread/INFO]: Saved the game" ;;',
       '    stop) exit 0 ;;',
       '  esac',
@@ -249,7 +249,7 @@ test('还原后实例记录的启动文件、核心类型与版本跟随备份',
   const done = await waitForTask(await startBackupTask(id));
   assert.equal(done.status, 'completed', done.error);
 
-  // 模拟备份之后升级了服务端：换了 jar，记录也随之改变。
+  // Simulates upgrading the server after the backup: the jar was replaced and the record changed with it.
   fs.rmSync(path.join(dir, 'server.jar'));
   fs.writeFileSync(path.join(dir, 'server-1.21.jar'), 'new-jar');
   updateInstanceServerFiles(id, { jarFile: 'server-1.21.jar', coreType: 'paper', mcVersion: '1.21' });
@@ -268,7 +268,7 @@ test('清单里的启动文件不在备份中时保留实例记录', async () =>
   const { id, dir } = await setup();
   const { getInstanceRow, updateInstanceServerFiles } = await import('./instance-service.js');
   const { startBackupTask, startRestoreTask } = await import('./backup-service.js');
-  // 备份时记录指向一个不存在的 jar：还原后不应把记录改成它。
+  // At backup time the record points at a jar that does not exist: after restore the record should not be changed to it.
   updateInstanceServerFiles(id, { jarFile: 'missing.jar', coreType: 'custom', mcVersion: null });
   const done = await waitForTask(await startBackupTask(id));
   assert.equal(done.status, 'completed', done.error);
@@ -300,7 +300,7 @@ test('删除备份不留下文件；删除实例备份目录会清掉全部备�
 
   deleteInstanceBackups(id);
   assert.equal(fs.existsSync(dir), false);
-  // 再删一次（目录已不存在）不报错。
+  // Deleting once more (the directory no longer exists) does not throw.
   deleteInstanceBackups(id);
 });
 

@@ -21,7 +21,7 @@ function isWithin(root: string, target: string): boolean {
 }
 
 /**
- * 校验实例根目录本身及其父路径没有 symlink/junction。realpath 比单纯 lstat 更能识别 Windows junction。
+ * Verifies that neither the instance root itself nor its parent path contains a symlink/junction. realpath detects Windows junctions better than lstat alone.
  */
 export function assertSafeInstanceRoot(instanceRoot: string): string {
   const root = path.resolve(instanceRoot);
@@ -37,7 +37,7 @@ export function assertSafeInstanceRoot(instanceRoot: string): string {
   return root;
 }
 
-/** 在创建目录前检查最近的已存在父目录，避免 mkdir 通过 dangling symlink/junction 逃逸。 */
+/** Checks the nearest existing parent directory before creating a directory, so mkdir cannot escape through a dangling symlink/junction. */
 export function assertSafeDirectoryPath(targetPath: string): void {
   let probe = path.resolve(targetPath);
   while (true) {
@@ -80,7 +80,7 @@ function assertNoSymlinkTraversal(root: string, target: string): void {
 }
 
 /**
- * 将相对路径安全解析到实例根目录内，防止路径逃逸。
+ * Safely resolves a relative path inside the instance root, preventing path escape.
  */
 export function resolveSafePath(instanceRoot: string, relativePath = ''): string {
   const root = path.resolve(instanceRoot);
@@ -94,7 +94,7 @@ export function resolveSafePath(instanceRoot: string, relativePath = ''): string
   return target;
 }
 
-/** 默认安装目录：data/instances/<id> */
+/** Default install directory: data/instances/<id> */
 export function defaultInstanceDir(instanceId: string): string {
   if (!/^[A-Za-z0-9_-]{1,100}$/.test(instanceId)) {
     throw new PanelError('server.files.instanceIdInvalid');
@@ -115,7 +115,7 @@ export function getInstanceDir(instanceId: string): string {
   return assertSafeInstanceRoot(defaultInstanceDir(instanceId));
 }
 
-/** 在已知 row 时解析目录，避免重复查库 */
+/** Resolves the directory when the row is already known, avoiding another database query */
 export function resolveDirFromRow(row: {
   id: string;
   install_path: string | null;
@@ -145,7 +145,7 @@ export type OwnershipMarkerInspection = {
   marker: string | null;
 };
 
-/** 检查固定托管目录中的 marker，并区分不存在与内容无效。 */
+/** Checks the marker in the fixed managed directory, telling a missing one from invalid content. */
 export function inspectOwnershipMarker(
   instanceId: string,
   instanceRoot: string,
@@ -186,7 +186,7 @@ export function inspectOwnershipMarker(
   }
 }
 
-/** 读取并校验固定托管目录中的 ownership marker。 */
+/** Reads and validates the ownership marker in the fixed managed directory. */
 export function readOwnershipMarker(instanceId: string, instanceRoot: string): string | null {
   try {
     return inspectOwnershipMarker(instanceId, instanceRoot).marker;
@@ -203,7 +203,7 @@ export function hasValidOwnershipMarker(
   return readOwnershipMarker(row.id, root) === row.ownership_marker;
 }
 
-/** 仅删除仍与本次写入值完全匹配的 marker，避免误删其它 marker。 */
+/** Deletes the marker only if it still exactly matches the value written this time, so other markers are not removed by mistake. */
 export function removeOwnershipMarker(
   instanceId: string,
   instanceRoot: string,

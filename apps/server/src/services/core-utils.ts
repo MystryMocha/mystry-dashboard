@@ -1,17 +1,17 @@
 import type { ServerMessageKey } from '@mystry/shared';
 import { abortError, PanelError } from '../utils/errors.js';
 
-/** PaperMC 要求 User-Agent 标明软件名与联系方式 */
+/** PaperMC requires the User-Agent to state the software name and contact info */
 export const USER_AGENT = 'MinecraftMystryDashboard/0.2 (+https://github.com/MystryMocha/mystry-dashboard)';
 
 export type TimeoutAbort = {
   signal: AbortSignal;
-  /** 请求失败时应抛出的错误：依次检查父信号取消、超时、本控制器中止，都不是时原样返回。 */
+  /** The error to throw when a request fails: checks parent signal cancellation, timeout and this controller's abort in turn, and returns the original when it is none of them. */
   errorFor(error: unknown): unknown;
   dispose(): void;
 };
 
-/** 同时受父信号和超时控制的中止器，用于核心下载和元数据请求；超时原因为可翻译的 PanelError。 */
+/** An aborter controlled by both the parent signal and a timeout, used for core downloads and metadata requests; the timeout reason is a translatable PanelError. */
 export function createTimeoutAbort(
   parent: AbortSignal | undefined,
   timeoutMs: number,

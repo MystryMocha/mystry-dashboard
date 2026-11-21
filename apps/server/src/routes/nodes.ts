@@ -16,8 +16,8 @@ import { sendRouteError } from '../http-errors.js';
 import { panelErrorBody } from '../utils/errors.js';
 
 /**
- * 节点管理 API。面板启动时会创建或保留内置本机节点 `local`；
- * 远程 Agent 尚未实现，REMOTE_NODE_CREATION_ENABLED 为 false 时拒绝创建远程节点。
+ * Node management API. At startup the panel creates or keeps the built-in local node `local`;
+ * the remote Agent is not implemented yet, and creating remote nodes is rejected while REMOTE_NODE_CREATION_ENABLED is false.
  */
 export async function nodeRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);

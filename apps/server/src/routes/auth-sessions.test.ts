@@ -1,6 +1,6 @@
 /**
- * 会话失效回归：修改密码和本机重置密码后，此前签发的 JWT、未使用的控制台 / 下载 ticket
- * 以及已打开的控制台连接立即失效；旧版 users 表（无令牌版本列）启动时兼容升级。
+ * Session invalidation regression: after a password change or a local password reset, previously issued JWTs, unused console / download tickets
+ * and open console connections are invalidated immediately; a legacy users table (without the token version column) is upgraded compatibly at startup.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -19,7 +19,7 @@ test('修改或重置密码后旧令牌、ticket 和控制台连接立即失效'
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-auth-sessions-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;
 
-  // 0.2.0-preview.3 及更早的 users 表没有 token_version，且已有一个管理员。
+  // The users table in 0.2.0-preview.3 and earlier has no token_version and already contains one admin.
   const legacyDb = new DatabaseSync(path.join(dataRoot, 'panel.db'));
   legacyDb.exec(`
     CREATE TABLE users (
@@ -50,7 +50,7 @@ test('修改或重置密码后旧令牌、ticket 和控制台连接立即失效'
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
 
-  // 兼容升级：补列且已有用户从版本 0 开始，原有密码不受影响。
+  // Compatible upgrade: the column is added and existing users start at version 0; the existing password is unaffected.
   const userColumns = getDb().prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
   assert.ok(userColumns.some((column) => column.name === 'token_version'));
   const migrated = getDb().prepare('SELECT token_version FROM users WHERE id = ?').get('legacy-admin') as {
@@ -73,7 +73,7 @@ test('修改或重置密码后旧令牌、ticket 和控制台连接立即失效'
     return response.json<{ token: string }>().token;
   };
 
-  // 升级前签发的令牌不带版本号，按版本 0 继续可用。
+  // Tokens issued before the upgrade carry no version number and keep working as version 0.
   const legacyToken = app.jwt.sign({ id: 'legacy-admin', username: 'admin' });
   assert.equal((await me(legacyToken)).statusCode, 200);
 
@@ -91,7 +91,7 @@ test('修改或重置密码后旧令牌、ticket 和控制台连接立即失效'
   assert.equal(created.statusCode, 200);
   const instanceId = created.json<{ id: string }>().id;
 
-  // 旧登录打开的控制台连接。
+  // A console connection opened by the old sign-in.
   const openTicket = await app.inject({
     method: 'POST',
     url: `/api/instances/${instanceId}/console-ticket`,
@@ -112,12 +112,12 @@ test('修改或重置密码后旧令牌、ticket 和控制台连接立即失效'
   });
   await historyReceived;
 
-  // 旧登录签发但还没用掉的 ticket。
+  // A ticket issued by the old sign-in that has not been used yet.
   const userId = 'legacy-admin';
   const pendingConsoleTicket = issueConsoleTicket(userId, instanceId).ticket;
   const reservedDownload = reserveDownloadTicket(userId, instanceId, 'server.properties', () => {}).ticket;
 
-  // 改密失败不应让任何令牌失效。
+  // A failed password change must not invalidate any token.
   const wrongCurrent = await app.inject({
     method: 'POST',
     url: '/api/auth/password',
@@ -139,7 +139,7 @@ test('修改或重置密码后旧令牌、ticket 和控制台连接立即失效'
   assert.deepEqual(changeResult.user, { id: userId, username: 'admin' });
   assert.equal(app.jwt.decode<{ tv: number }>(changeResult.token)?.tv, 1);
 
-  // 发起修改的会话换发新令牌继续可用；包括它自己在内的旧令牌全部失效。
+  // The session that made the change continues with a reissued token; all old tokens, including its own, are invalidated.
   assert.equal((await me(changeResult.token)).statusCode, 200);
   for (const stale of [sessionA, sessionB, legacyToken]) {
     const response = await me(stale);
@@ -157,7 +157,7 @@ test('修改或重置密码后旧令牌、ticket 和控制台连接立即失效'
   assert.equal(consumeConsoleTicket(pendingConsoleTicket, instanceId), null);
   assert.equal(getDownloadTicketStatus(reservedDownload, userId)?.status, 'failed');
 
-  // 本机重置密码同样让此前的令牌失效。
+  // A local password reset likewise invalidates earlier tokens.
   const sessionC = await login('changed-password');
   const reset = await app.inject({
     method: 'POST',
@@ -174,7 +174,7 @@ test('修改或重置密码后旧令牌、ticket 和控制台连接立即失效'
   assert.equal(app.jwt.decode<{ tv: number }>(afterReset)?.tv, 2);
   assert.equal((await me(afterReset)).statusCode, 200);
 
-  // 用户被删除后，签名仍有效的令牌也必须拒绝。
+  // After the user is deleted, a token whose signature is still valid must be rejected as well.
   getDb().prepare('DELETE FROM users WHERE id = ?').run(userId);
   assert.equal((await me(afterReset)).statusCode, 401);
 });

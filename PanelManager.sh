@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Linux / WSL 源码管理入口：依赖与构建完成后交给 mystryctl 处理安全生命周期。
+# Linux / WSL source management entry: once dependencies and the build are done, the safe lifecycle is handed to mystryctl.
 set -euo pipefail
 
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 CONTROLLER="$PROJECT_ROOT/scripts/portable/mystryctl.mjs"
 NPM_MIRROR_SCRIPT="$PROJECT_ROOT/scripts/npm-mirror.mjs"
 
-# 界面语言：MYSTRY_LANG 优先，其次 LC_ALL / LC_MESSAGES / LANG；中文环境用中文，其余一律英文。
-# C / POSIX 表示没有设置语言，继续看下一项。结果写回 MYSTRY_LANG，让 mystryctl 用同一种语言。
+# UI language: MYSTRY_LANG first, then LC_ALL / LC_MESSAGES / LANG; Chinese in a Chinese environment, English for everything else.
+# C / POSIX means no language is set, so move on to the next item. The result is written back to MYSTRY_LANG, so mystryctl uses the same language.
 detect_chinese() {
   for value in "${MYSTRY_LANG:-}" "${LC_ALL:-}" "${LC_MESSAGES:-}" "${LANG:-}"; do
     case "$value" in
@@ -27,7 +27,7 @@ else
   export MYSTRY_LANG=en-US
 fi
 
-# 按界面语言二选一。
+# Picks one of two by UI language.
 text() {
   if [ "$chinese" = 1 ]; then printf '%s' "$1"; else printf '%s' "$2"; fi
 }
@@ -43,7 +43,7 @@ if [ "$(uname -s)" != 'Linux' ]; then
   fail "$(text 'PanelManager.sh 仅支持 Linux / WSL；Windows 请使用 PanelManager.cmd。' 'PanelManager.sh supports Linux / WSL only. On Windows, use PanelManager.cmd.')"
 fi
 
-# WSL 可能继承 Windows 临时目录；优先使用具有 Unix 权限语义的 /tmp。
+# WSL may inherit the Windows temp directory; prefer /tmp, which has Unix permission semantics.
 if [ -z "${TMPDIR:-}" ] || [[ "$TMPDIR" == /mnt/* ]]; then
   export TMPDIR=/tmp
 fi
@@ -66,14 +66,14 @@ if [ ! -f "$CONTROLLER" ]; then
   fail "$(text '找不到生命周期控制器：' 'Lifecycle controller not found: ')$CONTROLLER"
 fi
 
-# 只有两个命令带参数：mirror <名称或编号>，remote <子命令> [参数]（如 remote on、remote https off）。
+# Only two commands take arguments: mirror <name or number>, remote <subcommand> [arguments] (such as remote on, remote https off).
 if [ "$#" -gt 1 ] && [ "$1" = remote ]; then
   [ "$#" -le 3 ] || fail "$(text 'remote 最多带两个参数。' 'remote takes at most two arguments.')"
 elif [ "$#" -gt 1 ] && { [ "$#" -gt 2 ] || [ "$1" != mirror ]; }; then
   fail "$(text '每次只能指定一个命令；' 'Specify one command at a time. ')$commands_hint"
 fi
 
-# 传入 force 时不管锁文件有没有变化，都重新安装依赖。
+# When force is passed, dependencies are reinstalled whether or not the lockfile changed.
 ensure_dependencies() {
   if ! command -v npm >/dev/null 2>&1; then
     fail "$(text '未找到 npm。请修复 Node.js 22 或更高版本的安装。' 'npm was not found. Repair your Node.js 22+ installation.')"
@@ -83,7 +83,7 @@ ensure_dependencies() {
     || [ ! -d "$PROJECT_ROOT/node_modules" ] \
     || [ ! -f "$PROJECT_ROOT/node_modules/.package-lock.json" ] \
     || [ "$PROJECT_ROOT/package-lock.json" -nt "$PROJECT_ROOT/node_modules/.package-lock.json" ]; then
-    # 跟随 npm 自身配置时脚本不输出地址，这里也就不加 --registry。
+    # When following npm's own config the script outputs no URL, so no --registry is added here either.
     local registry
     registry="$(node "$NPM_MIRROR_SCRIPT" registry)" || exit 1
     printf '%s\n' "$(text '正在根据 package-lock.json 安装依赖…' 'Installing dependencies from package-lock.json…')"
@@ -114,7 +114,7 @@ run_controller() {
   exec node --no-warnings --experimental-sqlite "$CONTROLLER" "$@"
 }
 
-# 和 run_controller 一样，但执行完会回到脚本，rebuild 停止面板后还要继续。
+# Same as run_controller, but returns to the script after running, since rebuild has more to do after stopping the panel.
 call_controller() {
   (
     cd "$PROJECT_ROOT"
@@ -139,7 +139,7 @@ case "$command" in
     run_controller "$command"
     ;;
   remote)
-    # 开关「从其他设备访问」：子命令和参数原样交给控制器。
+    # Toggle "access from other devices": the subcommand and arguments are passed to the controller as is.
     run_controller "$@"
     ;;
   mirror)

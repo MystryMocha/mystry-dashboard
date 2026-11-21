@@ -6,16 +6,16 @@ import { getPublicHost } from './public-host.js';
 
 type InterfaceMap = NodeJS.Dict<os.NetworkInterfaceInfo[]>;
 
-/** server-ip 取这些值时，游戏在这台电脑的所有地址上都接受连接。 */
+/** With server-ip set to one of these values, the game accepts connections on all of this computer's addresses. */
 const OPEN_BINDS = new Set(['', '0.0.0.0', '*', '::', '::0']);
-/** 最多返回的地址数；装了很多虚拟网卡的电脑不会把页面撑满。 */
+/** Maximum number of addresses returned; a computer with many virtual interfaces does not fill the page. */
 const MAX_ADDRESSES = 6;
-/** server-ip 取这些值时，游戏同时接受 IPv6 连接；0.0.0.0 只接受 IPv4。 */
+/** With server-ip set to one of these values, the game also accepts IPv6 connections; 0.0.0.0 accepts IPv4 only. */
 const DUAL_STACK_BINDS = new Set(['', '*', '::', '::0']);
-/** 最多返回的公网 IPv6 地址数；系统常同时有一个固定地址和几个临时地址。 */
+/** Maximum number of public IPv6 addresses returned; a system often has one stable address and several temporary ones at once. */
 const MAX_IPV6_ADDRESSES = 3;
 
-/** 家用路由器最常见的网段排前面，方便用户认出该发哪一个。 */
+/** The subnets most common on home routers come first, so users can tell which one to send. */
 function addressRank(address: string): number {
   if (address.startsWith('192.168.')) return 0;
   if (address.startsWith('10.')) return 1;
@@ -23,18 +23,18 @@ function addressRank(address: string): number {
   return 3;
 }
 
-/** 虚拟机、容器、WSL 和代理软件建的网卡：朋友的电脑到不了这些地址。 */
+/** Interfaces created by VMs, containers, WSL and proxy software: a friend's computer cannot reach these addresses. */
 const VIRTUAL_INTERFACE_RE = /vEthernet|WSL|Hyper-V|VMware|VirtualBox|vboxnet|docker|^br-|^veth|^virbr|Tailscale|ZeroTier|EasyTier|WireGuard|TAP-|^tun|^tap|^utun|Mihomo|Clash|Loopback/i;
 
-/** 运营商级 NAT（100.64.0.0/10，组网软件常用）和测试网段（198.18.0.0/15，代理软件的虚拟网卡常用）。 */
+/** Carrier-grade NAT (100.64.0.0/10, commonly used by virtual networking software) and the benchmarking range (198.18.0.0/15, commonly used by proxy software's virtual interfaces). */
 function isOverlayAddress(address: string): boolean {
   const [first, second] = address.split('.').map(Number);
   return (first === 100 && second >= 64 && second <= 127) || (first === 198 && (second === 18 || second === 19));
 }
 
 /**
- * 这台电脑可供同一网络访问的 IPv4 地址：去掉回环、拿不到路由器地址时的链路本地地址，
- * 以及能认出的虚拟网卡。全被当成虚拟网卡时退回不过滤的结果，宁可多列也不留空。
+ * This computer's IPv4 addresses reachable from the same network: excluding loopback, link-local addresses from when no router address could be obtained,
+ * and recognizable virtual interfaces. When everything is classified as virtual, fall back to the unfiltered result; listing too many is better than listing nothing.
  */
 export function listLanAddresses(interfaces: InterfaceMap = os.networkInterfaces()): string[] {
   const physical = new Set<string>();
@@ -53,22 +53,22 @@ export function listLanAddresses(interfaces: InterfaceMap = os.networkInterfaces
     .slice(0, MAX_ADDRESSES);
 }
 
-// ---- 网卡分类：只用于默认值、排序和界面说明，不用来禁止选择 ----
+// ---- Interface classification: used only for defaults, ordering and UI hints, never to forbid a choice ----
 
-/** 面板为实例联机建的虚拟网卡（lan-config.ts 的 dev_name）。 */
+/** The virtual interface the panel creates for instance multiplayer (dev_name in lan-config.ts). */
 const INSTANCE_NETWORK_INTERFACE_RE = /^mystry\d+$/i;
-/** 代理软件 TUN 模式的虚拟网卡。 */
+/** Virtual interfaces of proxy software in TUN mode. */
 const PROXY_INTERFACE_RE = /Clash|Mihomo/i;
-/** 组网软件的网卡；Linux 上 tailscale0、zt*、wg* 不以 tun / tap 开头，要单独匹配。 */
+/** Interfaces of virtual networking software; on Linux tailscale0, zt* and wg* do not start with tun / tap and need to be matched separately. */
 const OVERLAY_INTERFACE_RE = /Tailscale|ZeroTier|EasyTier|WireGuard|^zt|^wg\d/i;
-/** 虚拟机、容器和其他隧道网卡。 */
+/** VM, container and other tunnel interfaces. */
 const VM_INTERFACE_RE = /vEthernet|WSL|Hyper-V|VMware|VirtualBox|vboxnet|docker|^br-|^veth|^virbr|TAP-|^tun|^tap|^utun|Loopback/i;
 
 function ipv4Octets(address: string): number[] {
   return address.split('.').map(Number);
 }
 
-/** 运营商级 NAT 网段 100.64.0.0/10，组网软件常用。 */
+/** Carrier-grade NAT range 100.64.0.0/10, commonly used by virtual networking software. */
 export function isCgnatAddress(address: string): boolean {
   const [first, second] = ipv4Octets(address);
   return first === 100 && second! >= 64 && second! <= 127;
@@ -80,7 +80,7 @@ function isPrivateIpv4(address: string): boolean {
 }
 
 /**
- * 先按网卡名、再按地址判断：用公网段地址的组网软件要靠网卡名认出来，不能先被地址判成公网。
+ * Decides by interface name first, then by address: virtual networking software using public-range addresses has to be recognized by interface name, and must not be classified as public by address first.
  */
 export function classifyNetworkInterface(name: string, address: string): NetworkInterfaceKind {
   const [first, second] = ipv4Octets(address);
@@ -91,7 +91,7 @@ export function classifyNetworkInterface(name: string, address: string): Network
   return isPrivateIpv4(address) ? 'lan' : 'public';
 }
 
-/** 这台电脑上所有非回环 IPv4 地址及其分类，按系统给出的顺序。 */
+/** All non-loopback IPv4 addresses on this computer with their classification, in the order the system gives them. */
 export function listNetworkInterfaces(interfaces: InterfaceMap = os.networkInterfaces()): PanelNetworkInterface[] {
   const found: PanelNetworkInterface[] = [];
   const seen = new Set<string>();
@@ -107,7 +107,7 @@ export function listNetworkInterfaces(interfaces: InterfaceMap = os.networkInter
   return found;
 }
 
-/** 网址的显示顺序：局域网（192.168 → 10 → 172.16–31）→ 用户填的公网地址 → 网卡上的公网地址 → 组网 → 其余。 */
+/** Display order of URLs: LAN (192.168 → 10 → 172.16–31) → public address entered by the user → public addresses on interfaces → overlay → the rest. */
 export function networkKindRank(kind: NetworkInterfaceKind | 'publicHost', address = ''): number {
   switch (kind) {
     case 'lan': return addressRank(address);
@@ -120,7 +120,7 @@ export function networkKindRank(kind: NetworkInterfaceKind | 'publicHost', addre
   }
 }
 
-/** 公网单播地址 2000::/3，去掉 6to4（2002::/16）、Teredo（2001::/32）和文档示例段（2001:db8::/32）。 */
+/** Public unicast addresses 2000::/3, excluding 6to4 (2002::/16), Teredo (2001::/32) and the documentation range (2001:db8::/32). */
 function isPublicIpv6(address: string): boolean {
   const groups = address.toLowerCase().split(':');
   const first = Number.parseInt(groups[0] || '0', 16);
@@ -131,8 +131,8 @@ function isPublicIpv6(address: string): boolean {
 }
 
 /**
- * 这台电脑的公网 IPv6 地址。虚拟网卡上的不算，也不做「宁可多列」的回退：
- * 列错了朋友只会白试一次，不如不列。
+ * This computer's public IPv6 addresses. Those on virtual interfaces do not count, and there is no "better too many" fallback:
+ * a wrong entry only makes a friend try once for nothing, so it is better not to list it.
  */
 export function listPublicIpv6Addresses(interfaces: InterfaceMap = os.networkInterfaces()): string[] {
   const found = new Set<string>();
@@ -146,7 +146,7 @@ export function listPublicIpv6Addresses(interfaces: InterfaceMap = os.networkInt
   return [...found].slice(0, MAX_IPV6_ADDRESSES);
 }
 
-/** 只读地给出直连要用的地址和端口，不改任何配置，也不启动进程。 */
+/** Gives the addresses and port needed for a direct connection, read-only: no config is changed and no process is started. */
 export function describeLocalNetwork(
   instanceId: string,
   interfaces: InterfaceMap = os.networkInterfaces(),
@@ -165,7 +165,7 @@ export function describeLocalNetwork(
     return { ...base, port: null, addresses: [], publicIpv4: [], publicIpv6: [], serverIpBlocked: false };
   }
   const port = gamePortFromProperties(properties);
-  // 按网卡分类拆开：公网地址单独列出，实例自己的联机网卡不算「同一网络」的地址。
+  // Split by interface classification: public addresses are listed separately, and the instance's own multiplayer interface does not count as a "same network" address.
   const kinds = new Map(listNetworkInterfaces(interfaces).map((entry) => [entry.address, entry.kind]));
   const listed = listLanAddresses(interfaces);
   const addresses = listed.filter((address) => kinds.get(address) !== 'public' && kinds.get(address) !== 'instanceNetwork');
@@ -175,7 +175,7 @@ export function describeLocalNetwork(
     const publicIpv6 = DUAL_STACK_BINDS.has(serverIp) ? listPublicIpv6Addresses(interfaces) : [];
     return { ...base, port, addresses, publicIpv4, publicIpv6, serverIpBlocked: false };
   }
-  // server-ip 写的是本机某个地址时，朋友只能连这一个；写的是网卡上的公网地址（VPS）同样算正常。
+  // When server-ip is one of this machine's addresses, friends can connect only to that one; a public address on an interface (VPS) counts as normal too.
   if (addresses.includes(serverIp)) {
     return { ...base, port, addresses: [serverIp], publicIpv4: [], publicIpv6: [], serverIpBlocked: false };
   }
@@ -189,7 +189,7 @@ export function describeLocalNetwork(
     publicIpv4: [],
     publicIpv6: [],
     serverIpBlocked: true,
-    // 云服务器的网卡上没有公网 IP，游戏服务端绑不上这个地址。
+    // A cloud server's interface has no public IP, so the game server cannot bind to this address.
     serverIpIsUnboundPublicHost: publicHost !== null && serverIp.toLowerCase() === publicHost,
   };
 }

@@ -1,8 +1,8 @@
-# 第三方 Actions 固定 SHA：见 .github/actions-pins.md（审查日期 2026-08-07）
+# Third-party Actions pinned by SHA: see .github/actions-pins.md (reviewed 2026-08-07)
 name: Quality Gate
 
-# 质量门禁改在本机运行：npm run ci:local（Windows 用 npm.cmd run ci:local），见 docs/ai/decisions.md D-032。
-# 这里不再随推送和 PR 自动触发，只保留手动运行。
+# The quality gate now runs locally: npm run ci:local (npm.cmd run ci:local on Windows), see D-032 in docs/ai/decisions.md.
+# It is no longer triggered automatically by pushes and PRs here; only manual runs are kept.
 on:
   workflow_dispatch:
 

@@ -1,4 +1,4 @@
-/** 导入服务端页（上传文件夹、ZIP 与 imports 交接区）文案（英文主表）。 */
+/** Import server page (folder upload, ZIP and the imports handoff area) strings (English primary table). */
 export default {
   'import.page.subtitle': 'Upload a server folder or ZIP. Your original files are never changed or deleted.',
 
@@ -70,7 +70,7 @@ export default {
   'import.form.mcVersion.label': 'Minecraft Version (Optional)',
   'import.form.mcVersion.placeholder': 'e.g. 1.20.1',
 
-  // 导入设置：识别结果摘要和「修改设置」折叠区。
+  // Import settings: the detection result summary and the "Edit Settings" collapsible section.
   'import.settings.title': 'Import Settings',
   'import.settings.more': 'Change Settings',
   'import.summary.ariaLabel': 'Detected settings',

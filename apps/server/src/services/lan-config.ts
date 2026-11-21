@@ -4,10 +4,10 @@ import { PanelError } from '../utils/errors.js';
 import { resolveLanAsset } from './lan-runtime.js';
 
 /**
- * 社区共享节点，用来互相发现；打洞失败时也会经它们中转。内容由网络密钥加密。
- * 2026-10-31 核对：这三个名字能解析，且当时的社区监测页标明可以中转。
- * 不收录打码地址、限速节点和会变动的住宅 IP。社区节点随时可能下线，
- * 所以用户可以在每个实例上追加自己的节点，或者关掉这一组只用自己的。
+ * Community shared peers, used for mutual discovery; when hole punching fails, traffic is also relayed through them. The content is encrypted with the network secret.
+ * Checked on 2026-10-31: these three names resolve, and the community monitoring page at the time marked them as able to relay.
+ * Masked addresses, rate-limited peers and changing residential IPs are not included. Community peers may go offline at any time,
+ * so users can add their own peers per instance, or turn this group off and use only their own.
  */
 export const LAN_SHARED_PEERS = [
   'tcp://225284.xyz:11010',
@@ -25,22 +25,22 @@ const NETWORK_SECRET = /^[0-9a-f]{64}$/;
 export interface LanIdentity {
   networkName: string;
   networkSecret: string;
-  /** 10.126.<octet>.1，避开 EasyTier 默认的 126，避免同一台机器上的实例网段重叠。 */
+  /** 10.126.<octet>.1, avoiding EasyTier's default of 126 so instance subnets on the same machine do not overlap. */
   octet: number;
 }
 
 export interface LanRenderInput extends LanIdentity {
   gamePort: number;
-  /** 已规范化、去重的节点列表，面板和朋友用同一份。 */
+  /** The normalized, deduplicated peer list; the panel and friends use the same one. */
   peers: string[];
   /**
-   * 本机 EasyTier 的监听端口（TCP 与 UDP 相同）。有监听时，朋友能经 IPv6 或同一局域网直接连过来，
-   * 不必全靠打洞或中转。null 表示不监听，只用于生成比较用的配置键。
+   * Listen port of the local EasyTier (same for TCP and UDP). With a listener, friends can connect directly over IPv6 or the same LAN,
+   * without relying entirely on hole punching or relaying. null means no listener and is only used to build the config key for comparison.
    */
   listenPort: number | null;
 }
 
-/** 虚拟网卡上的地址不是 127.0.0.1。只绑回环或某一块网卡时，朋友加不进来。 */
+/** The address on the virtual interface is not 127.0.0.1. When bound only to loopback or to one specific interface, friends cannot join. */
 const OPEN_BINDS: Record<string, true> = {
   '': true,
   '0.0.0.0': true,
@@ -59,8 +59,8 @@ export function lanVirtualIp(octet: number): string {
 }
 
 /**
- * 把用户填写的节点规范化为 scheme://host:port。只接受 EasyTier 支持且无需额外密钥的协议，
- * 主机只能是域名或 IP，不允许路径（ws/wss 可带结尾的 /）、空白或引号，避免注入配置或朋友的命令行。
+ * Normalizes a user-entered peer to scheme://host:port. Only protocols EasyTier supports without an extra key are accepted;
+ * the host must be a domain or IP, and no path (ws/wss may have a trailing /), whitespace or quotes are allowed, to prevent injection into the config or the friend's command line.
  */
 export function normalizeLanPeer(raw: string): string {
   const text = typeof raw === 'string' ? raw.trim() : '';
@@ -89,7 +89,7 @@ export function normalizeLanPeer(raw: string): string {
   return `${scheme}://${host}:${port}${slash}`;
 }
 
-/** 规范化并去重用户的节点列表。超出上限或含非法节点时报错。 */
+/** Normalizes and deduplicates the user's peer list. Throws when it exceeds the limit or contains an invalid peer. */
 export function normalizeLanPeers(raw: readonly string[]): string[] {
   if (raw.length > LAN_CUSTOM_PEER_LIMIT) throw new PanelError('server.lan.invalidParams');
   const result: string[] = [];
@@ -101,7 +101,7 @@ export function normalizeLanPeers(raw: readonly string[]): string[] {
   return result;
 }
 
-/** 实际使用的节点：用户自己的在前，再按需加上社区共享节点。至少要有一个，否则双方无法互相发现。 */
+/** The peers actually used: the user's own first, then the community shared peers when wanted. There must be at least one, or the two sides cannot discover each other. */
 export function resolveLanPeers(custom: readonly string[], useShared: boolean): string[] {
   const peers = [...custom];
   if (useShared) {
@@ -121,8 +121,8 @@ export function lanCoreArgs(rpcPort: number): string[] {
 }
 
 /**
- * 面板自己的 core.toml。密钥只在这个文件里，不进命令行。
- * 监听写 0.0.0.0 时，EasyTier 会在 enable_ipv6（默认开启）下自动再监听同端口的 [::]。
+ * The panel's own core.toml. The secret lives only in this file, never on the command line.
+ * When the listener is 0.0.0.0, EasyTier automatically also listens on [::] on the same port under enable_ipv6 (on by default).
  */
 export function renderLanToml(input: LanRenderInput): string {
   const identity = assertIdentity(input);
@@ -161,7 +161,7 @@ export function renderLanToml(input: LanRenderInput): string {
   ].join('\n');
 }
 
-/** 发给朋友的命令。白名单只留一个用不到的端口，避免他们的电脑被同一虚拟网里的人访问。 */
+/** The command sent to friends. The whitelist keeps only one unused port, so their computers cannot be accessed by others on the same virtual network. */
 export function renderFriendInstructions(input: LanRenderInput): string {
   const identity = assertIdentity(input);
   const port = assertGamePort(input.gamePort);
@@ -217,7 +217,7 @@ function assertIdentity(input: LanIdentity): LanIdentity {
   return input;
 }
 
-/** 渲染前再校验一遍，即使数据库被改过也不会把怪字符写进配置或命令。 */
+/** Validates once more before rendering, so odd characters are not written into the config or the command even if the database has been tampered with. */
 function assertPeers(peers: readonly string[]): string[] {
   if (peers.length === 0) throw new PanelError('server.lan.peersRequired');
   return peers.map((peer) => {

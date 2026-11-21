@@ -1,6 +1,6 @@
 /**
- * 浏览器里选文件夹上传（D-039）：把用户选的服务端文件夹分批传给面板。
- * 面板拿不到用户电脑上的路径，只收到浏览器读出来的文件和它们在文件夹里的相对路径。
+ * Folder upload from the browser (D-039): sends the server folder the user picked to the panel in batches.
+ * The panel cannot get paths on the user's computer; it only receives the files the browser read and their relative paths within the folder.
  */
 import type { FolderUploadInfo } from '@mystry/shared';
 import {
@@ -14,22 +14,22 @@ import {
 } from './api';
 import { isAbortError } from './errors';
 
-/** 一批最多多少个文件、多大：文件数和服务端每次请求的上限对齐，大小控制在几十 MB，进度条走得比较匀。 */
+/** Maximum files and size per batch: the file count matches the server's per-request limit, and the size is kept to tens of MB so the progress bar moves fairly evenly. */
 export const FOLDER_BATCH_MAX_FILES = 500;
 export const FOLDER_BATCH_MAX_BYTES = 64 * 1024 * 1024;
 /**
- * 撞上面板的请求频率限制时等一会儿重发同一批：被限流的请求还没写任何文件，重发是安全的。
- * 12 次 × 5 秒正好盖住默认 60 秒的限流窗口。
+ * When the panel's request rate limit is hit, wait a while and resend the same batch: a rate-limited request has not written any file yet, so resending is safe.
+ * 12 attempts × 5 seconds exactly covers the default 60-second rate limit window.
  */
 const RATE_LIMIT_RETRY_MS = 5_000;
 const RATE_LIMIT_MAX_RETRIES = 12;
 
 export type SelectedFolder = { name: string; files: FolderUploadFile[]; totalBytes: number };
 
-/** waiting：这一批被面板暂时拒绝（如请求太频繁），正在等一会儿后重发。 */
+/** waiting: this batch was temporarily refused by the panel (such as too many requests) and will be resent after a short wait. */
 export type FolderUploadProgress = { files: number; bytes: number; totalFiles: number; totalBytes: number; waiting: boolean };
 
-/** 有文件读不出来：原服务器还在运行、把文件锁着，或者选完之后文件又被改了。 */
+/** A file cannot be read: the original server is still running and holds it locked, or the file was changed after being picked. */
 export class FolderFileUnreadableError extends Error {
   readonly relativePath: string;
   constructor(relativePath: string) {
@@ -39,7 +39,7 @@ export class FolderFileUnreadableError extends Error {
   }
 }
 
-/** 上传中途和面板的连接断了（浏览器只报网络错误），这次上传已经作废。 */
+/** The connection to the panel dropped mid-upload (the browser only reports a network error), and this upload is void. */
 export class FolderUploadInterruptedError extends Error {
   constructor(cause: unknown) {
     super('The folder upload was interrupted', { cause });
@@ -48,8 +48,8 @@ export class FolderUploadInterruptedError extends Error {
 }
 
 /**
- * 浏览器能不能选整个文件夹。桌面版 Chrome、Edge、Firefox、Safari 都可以；
- * 手机浏览器大多选不了文件夹，不显示这个入口，免得点了没反应。
+ * Whether the browser can pick a whole folder. Desktop Chrome, Edge, Firefox and Safari all can;
+ * most mobile browsers cannot pick folders, so the entry is not shown there, rather than doing nothing when tapped.
  */
 export function canPickFolder(): boolean {
   if (typeof document === 'undefined' || typeof navigator === 'undefined') return false;
@@ -57,7 +57,7 @@ export function canPickFolder(): boolean {
   return !/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 }
 
-/** 把一组「相对路径 + 文件」整理成要上传的文件夹；路径的第一段是文件夹名，上传时去掉。 */
+/** Arranges a set of "relative path + file" into the folder to upload; the first path segment is the folder name and is removed on upload. */
 export function selectedFolderFromEntries(entries: Array<{ file: File; path: string }>): SelectedFolder | null {
   if (entries.length === 0) return null;
   const [folderName] = entries[0]!.path.split('/');
@@ -72,7 +72,7 @@ export function selectedFolderFromEntries(entries: Array<{ file: File; path: str
   return { name: folderName!, files, totalBytes };
 }
 
-/** 文件选择框（webkitdirectory）选中的文件：webkitRelativePath 形如「文件夹名/world/level.dat」。 */
+/** Files chosen in the file picker (webkitdirectory): webkitRelativePath looks like "folder name/world/level.dat". */
 export function selectedFolderFromFileList(list: FileList | File[]): SelectedFolder | null {
   return selectedFolderFromEntries([...list].map((file) => ({ file, path: file.webkitRelativePath || file.name })));
 }
@@ -86,9 +86,9 @@ type FsEntry = {
 };
 
 /**
- * 拖进来的东西：只接受恰好一个文件夹，递归读出里面所有文件。
- * 拖进来的是文件或多个东西时返回 null，文件夹里没有文件时返回 'empty'。
- * 必须在 drop 事件里直接调用：事件结束后浏览器就不让再读拖进来的条目了（函数在第一个 await 前已把它们取出）。
+ * Things dragged in: only exactly one folder is accepted, and all files inside are read recursively.
+ * Returns null when a file or several things were dragged in, and 'empty' when the folder contains no files.
+ * Must be called directly in the drop event: once the event ends the browser no longer allows reading the dragged entries (the function takes them out before its first await).
  */
 export async function selectedFolderFromDrop(items: DataTransferItemList): Promise<SelectedFolder | 'empty' | null> {
   const roots = [...items]
@@ -105,7 +105,7 @@ export async function selectedFolderFromDrop(items: DataTransferItemList): Promi
     }
     if (!entry.isDirectory || !entry.createReader) return;
     const reader = entry.createReader();
-    // readEntries 每次最多给一部分，要一直读到返回空数组。
+    // readEntries returns only part each time, so keep reading until it returns an empty array.
     for (;;) {
       const batch = await new Promise<FsEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
       if (batch.length === 0) break;
@@ -116,7 +116,7 @@ export async function selectedFolderFromDrop(items: DataTransferItemList): Promi
   return entries.length === 0 ? 'empty' : selectedFolderFromEntries(entries);
 }
 
-/** 按文件数和大小切成几批；比上限还大的单个文件自己一批。 */
+/** Splits into batches by file count and size; a single file larger than the limit gets a batch of its own. */
 export function batchFolderFiles(
   files: FolderUploadFile[],
   maxFiles = FOLDER_BATCH_MAX_FILES,
@@ -156,7 +156,7 @@ function isRateLimited(error: unknown): boolean {
   return error instanceof ApiError && error.status === 429 && error.messageI18n?.key === 'server.common.tooManyRequests';
 }
 
-/** 一批发送失败且不是面板返回的错误时，挨个读每个文件的第一个字节，找出读不出来的那个。 */
+/** When a batch fails to send and it is not an error returned by the panel, reads the first byte of each file in turn to find the one that cannot be read. */
 async function findUnreadableFile(batch: FolderUploadFile[]): Promise<string | null> {
   for (const { file, relativePath } of batch) {
     try {
@@ -169,10 +169,10 @@ async function findUnreadableFile(batch: FolderUploadFile[]): Promise<string | n
 }
 
 /**
- * 这一批失败后能不能原样重发。面板因请求太频繁拒绝时还没写任何文件，可以重发；
- * 但请求体还没发完面板就回了 429 并断开连接，浏览器往往只报网络错误、拿不到 429。
- * 所以网络错误时先排除读不了的文件，再用查询接口（不和上传共用限流额度）问面板：
- * 这次上传还在、收到的文件数没变，说明这一批根本没被处理，可以重发。
+ * Whether this batch can be resent as is after failing. When the panel refuses for too many requests it has not written any file yet, so resending is fine;
+ * but when the panel answers 429 and disconnects before the request body is fully sent, the browser often reports only a network error and never sees the 429.
+ * So on a network error, unreadable files are ruled out first, then the query endpoint (which does not share the rate limit quota with uploads) is asked:
+ * if this upload still exists and the received file count is unchanged, this batch was never processed and can be resent.
  */
 async function canResendBatch(
   error: unknown,
@@ -190,8 +190,8 @@ async function canResendBatch(
 }
 
 /**
- * 上传整个文件夹：开始会话 → 一批一批地发（同一时间只发一批）→ 全部发完后让面板预检。
- * 中途出错或被中止时删掉面板上这次的临时文件夹，不支持断点续传。
+ * Uploads a whole folder: start a session → send batch by batch (only one batch at a time) → have the panel precheck once everything is sent.
+ * On an error or abort midway, this upload's temp folder on the panel is deleted; resuming is not supported.
  */
 export async function uploadFolder(
   folder: SelectedFolder,
@@ -243,7 +243,7 @@ export async function uploadFolder(
       const unreadable = await findUnreadableFile(currentBatch);
       if (unreadable) throw new FolderFileUnreadableError(unreadable);
     }
-    // 剩下的是浏览器报的网络错误（如 Failed to fetch），换成能翻译的提示。
+    // What remains is a network error reported by the browser (such as Failed to fetch), replaced with a translatable message.
     throw new FolderUploadInterruptedError(error);
   }
 }

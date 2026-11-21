@@ -11,11 +11,11 @@ type ZipTestEntry = {
   name: string;
   contents: Buffer;
   compression?: 0 | 8;
-  /** 写进中央目录的解压大小，默认与实际一致；用来模拟谎报大小的压缩包 */
+  /** Uncompressed size written into the central directory, matching the actual size by default; used to simulate an archive that lies about its size */
   declaredSize?: number;
 };
 
-/** 手写最小 ZIP（本地文件头 + 中央目录 + EOCD），不依赖外部工具。 */
+/** A hand-written minimal ZIP (local file header + central directory + EOCD), without relying on external tools. */
 function createZip(entries: readonly ZipTestEntry[]): Buffer {
   const localEntries: Buffer[] = [];
   const centralEntries: Buffer[] = [];
@@ -127,7 +127,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   const { writeServerProperties } = await import('./config-service.js');
 
   initDb();
-  // 不在测试机上真的改防火墙：按 Windows 行为记录 netsh 参数。
+  // Do not actually change the firewall on the test machine: record the netsh arguments as Windows would behave.
   const firewallCalls: string[][] = [];
   setLanFirewallForTests({
     platform: 'win32',
@@ -161,7 +161,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   assert.match(rendered, /ipv4 = "10\.126\.12\.1"/);
   assert.match(rendered, /tcp_whitelist = \["25565"\]/);
   assert.match(rendered, /udp_whitelist = \["1"\]/);
-  // 监听同一端口的 TCP 与 UDP，EasyTier 会自动补上 [::]，朋友才能经 IPv6 直连。
+  // Listening on TCP and UDP of the same port makes EasyTier add [::] automatically, which is what lets friends connect directly over IPv6.
   assert.match(rendered, /listeners = \["tcp:\/\/0\.0\.0\.0:41234", "udp:\/\/0\.0\.0\.0:41234"\]/);
   assert.match(rendered, /enable_ipv6 = true/);
   assert.match(rendered, /private_mode = true/);
@@ -212,7 +212,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   writeServerProperties(first.id, { 'server-ip': '', 'server-port': 'abc' });
   assert.equal((await syncInstanceLan(first.id)).detail?.key, 'server.lan.localPortInvalid');
 
-  // 端口留空时游戏用 25565，不算端口无效。
+  // With the port left empty the game uses 25565, which does not count as an invalid port.
   writeServerProperties(first.id, { 'server-ip': '', 'server-port': '' });
   const missing = await syncInstanceLan(first.id);
   assert.equal(
@@ -244,7 +244,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   assert.deepEqual(running.sharedPeers, [...LAN_SHARED_PEERS]);
   assert.equal(running.useSharedPeers, true);
   assert.ok(running.listenPort && running.listenPort !== 25565 && running.listenPort !== config.port);
-  // 先按名字删旧规则，再加三条：游戏端口只限虚拟 IP；监听端口 TCP 与 UDP 只限实际启动的 easytier-core。
+  // Delete the old rules by name first, then add three: the game port restricted to the virtual IP; listen port TCP and UDP restricted to the easytier-core actually started.
   const ruleName = `name=MystryDashboard-LAN-${first.id}`;
   assert.deepEqual(firewallCalls[0], ['advfirewall', 'firewall', 'delete', 'rule', ruleName]);
   const adds = firewallCalls.slice(1);
@@ -252,7 +252,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   for (const args of adds) {
     assert.deepEqual(args.slice(0, 9), ['advfirewall', 'firewall', 'add', 'rule', ruleName, 'dir=in', 'action=allow', 'profile=any', 'enable=yes']);
   }
-  // 程序路径是面板自己的运行时路径（解析成真实路径），作为单独的数组参数传入，不拼命令行。
+  // The program path is the panel's own runtime path (resolved to the real path), passed as a separate array argument and not concatenated into a command line.
   const programArg = `program=${fs.realpathSync.native(lanCorePath())}`;
   assert.deepEqual(adds[0]?.slice(9), ['protocol=TCP', 'localport=25565', `localip=${running.virtualIp}`]);
   assert.deepEqual(adds[1]?.slice(9), ['protocol=TCP', `localport=${running.listenPort}`, programArg]);
@@ -272,7 +272,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   const toml = fs.readFileSync(path.join(dataRoot, 'lan', first.id, 'core.toml'), 'utf8');
   assert.match(toml, new RegExp(`network_secret = "${idle.networkSecret}"`));
   assert.ok(toml.includes(`"tcp://0.0.0.0:${running.listenPort}"`));
-  // 同样的设置再同步一次不重启（监听端口不参与比较）。
+  // Syncing the same settings again does not restart (the listen port is not part of the comparison).
   firewallCalls.length = 0;
   const resynced = await syncInstanceLan(first.id);
   assert.equal(resynced.listenPort, running.listenPort);
@@ -286,7 +286,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   assert.equal(getInstanceLanRow(first.id)?.networkSecret, idle.networkSecret);
 
   await t.test('地址迟迟拿不到时持续探测，拿到后变为运行中；被替换的旧探测循环退出', async () => {
-    // 慢速间隔明显长于重启耗时，旧循环醒来时新一代已就位，才能暴露代次守卫失效。
+    // The slow interval is clearly longer than a restart takes, so the new generation is in place when the old loop wakes up, which is what exposes a broken generation guard.
     setLanProbeIntervalsForTests({ fastMs: 5, slowMs: 40, fastAttempts: 3 });
     writeServerProperties(second.id, { 'server-ip': '', 'server-port': '25566' });
     const expectedIp = `10.126.${getInstanceLanRow(second.id)?.octet}.1`;
@@ -303,14 +303,14 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     assert.equal(starting.status, 'starting');
     const oldPort = calls[0];
     assert.ok(oldPort);
-    // 快速探测用完后只提示等待，状态仍是 starting，循环继续。
+    // After the fast probes are used up only a waiting notice is shown; the status is still starting and the loop continues.
     await waitFor(() => describeInstanceLan(second.id).detail?.key === 'server.lan.waitingForAddress');
     const countOld = () => calls.filter((port) => port === oldPort).length;
     const before = countOld();
     await waitFor(() => countOld() > before + 2);
     assert.equal(describeInstanceLan(second.id).status, 'starting');
 
-    // 改端口让配置变化，触发停止旧客户端、启动新一代。
+    // Changing the port changes the config, which triggers stopping the old client and starting a new generation.
     writeServerProperties(second.id, { 'server-ip': '', 'server-port': '25567' });
     const restarted = await syncInstanceLan(second.id);
     assert.equal(restarted.status, 'starting');
@@ -354,7 +354,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     setLanGameStatusForTests(() => 'stopped');
     firewallCalls.length = 0;
     await syncInstanceLan(first.id);
-    // 失败时已回滚，停止不必再删。
+    // Already rolled back on failure, so stop does not need to delete again.
     assert.equal(firewallCalls.length, 0);
     setLanGameStatusForTests(() => 'running');
     setLanFirewallForTests({
@@ -374,7 +374,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     });
     assert.deepEqual(custom.peers, ['tcp://relay.example.com:11010', 'wss://[2001:db8::1]:443/']);
     assert.equal(custom.useSharedPeers, false);
-    // 省略字段表示不改。
+    // Omitted fields mean no change.
     const kept = saveInstanceLan(first.id, { enabled: true });
     assert.deepEqual(kept.peers, custom.peers);
     assert.equal(kept.useSharedPeers, false);
@@ -402,7 +402,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
       () => saveInstanceLan(first.id, { enabled: true, peers: [], useSharedPeers: false }),
       isKey('server.lan.peersRequired'),
     );
-    // 失败的保存不改动已有设置。
+    // A failed save does not modify the existing settings.
     assert.deepEqual(getInstanceLanRow(first.id)?.peers, custom.peers);
 
     const restored = saveInstanceLan(first.id, { enabled: true, peers: [], useSharedPeers: true });
@@ -411,7 +411,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   });
 
   const deleteArgs = (id: string) => ['advfirewall', 'firewall', 'delete', 'rule', `name=MystryDashboard-LAN-${id}`];
-  /** 记录 netsh 参数的假执行器；code 决定每条命令的退出码（-1 表示没能运行或超时）。 */
+  /** A fake runner that records netsh arguments; code decides each command's exit code (-1 means it could not run or timed out). */
   const recordingRunner = (code: (args: readonly string[]) => number = () => 0) => ({
     platform: 'win32' as NodeJS.Platform,
     runner: async (args: readonly string[]) => {
@@ -419,7 +419,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
       return code(args);
     },
   });
-  /** 模拟面板崩溃后重启：内存里的运行状态全部丢失，系统里的防火墙规则还在。 */
+  /** Simulates a restart after a panel crash: all in-memory runtime state is lost, while the firewall rules in the system remain. */
   const simulateRestart = () => {
     resetLanRuntimeForTests();
     setLanSpawnerForTests(() => fakeChild() as unknown as ChildProcess);
@@ -430,20 +430,20 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   await t.test('面板重启后没有运行状态，停服或关闭虚拟局域网仍按名字删规则', async () => {
     simulateRestart();
     setLanFirewallForTests(recordingRunner());
-    // 先在「上一次面板进程」里把规则加上，再模拟面板被结束。
+    // Add the rules in the "previous panel process" first, then simulate the panel being killed.
     assert.equal((await syncInstanceLan(first.id)).status, 'running');
     simulateRestart();
 
-    // 实例停服：没有运行状态，但有虚拟局域网记录，仍要删。
+    // Instance stop: no runtime state, but there is a virtual LAN record, so deletion still happens.
     firewallCalls.length = 0;
     setLanGameStatusForTests(() => 'stopped');
     await syncInstanceLan(first.id);
     assert.deepEqual(firewallCalls, [deleteArgs(first.id)]);
-    // 本进程确认删过后，再停服不重复调用 netsh。
+    // After this process has confirmed deletion, stopping again does not call netsh repeatedly.
     await syncInstanceLan(first.id);
     assert.equal(firewallCalls.length, 1);
 
-    // netsh 没能运行（超时等）时结果未知，之后关闭虚拟局域网时再删。
+    // When netsh could not run (timeout, etc.) the result is unknown, and deletion happens later when the virtual LAN is disabled.
     simulateRestart();
     setLanGameStatusForTests(() => 'stopped');
     setLanFirewallForTests(recordingRunner(() => -1));
@@ -456,13 +456,13 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     assert.deepEqual(firewallCalls, [deleteArgs(first.id), deleteArgs(first.id)]);
     saveInstanceLan(first.id, { enabled: true });
 
-    // 从没开过虚拟局域网的实例没有记录，停服不调用 netsh。
+    // An instance that never enabled the virtual LAN has no record, so stopping it does not call netsh.
     const plain = createInstance({ name: 'Plain', acceptEula: true });
     firewallCalls.length = 0;
     await syncInstanceLan(plain.id);
     assert.equal(firewallCalls.length, 0);
 
-    // 其他系统上什么都不做。
+    // Nothing is done on other systems.
     simulateRestart();
     setLanGameStatusForTests(() => 'stopped');
     setLanFirewallForTests({ ...recordingRunner(), platform: 'linux' });
@@ -474,12 +474,12 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   await t.test('启动清扫只删归本面板的实例（有记录或工作目录），跳过已重新启动的，不按前缀删', async () => {
     simulateRestart();
     setLanFirewallForTests(recordingRunner());
-    // second 已关闭虚拟局域网但记录还在：旧版本留下的规则也要清。
+    // second has the virtual LAN disabled but the record is still there: rules left by older versions must be cleaned too.
     saveInstanceLan(second.id, { enabled: false });
     const noLan = createInstance({ name: 'NoLan', acceptEula: true });
     assert.equal(getInstanceLanRow(noLan.id), null);
     firewallCalls.length = 0;
-    // 与 attachLanLifecycle 一样不等清扫，紧接着排一个启动：清扫先进队列，不会删掉启动刚加的规则。
+    // Like attachLanLifecycle, do not wait for the sweep and queue a start right after: the sweep enters the queue first, so it does not delete the rules the start just added.
     const sweeping = sweepLanFirewall();
     const started = syncInstanceLanQueued(first.id);
     await sweeping;
@@ -488,16 +488,16 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     const forFirst = firewallCalls.filter(named(first.id));
     assert.deepEqual(forFirst.map((args) => args[2]), ['delete', 'delete', 'add', 'add', 'add']);
     assert.deepEqual(firewallCalls.filter(named(second.id)), [deleteArgs(second.id)]);
-    // 只按已知 ID 精确删除：没有记录的实例、别的面板的规则（如按前缀匹配）都不碰。
+    // Deletes precisely by known IDs only: instances without a record and other panels' rules (as prefix matching would hit) are left alone.
     assert.equal(firewallCalls.length, forFirst.length + 1);
     assert.equal(firewallCalls.some(named(noLan.id)), false);
 
-    // 已有运行状态的跳过；本进程已确认删过的不重复。
+    // Those with runtime state are skipped; those this process has confirmed deleted are not repeated.
     firewallCalls.length = 0;
     await sweepLanFirewall();
     assert.equal(firewallCalls.length, 0);
 
-    // 其他系统上清扫不调用 netsh。
+    // On other systems the sweep does not call netsh.
     simulateRestart();
     setLanFirewallForTests({ ...recordingRunner(), platform: 'linux' });
     await sweepLanFirewall();
@@ -511,7 +511,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     simulateRestart();
     setLanFirewallForTests(recordingRunner());
     const lanDir = (id: string) => path.join(dataRoot, 'lan', id);
-    /** 建实例、开虚拟局域网并真的启动一次（写好工作目录、加上规则），再模拟面板被结束。 */
+    /** Creates an instance, enables the virtual LAN and really starts it once (writing the work directory and adding rules), then simulates the panel being killed. */
     const startedThenKilled = async (name: string, port: string) => {
       const info = createInstance({ name, acceptEula: true });
       saveInstanceLan(info.id, { enabled: true });
@@ -522,7 +522,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
       return info;
     };
     const doomed = await startedThenKilled('Doomed', '25569');
-    // 与 DELETE /api/instances/:id 相同的顺序：先删实例（虚拟局域网记录级联删除），再收尾虚拟局域网。
+    // Same order as DELETE /api/instances/:id: delete the instance first (the virtual LAN record is cascade-deleted), then finish off the virtual LAN.
     await deleteInstance(doomed.id);
     assert.equal(getInstanceLanRow(doomed.id), null);
     firewallCalls.length = 0;
@@ -530,12 +530,12 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     assert.deepEqual(firewallCalls, [deleteArgs(doomed.id)]);
     assert.equal(fs.existsSync(lanDir(doomed.id)), false);
 
-    // 不归本面板的 ID（没有记录也没有工作目录）：即使格式合法也不调用 netsh，免得删到别的面板的同名规则。
+    // An ID not owned by this panel (no record and no work directory): netsh is not called even when the format is valid, so another panel's rules of the same name are not deleted.
     firewallCalls.length = 0;
     await removeInstanceLan('neverCreated01');
     assert.equal(firewallCalls.length, 0);
 
-    // 删除时 netsh 没跑成：保留工作目录，下次启动清扫按它补删，确认后再清掉目录。
+    // netsh could not run on delete: the work directory is kept, the next startup sweep deletes by it, and the directory is removed once confirmed.
     const stubborn = await startedThenKilled('Stubborn', '25570');
     await deleteInstance(stubborn.id);
     setLanFirewallForTests(recordingRunner(() => -1));
@@ -550,7 +550,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     assert.deepEqual(firewallCalls.filter((args) => args[4] === `name=MystryDashboard-LAN-${stubborn.id}`), [deleteArgs(stubborn.id)]);
     assert.equal(fs.existsSync(lanDir(stubborn.id)), false);
 
-    // 加规则失败（已回滚）后删除：停止时不删，删除时仍补删一次。
+    // Delete after adding rules failed (already rolled back): stop does not delete, but delete still deletes once more.
     const flaky = createInstance({ name: 'Flaky', acceptEula: true });
     saveInstanceLan(flaky.id, { enabled: true });
     writeServerProperties(flaky.id, { 'server-ip': '', 'server-port': '25568' });
@@ -562,7 +562,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     assert.deepEqual(firewallCalls, [deleteArgs(flaky.id)]);
     assert.equal(fs.existsSync(path.join(dataRoot, 'lan', flaky.id)), false);
 
-    // 其他系统上删除实例不调用 netsh。
+    // On other systems deleting an instance does not call netsh.
     const other = createInstance({ name: 'Other', acceptEula: true });
     saveInstanceLan(other.id, { enabled: true });
     setLanFirewallForTests({ ...recordingRunner(), platform: 'linux' });
@@ -574,7 +574,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
   });
 
   await t.test('监听规则只限 easytier-core；带程序的规则加不上就退回不限程序，路径不合适不收窄', async () => {
-    // 宿主机上的绝对路径，带空格：Linux CI 上同样适用。
+    // An absolute path on the host, with spaces: equally valid on Linux CI.
     const corePath = path.join(dataRoot, 'First Last', 'easytier-core.exe');
     const input = { instanceId: 'probe-1', virtualIp: '10.126.12.1', gamePort: 25565, listenPort: 41234, corePath };
     const rules = lanFirewallRuleArgs(input);
@@ -583,12 +583,12 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
       ['protocol=TCP', 'localport=41234', `program=${corePath}`],
       ['protocol=UDP', 'localport=41234', `program=${corePath}`],
     ]);
-    // 游戏端口规则不限程序，也没有退回参数；监听规则退回时只去掉 program=。
+    // The game port rule has no program restriction and no fallback arguments; the listen rules drop only program= when falling back.
     assert.equal(rules[0]?.fallback, null);
     assert.deepEqual(rules[1]?.fallback, rules[1]?.args.slice(0, -1));
     assert.deepEqual(rules[2]?.fallback, rules[2]?.args.slice(0, -1));
 
-    // netsh 不接受 program= 时退回不限程序的规则，结果仍是已加上（不比收窄前差）。
+    // When netsh does not accept program=, fall back to rules without a program restriction; the result is still added (no worse than before narrowing).
     setLanFirewallForTests(recordingRunner((args) => (args.some((arg) => arg.startsWith('program=')) ? 1 : 0)));
     firewallCalls.length = 0;
     assert.equal(await openLanFirewall(input), 'applied');
@@ -601,13 +601,13 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
       rules[2]?.fallback,
     ]);
 
-    // 退回的规则也加不上时整体回滚。
+    // When the fallback rules cannot be added either, everything is rolled back.
     setLanFirewallForTests(recordingRunner((args) => (args[2] === 'add' && args.includes('protocol=UDP') ? 1 : 0)));
     firewallCalls.length = 0;
     assert.equal(await openLanFirewall(input), 'failed');
     assert.deepEqual(firewallCalls.at(-1), deleteArgs('probe-1'));
 
-    // 路径为空、不是绝对路径、带引号、% 或控制字符时不收窄。
+    // No narrowing when the path is empty, not absolute, or contains quotes, % or control characters.
     for (const bad of [
       null,
       'easytier-core.exe',
@@ -622,7 +622,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
       );
     }
 
-    // 参数不合法时只报加不上，不抛错，也不调用 netsh。
+    // With invalid arguments it only reports that rules could not be added, without throwing or calling netsh.
     setLanFirewallForTests(recordingRunner());
     firewallCalls.length = 0;
     assert.equal(await openLanFirewall({ ...input, virtualIp: '192.168.1.1' }), 'failed');
@@ -637,7 +637,7 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
     assert.equal(info.sha256, asset.sha256);
     assert.equal(info.url, `https://github.com/EasyTier/EasyTier/releases/download/v2.6.4/${asset.archive}`);
     await shutdownLan();
-    // 去掉前面伪造的安装标记，模拟尚未安装。
+    // Remove the fake install marker created earlier, to simulate not being installed yet.
     fs.rmSync(path.join(lanRuntimeDir(), 'archive.sha256'), { force: true });
     const fake = path.join(dataRoot, 'not-easytier.zip');
     fs.writeFileSync(fake, 'definitely not the official archive');
@@ -658,21 +658,21 @@ test('虚拟局域网只放开游戏端口，密钥不进命令行或子进程�
 
 test('frpc 的 Windows 压缩包不依赖系统 tar，缺少条目时报解压失败', async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-frp-zip-'));
-  // 单独运行这条测试时配置还没加载，这里补齐；整组运行时模块已缓存，不受影响。
+  // When this test runs alone the config is not loaded yet, so it is filled in here; when the whole group runs, the module is already cached and unaffected.
   process.env.MYSTRY_DATA_DIR ??= dir;
   process.env.JWT_SECRET ??= 'a'.repeat(64);
   process.env.SETUP_TOKEN ??= 'b'.repeat(64);
   process.env.LAUNCHER_TOKEN ??= 'c'.repeat(64);
   const { extractMember } = await import('./frp-runtime.js');
   const savedPath = process.env.PATH;
-  // PATH 清空后系统 tar 一定找不到，还能走通就说明没有用它。
+  // With PATH cleared the system tar cannot be found, so still succeeding shows it was not used.
   process.env.PATH = '';
   t.after(() => {
     process.env.PATH = savedPath;
     fs.rmSync(dir, { recursive: true, force: true });
   });
   const frpc = Buffer.alloc(4096, 0x42);
-  // 文件名与真实下载时一致：带 .partial 后缀，同目录还有 frps.exe。
+  // The file name matches a real download: it has a .partial suffix, and frps.exe is in the same directory.
   const zipPath = path.join(dir, 'frp_windows_amd64.zip.partial');
   fs.writeFileSync(zipPath, createZip([
     { name: 'frp_windows_amd64/frps.exe', contents: Buffer.from('frps'), compression: 8 },
@@ -715,10 +715,10 @@ test('EasyTier 压缩包用面板自带的 ZIP 解析列出并读出条目，超
       readZipEntryBuffer(zipPath, 'easytier-linux-x86_64/missing', 8192),
       isPanelError('server.files.zip.corrupted'),
     );
-    // 压缩包本身超过调用方给的上限时直接拒绝。
+    // An archive that itself exceeds the limit given by the caller is rejected outright.
     assert.throws(() => listZipEntryNames(zipPath, undefined, 16), isPanelError('server.files.zip.tooLarge'));
 
-    // 中央目录谎报解压大小时，按实际解压字节数截断。
+    // When the central directory lies about the uncompressed size, extraction is cut off by the actual number of bytes extracted.
     const lyingPath = path.join(dir, 'lying.zip');
     fs.writeFileSync(lyingPath, createZip([
       { name: 'easytier-core', contents: core, compression: 8, declaredSize: 10 },
@@ -731,7 +731,7 @@ test('EasyTier 压缩包用面板自带的 ZIP 解析列出并读出条目，超
 
 test('Windows 版 EasyTier 一起装上启动必需的 Packet.dll', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-lan-asset-'));
-  // 单独运行这条测试时配置还没加载，这里补齐；整组运行时模块已缓存，不受影响。
+  // When this test runs alone the config is not loaded yet, so it is filled in here; when the whole group runs, the module is already cached and unaffected.
   process.env.MYSTRY_DATA_DIR ??= dir;
   process.env.JWT_SECRET ??= 'a'.repeat(64);
   process.env.SETUP_TOKEN ??= 'b'.repeat(64);
@@ -739,8 +739,8 @@ test('Windows 版 EasyTier 一起装上启动必需的 Packet.dll', async () => 
   try {
     const { resolveLanAsset } = await import('./lan-runtime.js');
     const windows = resolveLanAsset('win32', 'x64');
-    // 2.6.4 的 easytier-core.exe 静态导入 Packet.dll，缺了连 --version 都以 0xC0000135 退出（2026-11-17 在 Windows 11 上实测）。
-    // 安装和 lanInstalled() 都按 extraNames 走，少了它旧安装也不会被当成完整。
+    // easytier-core.exe 2.6.4 statically imports Packet.dll; without it even --version exits with 0xC0000135 (verified on Windows 11 on 2026-11-17).
+    // Both installation and lanInstalled() go by extraNames; without it an old install would not count as complete either.
     assert.ok(windows.extraNames.includes('Packet.dll'));
     assert.ok(windows.extraNames.includes('wintun.dll'));
     assert.deepEqual(resolveLanAsset('linux', 'x64').extraNames, []);

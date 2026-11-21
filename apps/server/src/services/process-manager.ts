@@ -64,12 +64,12 @@ type ManagedProcess = {
   bufferBytes: number;
   stdinAvailable: boolean;
   stdinBackpressured: boolean;
-  /** 服务端打印过完成启动的标志行，玩家可以进服。 */
+  /** The server has printed the marker line for finished startup, so players can join. */
   ready: boolean;
 };
 
 type ProcessSnapshot = Pick<ManagedProcess, 'status' | 'buffer' | 'bufferBytes'> & {
-  /** 最近一次退出时认出的启动失败原因；下次启动会随快照一起清掉。 */
+  /** The startup failure reason recognized at the latest exit; cleared along with the snapshot on the next start. */
   startIssue: InstanceStartIssue | null;
 };
 
@@ -83,7 +83,7 @@ export type JavaRuntimeResolver = (javaRuntimeId: string | null) => Promise<stri
 
 export type StdinSafetyState = Pick<ManagedProcess, 'stdinAvailable' | 'stdinBackpressured'>;
 
-/** 给 stdin 注册永久监听，避免异步写入错误变成未处理异常。 */
+/** Registers a permanent listener on stdin, so asynchronous write errors do not become unhandled exceptions. */
 export function registerStdinSafetyHandlers(stdin: Writable, state: StdinSafetyState): void {
   const markUnavailable = () => {
     state.stdinAvailable = false;
@@ -139,13 +139,13 @@ function waitForChildExit(
 }
 
 /**
- * 管理本机 Minecraft 实例进程的启停与控制台 I/O。
+ * Manages start/stop and console I/O of local Minecraft instance processes.
  */
 export class ProcessManager extends EventEmitter {
   private processes = new Map<string, ManagedProcess>();
   private snapshots = new Map<string, ProcessSnapshot>();
   private operationTails = new Map<string, Promise<void>>();
-  /** 备份/还原期间的实例维护标记：值为拒绝启动等操作时返回的消息键。 */
+  /** Instance maintenance flag during backup/restore: the value is the message key returned when operations such as start are refused. */
   private maintenance = new Map<string, ServerMessageKey>();
   private shuttingDown = false;
 
@@ -163,19 +163,19 @@ export class ProcessManager extends EventEmitter {
       ?? 'stopped';
   }
 
-  /** 最近一次启动失败的可识别原因；实例在运行、从未启动或原因不明时为 null。 */
+  /** The recognizable reason for the latest start failure; null when the instance is running, was never started, or the reason is unknown. */
   getStartIssue(instanceId: string): InstanceStartIssue | null {
     if (this.processes.has(instanceId)) return null;
     return this.snapshots.get(instanceId)?.startIssue ?? null;
   }
 
-  /** 服务端是否已完成启动、可以进服；正在停止或没在运行时为 false。 */
+  /** Whether the server has finished starting and can be joined; false when stopping or not running. */
   isReady(instanceId: string): boolean {
     const managed = this.processes.get(instanceId);
     return managed?.status === 'running' && managed.ready;
   }
 
-  /** 只向本机采集器提供面板当前持有的活进程，不接受外部 PID。 */
+  /** Provides the local collector only with live processes the panel currently holds; external PIDs are not accepted. */
   getMetricTargets(): Array<{ id: string; pid: number }> {
     return [...this.processes].flatMap(([id, managed]) => {
       const child = managed.child;
@@ -199,7 +199,7 @@ export class ProcessManager extends EventEmitter {
     return this.processes.size;
   }
 
-  /** 面板进入关闭流程：拒绝新的启动，并让尚未 spawn 的 start 在解析 Java 后退出。 */
+  /** The panel enters shutdown: new starts are refused, and a start that has not spawned yet exits after resolving Java. */
   beginShutdown(): void {
     this.shuttingDown = true;
   }
@@ -217,7 +217,7 @@ export class ProcessManager extends EventEmitter {
 
   async restart(instance: InstanceRow): Promise<void> {
     return this.withInstanceOperation(instance.id, async () => {
-      // 先检查维护标记：否则重启会先停掉服务器，再因备份/还原拒绝启动。
+      // Check the maintenance flag first: otherwise a restart would stop the server first and then refuse to start because of the backup/restore.
       this.assertNotInMaintenance(instance.id);
       if (this.isRunning(instance.id)) {
         await this.stopWithinLock(instance.id, false);
@@ -226,10 +226,10 @@ export class ProcessManager extends EventEmitter {
     });
   }
 
-  /** 面板退出前逐个安全停止所有由当前进程管理的实例。 */
+  /** Safely stops, one by one, all instances managed by the current process before the panel exits. */
   async stopAll(): Promise<{ attempted: number; errors: string[]; stillStopping: string[] }> {
     this.beginShutdown();
-    // 先等未完成的启停/删除：正在 resolveJava 的 start 会看到关闭标志并取消 spawn。
+    // Wait for unfinished start/stop/delete first: a start still in resolveJava sees the shutdown flag and cancels the spawn.
     await Promise.allSettled([...this.operationTails.values()]);
     const instanceIds = [...this.processes.keys()];
     const errors: string[] = [];
@@ -290,8 +290,8 @@ export class ProcessManager extends EventEmitter {
       managed.stdinBackpressured = true;
       throw new PanelError('server.instance.commandWriteFailed');
     }
-    // Minecraft 不回显 stdin，命令写进去后控制台看起来毫无反应；把命令以「> 命令」记进控制台缓冲，
-    // 重连、换页回来和其他人打开时都能看到它已发出。上一块输出没换行时先补一个，避免接在半行后面。
+    // Minecraft does not echo stdin, so after a command is written the console looks completely unresponsive; the command is recorded in the console buffer as "> command",
+    // so it shows as sent on reconnect, when coming back from another page, and when someone else opens it. When the previous output chunk had no line break, one is added first so it does not follow a half line.
     const last = managed.buffer[managed.buffer.length - 1] ?? '';
     this.appendOutput(instanceId, `${last && !last.endsWith('\n') ? '\n' : ''}> ${command}\n`);
   }
@@ -300,7 +300,7 @@ export class ProcessManager extends EventEmitter {
     return this.getBuffer(instanceId).join('');
   }
 
-  /** 实例记录删除后同步清理当前进程内保留的终态与控制台历史。 */
+  /** After the instance record is deleted, also clears the final state and console history kept in the current process. */
   forget(instanceId: string): void {
     if (this.processes.has(instanceId)) {
       throw new PanelError('server.instance.forgetRunning');
@@ -309,8 +309,8 @@ export class ProcessManager extends EventEmitter {
   }
 
   /**
-   * 进入维护（备份或还原）：期间拒绝启动、重启、删除和接管；停止与控制台命令不受影响。
-   * 调用方应在 runExclusive 内检查状态后再调用，返回的函数用于结束维护，可重复调用。
+   * Enters maintenance (backup or restore): start, restart, delete and takeover are refused meanwhile; stop and console commands are unaffected.
+   * The caller should check the state inside runExclusive before calling; the returned function ends maintenance and can be called repeatedly.
    */
   beginMaintenance(instanceId: string, key: ServerMessageKey): () => void {
     const existing = this.maintenance.get(instanceId);
@@ -324,7 +324,7 @@ export class ProcessManager extends EventEmitter {
     };
   }
 
-  /** 实例处于维护中时抛出冲突错误（消息说明是备份还是还原）。 */
+  /** Throws a conflict error when the instance is under maintenance (the message says whether it is a backup or a restore). */
   assertNotInMaintenance(instanceId: string): void {
     const key = this.maintenance.get(instanceId);
     if (key) throw new InstanceOperationConflictError(key);
@@ -334,7 +334,7 @@ export class ProcessManager extends EventEmitter {
     return this.maintenance.get(instanceId) ?? null;
   }
 
-  /** 删除/接管与启停共用同一把实例锁，避免并发拆掉正在启动的目录。 */
+  /** Delete/takeover share the same instance lock with start/stop, so a directory being started is not torn down concurrently. */
   runExclusive<T>(instanceId: string, operation: () => Promise<T>): Promise<T> {
     return this.withInstanceOperation(instanceId, operation);
   }
@@ -437,7 +437,7 @@ export class ProcessManager extends EventEmitter {
           managed.status = 'running';
           this.emitStatus(instance.id, 'running');
         }
-        // 标志行可能被拆在相邻两块输出里，所以连同上一块一起看。
+        // The marker line may be split across two adjacent output chunks, so it is checked together with the previous chunk.
         if (!managed.ready && hasFinishedStarting(managed.buffer.slice(-2).join(''))) {
           managed.ready = true;
         }
@@ -445,7 +445,7 @@ export class ProcessManager extends EventEmitter {
 
       child.stdout.on('data', onChunk);
       child.stderr.on('data', onChunk);
-      // 管道流 error 无监听器会成为未捕获异常；子进程退出时管道 EPIPE 属正常现象。
+      // A pipe stream error without a listener becomes an uncaught exception; EPIPE on the pipe when the child exits is normal.
       child.stdout.on('error', () => {});
       child.stderr.on('error', () => {});
       child.stdin.on('drain', () => {
@@ -456,7 +456,7 @@ export class ProcessManager extends EventEmitter {
 
       child.on('error', (err) => {
         if (this.processes.get(instance.id) !== managed) return;
-        // 控制台日志写英文整行，Web 识别该句式后按当前语言改写显示。
+        // Console log lines are written whole in English; Web recognizes the sentence pattern and rewrites it in the current language for display.
         const line = renderPanelMessage({
           key: 'server.instance.consoleProcessStartFailed',
           params: { reason: err.message },
@@ -468,9 +468,9 @@ export class ProcessManager extends EventEmitter {
       child.on('exit', (code, signal) => {
         if (this.processes.get(instance.id) !== managed) return;
         const wasStopping = managed.status === 'stopping';
-        // 进程自己以退出码 0 结束（未同意 EULA、游戏内执行 stop 等）不算崩溃。
+        // The process ending on its own with exit code 0 (EULA not accepted, stop run in-game, etc.) is not a crash.
         const status = wasStopping || code === 0 ? 'stopped' : 'crashed';
-        // 不是用户要求的停止时，从输出里找可以直接告诉用户怎么办的原因。
+        // When the stop was not requested by the user, look in the output for a reason that directly tells the user what to do.
         const startIssue = wasStopping
           ? null
           : diagnoseStartFailure(managed.buffer.join(''), instance.mc_version);
@@ -511,7 +511,7 @@ export class ProcessManager extends EventEmitter {
       return;
     }
 
-    // 先确认输入流可用，再进入 stopping，避免校验失败时实例永久卡在 stopping。
+    // Confirm the input stream is usable before entering stopping, so the instance is not stuck in stopping forever when validation fails.
     const stdin = child.stdin;
     if (!managed.stdinAvailable || stdin.writableEnded || stdin.destroyed || !stdin.writable) {
       throw new PanelError('server.instance.stopStdinUnavailable');
@@ -544,7 +544,7 @@ export class ProcessManager extends EventEmitter {
   ): void {
     managed.status = status;
     this.processes.delete(instanceId);
-    // 先存快照再发状态事件：监听方收到事件后立即查询，要能读到这次的诊断结果。
+    // Save the snapshot before emitting the state event: listeners query right after receiving the event and must be able to read this diagnosis.
     this.snapshots.set(instanceId, {
       status,
       buffer: [...managed.buffer],

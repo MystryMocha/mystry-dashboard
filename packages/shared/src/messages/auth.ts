@@ -1,4 +1,4 @@
-/** 服务端返回给用户的消息：登录、初始化与启动器关闭接口。值为英文模板，`{name}` 为参数占位；其他语言由 Web 文案表按键翻译。 */
+/** User-facing server messages: sign-in, initial setup and the launcher shutdown endpoint. Values are English templates with `{name}` placeholders; the Web string tables translate other languages by key. */
 export const AUTH_MESSAGES = {
   'server.auth.invalidSetupToken': 'The setup token is invalid.',
   'server.auth.invalidCredentialFormat': 'The username or password format is invalid.',

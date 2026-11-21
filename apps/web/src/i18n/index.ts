@@ -1,10 +1,10 @@
 /**
- * 零依赖的轻量多语言实现。
- * - 文案表按含义命名的扁平键（如 `instance.status.running`），en 为主表，其他语言缺键时回落到 en；
- * - `{name}` 形式插值；复数用 `<键>_one` / `<键>_other`，按 Intl.PluralRules 选择；
- * - 句中需要加粗、代码等标签时用 `rich()`，文案里写 `<code>…</code>`，不在组件里拼接半句话；
- * - 数字、大小和日期统一走 `formatters()`，按当前语言用 Intl 格式化。
- * React 组件用 `useI18n()` 订阅语言切换；非组件代码（如 api.ts）用模块级 `t()`，按调用时的语言取文案。
+ * A lightweight, zero-dependency i18n implementation.
+ * - String tables use flat keys named by meaning (such as `instance.status.running`); en is the primary table, and other languages fall back to en for missing keys;
+ * - interpolation uses the `{name}` form; plurals use `<key>_one` / `<key>_other`, chosen by Intl.PluralRules;
+ * - when a sentence needs tags such as bold or code, use `rich()` and write `<code>…</code>` in the string, rather than concatenating half sentences in components;
+ * - numbers, sizes and dates all go through `formatters()`, formatted with Intl in the current language.
+ * React components subscribe to language changes with `useI18n()`; non-component code (such as api.ts) uses the module-level `t()`, taking strings in the language at call time.
  */
 import { createElement, Fragment, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { renderPanelMessage, type PanelMessage } from '@mystry/shared';
@@ -16,7 +16,7 @@ import { DEFAULT_LOCALE, getLocale, LOCALE_CHANGE_EVENT, type Locale } from './l
 export * from './locale';
 
 export type MessageKey = keyof typeof en;
-/** 有 `_one` / `_other` 变体的复数键，去掉后缀后的部分。 */
+/** Plural keys with `_one` / `_other` variants, with the suffix removed. */
 export type PluralKey = { [K in MessageKey]: K extends `${infer Base}_other` ? Base : never }[MessageKey];
 export type MessageParams = Record<string, string | number>;
 
@@ -43,8 +43,8 @@ export function translate(locale: Locale, key: MessageKey, params?: MessageParam
 }
 
 /**
- * 服务端消息（键 + 参数，参数可嵌套另一条消息）按界面语言渲染。
- * 没有消息键（旧任务、原始系统错误）时显示服务端给的文本 fallback；两者都没有时返回空字符串。
+ * Renders a server message (key + params, where a param may nest another message) in the UI language.
+ * Without a message key (old tasks, raw system errors) the server-provided text fallback is shown; an empty string is returned when there is neither.
  */
 export function translatePanelMessage(locale: Locale, message: PanelMessage | undefined, fallback?: string): string {
   if (!message) return fallback ?? '';
@@ -52,8 +52,8 @@ export function translatePanelMessage(locale: Locale, message: PanelMessage | un
 }
 
 /**
- * Intl 对象构造开销大（列表每行都要格式化日期和大小），按「语言 + 选项」缓存复用。
- * 选项序列化为键，调用方每次传入内容相同的新对象也能命中；语言种类和选项组合都有限，缓存不会无限增长。
+ * Intl objects are expensive to construct (every list row formats a date and a size), so they are cached and reused by "language + options".
+ * Options are serialized into the key, so a caller passing a new object with the same content each time still hits; the languages and option combinations are finite, so the cache does not grow without bound.
  */
 const intlCache = new Map<string, object>();
 
@@ -79,7 +79,7 @@ function pluralRules(locale: Locale): Intl.PluralRules {
   return cachedIntl('plural', locale, undefined, () => new Intl.PluralRules(locale));
 }
 
-/** 复数文案：`{count}` 会按当前语言格式化后填入。 */
+/** Plural strings: `{count}` is formatted in the current language before being filled in. */
 export function translatePlural(locale: Locale, key: PluralKey, count: number, params?: MessageParams): string {
   const template = lookup(locale, `${key}_${pluralRules(locale).select(count)}`) ?? lookup(locale, `${key}_other`) ?? key;
   return interpolate(template, { ...params, count: numberFormat(locale).format(count) });
@@ -87,7 +87,7 @@ export function translatePlural(locale: Locale, key: PluralKey, count: number, p
 
 export type RichTags = Record<string, (chunk: string) => ReactNode>;
 
-/** 把文案中的 `<tag>…</tag>`（不嵌套）替换为对应节点，其余部分保持纯文本。 */
+/** Replaces `<tag>…</tag>` (not nested) in a string with the matching node, keeping the rest as plain text. */
 export function translateRich(locale: Locale, key: MessageKey, tags: RichTags, params?: MessageParams): ReactNode {
   const text = translate(locale, key, params);
   const parts: ReactNode[] = [];
@@ -122,8 +122,8 @@ const TIME_ONLY: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digi
 const formattersCache = new Map<Locale, ReturnType<typeof createFormatters>>();
 
 /**
- * 当前语言的数字、大小和日期格式化；数字与单位之间保留空格。
- * 同一语言始终返回同一个对象，组件可放心把 `fmt` 或其方法作为依赖或 props 传给 memo 组件。
+ * Number, size and date formatting for the current language; a space is kept between number and unit.
+ * The same language always returns the same object, so components can safely use `fmt` or its methods as dependencies or pass them as props to memo components.
  */
 export function formatters(locale: Locale) {
   let fmt = formattersCache.get(locale);
@@ -141,14 +141,14 @@ function createFormatters(locale: Locale) {
     number(value, { minimumFractionDigits: digits, maximumFractionDigits: digits });
   return {
     number,
-    /** 固定小数位，例如 CPU 占用 24.0。 */
+    /** Fixed decimal places, e.g. CPU usage 24.0. */
     fixed,
-    /** 输入为 0–100 的百分数，例如 24.5 → "24.5%"。 */
+    /** Input is a percentage in 0–100, e.g. 24.5 → "24.5%". */
     percent: (value: number, digits = 1) =>
       number(value / 100, { style: 'percent', minimumFractionDigits: digits, maximumFractionDigits: digits }),
-    /** 字节数转 GiB 数值（不含单位），保留一位小数。 */
+    /** Bytes to a GiB number (without unit), with one decimal place. */
     gib: (bytes: number, digits = 1) => fixed(bytes / 1024 ** 3, digits),
-    /** 文件大小：1024 进制，小于 100 保留一位小数，例如 "1.5 MB"。 */
+    /** File size: base 1024, one decimal place below 100, e.g. "1.5 MB". */
     fileSize: (bytes: number) => {
       if (!Number.isFinite(bytes) || bytes < 0) return '';
       if (bytes < 1024) return `${number(bytes)} B`;
@@ -161,12 +161,12 @@ function createFormatters(locale: Locale) {
       }
       return `${fixed(value, value >= 100 ? 0 : 1)} ${units[unit]}`;
     },
-    /** 日期时间；无效输入返回空字符串。 */
+    /** Date and time; returns an empty string for invalid input. */
     dateTime: (value: string | number | Date, options: Intl.DateTimeFormatOptions = DEFAULT_DATE_TIME) => {
       const date = toDate(value);
       return date ? dateTimeFormat(locale, options).format(date) : '';
     },
-    /** 仅时间（时:分:秒）；无效输入返回空字符串。 */
+    /** Time only (hour:minute:second); returns an empty string for invalid input. */
     time: (value: string | number | Date) => {
       const date = toDate(value);
       return date ? dateTimeFormat(locale, TIME_ONLY).format(date) : '';
@@ -176,7 +176,7 @@ function createFormatters(locale: Locale) {
 
 export type Formatters = ReturnType<typeof formatters>;
 
-/** 非组件代码使用：按调用时的界面语言取文案。 */
+/** For non-component code: takes strings in the UI language at call time. */
 export function t(key: MessageKey, params?: MessageParams): string {
   return translate(getLocale(), key, params);
 }
@@ -194,7 +194,7 @@ function subscribe(onChange: () => void): () => void {
   return () => window.removeEventListener(LOCALE_CHANGE_EVENT, onChange);
 }
 
-/** 组件内取文案与格式化函数；切换语言后自动重新渲染。 */
+/** Gets strings and formatting functions inside a component; re-renders automatically after a language switch. */
 export function useI18n() {
   const locale = useSyncExternalStore(subscribe, getLocale, () => DEFAULT_LOCALE);
   return useMemo(() => ({
@@ -202,7 +202,7 @@ export function useI18n() {
     t: (key: MessageKey, params?: MessageParams) => translate(locale, key, params),
     tp: (key: PluralKey, count: number, params?: MessageParams) => translatePlural(locale, key, count, params),
     rich: (key: MessageKey, tags: RichTags, params?: MessageParams) => translateRich(locale, key, tags, params),
-    /** 服务端消息：有键按当前语言翻译，没有键显示 fallback 原文。 */
+    /** Server message: translated into the current language when it has a key, otherwise the fallback text is shown. */
     tm: (message: PanelMessage | undefined, fallback?: string) => translatePanelMessage(locale, message, fallback),
     fmt: formatters(locale),
   }), [locale]);

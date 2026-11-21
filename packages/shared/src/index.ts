@@ -44,15 +44,15 @@ export type {
 export { PANEL_NETWORK_STATES, PANEL_NETWORK_VIRTUAL_IP } from './remote-access.js';
 export { FRP_CLIENT_VERSION, FRP_TRANSPORTS, TUNNEL_MODES, TUNNEL_STATUSES } from './frp.js';
 
-/** 本机资源快照；空值表示尚无有效采样，不等同于零占用。 */
+/** Snapshot of local resources; an empty value means there is no valid sample yet, not zero usage. */
 export interface DashboardMetrics {
   sampledAt: string;
   cpuPercent: number | null;
   memory: { usedBytes: number; totalBytes: number };
   disk: { availableBytes: number; totalBytes: number } | null;
-  /** 告警说明（英文文本） */
+  /** Warning descriptions (English text) */
   warnings: string[];
-  /** 与 `warnings` 一一对应的可翻译消息；Web 按键判断告警种类并按当前语言显示 */
+  /** Translatable messages matching `warnings` one-to-one; Web uses the key to tell the warning kind and shows it in the current language */
   warningsI18n?: PanelMessage[];
   instances: Record<string, {
     cpuPercent: number | null;
@@ -63,12 +63,12 @@ export interface DashboardMetrics {
 
 export type InstanceStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'crashed';
 
-/** 普通停止宽限期过后进程仍在退出（HTTP 202） */
+/** The process is still exiting after the normal stop grace period (HTTP 202) */
 export interface InstanceStopPendingResult {
   code: 'INSTANCE_STOP_PENDING';
-  /** 英文说明 */
+  /** English description */
   error: string;
-  /** `error` 对应的可翻译消息 */
+  /** Translatable message for `error` */
   errorI18n?: PanelMessage;
   status: 'stopping';
   stillStopping: true;
@@ -83,16 +83,16 @@ export function isInstanceStopPendingResult(value: unknown): value is InstanceSt
 
 export type CoreType = 'vanilla' | 'paper' | 'fabric' | 'forge' | 'neoforge' | 'custom';
 
-/** 内置本机节点 ID（面板自身，始终存在） */
+/** ID of the built-in local node (the panel itself, always present) */
 export const LOCAL_NODE_ID = 'local';
 
-/** 远程 Agent 尚未实现，创建远程节点的入口保持关闭。 */
+/** The remote Agent is not implemented yet, so the entry for creating remote nodes stays closed. */
 export const REMOTE_NODE_CREATION_ENABLED = false;
 
-/** 节点在线状态（运行期，非持久化） */
+/** Node online status (runtime only, not persisted) */
 export type NodeStatus = 'online' | 'offline';
 
-/** 节点上报的主机信息（Agent 连接时携带，本机节点为面板自身信息） */
+/** Host info reported by the node (sent when the Agent connects; for the local node it is the panel's own info) */
 export interface NodeHostInfo {
   platform?: string;
   arch?: string;
@@ -104,12 +104,12 @@ export interface NodeHostInfo {
 export interface NodeInfo {
   id: string;
   name: string;
-  /** 是否为面板内置的本机节点（不可删除/不可重置密钥） */
+  /** Whether this is the panel's built-in local node (cannot be deleted, secret cannot be reset) */
   isLocal: boolean;
   status: NodeStatus;
   lastSeenAt: string | null;
   hostInfo: NodeHostInfo | null;
-  /** 该节点下挂载的实例数量 */
+  /** Number of instances attached to this node */
   instanceCount: number;
   createdAt: string;
   updatedAt: string;
@@ -123,47 +123,47 @@ export interface UpdateNodeInput {
   name?: string;
 }
 
-/** secret 只在创建节点或重置密钥时返回这一次，服务端只保存摘要。 */
+/** secret is returned only this once, when the node is created or its secret is reset; the server stores only a digest. */
 export interface NodeSecretResult {
   node: NodeInfo;
   secret: string;
 }
 
 /**
- * 面板从控制台输出里认出的启动失败原因：
- * eula 为尚未同意 Minecraft EULA；java-too-new / java-too-old 为所用 Java 版本过新或过旧。
- * java-unavailable 不来自控制台输出：实例绑定的 Java 运行时已不可用或已不在登记表里，不用启动就能判断。
+ * Startup failure reasons the panel recognizes from console output:
+ * eula means the Minecraft EULA has not been accepted yet; java-too-new / java-too-old mean the Java version in use is too new or too old.
+ * java-unavailable does not come from console output: the Java runtime bound to the instance is no longer usable or no longer registered, which can be told without starting.
  */
 export type InstanceStartIssueKind = 'eula' | 'java-too-new' | 'java-too-old' | 'java-unavailable';
 
 export interface InstanceStartIssue {
   kind: InstanceStartIssueKind;
-  /** 这个服务端需要的 Java 主版本；无法判断或与 Java 无关时为 null。 */
+  /** The Java major version this server needs; null when it cannot be determined or is unrelated to Java. */
   requiredJava: number | null;
 }
 
-/** GET /api/instances/:id/local-network 响应：和这台电脑在同一网络的朋友可以直接连接的地址。 */
+/** GET /api/instances/:id/local-network response: addresses that friends on the same network as this computer can connect to directly. */
 export interface InstanceLocalNetwork {
-  /** server.properties 的游戏端口；无法读取或不是有效端口时为 null。 */
+  /** Game port from server.properties; null when it cannot be read or is not a valid port. */
   port: number | null;
-  /** 这台电脑的局域网 IPv4 地址，不含回环、链路本地地址和网卡上的公网地址。 */
+  /** This computer's LAN IPv4 addresses, excluding loopback, link-local and public addresses on an interface. */
   addresses: string[];
-  /** 网卡上直接有的公网 IPv4 地址（部分云服务器、机房）。 */
+  /** Public IPv4 addresses assigned directly to an interface (some cloud servers and data centers). */
   publicIpv4: string[];
-  /** 这台电脑的公网 IPv6 地址，供不在同一网络的朋友直连；没有或 server-ip 不接受 IPv6 时为空。 */
+  /** This computer's public IPv6 addresses, for friends outside the local network to connect directly; empty when there are none or server-ip does not accept IPv6. */
   publicIpv6: string[];
-  /** 用户填写的公网 IP 或域名；没填为 null。 */
+  /** Public IP or domain entered by the user; null when not set. */
   publicHost: string | null;
-  /** server-ip 绑定了具体地址时为 true，此时同一网络的朋友可能连不上。 */
+  /** true when server-ip is bound to a specific address, in which case friends on the same network may be unable to connect. */
   serverIpBlocked: boolean;
-  /** server-ip 填的正好是 publicHost，但网卡上没有这个地址（云服务器上的常见错误）。 */
+  /** server-ip is set to exactly publicHost, but no interface has that address (a common mistake on cloud servers). */
   serverIpIsUnboundPublicHost: boolean;
   /**
-   * 面板实际监听的端口，用来在说明里区分游戏端口和面板端口。
-   * 不能从浏览器地址栏取：经 SSH 端口转发打开时，本地端口可能和面板端口不同。
+   * The port the panel actually listens on, used to tell the game port from the panel port in instructions.
+   * It cannot be taken from the browser address bar: when opened through SSH port forwarding, the local port may differ from the panel port.
    */
   panelPort: number;
-  /** 面板所在系统（process.platform），用来显示对应的防火墙放行写法。 */
+  /** The panel host's OS (process.platform), used to show the matching firewall instructions. */
   platform: string;
 }
 
@@ -175,38 +175,38 @@ export interface InstanceInfo {
   jarFile: string;
   javaPath: string;
   jvmArgs: string;
-  /** 通常是 DATA_DIR/instances/<id>；旧实例仍绑定外部目录时为该目录，且 requiresMigration 为 true */
+  /** Usually DATA_DIR/instances/<id>; for a legacy instance still bound to an external directory it is that directory, and requiresMigration is true */
   installPath: string | null;
   requiresMigration: boolean;
   status: InstanceStatus;
-  /** 所属节点 ID；默认为内置本机节点 LOCAL_NODE_ID */
+  /** ID of the owning node; defaults to the built-in local node LOCAL_NODE_ID */
   nodeId: string;
-  /** 绑定的 Java 运行时 ID；null 表示使用面板 PATH 中的 java */
+  /** ID of the bound Java runtime; null means use the java on the panel's PATH */
   javaRuntimeId: string | null;
   createdAt: string;
   updatedAt: string;
   acceptEula: boolean;
   /**
-   * 最近一次启动没成功且原因可识别时给出；再次启动、面板重启或实例正常运行后清空。
-   * 绑定的 Java 已不可用时（java-unavailable）不等启动就给出，改选 Java 或重新扫描到它之后消失。
+   * Set when the latest start failed for a recognizable reason; cleared on the next start, a panel restart, or once the instance runs normally.
+   * When the bound Java is no longer usable (java-unavailable) it is set without waiting for a start, and goes away after another Java is chosen or a rescan finds it again.
    */
   startIssue?: InstanceStartIssue | null;
-  /** 本次运行服务端已完成启动（打印过 Done），玩家可以进服；没在运行或还在加载时为 false。 */
+  /** In this run the server has finished starting (it printed Done) and players can join; false when not running or still loading. */
   ready?: boolean;
 }
 
-/** `InstanceInfo.jarFile` 里 Forge / NeoForge 参数文件的前缀，后面是相对实例目录的路径。 */
+/** Prefix for a Forge / NeoForge args file in `InstanceInfo.jarFile`, followed by the path relative to the instance directory. */
 export const LAUNCH_ARGS_PREFIX = '@args:';
-/** `InstanceInfo.jarFile` 为这个值时，模组加载器还没装好，没有可启动的文件。 */
+/** When `InstanceInfo.jarFile` equals this value, the mod loader is not installed yet and there is no file to launch. */
 export const LAUNCH_MODLOADER_PENDING = '@modloader';
 
-/** 实例的启动目标：普通 jar、Forge / NeoForge 参数文件，或还没装好的模组加载器。 */
+/** An instance's launch target: a plain jar, a Forge / NeoForge args file, or a mod loader that is not installed yet. */
 export type LaunchTarget =
   | { kind: 'jar'; path: string }
   | { kind: 'args'; path: string }
   | { kind: 'modloader' };
 
-/** 把 `jarFile` 里面板自己写的标记拆开；界面不能把 `@args:` 这类标记当文件名给人看。 */
+/** Splits out the markers the panel itself writes into `jarFile`; the UI must not show markers such as `@args:` to people as a file name. */
 export function parseLaunchTarget(jarFile: string): LaunchTarget {
   if (jarFile.startsWith(LAUNCH_ARGS_PREFIX)) return { kind: 'args', path: jarFile.slice(LAUNCH_ARGS_PREFIX.length) };
   if (jarFile === LAUNCH_MODLOADER_PENDING) return { kind: 'modloader' };
@@ -220,9 +220,9 @@ export interface CreateInstanceInput {
   coreType?: CoreType;
   mcVersion?: string;
   acceptEula?: boolean;
-  /** 所属节点 ID；留空则使用本机节点。非本机节点在 Agent 接入前会创建失败 */
+  /** ID of the owning node; empty uses the local node. Creation fails for non-local nodes until the Agent is available */
   nodeId?: string;
-  /** Java 运行时 ID（必须来自面板探测清单）；留空/null 使用 PATH 中的 java */
+  /** Java runtime ID (must come from the panel's detected list); empty/null uses the java on PATH */
   javaRuntimeId?: string | null;
 }
 
@@ -231,7 +231,7 @@ export interface UpdateInstanceInput {
   jarFile?: string;
   jvmArgs?: string;
   acceptEula?: boolean;
-  /** Java 运行时 ID（必须来自面板探测清单）；null 恢复为 PATH 中的 java */
+  /** Java runtime ID (must come from the panel's detected list); null reverts to the java on PATH */
   javaRuntimeId?: string | null;
 }
 
@@ -243,7 +243,7 @@ export interface FileEntry {
   modifiedAt: string;
 }
 
-/** 一次性文件下载 ticket；随后用 query 参数访问 GET .../files/download */
+/** One-time file download ticket; then pass it as a query parameter to GET .../files/download */
 export interface FileDownloadTicketResult {
   ticket: string;
   expiresIn: number;
@@ -256,36 +256,36 @@ export type FileDownloadTicketStatus =
   | 'expired'
   | 'consumed';
 
-/** GET /api/instances/:id/files/download-ticket/:ticket/status 响应 */
+/** GET /api/instances/:id/files/download-ticket/:ticket/status response */
 export interface FileDownloadTicketStatusResult {
   status: FileDownloadTicketStatus;
-  /** 占槽或开流失败时的说明（英文文本，或 Node.js 原始错误文本） */
+  /** Description when claiming the slot or opening the stream fails (English text, or the raw Node.js error text) */
   error?: string;
-  /** `error` 对应的可翻译消息；原始系统错误没有该字段 */
+  /** Translatable message for `error`; raw system errors do not have this field */
   errorI18n?: PanelMessage;
 }
 
-/** 下载来源，取值见 schemas.ts 的 DOWNLOAD_SOURCE_ENUM。 */
+/** Download source; for the values see DOWNLOAD_SOURCE_ENUM in schemas.ts. */
 export type DownloadSource = 'official' | 'china';
 
-/** GET /api/system/download-source 响应，也是 PUT 的请求体。 */
+/** GET /api/system/download-source response, also the PUT request body. */
 export interface DownloadSourceSetting {
   source: DownloadSource;
 }
 
 /**
- * GET /api/system/panel-info 响应：面板启动时从配置文件读到的监听地址和目录，界面上只展示、不能改。
- * 不含任何密钥。
+ * GET /api/system/panel-info response: the listen address and directories the panel read from its config file at startup; shown in the UI only, not editable.
+ * Contains no secrets.
  */
 export interface PanelInfo {
-  /** 主监听器的地址（HOST）；「在其他设备上打开」另挂的监听器不在这里 */
+  /** Address of the main listener (HOST); listeners added by "open on other devices" are not included here */
   host: string;
   port: number;
-  /** 数据根目录的绝对路径 */
+  /** Absolute path of the data root directory */
   dataDir: string;
-  /** 备份目录的绝对路径；没有单独配置时在数据根目录下 */
+  /** Absolute path of the backup directory; under the data root when not configured separately */
   backupDir: string;
-  /** 面板读取的配置文件路径；改完这个文件要重启面板才生效 */
+  /** Path of the config file the panel reads; changes to this file take effect only after the panel restarts */
   configPath: string;
 }
 
@@ -293,61 +293,61 @@ export interface DeployCoreInput {
   name: string;
   coreType: Exclude<CoreType, 'custom'>;
   mcVersion: string;
-  /** Paper build 号；不传则取最新 */
+  /** Paper build number; latest when omitted */
   build?: number;
-  /** Fabric loader / Forge / NeoForge 版本；不传则取最新 */
+  /** Fabric loader / Forge / NeoForge version; latest when omitted */
   loaderVersion?: string;
-  /** Fabric installer 版本；不传则取最新 */
+  /** Fabric installer version; latest when omitted */
   installerVersion?: string;
   jvmArgs?: string;
   acceptEula?: boolean;
-  /** Java 运行时 ID（必须来自面板探测清单）；留空/null 使用 PATH 中的 java */
+  /** Java runtime ID (must come from the panel's detected list); empty/null uses the java on PATH */
   javaRuntimeId?: string | null;
 }
 
-/** DATA_DIR/imports 下可交给面板复制接管的已有服务端目录。 */
+/** An existing server directory under DATA_DIR/imports that can be handed to the panel to copy and take over. */
 export interface ExistingServerSourceInfo {
-  /** 交接区内的单层目录名，不是系统绝对路径。 */
+  /** A single-level directory name inside the handoff area, not an absolute system path. */
   id: string;
-  /** 自动探测到的 jar 或 Forge/NeoForge args 启动目标。 */
+  /** The auto-detected jar or Forge/NeoForge args launch target. */
   launchTarget: string | null;
-  /** 根据启动文件推断的核心类型；无法识别时为 custom。 */
+  /** Core type inferred from the launch file; custom when unrecognized. */
   coreType: CoreType;
-  /** 从启动文件名认出的 Minecraft 版本；认不出时省略。 */
+  /** Minecraft version recognized from the launch file name; omitted when unrecognized. */
   mcVersion?: string;
   modifiedAt: string;
   ready: boolean;
-  /** 从 user_jvm_args.txt 检测出的参数；不存在该文件时省略。 */
+  /** Arguments detected from user_jvm_args.txt; omitted when the file does not exist. */
   detectedJvmConfig?: DetectedJvmConfig;
-  /** 英文说明（不可导入原因或预检提示）；无法归类的系统错误为原文。 */
+  /** English description (why it cannot be imported, or a precheck hint); the original text for system errors that cannot be classified. */
   error?: string;
-  /** `error` 的消息键与参数，Web 据此按界面语言显示；系统错误原文没有此字段。 */
+  /** Message key and params for `error`, which Web uses to show it in the UI language; raw system error text does not have this field. */
   errorI18n?: PanelMessage;
 }
 
 export interface ExistingServerSourceListResult {
   sources: ExistingServerSourceInfo[];
-  /** imports 交接区在面板电脑上的绝对路径，只显示给登录用户照着复制；面板从不接收客户端提交的路径（D-041）。 */
+  /** Absolute path of the imports handoff area on the panel's computer, shown only to the signed-in user to copy into; the panel never accepts a path submitted by the client (D-041). */
   importDir: string;
 }
 
-/** 服务端文件夹的预检结果：imports 来源和浏览器上传的文件夹共用。 */
+/** Precheck result for a server folder: shared by the imports source and browser-uploaded folders. */
 export type ServerFolderCheck = Pick<
   ExistingServerSourceInfo,
   'launchTarget' | 'coreType' | 'mcVersion' | 'ready' | 'detectedJvmConfig' | 'error' | 'errorI18n'
 >;
 
-/** 开始在浏览器里上传服务端文件夹：先声明文件夹名、文件数和总大小，面板据此检查配额和剩余空间。 */
+/** Starts a server folder upload from the browser: the folder name, file count and total size are declared first, and the panel checks quota and free space against them. */
 export interface CreateFolderUploadInput {
   folderName: string;
   fileCount: number;
   totalBytes: number;
 }
 
-/** 浏览器上传的服务端文件夹。上传中只有计数；全部收到后 state 变成 ready，并带上预检结果 check。 */
+/** A server folder uploaded from the browser. Only counters while uploading; once everything is received, state becomes ready and the precheck result check is attached. */
 export interface FolderUploadInfo {
   id: string;
-  /** 用户选的文件夹名，只用于显示。 */
+  /** Name of the folder the user picked, for display only. */
   folderName: string;
   fileCount: number;
   totalBytes: number;
@@ -358,7 +358,7 @@ export interface FolderUploadInfo {
   check?: ServerFolderCheck;
 }
 
-/** 从固定交接区复制已有服务端并创建面板托管实例。 */
+/** Copies an existing server from the fixed handoff area and creates a panel-managed instance. */
 export interface ImportExistingServerInput {
   name: string;
   sourceId: string;
@@ -366,7 +366,7 @@ export interface ImportExistingServerInput {
   mcVersion?: string;
   jvmArgs?: string;
   acceptEula?: boolean;
-  /** Java 运行时 ID（必须来自面板探测清单）；留空/null 使用 PATH 中的 java。 */
+  /** Java runtime ID (must come from the panel's detected list); empty/null uses the java on PATH. */
   javaRuntimeId?: string | null;
 }
 
@@ -376,7 +376,7 @@ export interface JavaDetectResult {
   majorVersion: number | null;
 }
 
-/** ZIP 上传后等待用户确认 JVM 设置的临时预览。 */
+/** Temporary preview after a ZIP upload, waiting for the user to confirm JVM settings. */
 export interface ImportPreviewInfo {
   id: string;
   fileName: string;
@@ -394,43 +394,43 @@ export interface ConfirmZipImportInput {
   javaRuntimeId?: string | null;
 }
 
-/** 面板探测并执行 -version 验证过的 Java 运行时（绝对路径由面板扫描产生，不接受用户提交） */
+/** A Java runtime the panel detected and verified by running -version (the absolute path comes from the panel's scan; user-submitted paths are not accepted) */
 export interface JavaRuntimeInfo {
-  /** 稳定 ID：规范化路径的哈希，重扫后不变 */
+  /** Stable ID: a hash of the normalized path, unchanged across rescans */
   id: string;
-  /** java 可执行文件绝对路径 */
+  /** Absolute path of the java executable */
   path: string;
-  /** -version 输出中的完整版本串，如 "17.0.2" */
+  /** Full version string from the -version output, e.g. "17.0.2" */
   version: string | null;
-  /** 主版本号，如 8 / 17 / 21 */
+  /** Major version number, e.g. 8 / 17 / 21 */
   majorVersion: number | null;
-  /** 探测来源：JAVA_HOME 环境变量、常见安装目录扫描，或面板自己安装到数据目录的 Java */
+  /** Detection source: the JAVA_HOME environment variable, a scan of common install directories, or Java the panel itself installed into the data directory */
   source: 'env' | 'scan' | 'panel';
   verifiedAt: string;
-  /** 最近一次完整扫描是否仍发现并验证此运行时 */
+  /** Whether the latest full scan still found and verified this runtime */
   available: boolean;
 }
 
-/** GET /api/system/java-runtimes 响应 */
+/** GET /api/system/java-runtimes response */
 export interface JavaRuntimeListResult {
   runtimes: JavaRuntimeInfo[];
-  /** 面板能在这台电脑上自动安装的 Java 主版本；系统或架构不支持时为空数组 */
+  /** Java major versions the panel can install automatically on this computer; an empty array when the OS or architecture is unsupported */
   installable: number[];
 }
 
-/** POST /api/system/java-runtimes/install 请求：安装哪个主版本。响应为后台任务。 */
+/** POST /api/system/java-runtimes/install request: which major version to install. The response is a background task. */
 export interface InstallJavaRequest {
   major: number;
 }
 
 /**
- * 按 Minecraft 版本推荐 Java 主版本号；无法识别版本格式时返回 null。
- * 26.1+（年份版本号，含 26.1.2、26.3-rc-3 等）→ 25；
- * 1.20.5+ → 21；1.17–1.20.4 → 17；1.16.5 及更早 → 8。
+ * Recommends a Java major version for a Minecraft version; returns null when the version format is unrecognized.
+ * 26.1+ (year-based versions, including 26.1.2, 26.3-rc-3, etc.) → 25;
+ * 1.20.5+ → 21; 1.17–1.20.4 → 17; 1.16.5 and earlier → 8.
  */
 export function recommendedJavaMajor(mcVersion: string | null | undefined): number | null {
   if (!mcVersion) return null;
-  // Mojang 自 26.1 起改用「年份.序号」版本号，最低要求 Java 25
+  // Since 26.1 Mojang uses "year.sequence" version numbers, which require at least Java 25
   const yearMatch = mcVersion.match(/^(\d{2,})\.(\d+)/);
   if (yearMatch && Number(yearMatch[1]) >= 26) return 25;
   const match = mcVersion.match(/^1\.(\d+)(?:\.(\d+))?/);
@@ -443,41 +443,41 @@ export function recommendedJavaMajor(mcVersion: string | null | undefined): numb
   return 8;
 }
 
-/** 备份来源：手动创建、还原前自动创建，或从文件上传。 */
+/** Backup origin: created manually, created automatically before a restore, or uploaded from a file. */
 export type BackupSource = 'manual' | 'pre-restore' | 'upload';
 
-/** 一份实例备份（DATA_DIR/backups/<实例 ID>/<备份 ID>.tar.gz 及其元数据）。 */
+/** One instance backup (DATA_DIR/backups/<instance ID>/<backup ID>.tar.gz and its metadata). */
 export interface BackupInfo {
-  /** 形如 20261026-054200-ab12cd 的备份 ID，同时是文件名主体。 */
+  /** Backup ID such as 20261026-054200-ab12cd, also the file name stem. */
   id: string;
-  /** 备份所属（存放在其下）的实例 ID。 */
+  /** ID of the instance the backup belongs to (and is stored under). */
   instanceId: string;
-  /** 备份时的实例名称；上传的备份为来源面板中的名称。 */
+  /** Instance name at backup time; for an uploaded backup, the name in the source panel. */
   instanceName: string;
   source: BackupSource;
   createdAt: string;
-  /** 压缩包大小（字节）。 */
+  /** Archive size (bytes). */
   sizeBytes: number;
-  /** 备份内文件数量。 */
+  /** Number of files in the backup. */
   fileCount: number;
-  /** 解压后的文件总大小（字节），还原时据此检查磁盘空间。 */
+  /** Total size of the extracted files (bytes), used to check disk space on restore. */
   contentBytes: number;
   coreType: CoreType | null;
   mcVersion: string | null;
-  /** 备份时服务器是否在运行（运行中备份会先暂停自动保存并刷写世界）。 */
+  /** Whether the server was running at backup time (a running backup first pauses autosave and flushes the world). */
   wasRunning: boolean;
-  /** 压缩包 SHA-256，便于用户自行核对下载的文件。 */
+  /** Archive SHA-256, so users can verify a downloaded file themselves. */
   sha256: string;
 }
 
-/** GET /api/instances/:id/backups 响应 */
+/** GET /api/instances/:id/backups response */
 export interface BackupListResult {
   backups: BackupInfo[];
 }
 
-/** POST /api/instances/:id/backups/:backupId/restore 请求体 */
+/** POST /api/instances/:id/backups/:backupId/restore request body */
 export interface RestoreBackupInput {
-  /** 还原前先备份当前文件；默认 true。 */
+  /** Back up the current files before restoring; defaults to true. */
   backupCurrent?: boolean;
 }
 
@@ -486,31 +486,31 @@ export interface TaskInfo {
   type: 'download' | 'extract' | 'deploy' | 'import' | 'backup' | 'restore';
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
-  /** 英文进度文本；旧版本写入的任务可能是中文。 */
+  /** English progress text; tasks written by older versions may be in Chinese. */
   message: string;
-  /** 进度消息键与参数，Web 据此按界面语言显示；旧任务没有此字段。 */
+  /** Message key and params for the progress, which Web uses to show it in the UI language; older tasks do not have this field. */
   messageI18n?: PanelMessage;
   /**
-   * backupId：备份任务生成的备份，或还原任务使用的备份。
-   * instanceRecordUpdated：还原后面板记录的启动文件、核心类型或版本已按备份更新。
+   * backupId: the backup produced by a backup task, or the backup used by a restore task.
+   * instanceRecordUpdated: after a restore, the launch file, core type or version recorded by the panel was updated to match the backup.
    */
   result?: {
     instanceId?: string;
     stagingToken?: string;
     backupId?: string;
     instanceRecordUpdated?: boolean;
-    /** 安装 Java 任务：装好并登记的运行时 ID */
+    /** Java install task: ID of the runtime that was installed and registered */
     javaRuntimeId?: string;
   };
-  /** 英文失败原因；旧版本写入的任务可能是中文。 */
+  /** English failure reason; tasks written by older versions may be in Chinese. */
   error?: string;
-  /** 失败原因的消息键与参数；旧任务或无法归类的原始错误没有此字段。 */
+  /** Message key and params for the failure reason; older tasks and raw errors that cannot be classified do not have this field. */
   errorI18n?: PanelMessage;
   createdAt: string;
   updatedAt: string;
 }
 
-/** 任务中心列表响应（GET /api/tasks） */
+/** Task center list response (GET /api/tasks) */
 export interface TaskListResult {
   tasks: TaskInfo[];
 }
@@ -543,20 +543,20 @@ export interface AuthUser {
   username: string;
 }
 
-/** 登录有效期，取值见 schemas.ts 的 SESSION_DURATION_ENUM；never 表示不过期（令牌不带 exp）。 */
+/** Session duration; for the values see SESSION_DURATION_ENUM in schemas.ts; never means it does not expire (the token has no exp). */
 export type SessionDuration = '2h' | '12h' | '1d' | '7d' | '30d' | 'never';
 
-/** GET /api/auth/session-duration 响应，也是 PUT 的请求体。 */
+/** GET /api/auth/session-duration response, also the PUT request body. */
 export interface SessionDurationSetting {
   duration: SessionDuration;
 }
 
-/** 保存登录有效期成功：当前设备改用这里按新有效期换发的令牌，其他设备下次登录后生效。 */
+/** Session duration saved: this device switches to the token reissued here with the new duration; other devices pick it up after their next sign-in. */
 export interface UpdateSessionDurationResult extends SessionDurationSetting {
   token: string;
 }
 
-/** 修改密码成功：旧令牌全部失效，当前会话改用这里换发的新令牌继续登录。 */
+/** Password changed: all old tokens are invalidated, and the current session stays signed in with the new token reissued here. */
 export interface ChangePasswordResult {
   ok: true;
   token: string;
@@ -565,10 +565,10 @@ export interface ChangePasswordResult {
 
 export interface ConsoleMessage {
   type: 'output' | 'status' | 'error' | 'history';
-  /** `error` 帧为英文说明（或 Node.js 原始错误文本） */
+  /** An `error` frame carries an English description (or the raw Node.js error text) */
   data: string;
   status?: InstanceStatus;
-  /** `error` 帧的消息键与参数，Web 据此按当前语言显示；原始系统错误没有该字段 */
+  /** Message key and params for an `error` frame, which Web uses to show it in the current language; raw system errors do not have this field */
   code?: ServerMessageKey;
   params?: PanelMessageParams;
 }

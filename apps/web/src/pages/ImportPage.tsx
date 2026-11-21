@@ -41,17 +41,17 @@ import { errorMessage, isAbortError } from '../errors';
 import { useI18n, type MessageKey } from '../i18n';
 import { instanceNameIssue, type Issue } from '../validation';
 
-/** folder：浏览器选文件夹上传；zip：上传 ZIP；directory：从 imports 交接区复制。 */
+/** folder: upload a folder picked in the browser; zip: upload a ZIP; directory: copy from the imports handoff area. */
 type ImportMode = 'folder' | 'directory' | 'zip';
 
 const IMPORT_PREVIEW_SESSION_KEY = 'mystry_import_preview_id';
 const FOLDER_UPLOAD_SESSION_KEY = 'mystry_folder_upload_id';
-/** 进页面和换来源后的 JVM 参数；JVM 配置器挂载时会换成按本机内存推荐的大小。 */
+/** JVM arguments on entering the page and after changing the source; when the JVM configurator mounts it replaces them with the size recommended for this machine's memory. */
 const DEFAULT_JVM_ARGS = '-Xms1G -Xmx2G';
-/** 「修改设置」里的问题持续多久才自动展开，见下方 effect。 */
+/** How long a problem in "Edit Settings" has to persist before auto-expanding; see the effect below. */
 const AUTO_OPEN_DELAY_MS = 300;
 
-// 核心名是技术名词不翻译；只有「自动识别」存文案键，渲染时再取当前语言。提交的 custom 由服务端按识别结果替换。
+// Core names are technical terms and not translated; only "Auto-detect" stores a string key, resolved in the current language at render time. The submitted custom is replaced by the server with the detection result.
 const coreTypeOptions: Array<{ value: CoreType; label: string; labelKey?: MessageKey }> = [
   { value: 'custom', label: '', labelKey: 'import.form.coreType.auto' },
   { value: 'paper', label: 'Paper' },
@@ -76,17 +76,17 @@ function isGoneError(err: unknown): boolean {
 export function ImportPage() {
   const navigate = useNavigate();
   const { t, tm, fmt } = useI18n();
-  // 选不了文件夹的浏览器（大多是手机）不显示「上传文件夹」，默认仍是 imports 交接区。
+  // Browsers that cannot pick folders (mostly phones) do not show "Upload Folder", and the default remains the imports handoff area.
   const [folderPickSupported] = useState(canPickFolder);
   const [mode, setMode] = useState<ImportMode>(() => (folderPickSupported ? 'folder' : 'directory'));
-  // 点过「上传文件夹」下方的链接后，「从 imports 文件夹复制」一直留在方式切换里，切走再切回来不会消失。
+  // After the link below "Upload Folder" has been clicked, "Copy from the imports folder" stays in the mode switcher and does not vanish when switching away and back.
   const [importsRevealed, setImportsRevealed] = useState(false);
-  // 默认实例名按进入页面时的界面语言生成，之后由用户自行修改。
+  // The default instance name is generated in the UI language at the time the page is entered, and the user changes it afterwards.
   const [name, setName] = useState(() => t('import.form.name.default'));
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreviewInfo | null>(null);
   const [restoringPreview, setRestoringPreview] = useState(true);
-  // 浏览器上传文件夹：选好还没上传的文件夹、上传并检查后的结果、上传中的进度。
+  // Browser folder upload: the folder picked but not uploaded yet, the result after upload and check, and the progress while uploading.
   const [folder, setFolder] = useState<SelectedFolder | null>(null);
   const [folderUpload, setFolderUpload] = useState<FolderUploadInfo | null>(null);
   const [folderProgress, setFolderProgress] = useState<FolderUploadProgress | null>(null);
@@ -99,36 +99,36 @@ export function ImportPage() {
   const [coreType, setCoreType] = useState<CoreType>('custom');
   const [mcVersion, setMcVersion] = useState('');
   const [jvmArgs, setJvmArgs] = useState(DEFAULT_JVM_ARGS);
-  // 整份换掉参数（沿用或取消检测结果）时加一，让 JVM 配置器重新挂载：
-  // 回到默认参数时推荐内存重新套用，内存框里没填完的文本也一并丢掉。
+  // Incremented when the arguments are replaced wholesale (adopting or cancelling the detection result), so the JVM configurator remounts:
+  // on returning to the default arguments the recommended memory is applied again, and unfinished text in the memory box is dropped too.
   const [jvmEpoch, setJvmEpoch] = useState(0);
-  // 当前 JVM 参数是否来自检测到的 user_jvm_args.txt（沿用后用户又改过也算）。
+  // Whether the current JVM arguments come from the detected user_jvm_args.txt (also counts when the user edited them after adopting).
   const jvmFromDetectionRef = useRef(false);
-  // 自动沿用之前的参数（用户自己填的或默认值）：点「取消」或换到别的来源时还原成它。
+  // The arguments from before the automatic adoption (the user's own or the defaults): restored on "Cancel" or on switching to another source.
   const jvmBeforeDetectionRef = useRef(DEFAULT_JVM_ARGS);
-  // 下面的 effect 和回调要读最新参数，又不该因为参数变化而重跑。
+  // The effects and callbacks below need to read the latest arguments, but should not rerun because the arguments changed.
   const jvmArgsRef = useRef(jvmArgs);
   jvmArgsRef.current = jvmArgs;
   const [detectedApplied, setDetectedApplied] = useState(false);
   const [javaRuntimeId, setJavaRuntimeId] = useState<string | null>(null);
   const [javaMajor, setJavaMajor] = useState<number | null>(null);
-  // 实际要用的 Java 现在的情况，摘要和「修改设置」自动展开用；设置区没挂载时为 null。
+  // The current situation of the Java that will actually be used, for the summary and auto-expanding "Edit Settings"; null when the settings area is not mounted.
   const [javaState, setJavaState] = useState<JavaResolvedState | null>(null);
   const [jvmValid, setJvmValid] = useState(true);
-  // JVM 配置器里有错误、警告，或检测到的 user_jvm_args.txt 用不了。
+  // The JVM configurator has errors or warnings, or the detected user_jvm_args.txt is unusable.
   const [jvmAttention, setJvmAttention] = useState(false);
-  // 「修改设置」折叠区：默认收起，里面有要处理的问题时自动展开（每个来源一次，用户之后仍能收起）。
+  // The "Edit Settings" collapsible section: collapsed by default, auto-expanded when it contains a problem to handle (once per source; the user can still collapse it afterwards).
   const [settingsOpen, setSettingsOpen] = useState(false);
   const autoOpenedForRef = useRef<string | null>(null);
-  // EULA 必须由用户主动勾选同意；已有服务端若自带 eula.txt 同意记录，可保持不勾选。
+  // The EULA must be checked by the user; when an existing server comes with its own acceptance record in eula.txt, it can stay unchecked.
   const [acceptEula, setAcceptEula] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<TaskInfo | null>(null);
   const [busy, setBusy] = useState(false);
-  /** Java 一键安装进行中：装完会自动选中新 Java，之前不允许导入。 */
+  /** One-click Java install in progress: the new Java is selected automatically once installed, and importing is not allowed before then. */
   const [javaInstalling, setJavaInstalling] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  /** 组件卸载时中止进行中的请求和任务轮询，避免离开页面后继续更新状态。 */
+  /** Aborts in-progress requests and task polling when the component unmounts, so state is not updated after leaving the page. */
   const pollAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -159,7 +159,7 @@ export function ImportPage() {
   }, []);
 
   useEffect(() => {
-    // 刷新页面后恢复已上传并检查过、等待确认的文件夹；上传到一半的会话已经续不上，直接删掉。
+    // After a page refresh, restores a folder that was uploaded and checked and is waiting for confirmation; a session interrupted mid-upload cannot be resumed and is deleted.
     const uploadId = sessionStorage.getItem(FOLDER_UPLOAD_SESSION_KEY);
     if (!uploadId) {
       setRestoringFolder(false);
@@ -208,7 +208,7 @@ export function ImportPage() {
   }, [loadSources]);
 
   const selectedSource = sources.find((source) => source.id === sourceId) ?? null;
-  // 上传并检查过、能导入的文件夹的预检结果。
+  // Precheck result of a folder that was uploaded and checked and can be imported.
   const folderCheck = folderUpload?.state === 'ready' && folderUpload.check?.ready ? folderUpload.check : null;
   const detectedJvmConfig = mode === 'directory'
     ? selectedSource?.detectedJvmConfig
@@ -223,14 +223,14 @@ export function ImportPage() {
     setFile(selected);
   }
 
-  // 选好来源之前只显示来源区；imports 里也要先选中一个能导入的文件夹。
+  // Only the source area is shown before a source is chosen; in imports too, an importable folder has to be selected first.
   const configurationVisible = (mode === 'directory' && Boolean(selectedSource?.ready))
     || (mode === 'zip' && preview !== null)
     || (mode === 'folder' && folderCheck !== null);
   const nameIssue = instanceNameIssue(name);
-  // 这一步是上传（ZIP 或文件夹）而不是确认导入：只需要选好文件，不检查名称和 JVM 参数。
+  // This step is the upload (ZIP or folder), not confirming the import: only the files need to be chosen, and the name and JVM arguments are not checked.
   const isUploadStep = (mode === 'zip' && file !== null) || (mode === 'folder' && folder !== null);
-  // 确认导入这一步（选好了 imports 里的服务端，或 ZIP、文件夹已上传并检查）才需要名称和 JVM 参数。
+  // Only the confirm-import step (a server in imports is selected, or the ZIP or folder has been uploaded and checked) needs the name and JVM arguments.
   const confirmStep = mode === 'directory' ? Boolean(selectedSource?.ready)
     : mode === 'zip' ? file === null && preview !== null
       : folder === null && folderCheck !== null;
@@ -245,12 +245,12 @@ export function ImportPage() {
     && !javaInstalling
     && (isUploadStep ? true : confirmStep && blocker === null);
 
-  // 识别出核心和版本的来源：imports 里选中的文件夹，或上传并检查过的文件夹。
+  // The source whose core and version were recognized: the folder selected in imports, or the folder uploaded and checked.
   const recognized = mode === 'directory' ? (selectedSource?.ready ? selectedSource : null)
     : mode === 'folder' ? folderCheck : null;
   useEffect(() => {
-    // 识别结果只属于当前来源。ZIP 的核心和版本由服务端在导入时识别，这里回到「没选」，
-    // 否则进页面时自动选中的那个文件夹的核心和版本会留在表单里，被当成用户的选择提交上去。
+    // A detection result belongs only to the current source. A ZIP's core and version are recognized by the server at import time, so this goes back to "not chosen",
+    // otherwise the core and version of the folder auto-selected on entering the page would stay in the form and be submitted as the user's choice.
     if (mode === 'zip' || (mode === 'folder' && !recognized)) {
       setCoreType('custom');
       setMcVersion('');
@@ -258,11 +258,11 @@ export function ImportPage() {
     }
     if (!recognized) return;
     setCoreType(recognized.coreType);
-    // 从文件名认出的版本先填上，Java 选择处才能提前提示版本是否合适；用户仍可改。
+    // The version recognized from the file name is filled in first, so the Java picker can warn early whether the version fits; the user can still change it.
     setMcVersion(recognized.mcVersion ?? '');
   }, [mode, selectedSource?.id, folderUpload?.id, recognized?.coreType, recognized?.mcVersion, Boolean(recognized)]);
 
-  /** 沿用检测到的参数，记下沿用之前的参数供「取消」还原。 */
+  /** Adopts the detected arguments, recording the arguments from before for "Cancel" to restore. */
   function applyDetectedJvmArgs(before: string, detectedArgs: string) {
     jvmBeforeDetectionRef.current = before;
     jvmFromDetectionRef.current = true;
@@ -271,7 +271,7 @@ export function ImportPage() {
     setJvmEpoch((epoch) => epoch + 1);
   }
 
-  /** 不再沿用检测到的参数，还原成沿用之前的参数。 */
+  /** Stops adopting the detected arguments and restores the arguments from before adopting. */
   function restoreJvmArgs(before: string) {
     jvmFromDetectionRef.current = false;
     setJvmArgs(before);
@@ -281,23 +281,23 @@ export function ImportPage() {
 
   const detectedJvmArgs = detectedJvmConfig?.canonicalArgs ?? null;
   useEffect(() => {
-    // 检测结果只属于当前来源。换来源、换模式、换 ZIP 预检（或同一来源的文件变了）后，
-    // 先把上一个来源带来的参数还原成沿用之前的参数；新来源有可用的 user_jvm_args.txt 时自动沿用它。
-    // 用户没用检测结果、自己填的参数和来源无关，换到没有检测结果的来源时保留。
+    // A detection result belongs only to the current source. After changing the source, the mode or the ZIP precheck (or when the files of the same source changed),
+    // first restore the arguments brought by the previous source to those from before adopting; when the new source has a usable user_jvm_args.txt, adopt it automatically.
+    // Arguments the user filled in without using the detection result have nothing to do with the source, and are kept when switching to a source without a detection result.
     const before = jvmFromDetectionRef.current ? jvmBeforeDetectionRef.current : jvmArgsRef.current;
     if (detectedJvmArgs) applyDetectedJvmArgs(before, detectedJvmArgs);
     else if (jvmFromDetectionRef.current) restoreJvmArgs(before);
     else setDetectedApplied(false);
   }, [mode, preview?.id, selectedSource?.id, folderUpload?.id, detectedJvmArgs]);
 
-  // 设置区卸载后它报上来的状态就过期了，清掉，免得下次挂载时用旧状态判断要不要展开。
+  // Once the settings area unmounts, the state it reported is stale; clear it so the next mount does not decide whether to expand based on old state.
   useEffect(() => {
     if (configurationVisible) return;
     setJavaState(null);
     setJvmAttention(false);
   }, [configurationVisible]);
 
-  // 换了来源就重新收起，新来源有问题时再自动展开一次。
+  // Collapse again when the source changes, and auto-expand once more if the new source has a problem.
   const sourceKey = mode === 'directory' ? `directory:${sourceId}`
     : mode === 'zip' ? `zip:${preview?.id ?? ''}` : `folder:${folderUpload?.id ?? ''}`;
   useEffect(() => {
@@ -305,15 +305,15 @@ export function ImportPage() {
     autoOpenedForRef.current = null;
   }, [sourceKey]);
 
-  // Java 还在读时 JVM 配置器会因为不知道 Java 版本给出警告，读完再判断。
+  // While Java is still being read the JVM configurator warns because it does not know the Java version, so decide after the read finishes.
   const javaSettled = javaState !== null && javaState.availability !== 'loading';
   const javaProblem = javaSettled && (javaState.availability !== 'ready' || javaState.matchStatus === 'mismatch');
   const settingsNeedAttention = configurationVisible
     && (javaInstalling || (javaSettled && (javaProblem || jvmAttention || !jvmValid)));
   useEffect(() => {
     if (!settingsNeedAttention || autoOpenedForRef.current === sourceKey) return;
-    // 问题持续一小会儿才展开：换来源、自动选 Java 的那一两次渲染里，核心版本或 Java 还是旧的，
-    // 看起来像「版本不符」，其实马上就对了。
+    // Expand only after the problem persists a short while: in the one or two renders of changing the source and auto-selecting Java, the core version or Java is still the old one,
+    // which looks like a "version mismatch" but is about to be correct.
     const timer = window.setTimeout(() => {
       autoOpenedForRef.current = sourceKey;
       setSettingsOpen(true);
@@ -322,7 +322,7 @@ export function ImportPage() {
   }, [settingsNeedAttention, sourceKey]);
 
   const coreLabel = coreTypeOptions.find((option) => option.value === coreType)?.label ?? '';
-  // ZIP 的核心和版本在导入时由服务端识别；自己选了核心就按选的写。
+  // A ZIP's core and version are recognized by the server at import time; when the user chose a core, write what was chosen.
   const serverSummary = coreType === 'custom'
     ? t('import.summary.serverAuto')
     : mcVersion.trim()
@@ -364,7 +364,7 @@ export function ImportPage() {
     }
   }
 
-  /** 不要已经上传并检查过的文件夹了：删掉面板上的临时文件夹，回到选文件夹。 */
+  /** Discards the folder that was uploaded and checked: deletes the temp folder on the panel and goes back to picking a folder. */
   async function discardFolderUpload() {
     if (!folderUpload) return;
     setBusy(true);
@@ -503,8 +503,8 @@ export function ImportPage() {
           ? preview ? 'import.submit.replacePreview' : 'import.submit.upload'
           : preview ? 'import.submit.confirm' : 'import.submit.chooseZip');
 
-  // 「从 imports 文件夹复制」是次要入口（D-039）：浏览器能选文件夹时，只有 imports 里已经放了东西、
-  // 当前正处在这个方式，或用户点了「上传文件夹」下方的链接，才出现在方式切换里。
+  // "Copy from the imports folder" is a secondary entry (D-039): when the browser can pick folders, it appears in the mode switcher only when imports already has something in it,
+  // this mode is the current one, or the user clicked the link below "Upload Folder".
   const showImportsTab = !folderPickSupported || importsRevealed || mode === 'directory' || sources.length > 0;
 
   function modeTab(tabMode: ImportMode, icon: ReactNode, label: string) {
@@ -545,7 +545,7 @@ export function ImportPage() {
       </div>
 
       <form className="form-stack import-form" onSubmit={(e) => void onSubmit(e)}>
-        {/* 宽屏时分左右两栏：左栏来源，右栏导入设置；还没选好来源时只有来源一栏。窄屏按原顺序上下排列。 */}
+        {/* On wide screens there are two columns: the source on the left and import settings on the right; before a source is chosen there is only the source column. Narrow screens stack them in the original order. */}
         <div className="form-columns">
           <div className="form-column">
             {mode === 'folder' ? (
@@ -631,7 +631,7 @@ export function ImportPage() {
                       <div className="drop-zone-title">
                         {file ? file.name : t('import.zip.drop.title')}
                       </div>
-                      {/* 未选文件时不放提示：「限制由面板配置决定」说不出具体限制，只是占位的话。 */}
+                      {/* No hint when no file is chosen: "the limit is decided by panel config" cannot name a specific limit and is only filler. */}
                       {file && (
                         <span className="drop-zone-hint">
                           {t('import.zip.drop.size', { size: fmt.fixed(file.size / 1024 / 1024, 1) })}
@@ -678,7 +678,7 @@ export function ImportPage() {
                     {nameIssue && <p className="error" id="import-instance-name-error">{t(nameIssue.key, nameIssue.params)}</p>}
                   </div>
 
-                  {/* 面板识别出、准备使用的设置，一行一项；要改的在下面的「修改设置」里。 */}
+                  {/* The settings the panel recognized and is about to use, one per row; what needs changing is in "Edit Settings" below. */}
                   <dl className="import-summary" aria-label={t('import.summary.ariaLabel')}>
                     <div className="import-summary-row">
                       <dt>{t('import.summary.server')}</dt>
@@ -708,8 +708,8 @@ export function ImportPage() {
                   </dl>
 
                   {/*
-                    收起时里面的控件照常挂载：Java 自动选择、推荐内存和参数检查都在里面跑，
-                    不能改成展开才渲染。
+                    The controls inside stay mounted while collapsed: Java auto-selection, recommended memory and argument checks all run in there,
+                    so it cannot be changed to render only when expanded.
                   */}
                   <details
                     className="disclosure import-settings-more"

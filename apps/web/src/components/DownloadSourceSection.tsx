@@ -12,7 +12,7 @@ const SOURCE_LABELS: Record<DownloadSource, MessageKey> = {
 const SOURCES = Object.keys(SOURCE_LABELS) as DownloadSource[];
 
 interface SourcePicker {
-  /** 当前来源；null 表示还在读取，按钮暂不可点。 */
+  /** The current source; null means still loading, and the buttons are not clickable for now. */
   source: DownloadSource | null;
   saving: boolean;
   error: string;
@@ -20,7 +20,7 @@ interface SourcePicker {
   choose: (next: DownloadSource) => Promise<void>;
 }
 
-/** 切换来源的保存状态。按钮和说明分开摆放时（设置页一左一右），两边共用这一份。 */
+/** Save state of switching the source. When the buttons and the description are placed apart (left and right on the settings page), both sides share this one. */
 function useSourcePicker(source: DownloadSource | null, onSaved: (source: DownloadSource) => void): SourcePicker {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -44,7 +44,7 @@ function useSourcePicker(source: DownloadSource | null, onSaved: (source: Downlo
   return { source, saving, error, saved, choose };
 }
 
-/** 来源的分段按钮。 */
+/** Segmented buttons for the source. */
 function SourceButtons({ picker, labelledBy }: { picker: SourcePicker; labelledBy: string }) {
   const { t } = useI18n();
   return (
@@ -65,7 +65,7 @@ function SourceButtons({ picker, labelledBy }: { picker: SourcePicker; labelledB
   );
 }
 
-/** 当前来源的说明、保存失败原因和保存状态。 */
+/** Description of the current source, the save failure reason and the save state. */
 function SourceNotes({ picker, className }: { picker: SourcePicker; className: string }) {
   const { t } = useI18n();
   return (
@@ -78,7 +78,7 @@ function SourceNotes({ picker, className }: { picker: SourcePicker; className: s
         </>
       )}
       {picker.error && <p className="error" role="alert">{picker.error}</p>}
-      {/* 状态区一直保留，读屏软件才会播报；空的时候隐藏，不占间距。 */}
+      {/* The status area is always kept so screen readers announce it; it is hidden when empty and takes no spacing. */}
       <p className={picker.saved ? className : 'visually-hidden'} role="status">
         {picker.saved ? t('settings.downloadSource.saved') : ''}
       </p>
@@ -86,7 +86,7 @@ function SourceNotes({ picker, className }: { picker: SourcePicker; className: s
   );
 }
 
-/** 按钮和说明上下排在一起的切换控件，下载入口旁的提示展开后用；收起再展开时保存状态重新开始。 */
+/** A switch control with the buttons and description stacked together, used when the hint beside a download entry is expanded; the save state starts over when collapsed and expanded again. */
 function InlineSourcePicker({
   source,
   onSaved,
@@ -105,7 +105,7 @@ function InlineSourcePicker({
   );
 }
 
-/** 读取当前下载来源；失败时交给调用方决定是否提示，调用第三个返回值可以重新读取。 */
+/** Reads the current download source; on failure the caller decides whether to show a message, and calling the third return value reads again. */
 function useDownloadSource(onError?: (err: unknown) => void) {
   const [source, setSource] = useState<DownloadSource | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -121,12 +121,12 @@ function useDownloadSource(onError?: (err: unknown) => void) {
     return () => {
       active = false;
     };
-    // 挂载时读取一次，之后只在重试时再读
+    // Read once on mount, then again only on retry
   }, [attempt]);
   return [source, setSource, () => setAttempt((count) => count + 1)] as const;
 }
 
-/** 面板设置页的下载来源一行；保存后立即生效，不需要重启面板。 */
+/** The download source row on the panel settings page; it takes effect right after saving, with no panel restart needed. */
 export function DownloadSourceRow() {
   const { t } = useI18n();
   const titleId = useId();
@@ -164,8 +164,8 @@ export function DownloadSourceRow() {
 }
 
 /**
- * 下载入口旁的一行提示，显示当前来源，点「更改」就地展开切换控件，
- * 不跳离当前页面（部署表单等已填内容不会丢）。读取失败时不显示。
+ * A one-line hint beside a download entry showing the current source; clicking "Change" expands the switch control in place,
+ * without leaving the current page (content already filled in, such as the deploy form, is not lost). Not shown when reading fails.
  */
 export function DownloadSourceHint() {
   const { t } = useI18n();

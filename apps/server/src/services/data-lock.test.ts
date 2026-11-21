@@ -1,6 +1,6 @@
 /**
- * 数据目录生命周期锁回归。
- * 必须使用随机临时 DATA_DIR，禁止触碰仓库 data/。
+ * Data directory lifecycle lock regression.
+ * A random temp DATA_DIR must be used; touching the repo's data/ is forbidden.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

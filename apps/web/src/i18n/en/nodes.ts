@@ -1,4 +1,4 @@
-/** 本机环境页文案（英文主表）。 */
+/** Local environment page strings (English primary table). */
 export default {
   'nodes.status.online': 'Online',
   'nodes.status.offline': 'Offline',

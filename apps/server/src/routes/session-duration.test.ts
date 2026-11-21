@@ -1,6 +1,6 @@
 /**
- * 登录有效期（D-040）：默认 12 小时、在面板里改、改了马上给当前设备换发令牌；
- * 「不过期」签发的令牌不带 exp，但改短后按签发时间超时的令牌立即失效。.env 的 JWT_EXPIRES_IN 不再生效。
+ * Session duration (D-040): 12 hours by default, changed in the panel, and a change reissues the current device's token right away;
+ * tokens issued as "never expire" carry no exp, but after shortening, tokens that have timed out by issue time are invalidated immediately. JWT_EXPIRES_IN in .env no longer applies.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -12,7 +12,7 @@ import type { SessionDurationSetting, UpdateSessionDurationResult } from '@mystr
 process.env.JWT_SECRET = 'a'.repeat(64);
 process.env.SETUP_TOKEN = 'b'.repeat(64);
 process.env.LAUNCHER_TOKEN = 'c'.repeat(64);
-// 旧配置里的有效期不再生效：令牌仍按面板设置（默认 12 小时）签发。
+// The expiry from old config no longer applies: tokens are still issued with the panel setting (12 hours by default).
 process.env.JWT_EXPIRES_IN = '1m';
 
 const HOUR = 60 * 60;
@@ -50,19 +50,19 @@ test('登录有效期：默认 12 小时，可改为不过期或改短，改短�
   assert.equal(setup.statusCode, 200);
   const { token: firstToken, user } = setup.json<{ token: string; user: { id: string; username: string } }>();
 
-  // 默认 12 小时，JWT_EXPIRES_IN=1m 被忽略。
+  // 12 hours by default; JWT_EXPIRES_IN=1m is ignored.
   const firstClaims = decode(firstToken);
   assert.equal(firstClaims.exp! - firstClaims.iat, 12 * HOUR);
   assert.equal((await getDuration(firstToken)).json<SessionDurationSetting>().duration, '12h');
 
-  // 没登录不能读也不能改；不在列表里的值被拒绝。
+  // Neither readable nor changeable without signing in; values not in the list are rejected.
   assert.equal((await app.inject({ method: 'GET', url: '/api/auth/session-duration' })).statusCode, 401);
   assert.equal((await putDuration(null, 'never')).statusCode, 401);
   const invalid = await putDuration(firstToken, '3h');
   assert.equal(invalid.statusCode, 400);
   assert.equal(invalid.json<{ code: string }>().code, 'server.auth.sessionDurationInvalid');
 
-  // 改为不过期：当前设备拿到不带 exp 的新令牌，三小时前签发的令牌也照常可用。
+  // Changed to never expire: this device gets a new token without exp, and a token issued three hours ago keeps working as well.
   const toNever = await putDuration(firstToken, 'never');
   assert.equal(toNever.statusCode, 200);
   const neverResult = toNever.json<UpdateSessionDurationResult>();
@@ -75,7 +75,7 @@ test('登录有效期：默认 12 小时，可改为不过期或改短，改短�
   assert.equal(decode(oldNeverToken).exp, undefined);
   assert.equal((await me(oldNeverToken)).statusCode, 200);
 
-  // 改短为 2 小时：三小时前登录的令牌即使不带 exp 也立即失效；刚签发的照常可用。
+  // Shortened to 2 hours: a token from a sign-in three hours ago is invalidated immediately even without exp; a freshly issued one keeps working.
   const toShort = await putDuration(neverResult.token, '2h');
   assert.equal(toShort.statusCode, 200);
   const shortResult = toShort.json<UpdateSessionDurationResult>();
@@ -85,7 +85,7 @@ test('登录有效期：默认 12 小时，可改为不过期或改短，改短�
   assert.equal((await me(neverResult.token)).statusCode, 200);
   assert.equal((await me(shortResult.token)).statusCode, 200);
 
-  // 其余预设都能签发，有效期和选项一致（签不出来会把保存的设置卡住，之后谁都登录不了）。
+  // Every other preset can be issued, with an expiry matching the option (if issuing failed, saving the setting would get stuck and nobody could sign in afterwards).
   let currentToken = shortResult.token;
   for (const [duration, seconds] of [['1d', 24 * HOUR], ['7d', 7 * 24 * HOUR], ['30d', 30 * 24 * HOUR], ['12h', 12 * HOUR]] as const) {
     const response = await putDuration(currentToken, duration);
@@ -96,7 +96,7 @@ test('登录有效期：默认 12 小时，可改为不过期或改短，改短�
   }
   assert.equal((await putDuration(currentToken, '2h')).statusCode, 200);
 
-  // 之后的登录按新设置签发。
+  // Later sign-ins are issued with the new setting.
   const login = await app.inject({
     method: 'POST',
     url: '/api/auth/login',

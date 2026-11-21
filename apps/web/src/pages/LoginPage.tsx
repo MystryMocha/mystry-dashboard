@@ -9,11 +9,11 @@ import { errorMessage } from '../errors';
 import { useI18n } from '../i18n';
 import { SETUP_TOKEN_LENGTH, charCount, newPasswordIssue, setupTokenIssue, type Issue } from '../validation';
 
-// 与服务端初始化管理员的规则一致：用户名去掉首尾空格后 2–64 个字符。
+// Same as the server's rules for setting up the admin: the username is 2–64 characters after trimming.
 const USERNAME_MIN = 2;
 const USERNAME_MAX = 64;
 
-/** 用户名已经填了但不合规时给出原因；空用户名只让按钮不可点，不提前报错。 */
+/** Gives the reason when the username is filled in but does not comply; an empty username only disables the button, without reporting early. */
 function usernameIssue(username: string): Issue | null {
   const name = username.trim();
   if (name && charCount(name) < USERNAME_MIN) return { key: 'server.auth.usernameTooShort', params: { min: USERNAME_MIN } };
@@ -21,7 +21,7 @@ function usernameIssue(username: string): Issue | null {
   return null;
 }
 
-/** 把几个可能为空的 id 拼成 aria-describedby。 */
+/** Joins several possibly empty ids into aria-describedby. */
 function describedBy(...ids: (string | false | null | undefined)[]): string | undefined {
   return ids.filter(Boolean).join(' ') || undefined;
 }
@@ -69,7 +69,7 @@ export function LoginPage() {
         <LanguageToggle placement="login" />
         <ThemeToggle placement="login" />
       </div>
-      {/* 字段的显示时机要从上下文里读「是否要求全部显示」，所以表单拆成子组件放在 Provider 里面。 */}
+      {/* When a field shows feedback depends on reading "whether everything is asked to show" from context, so the form is split into a child component placed inside the Provider. */}
       <FormFeedbackProvider value={feedback.value}>
         <CredentialForm revealAll={feedback.revealAll} footer={footer} />
       </FormFeedbackProvider>
@@ -87,11 +87,11 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
   const [busy, setBusy] = useState(false);
   const submittingRef = useRef(false);
   const tokenRef = useRef<HTMLInputElement>(null);
-  // 粘贴后要放回的光标位置：受控输入框改值后光标会跑到末尾。
+  // The caret position to put back after a paste: after a controlled input's value changes, the caret jumps to the end.
   const tokenCaretRef = useRef<number | null>(null);
 
-  // 「合不合法」每次渲染都算，决定按钮；红字什么时候出现由 useFieldFeedback 管（失焦过，或按了 Enter）。
-  // 登录状态不做这些检查。
+  // "Whether it is valid" is computed on every render and decides the button; when the red text appears is managed by useFieldFeedback (after blur, or after Enter is pressed).
+  // These checks are not done in the sign-in state.
   const nameIssue = needsSetup ? usernameIssue(username) : null;
   const tokenIssue = needsSetup ? setupTokenIssue(setupToken) : null;
   const passwordIssue = needsSetup ? newPasswordIssue(password) : null;
@@ -102,8 +102,8 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
   const tokenFeedback = useFieldFeedback(tokenError);
   const passwordFeedback = useFieldFeedback(passwordError);
 
-  // 只有初始化按规则禁用。登录按钮不预先禁用：浏览器自动填充的密码在用户操作前可能还没进 React 状态，
-  // 禁用后连回车都提交不了；空字段由输入框的 required 拦住。
+  // Only setup is disabled by rules. The sign-in button is not disabled in advance: a password autofilled by the browser may not have reached React state before the user interacts,
+  // and once disabled even Enter could not submit; empty fields are blocked by the inputs' required.
   const canSubmit = !busy && (!needsSetup
     || (username.trim() !== '' && password !== '' && setupToken.length === SETUP_TOKEN_LENGTH
       && nameIssue === null && tokenIssue === null && passwordIssue === null));
@@ -132,12 +132,12 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
   }
 
   /**
-   * 初始化按钮禁用时浏览器不会因为 Enter 触发 submit，这里自己接：把各字段的原因显示出来，跳到第一个要改的。
-   * 可以提交时不拦，交给原生 submit；登录状态也不拦。
+   * While the setup button is disabled the browser does not trigger submit on Enter, so it is handled here: show each field's reason and jump to the first one to fix.
+   * When it can be submitted nothing is intercepted and the native submit takes over; the sign-in state is not intercepted either.
    */
   function onKeyDown(e: React.KeyboardEvent<HTMLFormElement>) {
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
-    // 只管输入框里的 Enter，密码显示按钮上的 Enter 仍然是切换显示。
+    // Only Enter in inputs is handled; Enter on the password show button still toggles visibility.
     if (!(e.target instanceof HTMLInputElement)) return;
     if (!needsSetup || busy || canSubmit) return;
     e.preventDefault();
@@ -146,14 +146,14 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
       focusFirstInvalidField(e.currentTarget);
       return;
     }
-    // 没有填错、只是还空着：只把焦点带到第一个没填的。这时不能 revealAll，
-    // 否则接下来在空框里输的第一个字符就会报错。
+    // Nothing filled in wrong, just still empty: only bring focus to the first unfilled one. revealAll must not be used here,
+    // or the first character typed next into the empty box would report an error.
     if (username.trim() === '') focusField('username');
     else if (setupToken === '') focusField('setup-token');
     else if (password === '') focusField('password');
   }
 
-  /** 从配置文件复制时常带上行尾换行或空格：粘贴时去掉首尾空白，再放进当前选区。 */
+  /** Copying from the config file often brings a trailing line break or spaces: on paste, surrounding whitespace is trimmed before it is put into the current selection. */
   function onTokenPaste(e: React.ClipboardEvent<HTMLInputElement>) {
     const text = e.clipboardData.getData('text');
     const trimmed = text.trim();
@@ -174,7 +174,7 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
 
       <form className="login-form" onSubmit={onSubmit} onKeyDown={onKeyDown}>
         <div className="field-stack">
-          {/* data-field-invalid 不管红字显没显示都标着，focusFirstInvalidField 靠它找到第一个要改的字段。 */}
+          {/* data-field-invalid is set whether or not the red text is showing, and focusFirstInvalidField uses it to find the first field to fix. */}
           <div className="float-field" data-field-invalid={nameError ? '' : undefined}>
             <input
               id="username"
@@ -191,8 +191,8 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
           </div>
           {needsSetup && (
             <div className="float-field" data-field-invalid={tokenError ? '' : undefined}>
-              {/* 令牌是从配置文件里复制的，用等宽的普通文本框，贴了什么看得见。
-                  不设 maxLength：浏览器会先截断再交给页面，多贴的字符就看不出来了，也数不对。 */}
+              {/* The token is copied from the config file, so a monospace plain text box is used and what was pasted is visible.
+                  No maxLength: the browser would truncate before handing it to the page, so extra pasted characters could not be seen or counted correctly. */}
               <span className="input-affix">
                 <input
                   ref={tokenRef}
@@ -213,7 +213,7 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
                   required
                 />
                 <label htmlFor="setup-token">{t('login.form.setupToken')}</label>
-                {/* 实时计数：不用失焦就能看出少贴了几位。读屏通过 aria-describedby 读到。 */}
+                {/* Live count: how many characters are missing is visible without blurring. Screen readers get it through aria-describedby. */}
                 <span className="input-affix-text" id="setup-token-count">
                   {t('login.form.setupTokenCount', { count: setupToken.length, max: SETUP_TOKEN_LENGTH })}
                 </span>
@@ -232,7 +232,7 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
               aria-invalid={passwordFeedback.shown ? true : undefined}
               required
               minLength={needsSetup ? 12 : 1}
-              // 浮动标签靠「input + label」相邻选择器定位，要紧跟在输入框后面。
+              // The floating label is positioned with the "input + label" adjacent selector, so it has to come right after the input.
               after={<label htmlFor="password">{t('login.form.password')}</label>}
             />
           </div>
@@ -243,7 +243,7 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
             <p id="setup-token-help">
               {t('login.form.setupTokenHelp')}
             </p>
-            {/* 密码的错误出现时说的也是长度，这句说明就不再重复。 */}
+            {/* When the password error appears it is about the length too, so this description is not repeated. */}
             {!passwordFeedback.shown && <p id="password-help">{t('login.form.passwordHelp')}</p>}
           </div>
         )}

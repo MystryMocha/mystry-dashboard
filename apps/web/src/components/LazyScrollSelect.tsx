@@ -17,22 +17,22 @@ type LazyScrollSelectProps<T extends string | number> = {
   onChange: (value: T) => void;
   disabled?: boolean;
   loading?: boolean;
-  /** 展开面板时回调（用于按需拉取选项） */
+  /** Callback when the panel opens (used to fetch options on demand) */
   onOpen?: () => void;
   formatLabel?: (value: T) => string;
   placeholder?: string;
   emptyText?: string;
-  /** 可见字段标签的 id：触发按钮的无障碍名称由「标签 + 当前值」组成，读屏能同时读到两者。 */
+  /** id of the visible field label: the trigger button's accessible name is "label + current value", so screen readers read both. */
   labelId: string;
 };
 
-/** 根据选中项索引计算至少需要展示多少条，保证已选项在列表内 */
+/** Computes how many items at least need to be shown from the selected index, so the selected item is within the list */
 function countForSelectedIndex(index: number, total: number): number {
   if (index < 0) return Math.min(PAGE_SIZE, total);
   return Math.min(Math.ceil((index + 1) / PAGE_SIZE) * PAGE_SIZE, total);
 }
 
-/** 将活动索引限制在当前选项范围内，避免读屏器指向不存在的选项。 */
+/** Clamps the active index to the current option range, so screen readers do not point at a nonexistent option. */
 function normalizeActiveIndex(index: number, total: number): number {
   return index >= 0 && index < total ? index : -1;
 }
@@ -67,7 +67,7 @@ export function LazyScrollSelect<T extends string | number>({
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    // visualViewport 能排除移动端浏览器工具栏和软键盘占用的不可见区域。
+    // visualViewport excludes the invisible area taken by mobile browser toolbars and the on-screen keyboard.
     const viewportTop = window.visualViewport?.offsetTop ?? 0;
     const viewportHeight = window.visualViewport?.height ?? document.documentElement.clientHeight;
     const viewportBottom = viewportTop + viewportHeight;
@@ -104,7 +104,7 @@ export function LazyScrollSelect<T extends string | number>({
     listRef.current?.focus();
   }, [open]);
 
-  // 在浏览器绘制面板前完成首次定位，避免固定向下展开造成一帧越界。
+  // The first positioning is done before the browser paints the panel, so always opening downward does not overflow for one frame.
   useLayoutEffect(() => {
     if (!open) return;
     updatePanelLayout();
@@ -125,7 +125,7 @@ export function LazyScrollSelect<T extends string | number>({
     };
   }, [open, updatePanelLayout]);
 
-  // 点击外部关闭
+  // Close on outside click
   useEffect(() => {
     if (!open) return;
     function onPointerDown(e: MouseEvent) {
@@ -163,8 +163,8 @@ export function LazyScrollSelect<T extends string | number>({
     }
   }
 
-  // 内容放不满面板时没有滚动条，也就不会触发 onScroll：每次渲染出新内容后都补查一次，直到出现滚动条或全部加载。
-  // 选项可能在展开后才到达，面板高度也会随视口变化，所以都要列入依赖；绘制前执行可避免闪现加载提示。
+  // When the content does not fill the panel there is no scrollbar and onScroll never fires: after each render of new content it is checked once more, until a scrollbar appears or everything is loaded.
+  // Options may arrive after opening and the panel height also changes with the viewport, so both go into the dependencies; running before paint avoids flashing the loading hint.
   useLayoutEffect(() => {
     if (open) handleScroll();
   }, [open, visibleCount, options.length, panelLayout.maxHeight]);
@@ -176,7 +176,7 @@ export function LazyScrollSelect<T extends string | number>({
 
   function moveActive(delta: number) {
     if (options.length === 0) return;
-    // 在 updater 外计算下一个索引，避免在 setState updater 内调用其他 setState（非纯函数）。
+    // The next index is computed outside the updater, to avoid calling another setState inside a setState updater (not a pure function).
     const currentIndex = normalizeActiveIndex(activeIndex, options.length);
     const base = currentIndex < 0 ? 0 : currentIndex;
     const next = Math.max(0, Math.min(options.length - 1, base + delta));
@@ -210,7 +210,7 @@ export function LazyScrollSelect<T extends string | number>({
       return;
     }
     if (event.key === 'Tab') {
-      // 与原生下拉一致：Tab 收起面板，焦点先回到触发按钮，再由浏览器默认行为移到下一个控件。
+      // Same as a native dropdown: Tab collapses the panel, focus goes back to the trigger button first, and the browser's default behavior then moves it to the next control.
       closePanel(true);
       return;
     }
@@ -307,7 +307,7 @@ export function LazyScrollSelect<T extends string | number>({
                 key={String(opt)}
                 type="button"
                 role="option"
-                // 选项由列表框的 aria-activedescendant 管理焦点，不单独进入 Tab 序列。
+                // Option focus is managed by the listbox's aria-activedescendant, and options do not enter the Tab sequence individually.
                 tabIndex={-1}
                 data-option-index={index}
                 aria-selected={selected}

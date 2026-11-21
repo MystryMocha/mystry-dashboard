@@ -5,8 +5,8 @@ import { errorMessage } from './errors';
 import { POLL_INTERVAL_MS } from './hooks/usePolling';
 
 /**
- * 任务中心的模块级共享状态，所有订阅者共用一个轮询循环。
- * 订阅数为 0 时停止轮询（如退出登录后），避免无意义的 401 请求。
+ * Module-level shared state of the task center; all subscribers share one polling loop.
+ * Polling stops when the subscriber count is 0 (such as after signing out), avoiding pointless 401 requests.
  */
 
 const RATE_LIMIT_BACKOFF_MS = 10_000;
@@ -40,7 +40,7 @@ async function runTick(generation: number): Promise<void> {
     schedule(POLL_INTERVAL_MS, generation);
   } catch (error) {
     if (!isActive(generation)) return;
-    // 429 说明服务端限流，退避后继续；401 等错误交给全局处理，这里仅记录。
+    // 429 means the server is rate limiting, so back off and continue; errors such as 401 are left to the global handler and only recorded here.
     loadError = errorMessage(error);
     hasLoaded = true;
     schedule(
@@ -72,7 +72,7 @@ function schedule(delay: number, generation: number): void {
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => {
     if (!isActive(generation)) return;
-    // 页面隐藏时暂停轮询，恢复可见时立即补一次。
+    // Polling pauses while the page is hidden, and runs once right away when it becomes visible again.
     if (document.hidden) {
       schedule(POLL_INTERVAL_MS, generation);
       return;
@@ -102,7 +102,7 @@ function stop(): void {
     timer = null;
   }
   document.removeEventListener('visibilitychange', onVisibilityChange);
-  // 订阅清零（登出/退出登录页）时清空模块级缓存，避免换用户后短暂显示上一会话的任务。
+  // When subscriptions drop to zero (sign-out / leaving to the login page) the module-level cache is cleared, so the previous session's tasks do not flash after switching users.
   tasks = [];
   loadError = '';
   lastSuccessAt = null;

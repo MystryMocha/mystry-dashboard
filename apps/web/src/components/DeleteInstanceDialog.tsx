@@ -6,16 +6,16 @@ import { useI18n } from '../i18n';
 import { ConfirmDialog } from './ConfirmDialog';
 
 /**
- * 删除实例的确认框，总览和实例设置共用。
- * 要输入实例名才能确认，可以选择是否连同备份删除；待迁移的实例只移除记录，不删文件。
- * 删除请求在这里发：失败时弹窗不关、原因显示在弹窗里，成功后才通知调用方。
+ * Confirmation dialog for deleting an instance, shared by the overview and instance settings.
+ * The instance name has to be typed to confirm, and deleting the backups along with it is optional; for an instance pending migration only the record is removed and no files are deleted.
+ * The delete request is sent here: on failure the dialog stays open with the reason shown inside it, and the caller is notified only on success.
  */
 export function DeleteInstanceDialog({
   instance,
   onDeleted,
   onCancel,
 }: {
-  /** 要删除的实例；为 null 时弹窗关闭。 */
+  /** The instance to delete; the dialog is closed when null. */
   instance: InstanceInfo | null;
   onDeleted: (instance: InstanceInfo) => void;
   onCancel: () => void;
@@ -26,7 +26,7 @@ export function DeleteInstanceDialog({
   const [error, setError] = useState('');
   const instanceId = instance?.id;
 
-  // 每次打开都回到默认：连同备份删除，不带上一次的失败提示。
+  // Every open returns to the defaults: delete along with backups, without the previous failure message.
   useEffect(() => {
     if (!instanceId) return;
     setDeleteBackups(true);

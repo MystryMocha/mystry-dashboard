@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
 
 /**
- * 通用确认弹窗：替代原生 confirm()。
- * 传入 requireText 时，必须输入完全一致的文本才能确认（用于删除实例等高危操作）。
+ * Generic confirmation dialog: replaces the native confirm().
+ * When requireText is passed, exactly matching text must be typed to confirm (for high-risk actions such as deleting an instance).
  */
 export function ConfirmDialog({
   open,
@@ -24,11 +24,11 @@ export function ConfirmDialog({
   confirmLabel?: string;
   danger?: boolean;
   busy?: boolean;
-  /** 表单内容尚未通过校验时禁用确认，但不进入 busy 锁。 */
+  /** Disables confirm while the form content has not passed validation, without entering the busy lock. */
   confirmDisabled?: boolean;
-  /** 需要输入完全一致的确认文本（如实例名） */
+  /** Exactly matching confirmation text is required (such as the instance name) */
   requireText?: string;
-  /** 操作失败的提示：显示在弹窗内（模态打开时页面其余部分不可达），出现时由读屏立即播报。 */
+  /** Message for a failed action: shown inside the dialog (the rest of the page is unreachable while the modal is open), and announced by screen readers as soon as it appears. */
   error?: string;
   onConfirm: () => void;
   onCancel: () => void;
@@ -41,11 +41,11 @@ export function ConfirmDialog({
   const inputId = useId();
   const errorId = useId();
   const errorRef = useRef<HTMLParagraphElement>(null);
-  /** 同一打开周期内只触发一次取消，避免 close 事件与按钮 onClick 双路径重复调用。 */
+  /** Cancel fires only once within one open cycle, so the close event and the button's onClick do not both call it. */
   const cancelHandledRef = useRef(false);
 
   function handleCancel(): void {
-    // 请求执行期间禁止 Escape、遮罩和关闭事件绕过 busy 锁。
+    // While the request is running, Escape, the backdrop and the close event are not allowed to bypass the busy lock.
     if (busy || cancelHandledRef.current) return;
     cancelHandledRef.current = true;
     onCancel();
@@ -63,7 +63,7 @@ export function ConfirmDialog({
     cancelHandledRef.current = false;
   }, [open]);
 
-  // 表单较长时错误可能在可视区外，出现时滚到可见位置。
+  // With a long form the error may be outside the visible area, so it is scrolled into view when it appears.
   useEffect(() => {
     if (error) errorRef.current?.scrollIntoView?.({ block: 'nearest' });
   }, [error]);
@@ -106,7 +106,7 @@ export function ConfirmDialog({
               />
             </div>
           )}
-          {/* role="alert" 元素插入时读屏会立即播报；放在可滚动正文末尾，紧挨确认按钮。 */}
+          {/* A role="alert" element is announced by screen readers as soon as it is inserted; it sits at the end of the scrollable body, right next to the confirm button. */}
           {error && (
             <p ref={errorRef} id={errorId} className="callout callout-danger" role="alert">
               {error}

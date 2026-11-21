@@ -12,7 +12,7 @@ import { ToolbarTitleContext } from './hooks/useToolbarTitle';
 import { useRouteFocus } from './hooks/useRouteFocus';
 import { LoginPage } from './pages/LoginPage';
 
-// 弹窗连同二维码库只在点开时加载，不进首屏包。
+// The dialog, together with the QR code library, is loaded only when opened and stays out of the initial bundle.
 const RemoteAccessDialog = lazy(() =>
   import('./components/RemoteAccessDialog').then(({ RemoteAccessDialog }) => ({ default: RemoteAccessDialog })),
 );
@@ -41,7 +41,7 @@ const SettingsPage = lazy(() =>
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
 
-/** 内容区滚动超过这个距离后，工具栏显示页面标题和毛玻璃底。 */
+/** Once the content area scrolls past this distance, the toolbar shows the page title and the frosted-glass background. */
 const SCROLLED_THRESHOLD = 12;
 
 function pageTitleKeyFor(pathname: string): MessageKey {
@@ -59,7 +59,7 @@ function trimTrailingSlash(pathname: string): string {
   return pathname.replace(/\/+$/, '') || '/';
 }
 
-/** 浏览器标签标题里的页面名；实例页带实例名，由 InstancePage 自己设置，这里返回 undefined。 */
+/** Page name in the browser tab title; the instance page includes the instance name and is set by InstancePage itself, so undefined is returned here. */
 function documentTitleKeyFor(pathname: string, needsSetup: boolean): MessageKey | null | undefined {
   pathname = trimTrailingSlash(pathname);
   if (pathname === '/login') return needsSetup ? 'login.setup.title' : 'login.signin.title';
@@ -73,7 +73,7 @@ function documentTitleKeyFor(pathname: string, needsSetup: boolean): MessageKey 
   return null;
 }
 
-/** 判断「是否换了页面」用的键：同一实例内切换标签不算换页。 */
+/** Key used to decide "whether the page changed": switching tabs within the same instance is not a page change. */
 function pageKeyFor(pathname: string): string {
   return /^\/instances\/[^/]+/.exec(pathname)?.[0] ?? trimTrailingSlash(pathname);
 }
@@ -83,7 +83,7 @@ function DocumentTitle({ page }: { page: string | null }) {
   return null;
 }
 
-/** 路由级无障碍：按路由设置浏览器标签标题，换页后把焦点移到新页面主标题。 */
+/** Route-level accessibility: sets the browser tab title per route, and moves focus to the new page's main heading after a page change. */
 function RouteAnnouncer() {
   const { t } = useI18n();
   const { needsSetup } = useAuth();
@@ -125,7 +125,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [remoteAccessOpen, setRemoteAccessOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  /** 页面给出的顶栏标题（如实例名）；没有时用路由对应的固定文案。 */
+  /** Toolbar title supplied by the page (such as the instance name); the fixed text for the route is used when there is none. */
   const [toolbarTitle, setToolbarTitle] = useState<string | null>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -144,9 +144,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // 换页时焦点交给 useRouteFocus 移到新页面标题，这里不再把焦点拉回菜单按钮。
+    // On a page change focus is handed to useRouteFocus to move to the new page heading, so it is no longer pulled back to the menu button here.
     closeSidebar(false);
-    // 切换页面时回到顶部，避免新页面停在上一页的滚动位置。
+    // Return to the top when switching pages, so the new page does not stay at the previous page's scroll position.
     if (mainRef.current) mainRef.current.scrollTop = 0;
     setScrolled(false);
   }, [location.pathname, closeSidebar]);
@@ -179,7 +179,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   }, [sidebarOpen, closeSidebar]);
 
   useEffect(() => {
-    // 只 inert 主内容、顶栏右侧和底部标签栏，避免菜单/关闭按钮被整栏挡住。
+    // Only the main content, the right side of the top bar and the bottom tab bar are made inert, so the menu/close button is not blocked by the whole bar.
     mainRef.current?.toggleAttribute('inert', sidebarOpen);
     topbarToolsRef.current?.toggleAttribute('inert', sidebarOpen);
     tabBarRef.current?.toggleAttribute('inert', sidebarOpen);
@@ -255,7 +255,7 @@ function Shell({ children }: { children: React.ReactNode }) {
               <span className="user-role">{t('shell.user.role')}</span>
             </div>
           </div>
-          {/* 面板设置（语言、外观、登录有效期、下载来源、修改密码）都在这一页；当前就在设置页时按钮保持选中。 */}
+          {/* Panel settings (language, appearance, session duration, download source, change password) are all on this page; the button stays selected while on the settings page. */}
           <NavLink
             to="/settings"
             className={({ isActive }) => `btn btn-icon btn-plain sidebar-settings${isActive ? ' active' : ''}`}
@@ -297,7 +297,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="topbar-right" ref={topbarToolsRef}>
             <div className="toolbar-group">
-              {/* 768px 以下顶栏不放这个按钮（标题会被挤掉），入口改在「本机」页。 */}
+              {/* Below 768px the top bar does not show this button (the title would be squeezed out); the entry moves to the "Local" page. */}
               <button
                 type="button"
                 className="toolbar-button toolbar-button-labeled toolbar-remote-access"

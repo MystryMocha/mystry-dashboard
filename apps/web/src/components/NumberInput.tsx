@@ -2,15 +2,15 @@ import { useId, useRef, type InputHTMLAttributes } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 export interface NumberTextOptions {
-  /** 允许小数点。 */
+  /** Allows a decimal point. */
   decimal?: boolean;
-  /** 允许开头的负号。 */
+  /** Allows a leading minus sign. */
   allowNegative?: boolean;
 }
 
 /**
- * 把用户输入或粘贴的内容整理成数字文本：全角数字和符号转成半角，去掉空格和千分位逗号，
- * 再丢掉不可能出现在数字里的字符。「-」「4.」这类还没输完的中间状态会保留，由页面的校验去判断。
+ * Tidies what the user typed or pasted into number text: full-width digits and symbols become ASCII, spaces and thousands separators are removed,
+ * and characters that cannot appear in a number are dropped. Unfinished intermediate states such as "-" and "4." are kept, for the page's validation to judge.
  */
 export function cleanNumberText(text: string, { decimal = false, allowNegative = false }: NumberTextOptions = {}): string {
   const halfWidth = text
@@ -21,7 +21,7 @@ export function cleanNumberText(text: string, { decimal = false, allowNegative =
   const negative = allowNegative && halfWidth.startsWith('-');
   let body = halfWidth.replace(decimal ? /[^\d.]/g : /\D/g, '');
   if (decimal) {
-    // 只留第一个小数点。
+    // Keep only the first decimal point.
     const dot = body.indexOf('.');
     if (dot !== -1) body = body.slice(0, dot + 1) + body.slice(dot + 1).replace(/\./g, '');
   }
@@ -29,14 +29,14 @@ export function cleanNumberText(text: string, { decimal = false, allowNegative =
 }
 
 export interface NumberInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange' | 'inputMode'>, NumberTextOptions {
-  /** 页面自己保存的文本。传进来的值原样显示（文件里的脏值也是），只整理用户新输入的内容。 */
+  /** The text the page stores itself. A value passed in is shown as is (dirty values from a file too); only what the user newly types is tidied. */
   value: string;
   onChange: (text: string) => void;
-  /** 框内右侧的单位，比如「GB」。读屏通过 aria-describedby 读到它。 */
+  /** The unit on the right inside the box, such as "GB". Screen readers get it through aria-describedby. */
   suffix?: string;
   /**
-   * 框内最右侧的上下箭头，和 type="number" 的箭头一样一次加减一步；框里按 ↑ ↓ 键也是。
-   * 新的值由页面算（页面知道步长和下限），这里只报方向。不响应滚轮，免得滚页面时误改。
+   * The up/down arrows at the far right inside the box step one at a time like the arrows of type="number"; so do the ↑ ↓ keys in the box.
+   * The new value is computed by the page (which knows the step and lower bound); only the direction is reported here. The wheel is not handled, so scrolling the page does not change it by accident.
    */
   stepper?: {
     increaseLabel: string;
@@ -46,15 +46,15 @@ export interface NumberInputProps extends Omit<InputHTMLAttributes<HTMLInputElem
 }
 
 /**
- * 数字输入框：普通文本框加数字键盘，代替 type="number"。
- * type="number" 在桌面上滚轮会改数字，还能输入 e 和 +，而且输到一半时读到的值是空串，分不清「清空」和「没输完」。
- * 需要箭头时用 stepper 自己画。放在 .field 外面时自己加 className="input"。
+ * Number input: a plain text box with a numeric keyboard, replacing type="number".
+ * On desktop type="number" changes the number with the wheel, accepts e and +, and reads as an empty string mid-entry, so "cleared" cannot be told from "unfinished".
+ * When arrows are needed they are drawn with stepper. Add className="input" yourself when placing it outside .field.
  */
 export function NumberInput({ value, onChange, decimal = false, allowNegative = false, suffix, stepper, className, ...rest }: NumberInputProps) {
   const suffixId = useId();
   const composing = useRef(false);
   const options = { decimal, allowNegative };
-  // iOS 的数字键盘没有负号，允许负数时退回普通键盘。
+  // The iOS numeric keyboard has no minus sign, so fall back to the regular keyboard when negatives are allowed.
   const inputMode = allowNegative ? 'text' : decimal ? 'decimal' : 'numeric';
   const describedBy = [rest['aria-describedby'], suffix ? suffixId : null].filter(Boolean).join(' ') || undefined;
   const input = (
@@ -73,7 +73,7 @@ export function NumberInput({ value, onChange, decimal = false, allowNegative = 
         event.preventDefault();
         stepper.onStep(event.key === 'ArrowUp' ? 1 : -1);
       }}
-      // 输入法组合期间不改写内容，否则候选词会被打断；组合结束时再整理一次。
+      // Content is not rewritten during IME composition, or candidates would be interrupted; it is tidied once more when composition ends.
       onChange={(event) => onChange(composing.current ? event.target.value : cleanNumberText(event.target.value, options))}
       onCompositionStart={(event) => {
         composing.current = true;
@@ -93,7 +93,7 @@ export function NumberInput({ value, onChange, decimal = false, allowNegative = 
       {input}
       {suffix && <span className="input-affix-text" id={suffixId}>{suffix}</span>}
       {stepper && (
-        // 和原生箭头一样不进 Tab 顺序（键盘用 ↑ ↓）；按下时不抢焦点，免得输入框失焦冒出错误。
+        // Like the native arrows it stays out of the Tab order (the keyboard uses ↑ ↓); it does not take focus on press, so the input does not blur and pop up an error.
         <span className="input-stepper">
           {([[1, stepper.increaseLabel, ChevronUp], [-1, stepper.decreaseLabel, ChevronDown]] as const).map(([direction, label, Icon]) => (
             <button

@@ -1,5 +1,5 @@
 /**
- * Java 探测子进程环境脱敏回归。
+ * Regression for environment sanitization of the Java detection child process.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

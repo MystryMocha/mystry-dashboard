@@ -29,7 +29,7 @@ type ConsoleSocket = {
 
 const socketClosedState = 3;
 
-/** 已通过 ticket 的控制台连接及其所属用户；修改或重置密码时据此断开旧登录打开的连接。 */
+/** Console connections that passed the ticket check, with the user they belong to; used to drop connections opened by an old sign-in when the password is changed or reset. */
 const authenticatedSockets = new Map<ConsoleSocket, string>();
 
 function closeSocket(
@@ -41,7 +41,7 @@ function closeSocket(
     try {
       socket.close(code, reason);
     } catch {
-      // 连接可能已在关闭过程中。
+      // The connection may already be closing.
     }
   }
 }
@@ -56,7 +56,7 @@ function terminateSocketLater(socket: ConsoleSocket): void {
         socket.close(1000, 'Console connection close timed out');
       }
     } catch {
-      // 连接可能已经由底层关闭。
+      // The connection may already have been closed by the lower layer.
     }
   }, 1_000);
   timer.unref?.();
@@ -89,7 +89,7 @@ function sendSocketMessage(
   }
 }
 
-/** 控制台错误帧：data 为英文文本，code / params 供 Web 按当前语言翻译。 */
+/** Console error frame: data is English text; code / params are for Web to translate into the current language. */
 function errorFrame(key: ServerMessageKey, params?: PanelMessageParams): ConsoleMessage {
   const frame: ConsoleMessage = { type: 'error', data: renderPanelMessage({ key, params }), code: key };
   if (params) frame.params = params;
@@ -115,7 +115,7 @@ function rawMessageByteLength(raw: unknown): number {
 }
 
 export async function consoleRoutes(app: FastifyInstance): Promise<void> {
-  // 连接凭一次性 ticket 建立，之后不再校验 JWT；会话撤销时主动断开，客户端会用新令牌重连。
+  // The connection is established with a one-time ticket and the JWT is not checked again afterwards; when the session is revoked it is dropped proactively, and the client reconnects with the new token.
   const unsubscribeRevocation = onUserSessionsRevoked((userId) => {
     for (const [socket, ownerId] of authenticatedSockets) {
       if (ownerId !== userId) continue;
@@ -159,7 +159,7 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
       };
       socket.on('close', releaseConnection);
       socket.on('error', () => {
-        // 仅在 close 后释放计数，避免 error 先于 close 时低估活动连接数。
+        // Release the count only after close, so active connections are not undercounted when error fires before close.
         closeSocket(socket, 1011, 'Console connection error');
         terminateSocketLater(socket);
       });

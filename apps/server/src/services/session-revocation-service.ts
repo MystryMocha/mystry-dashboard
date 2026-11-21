@@ -3,7 +3,7 @@ import { revokeReservedDownloadTickets } from './download-ticket-service.js';
 
 type RevocationListener = (userId: string) => void;
 
-/** 已建立的长连接（目前只有控制台 WebSocket）在这里登记，会话撤销时由各自的路由关闭。 */
+/** Established long-lived connections (currently only the console WebSocket) are registered here, and closed by their own routes when the session is revoked. */
 const listeners = new Set<RevocationListener>();
 
 export function onUserSessionsRevoked(listener: RevocationListener): () => void {
@@ -14,9 +14,9 @@ export function onUserSessionsRevoked(listener: RevocationListener): () => void 
 }
 
 /**
- * 修改或重置密码后调用：JWT 由令牌版本失效，这里再清掉由旧登录签发、只凭票据就能用的凭据——
- * 未消费的控制台 ticket、尚未开流的下载 ticket，以及已经打开的控制台连接。
- * 已经开始传输的下载不打断：它在开流时已通过授权，内容此时已在发送中。
+ * Called after a password change or reset: JWTs are invalidated by the token version, and this additionally clears credentials issued by the old sign-in that work on a ticket alone:
+ * unconsumed console tickets, download tickets that have not opened a stream yet, and console connections already open.
+ * Downloads already transferring are not interrupted: they passed authorization when the stream opened, and the content is already being sent.
  */
 export function revokeUserSessions(userId: string): void {
   revokeConsoleTickets(userId);
@@ -25,7 +25,7 @@ export function revokeUserSessions(userId: string): void {
     try {
       listener(userId);
     } catch {
-      // 单个连接关闭失败不能阻止其余撤销。
+      // A failure to close one connection must not stop the rest of the revocation.
     }
   }
 }

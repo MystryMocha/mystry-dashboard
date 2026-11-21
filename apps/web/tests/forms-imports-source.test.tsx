@@ -7,8 +7,8 @@ import type { DetectedJvmConfig } from '@mystry/shared';
 import { ImportPage } from '../src/pages/ImportPage';
 import { setupFormTestEnv } from './form-test-env';
 
-// 「从 imports 文件夹复制」：写出 imports 在面板电脑上的真实路径并能复制，列出里面的服务端，
-// 每一行写识别结果，不能导入的行写原因、不能选。jsdom 里选不了文件夹，页面默认就是这个方式。
+// "Copy from the imports folder": shows the real path of imports on the panel's computer with a copy button, lists the servers inside,
+// writes the detection result on each row, and rows that cannot be imported show the reason and cannot be selected. Folders cannot be picked in jsdom, so this is the page's default mode.
 
 beforeEach(() => {
   setupFormTestEnv();
@@ -18,7 +18,7 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
-  // 复制失败的用例在 document 上放了自己的 execCommand，删掉后回到 jsdom 原来的实现。
+  // The copy-failure case put its own execCommand on document; deleting it returns to jsdom's original implementation.
   Reflect.deleteProperty(document, 'execCommand');
 });
 
@@ -28,7 +28,7 @@ const IMPORT_DIR = 'D:\\Mystry\\data\\imports';
 const detected: DetectedJvmConfig = { source: 'user_jvm_args.txt', raw: '-Xmx4G', canonicalArgs: '-Xmx4G', issues: [] };
 const base = { modifiedAt: '2026-11-01T00:00:00.000Z', ready: true };
 
-/** 按顺序回应每次读取 imports 的请求；最后一个结果之后一直用它。 */
+/** Answers each request to read imports in order; after the last result it keeps being used. */
 function mountImport(listings: Array<{ status?: number; body: unknown }>) {
   let calls = 0;
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
@@ -66,7 +66,7 @@ test('imports：写出真实路径，「复制路径」复制的就是它并提�
 test('imports：复制失败时提示手动选中路径', async () => {
   const user = userEvent.setup();
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } });
-  // jsdom 的 execCommand 不会真的复制；让它返回 false，走「都失败」的分支。
+  // jsdom's execCommand does not really copy; make it return false to take the "everything failed" branch.
   const execCommand = vi.fn(() => false);
   Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
   mountImport([{ body: { importDir: IMPORT_DIR, sources: [] } }]);
@@ -98,7 +98,7 @@ test('imports：每一行写识别结果；不能导入的行写原因且不能�
   expect(radio('old-backup').disabled).toBe(true);
   expect(document.body.textContent).not.toContain('@args:');
 
-  // 默认选中列表里第一个能导入的 big-world。
+  // big-world, the first importable one in the list, is selected by default.
   await waitFor(() => expect(radio('big-world').checked).toBe(true));
   await user.click(screen.getByText('creative'));
   expect(radio('creative').checked).toBe(true);

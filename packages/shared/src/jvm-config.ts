@@ -11,14 +11,14 @@ export type JvmPresetId = 'compatibility' | 'g1-balanced' | 'paper-aikar' | 'cus
 export type JvmValidationIssue = {
   code: string;
   severity: 'error' | 'warning';
-  /** 渲染好的英文文本；没有 key 的旧数据或其他来源的诊断直接显示原文。 */
+  /** The rendered English text; legacy data without a key, and diagnostics from other sources, are shown as is. */
   message: string;
-  /** 可翻译消息键（`server.jvm.issue.*`）与参数，Web 按当前语言显示。 */
+  /** Translatable message key (`server.jvm.issue.*`) and params, which Web shows in the current language. */
   key?: ServerMessageKey;
   params?: PanelMessageParams;
 };
 
-/** 解析 JVM 参数失败：共享包不依赖服务端 PanelError，这里自带消息键与参数，`message` 为英文文本。 */
+/** Failed to parse JVM arguments: the shared package does not depend on the server's PanelError, so this carries its own message key and params; `message` is English text. */
 export class JvmArgsParseError extends Error {
   readonly messageKey: ServerMessageKey;
   readonly params?: PanelMessageParams;
@@ -71,7 +71,7 @@ export type ParsedJvmConfig = {
   issues: JvmValidationIssue[];
 };
 
-// Java 25 已用 Temurin 25.0.4.1 实测：两套 GC 预设参数均可正常启动
+// Java 25 was tested with Temurin 25.0.4.1: both GC presets start normally
 const GC_PRESET_JAVA_MAJORS = [8, 17, 21, 25] as const;
 
 const G1_BALANCED_ARGS = [
@@ -139,7 +139,7 @@ export const JVM_PRESETS: readonly JvmPresetDefinition[] = [
   },
 ] as const;
 
-/** 诊断里 {preset} 参数使用的预设名称消息键（label 为英文默认值，Web 界面按预设 id 翻译）。 */
+/** Message keys of the preset names used for the {preset} param in diagnostics (label is the English default; the Web UI translates by preset id). */
 const PRESET_LABEL_KEYS: Record<Exclude<JvmPresetId, 'custom'>, ServerMessageKey> = {
   compatibility: 'server.jvm.preset.compatibility',
   'g1-balanced': 'server.jvm.preset.g1Balanced',
@@ -174,7 +174,7 @@ function issue(
   return params ? { code, severity, message, key, params } : { code, severity, message, key };
 }
 
-/** 解析器抛出的错误转成诊断：带键的解析错误保留键与参数，其余（理论上不会出现）保留原文。 */
+/** Turns errors thrown by the parser into diagnostics: keyed parse errors keep their key and params, anything else (which should not happen in theory) keeps its original text. */
 function parseErrorIssue(code: string, error: unknown): JvmValidationIssue {
   if (error instanceof JvmArgsParseError) return issue(code, 'error', error.messageKey, error.params);
   return { code, severity: 'error', message: error instanceof Error ? error.message : String(error) };
@@ -241,12 +241,12 @@ function parseJvmTokens(value: string, unescapeQuotedBackslashes: boolean): stri
   return args;
 }
 
-/** 把用户输入的 JVM 参数字符串解析为可直接传给 spawn 的参数数组。 */
+/** Parses a user-entered JVM argument string into an argument array that can be passed straight to spawn. */
 export function parseJvmArgs(value: string): string[] {
   return parseJvmTokens(value, false);
 }
 
-/** 按 Java 启动器规则解析 @argfile，并对未闭合引号使用更严格的面板校验。 */
+/** Parses an @argfile by the Java launcher's rules, with the panel's stricter validation for unclosed quotes. */
 export function parseJvmArgFile(value: string): string[] {
   const args: string[] = [];
   let current = '';
@@ -338,7 +338,7 @@ export function parseJvmArgFile(value: string): string[] {
   return args;
 }
 
-/** 将参数数组规范化成面板可再次解析的单行字符串。 */
+/** Normalizes an argument array into a single-line string the panel can parse again. */
 export function serializeJvmArgs(args: readonly string[]): string {
   return args
     .map((argument) => {
@@ -348,7 +348,7 @@ export function serializeJvmArgs(args: readonly string[]): string {
     .join(' ');
 }
 
-/** 把参数数组序列化为 Java @argfile，每行严格对应一个参数。 */
+/** Serializes an argument array into a Java @argfile, with each line corresponding to exactly one argument. */
 export function serializeJvmArgFile(args: readonly string[]): string {
   return args
     .map((argument) => `"${argument
@@ -409,8 +409,8 @@ export function recommendedMaxMemoryMiB(totalMemoryMiB: number | null | undefine
 }
 
 /**
- * 没手动设置时的初始内存（Xms）：G1 均衡和 Paper Aikar 是给服务器调优的方案，和最大内存相同，
- * 免得运行中反复扩堆；兼容优先和自定义取 1 GiB（最大内存更小时取最大内存），开服时不一下子占满内存。
+ * Initial memory (Xms) when not set manually: G1 Balanced and Paper Aikar are tuning profiles for servers and use the same value as max memory,
+ * to avoid repeated heap growth while running; Compatibility First and Custom use 1 GiB (or max memory when that is smaller), so starting a server does not take all the memory at once.
  */
 export function automaticInitialMemoryMiB(presetId: JvmPresetId, maximumMiB: number): number {
   return presetId === 'paper-aikar' || presetId === 'g1-balanced' ? maximumMiB : Math.min(1024, maximumMiB);
@@ -578,7 +578,7 @@ export function buildJvmArgs(input: {
   ]);
 }
 
-/** 第一条错误诊断（含消息键与参数）；没有错误时返回 null。 */
+/** The first error diagnostic (with message key and params); returns null when there are no errors. */
 export function firstJvmValidationIssue(
   value: string,
   context: JvmValidationContext = {},

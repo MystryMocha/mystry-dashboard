@@ -32,8 +32,8 @@ import { errorBody, panelErrorBody, PanelError } from '../utils/errors.js';
 import { createLoginFailureLimiter, createRateLimitHook, tokenMatches } from '../services/security-service.js';
 
 /**
- * tv 为签发时的令牌版本；0.2.0-preview.3 及更早签发的令牌没有该字段，按 0 处理。
- * iat 为签发时间（秒），由 @fastify/jwt 自动写入，用来对照当前登录有效期。
+ * tv is the token version at issue time; tokens issued by 0.2.0-preview.3 and earlier lack this field and are treated as 0.
+ * iat is the issue time (seconds), written automatically by @fastify/jwt and used to check against the current session duration.
  */
 export type JwtUser = { id: string; username: string; tv?: number; iat?: number };
 
@@ -45,8 +45,8 @@ declare module '@fastify/jwt' {
 }
 
 /**
- * 签发带令牌版本的 JWT；有效期按面板里的登录有效期设置（D-040），「不过期」时不写 exp。
- * 这是唯一签发登录令牌的地方，@fastify/jwt 注册时不设默认有效期。响应里的 user 不含版本号。
+ * Issues a JWT carrying the token version; the expiry follows the session duration set in the panel (D-040), and exp is not written for "never expire".
+ * This is the only place that issues sign-in tokens; @fastify/jwt is registered without a default expiry. The user in the response does not include the version.
  */
 async function signSession(reply: FastifyReply, user: SessionUser): Promise<{ token: string; user: AuthUser }> {
   const expiresIn = sessionExpiresIn(getSessionDuration());
@@ -132,7 +132,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       } catch (err) {
         return reply.code(400).send(errorBody(err));
       }
-      // 旧令牌（包括本次请求用的）已全部失效，当前会话换发新令牌继续登录。
+      // The old tokens (including the one used for this request) are all invalid now; the current session stays signed in with a reissued token.
       const result: ChangePasswordResult = { ok: true, ...(await signSession(reply, user)) };
       return result;
     },
@@ -144,7 +144,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     async (): Promise<SessionDurationSetting> => ({ duration: getSessionDuration() }),
   );
 
-  // 选择框改了就保存，不套用登录接口那样严的频率限制。
+  // Saved as soon as the select changes, so the strict rate limit of the sign-in endpoints is not applied.
   app.put<{ Body: SessionDurationSetting }>(
     '/api/auth/session-duration',
     {
@@ -161,7 +161,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(401).send(panelErrorBody('server.common.unauthorized'));
       }
       setSessionDuration(req.body.duration);
-      // 当前设备按新有效期换发令牌，改长也马上生效；令牌版本沿用，authenticate 已确认它是当前版本。
+      // This device gets a token reissued with the new duration, so a longer one takes effect right away too; the token version is kept, and authenticate has already confirmed it is the current version.
       const { token } = await signSession(reply, { ...user, tokenVersion: req.user.tv ?? 0 });
       const result: UpdateSessionDurationResult = { duration: getSessionDuration(), token };
       return result;
@@ -184,11 +184,11 @@ export function registerAuthHooks(app: FastifyInstance): void {
     } catch {
       return reply.code(401).send(panelErrorBody('server.common.unauthorized'));
     }
-    // 签名有效还不够：修改或重置密码后令牌版本已变，旧令牌在过期前也要拒绝。
+    // A valid signature is not enough: after a password change or reset the token version has changed, and old tokens must be rejected before they expire too.
     if (!isTokenVersionCurrent(req.user.id, req.user.tv)) {
       return reply.code(401).send(panelErrorBody('server.common.unauthorized'));
     }
-    // 登录有效期改短后，按签发时间算已超时的令牌（包括按「不过期」签发、不带 exp 的）也要拒绝。
+    // After the session duration is shortened, tokens that have timed out by their issue time (including ones issued as "never expire" without exp) must be rejected too.
     if (!isWithinSessionDuration(req.user.iat)) {
       return reply.code(401).send(panelErrorBody('server.common.unauthorized'));
     }

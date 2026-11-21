@@ -1,4 +1,4 @@
-// 按界面区域拆分的文案表，在这里合并为扁平键表。键以区域或术语表前缀命名，不同文件之间不得重名。
+// String tables split by UI area, merged here into one flat key table. Keys are named with an area or glossary prefix, and must not collide across files.
 import commonMessages from './common';
 import shellMessages from './shell';
 import loginMessages from './login';

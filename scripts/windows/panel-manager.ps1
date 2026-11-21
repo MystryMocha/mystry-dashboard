@@ -2,13 +2,13 @@
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
-# Windows 源码管理入口：检查 Node.js、按需安装依赖并构建，生命周期交给 mystryctl。
-# 与 PanelManager.sh 的区别：配置默认沿用仓库根目录的 .env，构建结果按源码指纹缓存。
-# PanelManager.cmd 调用本脚本前会清空 PSModulePath：从 pwsh 7 里运行时会继承 7.x 的模块路径，
-# 5.1 加载到不兼容的模块后找不到 Get-FileHash。.cmd 里只能写 ASCII，所以说明放在这里。
+# Windows source management entry: checks Node.js, installs dependencies and builds as needed, and hands the lifecycle to mystryctl.
+# Differences from PanelManager.sh: config defaults to the .env in the repo root, and the build result is cached by source fingerprint.
+# PanelManager.cmd clears PSModulePath before calling this script: when run from pwsh 7 the 7.x module path is inherited,
+# and after 5.1 loads incompatible modules Get-FileHash cannot be found. Only ASCII can be written in the .cmd, so the explanation lives here.
 
 function Normalize-ProcessPath {
-  # 部分 Windows 环境同时存在 Path 和 PATH，子进程可能拿到其中不完整的一份；合并为一份。
+  # Some Windows environments have both Path and PATH, and a child process may get the incomplete one of the two; merge them into one.
   $variables = [Environment]::GetEnvironmentVariables('Process')
   $pathKeys = @($variables.Keys | Where-Object {
     ([string]$_).Equals('path', [StringComparison]::OrdinalIgnoreCase)
@@ -33,8 +33,8 @@ function Normalize-ProcessPath {
 
 Normalize-ProcessPath
 
-# 界面语言：MYSTRY_LANG 优先，其次 Windows 显示语言；中文系统用中文，其余一律英文。
-# 结果写回 MYSTRY_LANG，让 mystryctl 和实时日志窗口用同一种语言。
+# UI language: MYSTRY_LANG first, then the Windows display language; Chinese on a Chinese system, English for everything else.
+# The result is written back to MYSTRY_LANG, so mystryctl and the live log window use the same language.
 $script:Chinese = if ($env:MYSTRY_LANG) {
   $env:MYSTRY_LANG -match '^zh'
 } else {
@@ -49,7 +49,7 @@ function T {
 }
 
 $script:ProjectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
-# 已设置 MYSTRY_CONFIG_PATH 时沿用（相对路径按仓库根目录解析），与 mystryctl 一致。
+# When MYSTRY_CONFIG_PATH is already set it is kept (a relative path is resolved against the repo root), same as mystryctl.
 $script:EnvPath = if ([IO.Path]::IsPathRooted([string]$env:MYSTRY_CONFIG_PATH)) {
   [IO.Path]::GetFullPath($env:MYSTRY_CONFIG_PATH)
 } elseif ($env:MYSTRY_CONFIG_PATH) {
@@ -61,10 +61,10 @@ $script:EnvExamplePath = Join-Path $script:ProjectRoot '.env.example'
 $script:Controller = Join-Path $script:ProjectRoot 'scripts\portable\mystryctl.mjs'
 $script:NpmMirrorScript = Join-Path $script:ProjectRoot 'scripts\npm-mirror.mjs'
 $script:ServerEntry = Join-Path $script:ProjectRoot 'apps\server\dist\index.js'
-# 与 mystryctl 的日志目录一致。
+# Same as mystryctl's log directory.
 $script:StdoutLog = Join-Path $script:ProjectRoot 'logs\panel.stdout.log'
 $script:StderrLog = Join-Path $script:ProjectRoot 'logs\panel.stderr.log'
-# 放在 node_modules 里：npm ci 重装依赖时会一并清掉，下次必然重新构建。
+# Kept inside node_modules: when npm ci reinstalls dependencies it is wiped along with them, so the next run is certain to rebuild.
 $script:BuildStatePath = Join-Path $script:ProjectRoot 'node_modules\.cache\mystry-panel-manager.json'
 $script:ControllerExitCode = 0
 
@@ -164,7 +164,7 @@ function Invoke-Npm {
 }
 
 function Get-NpmInstallArguments {
-  # 跟随 npm 自身配置时脚本不输出地址，这里也就不加 --registry。
+  # When following npm's own config the script outputs no URL, so no --registry is added here either.
   $registry = ([string](& node.exe $script:NpmMirrorScript 'registry')).Trim()
   if ($LASTEXITCODE -ne 0) { throw (T 'npm 下载源设置无效，请查看上方提示。' 'The npm download source setting is not valid. See the message above.') }
   if (-not $registry) { return @('ci') }
@@ -201,7 +201,7 @@ function Update-Project {
 
 function Prepare-Project {
   param([switch]$Force)
-  # 只在安装和构建期间互斥；生命周期由 mystryctl 自己的运行锁保护。
+  # Mutual exclusion only during install and build; the lifecycle is protected by mystryctl's own run lock.
   $mutexName = 'Local\MystryPanelManager_' + (Get-StringHash $script:ProjectRoot).Substring(0, 16)
   $mutex = New-Object Threading.Mutex($false, $mutexName)
   $acquired = $false
@@ -223,7 +223,7 @@ function Prepare-Project {
 function Invoke-Controller {
   param(
     [Parameter(Mandatory = $true)][string]$Command,
-    # 只有 remote 带子命令和参数，原样交给控制器。
+    # Only remote takes a subcommand and arguments, which are passed to the controller as is.
     [string[]]$Extra = @()
   )
   $env:MYSTRY_HOME = $script:ProjectRoot
@@ -233,7 +233,7 @@ function Invoke-Controller {
 }
 
 function Test-PanelRunning {
-  # 只是探测，不覆盖上一条命令的退出码。
+  # Only a probe, so it does not overwrite the previous command's exit code.
   $previous = $script:ControllerExitCode
   Invoke-Controller '__is-running'
   $running = $script:ControllerExitCode -eq 0
@@ -301,7 +301,7 @@ function Invoke-Command {
       Invoke-Controller $Command
     }
     'remote' {
-      # 开关「从其他设备访问」：子命令和参数原样交给控制器。
+      # Toggle "access from other devices": the subcommand and arguments are passed to the controller as is.
       Invoke-Controller 'remote' $Extra
     }
     'mirror' {
@@ -320,7 +320,7 @@ function Invoke-Command {
   }
 }
 
-# 菜单项：[按键, 命令, 说明]。直接回车等同于 1；live-logs 和 npm-mirror 是菜单专用的交互操作。
+# Menu items: [key, command, description]. A bare Enter equals 1; live-logs and npm-mirror are interactive operations only for the menu.
 $script:RunningMenu = @(
   @('1', 'open', (T '打开管理页面（直接回车）' 'Open the dashboard (Enter)')),
   @('2', 'live-logs', (T '查看实时日志' 'View live logs')),
@@ -337,7 +337,7 @@ $script:StoppedMenu = @(
   @('5', 'npm-mirror', (T '选择 npm 下载源' 'Choose the npm download source'))
 )
 
-# 只返回选中的命令，不在这里执行：函数返回值会吞掉其中 node 的输出。
+# Only the selected command is returned and it is not run here: a function's return value would swallow the output of node inside it.
 function Read-MenuChoice {
   while ($true) {
     Clear-Host
@@ -367,7 +367,7 @@ if ($env:MYSTRY_PANEL_MANAGER_LIBRARY_ONLY -eq '1') {
 }
 
 $command = if ($args.Count -ge 1) { ([string]$args[0]).ToLowerInvariant() } else { '' }
-# 只有两个命令带参数：mirror <名称或编号>，remote <子命令> [参数]（如 remote on、remote https off）。
+# Only two commands take arguments: mirror <name or number>, remote <subcommand> [arguments] (such as remote on, remote https off).
 $commandArgument = if ($args.Count -eq 2 -and $command -eq 'mirror') { [string]$args[1] } else { '' }
 $commandExtra = @()
 if ($command -eq 'remote' -and $args.Count -ge 2 -and $args.Count -le 3) {
@@ -388,7 +388,7 @@ try {
     Invoke-Command $command $commandArgument $commandExtra
     exit $script:ControllerExitCode
   }
-  # 无参数通常是双击启动：执行完菜单命令（含出错）后先停住，让结果和令牌提示留在屏幕上。
+  # No arguments usually means started by double-click: after running the menu command (including on error) pause first, keeping the result and token hint on screen.
   $choice = Read-MenuChoice
   if ($choice) {
     switch ($choice) {

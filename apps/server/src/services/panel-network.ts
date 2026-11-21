@@ -28,16 +28,16 @@ import { ensureLanInstalled, lanCliPath, lanCorePath, lanInstalled, lanPlatformS
 import { closePanelFirewall, openPanelNetworkFirewall } from './panel-firewall.js';
 
 /**
- * 面板自带的 EasyTier 网络（D-033）：只给自己的手机和电脑打开面板用，和实例的联机网络（D-024）
- * 是两个独立网络，网络名、密钥、地址段都不同。
- * 用无 TUN 模式：不建虚拟网卡、不需要管理员身份；别的设备访问「虚拟地址:端口」时，
- * 连接落到本机 127.0.0.1 的同一端口，来源也是 127.0.0.1（实测 2.6.4）。
- * 为了和本机自己的连接分开，面板在 127.0.0.1 上另开一个只给组网用的端口（专用端口），
- * 白名单只放行它而不放行面板端口；从专用端口接进来的连接先登记（request-origin.ts）再交给同一个 HTTP 服务，
- * 所以启动器接口、进程指纹不对组网开放，限流和登录失败计数也不和本机共用。
- * 专用端口存进设置、每次启动沿用，组网设备里存的网址不会变；只有被别的程序占用时才换。
- * tcp_whitelist 只放行专用端口，这是唯一的防线：没有它，这台电脑上只监听本机的程序都会暴露给组网。
- * 升级 EasyTier 版本时必须重新确认白名单在无 TUN 模式下仍然生效。
+ * The panel's built-in EasyTier network (D-033): only for opening the panel from your own phone and computers. It and the instance multiplayer network (D-024)
+ * are two independent networks with different network names, secrets and address ranges.
+ * It runs in no-TUN mode: no virtual interface is created and no admin rights are needed; when another device accesses "virtual address:port",
+ * the connection lands on the same port of 127.0.0.1 on this machine, and its source is also 127.0.0.1 (verified on 2.6.4).
+ * To keep these apart from this machine's own connections, the panel opens another port on 127.0.0.1 used only for the virtual network (the dedicated port);
+ * the whitelist allows only it and not the panel port. Connections accepted on the dedicated port are registered first (request-origin.ts) and then handed to the same HTTP server,
+ * so the launcher endpoints and process fingerprint are not exposed to the virtual network, and rate limiting and failed sign-in counting are not shared with this machine.
+ * The dedicated port is stored in settings and reused on every start, so URLs saved on virtual-network devices do not change; it only changes when another program occupies it.
+ * tcp_whitelist allows only the dedicated port, and that is the only line of defense: without it, every program on this computer that listens on localhost only would be exposed to the virtual network.
+ * When upgrading the EasyTier version, it must be re-verified that the whitelist still takes effect in no-TUN mode.
  */
 
 const SETTING_KEY = 'remote_access.panel_network';
@@ -53,14 +53,14 @@ interface PanelNetworkSettings {
   networkSecret: string;
   useSharedPeers: boolean;
   customPeers: string[];
-  /** 组网专用端口；还没开过时为 null */
+  /** Dedicated virtual-network port; null when it has never been enabled */
   localPort: number | null;
 }
 
 export interface PanelNetworkRenderInput {
   networkName: string;
   networkSecret: string;
-  /** 白名单唯一放行的端口：组网专用端口 */
+  /** The only port the whitelist allows: the dedicated virtual-network port */
   accessPort: number;
   peers: string[];
   listenPort: number | null;
@@ -78,7 +78,7 @@ interface Runtime {
   access: AccessListener | null;
 }
 
-/** 组网专用端口上的监听器：只绑 127.0.0.1，连接登记后交给面板的 HTTP 服务。 */
+/** Listener on the dedicated virtual-network port: binds 127.0.0.1 only; connections are registered and then handed to the panel's HTTP server. */
 interface AccessListener {
   server: net.Server;
   sockets: Set<net.Socket>;
@@ -124,7 +124,7 @@ export interface PanelNetworkTestHooks {
   probeTiming?: ProbeTiming;
 }
 
-/** 测试用：替换进程启动、命令行读取和安装；传 null 恢复默认并清空运行状态。 */
+/** For tests: replaces process spawning, CLI reads and installation; pass null to restore the defaults and clear the runtime state. */
 export function setPanelNetworkForTests(hooks: PanelNetworkTestHooks | null): void {
   spawner = hooks?.spawner ?? spawn;
   cliRunner = hooks?.cliRunner ?? null;
@@ -148,9 +148,9 @@ function enqueue<T>(job: () => Promise<T>): Promise<T> {
   return next;
 }
 
-// ---- 身份与设置 ----
+// ---- Identity and settings ----
 
-/** 26 个 base32 字符，约 130 位：比实例网络的 64 位十六进制好输入，强度足够。 */
+/** 26 base32 characters, about 130 bits: easier to type than the instance network's 64 hex characters, and strong enough. */
 function generateSecret(): string {
   const bytes = crypto.randomBytes(26);
   return Array.from(bytes, (byte) => BASE32_ALPHABET[byte & 31]).join('');
@@ -172,11 +172,11 @@ function readSettings(): PanelNetworkSettings | null {
     if (typeof parsed.networkSecret !== 'string' || !NETWORK_SECRET_RE.test(parsed.networkSecret)) return null;
     const customPeers: string[] = [];
     for (const peer of Array.isArray(parsed.customPeers) ? parsed.customPeers.slice(0, LAN_CUSTOM_PEER_LIMIT) : []) {
-      // 数据库被改过时丢掉不合法的节点，不让怪字符进配置文件。
+      // When the database has been tampered with, drop invalid peers so odd characters do not get into the config file.
       try {
         if (typeof peer === 'string' && normalizeLanPeer(peer) === peer) customPeers.push(peer);
       } catch {
-        // 跳过
+        // Skip
       }
     }
     const localPort = typeof parsed.localPort === 'number' && Number.isInteger(parsed.localPort)
@@ -212,15 +212,15 @@ function resolvePeers(settings: Pick<PanelNetworkSettings, 'customPeers' | 'useS
   return peers;
 }
 
-// ---- 配置文件 ----
+// ---- Config file ----
 
 export function panelNetworkWorkDir(): string {
   return path.join(config.dataDir, 'panel-network');
 }
 
 /**
- * 面板网络的 core.toml。密钥只在这个文件和数据库里，不进命令行。
- * tcp_whitelist 只有组网专用端口；udp_whitelist 留一个用不到的端口，等于全部不放行。
+ * core.toml of the panel network. The secret lives only in this file and the database, never on the command line.
+ * tcp_whitelist contains only the dedicated virtual-network port; udp_whitelist keeps one unused port, which amounts to allowing nothing.
  */
 export function renderPanelNetworkToml(input: PanelNetworkRenderInput): string {
   if (!NETWORK_NAME_RE.test(input.networkName) || !NETWORK_SECRET_RE.test(input.networkSecret)) {
@@ -232,7 +232,7 @@ export function renderPanelNetworkToml(input: PanelNetworkRenderInput): string {
   };
   const port = assertPort(input.accessPort);
   if (input.peers.length === 0) throw new PanelError('server.panelNetwork.noPeers');
-  // 渲染前再校验一遍，即使数据库被改过也不会把怪字符写进配置。
+  // Validate once more before rendering, so odd characters are not written into the config even if the database has been tampered with.
   const peers = input.peers.map((peer) => {
     if (normalizeLanPeer(peer) !== peer) throw new PanelError('server.panelNetwork.invalidRequest');
     return peer;
@@ -268,11 +268,11 @@ export function renderPanelNetworkToml(input: PanelNetworkRenderInput): string {
   ].join('\n');
 }
 
-// ---- 设备列表 ----
+// ---- Device list ----
 
 /**
- * 从 `easytier-cli -o json peer` 的输出取出已加入的设备。字段按 EasyTier 的对端表：
- * hostname、ipv4（或 cidr）、cost（Local / p2p / relay(n)）。认不出的结构返回空列表。
+ * Extracts joined devices from the output of `easytier-cli -o json peer`. Fields follow EasyTier's peer table:
+ * hostname, ipv4 (or cidr), cost (Local / p2p / relay(n)). An unrecognized structure returns an empty list.
  */
 export function parsePanelNetworkDevices(text: string): PanelNetworkDevice[] {
   let parsed: unknown;
@@ -289,14 +289,14 @@ export function parsePanelNetworkDevices(text: string): PanelNetworkDevice[] {
     if (row === null || typeof row !== 'object') continue;
     const record = row as Record<string, unknown>;
     const cost = typeof record.cost === 'string' ? record.cost : '';
-    // 本机节点自己也在表里，不算设备。
+    // The local peer itself is in the table too and does not count as a device.
     if (/local/i.test(cost)) continue;
     const rawIp = typeof record.ipv4 === 'string' && record.ipv4 ? record.ipv4 : typeof record.cidr === 'string' ? record.cidr : '';
     const ip = rawIp.split('/')[0] ?? '';
     const virtualIp = net.isIPv4(ip) ? ip : null;
     if (virtualIp === PANEL_NETWORK_VIRTUAL_IP) continue;
     const hostname = typeof record.hostname === 'string' ? record.hostname.replace(/[\u0000-\u001f]/g, '').slice(0, 64) : '';
-    // 社区共享节点只负责发现和中转，没有虚拟地址，不是用户的设备。
+    // Community shared peers only handle discovery and relaying; they have no virtual address and are not the user's devices.
     if (!virtualIp) continue;
     found.push({
       hostname,
@@ -346,7 +346,7 @@ function virtualIpFromCli(text: string): string | null {
   }
 }
 
-/** 读状态前调用：运行中时刷新已加入的设备，几秒内不重复读。 */
+/** Called before reading the status: refreshes the joined devices while running, without re-reading within a few seconds. */
 export async function refreshPanelNetworkDevices(): Promise<void> {
   const current = runtime;
   if (!current || current.state !== 'running') {
@@ -359,11 +359,11 @@ export async function refreshPanelNetworkDevices(): Promise<void> {
     const parsed = parsePanelNetworkDevices(await runCli(current.rpcPort, 'peer'));
     if (runtime?.generation === current.generation) devices = parsed;
   } catch {
-    // 读不到时保留上一次的结果
+    // Keep the previous result when it cannot be read
   }
 }
 
-// ---- 状态 ----
+// ---- Status ----
 
 export function getPanelNetworkStatus(): PanelNetworkStatus {
   const settings = readSettings();
@@ -390,19 +390,19 @@ export function getPanelNetworkStatus(): PanelNetworkStatus {
   };
 }
 
-// ---- 进程 ----
+// ---- Process ----
 
-/** 在 127.0.0.1 上监听；端口被占用时返回 null。port 为 0 时由系统分配。 */
+/** Listens on 127.0.0.1; returns null when the port is in use. With port 0 the system assigns one. */
 function listenAccess(port: number): Promise<AccessListener | null> {
   return new Promise((resolve) => {
-    // 与 Node HTTP 服务的默认值一致，否则可能出现响应被截断或控制台输出延迟。
+    // Same as the Node HTTP server's defaults; otherwise responses may be truncated or console output delayed.
     const server = net.createServer({ allowHalfOpen: true, noDelay: true });
     const sockets = new Set<net.Socket>();
     server.on('connection', (socket) => {
       sockets.add(socket);
       socket.once('close', () => sockets.delete(socket));
       socket.on('error', () => socket.destroy());
-      // 先登记再交出去：之后这个连接上的请求都按组网设备处理。
+      // Register before handing over: from then on, requests on this connection are treated as coming from a virtual-network device.
       markPanelNetworkSocket(socket);
       if (handOff) handOff(socket);
       else socket.destroy();
@@ -420,13 +420,13 @@ function listenAccess(port: number): Promise<AccessListener | null> {
   });
 }
 
-/** 首次分配时从面板端口往上试这么多个端口。 */
+/** On first allocation, try this many ports upward from the panel port. */
 const ACCESS_PORT_SEARCH = 20;
 
 /**
- * 优先沿用保存的专用端口。没有或被占用时，从面板端口 + 1 往上找空闲端口，都不行才让系统分配。
- * 不直接让系统分配：系统给的是动态端口段（Windows 49152 起），出站连接会随机占用，
- * 装了 WSL / Hyper-V 的电脑开机时还会保留其中一批，保存下来的端口下次启动容易绑不上、网址跟着变。
+ * Prefers the saved dedicated port. When there is none or it is in use, looks for a free port upward from panel port + 1, and lets the system assign one only when all of those fail.
+ * System assignment is not used directly: the system hands out ports from the dynamic range (from 49152 on Windows), which outbound connections occupy at random,
+ * and computers with WSL / Hyper-V also reserve a batch of them at boot, so a saved port could easily fail to bind on the next start and the URL would change with it.
  */
 async function openAccessListener(preferred: number | null): Promise<AccessListener> {
   if (preferred !== null && preferred !== panelPort) {
@@ -443,7 +443,7 @@ async function openAccessListener(preferred: number | null): Promise<AccessListe
   return fresh;
 }
 
-/** 先停止监听、再断开已交给 HTTP 服务的连接：组网设备上的会话立即失效。 */
+/** Stops listening first, then drops connections already handed to the HTTP server: sessions on virtual-network devices are invalidated immediately. */
 function closeAccessListener(listener: AccessListener): Promise<void> {
   return new Promise((resolve) => {
     listener.server.close(() => resolve());
@@ -502,7 +502,7 @@ async function probe(generation: number, rpcPort: number): Promise<boolean> {
       return true;
     }
   } catch {
-    // 客户端刚起来时管理端口可能还没打开
+    // The management port may not be open yet right after the client starts
   }
   return false;
 }
@@ -519,7 +519,7 @@ function watch(generation: number, rpcPort: number): void {
   })();
 }
 
-/** 按设置把进程调整到位：该开就装好并启动，该关就停掉。问题记在状态里，不抛错。 */
+/** Brings the process in line with the settings: installs and starts it when it should be on, stops it when it should be off. Problems are recorded in the status, not thrown. */
 async function sync(): Promise<void> {
   const settings = readSettings();
   if (shuttingDown || !settings?.enabled || !platformCheck()) {
@@ -534,7 +534,7 @@ async function sync(): Promise<void> {
     runtime = errorRuntime(error);
     return;
   }
-  // 还没分配过专用端口时一定要启动；分配过就用它判断设置有没有变。
+  // It must start when no dedicated port has been allocated yet; once allocated, the port is used to tell whether the settings changed.
   const configKey = settings.localPort === null
     ? null
     : renderPanelNetworkToml({ ...settings, accessPort: settings.localPort, peers, listenPort: null });
@@ -558,11 +558,11 @@ async function sync(): Promise<void> {
   };
   runtime = current;
   try {
-    // 第一次开启时还没安装：先下载钉死版本并校验。
+    // Not installed yet on first enable: download the pinned version and verify it first.
     if (!installedCheck()) await installer();
     if (runtime !== current || shuttingDown) return;
     current.state = 'starting';
-    // 专用端口先开好再启动 EasyTier，组网设备一连上就能用。
+    // Open the dedicated port before starting EasyTier, so virtual-network devices can use it as soon as they connect.
     const access = await openAccessListener(settings.localPort);
     if (runtime !== current || shuttingDown) {
       await closeAccessListener(access);
@@ -571,7 +571,7 @@ async function sync(): Promise<void> {
     current.access = access;
     const accessPort = access.port;
     if (accessPort !== settings.localPort) {
-      // 重新读一遍再写，只改端口，不覆盖期间用户改过的其他设置。
+      // Read again before writing and change only the port, so other settings the user changed meanwhile are not overwritten.
       const latest = readSettings();
       if (latest) writeSettings({ ...latest, localPort: accessPort });
       if (settings.localPort !== null) {
@@ -586,7 +586,7 @@ async function sync(): Promise<void> {
     const tomlPath = path.join(workDir, 'core.toml');
     writeFileAtomic(tomlPath, renderPanelNetworkToml({ ...settings, accessPort, peers, listenPort }));
     forceSecureSensitiveFile(tomlPath);
-    // EasyTier 会在 0.0.0.0 上开端口，Windows 会因此弹窗；规则限定它自己的程序路径和监听端口。
+    // EasyTier opens ports on 0.0.0.0, which makes Windows show a prompt; the rule is restricted to its own program path and listen port.
     current.firewall = await openPanelNetworkFirewall(corePathForFirewall(), listenPort, panelPort);
     current.firewallOpened = current.firewall === 'applied';
     if (runtime !== current || shuttingDown) {
@@ -602,7 +602,7 @@ async function sync(): Promise<void> {
     current.child = child;
     const consume = (chunk: Buffer): void => {
       if (runtime !== current) return;
-      // 输出里可能带密钥：lanFailureDetail 遇到含密钥的行直接忽略，这里也不把原文写进日志。
+      // The output may contain the secret: lanFailureDetail ignores lines containing it, and the raw text is not written to logs here either.
       const detail = lanFailureDetail(chunk.toString('utf8'), settings.networkSecret);
       if (detail) fail(current, detail);
     };
@@ -644,7 +644,7 @@ function errorRuntime(error: unknown): Runtime {
   };
 }
 
-/** 排进队列在后台执行：下载和启动可能要一会儿，接口先返回，界面按状态轮询。 */
+/** Queued to run in the background: download and startup may take a while, so the endpoint returns first and the UI polls the status. */
 function scheduleSync(): Promise<void> {
   pendingSyncs += 1;
   return enqueue(sync).catch(() => undefined).finally(() => {
@@ -652,12 +652,12 @@ function scheduleSync(): Promise<void> {
   });
 }
 
-/** 测试用：等后台的启动或停止做完。 */
+/** For tests: waits for the background start or stop to finish. */
 export function waitForPanelNetworkIdle(): Promise<void> {
   return enqueue(async () => undefined);
 }
 
-// ---- 对外操作 ----
+// ---- Public operations ----
 
 export function updatePanelNetwork(body: UpdatePanelNetworkRequest, sourceIp: string): PanelNetworkStatus {
   if (!platformCheck()) throw new PanelError('server.panelNetwork.unsupportedPlatform', undefined, { statusCode: 409 });
@@ -673,13 +673,13 @@ export function updatePanelNetwork(body: UpdatePanelNetworkRequest, sourceIp: st
   if (body.useSharedPeers !== undefined) next.useSharedPeers = body.useSharedPeers;
   if (next.enabled) resolvePeers(next);
   writeSettings(next);
-  // 不记网络名和密钥。
+  // The network name and secret are not logged.
   log?.info({ enabled: next.enabled, sourceIp }, '面板自带网络的设置已更改');
   void scheduleSync();
   return getPanelNetworkStatus();
 }
 
-/** 手机加入要填的内容，含密钥；只在用户进到「让手机加入」那一步时请求。 */
+/** What to enter on a phone to join, including the secret; requested only when the user reaches the "join from a phone" step. */
 export function getPanelNetworkJoinInfo(): PanelNetworkJoinInfo {
   const settings = readSettings();
   if (!settings?.enabled) throw new PanelError('server.panelNetwork.notEnabled', undefined, { statusCode: 409 });
@@ -692,7 +692,7 @@ export function getPanelNetworkJoinInfo(): PanelNetworkJoinInfo {
   };
 }
 
-/** 重置网络名和密钥：所有设备都要重新加入。 */
+/** Resets the network name and secret: every device has to join again. */
 export function resetPanelNetworkSecret(sourceIp: string): PanelNetworkStatus {
   const settings = readSettings();
   if (!settings) throw new PanelError('server.panelNetwork.notEnabled', undefined, { statusCode: 409 });
@@ -702,11 +702,11 @@ export function resetPanelNetworkSecret(sourceIp: string): PanelNetworkStatus {
   return getPanelNetworkStatus();
 }
 
-// ---- 生命周期 ----
+// ---- Lifecycle ----
 
 export async function initPanelNetwork(options: {
   port: number;
-  /** 把专用端口接到的连接交给面板的 HTTP 服务；没有时（只测进程管理的测试）直接断开 */
+  /** Hands connections accepted on the dedicated port to the panel's HTTP server; when there is none (tests that only cover process management) they are dropped */
   handOff?: (socket: net.Socket) => void;
   log?: PanelNetworkLogger;
 }): Promise<void> {
@@ -714,7 +714,7 @@ export async function initPanelNetwork(options: {
   handOff = options.handOff ?? null;
   log = options.log ?? null;
   shuttingDown = false;
-  // 上次面板异常退出可能留下规则；设置为开启时随后的启动会先删后加。
+  // A previous panel crash may have left rules behind; when the setting is on, the start that follows deletes before adding.
   if (readSettings()?.enabled) void scheduleSync();
 }
 

@@ -1,7 +1,7 @@
 /**
- * 从其他设备访问面板（D-033）回归：网卡分类、公网地址校验、防火墙参数、额外监听器
- * （HTTP 转交、HTTPS 分流与跳转、来源限制、启动器接口隔离）和面板自带 EasyTier 网络。
- * 监听器测试只用回环网段（127.0.0.x）和随机端口，不碰真实网卡；netsh 和 EasyTier 都用替身。
+ * Regression for accessing the panel from other devices (D-033): interface classification, public address validation, firewall arguments, extra listeners
+ * (HTTP handoff, HTTPS dispatch and redirect, source restriction, launcher endpoint isolation) and the panel's built-in EasyTier network.
+ * Listener tests use only the loopback range (127.0.0.x) and random ports and never touch real interfaces; netsh and EasyTier are both stubbed.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,7 +22,7 @@ process.env.JWT_SECRET = 'a'.repeat(64);
 process.env.SETUP_TOKEN = 'b'.repeat(64);
 process.env.LAUNCHER_TOKEN = 'c'.repeat(64);
 process.env.MYSTRY_PROCESS_FINGERPRINT = 'fingerprint-for-test';
-// 只放宽全局限额（本文件请求很多）；认证和启动器的严格限额保持默认，下面有测试依赖它。
+// Only the global limit is relaxed (this file makes many requests); the strict limits for auth and the launcher stay at their defaults, and tests below depend on them.
 process.env.RATE_LIMIT_MAX = '100000';
 
 const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-remote-access-test-'));
@@ -42,7 +42,7 @@ interface Response {
   body: string;
 }
 
-/** 发一个请求；localAddress 用来指定来源地址，ca 为 false 时不校验证书。 */
+/** Sends one request; localAddress sets the source address, and the certificate is not verified when ca is false. */
 function request(
   url: string,
   options: { method?: string; headers?: Record<string, string>; body?: unknown; localAddress?: string; rawHost?: string } = {},
@@ -75,7 +75,7 @@ function request(
   });
 }
 
-/** 打开控制台 WebSocket（不带 ticket），返回服务端发来的第一帧的消息键；连不上时返回错误文本。 */
+/** Opens the console WebSocket (without a ticket) and returns the message key of the first frame the server sends; returns the error text when it cannot connect. */
 function consoleSocketFirstFrame(url: string): Promise<string> {
   return new Promise((resolve) => {
     const socket = new WebSocket(url, { rejectUnauthorized: false });
@@ -109,7 +109,7 @@ test('网卡分类先看网卡名再看地址，网址按局域网、公网、�
   assert.equal(classifyNetworkInterface('eth0', '203.0.113.10'), 'public');
   assert.equal(classifyNetworkInterface('vEthernet (WSL)', '172.30.208.1'), 'virtual');
   assert.equal(classifyNetworkInterface('docker0', '172.17.0.1'), 'virtual');
-  // 名字像组网但地址是公网段：靠名字认出来，不被判成公网。
+  // The name looks like an overlay but the address is in a public range: recognized by name, not classified as public.
   assert.equal(classifyNetworkInterface('ZeroTier One [abc]', '203.0.113.77'), 'overlay');
   assert.equal(classifyNetworkInterface('ztabcdef', '25.1.2.3'), 'overlay');
 
@@ -148,12 +148,12 @@ test('「只允许同一网段」的网段计算和来源判断', async () => {
   assert.equal(isAllowedSource('203.0.113.5', lan!), false);
   assert.equal(isAllowedSource('2408::1', lan!), false);
   assert.equal(isAllowedSource(undefined, lan!), false);
-  // 组网网卡掩码常是 /32：放行整个 100.64.0.0/10。
+  // Overlay interfaces often have a /32 mask: the whole 100.64.0.0/10 is allowed.
   const overlay = allowedRangeFor({ address: '100.107.3.4', cidr: '100.107.3.4/32' });
   assert.equal(overlay?.cidr, '100.64.0.0/10');
   assert.equal(isAllowedSource('100.127.255.254', overlay!), true);
   assert.equal(isAllowedSource('100.128.0.1', overlay!), false);
-  // 其他 /32 网卡算不出网段。
+  // For other /32 interfaces no subnet can be derived.
   assert.equal(allowedRangeFor({ address: '10.8.0.2', cidr: '10.8.0.2/32' }), null);
   assert.equal(allowedRangeFor({ address: '10.8.0.2', cidr: null }), null);
 });
@@ -169,7 +169,7 @@ test('公网地址校验：接受 IP 和域名，去掉协议头，拒绝端口�
   assert.equal(normalizePublicHost('http://203.0.113.10'), '203.0.113.10');
   assert.equal(normalizePublicHost('2408:8207:AB::10'), '2408:8207:ab::10');
   assert.equal(normalizePublicHost('[2408:8207:ab::10]'), '2408:8207:ab::10');
-  // 私网地址不拒绝，由界面提示。
+  // Private addresses are not rejected; the UI gives a hint.
   assert.equal(normalizePublicHost('192.168.1.5'), '192.168.1.5');
   const keyOf = (value: string): string => {
     try {
@@ -224,7 +224,7 @@ test('面板端口的防火墙规则：localip / remoteip 只在对应设置开�
   await closePanelFirewall('direct', 3000);
   assert.equal(calls.length, 0);
 
-  // 带 program= 的规则加不上时退回不限程序的规则；先删同名旧规则。
+  // When the rule with program= cannot be added, fall back to a rule without a program restriction; the old rule of the same name is deleted first.
   setPanelFirewallForTests({
     platform: 'win32',
     runner: async (args) => {
@@ -236,20 +236,20 @@ test('面板端口的防火墙规则：localip / remoteip 只在对应设置开�
   assert.deepEqual(calls.map((args) => args[2]), ['delete', 'add', 'add']);
   assert.ok(!calls[2]!.some((arg) => arg.startsWith('program=')));
 
-  // 非管理员：全部加不上，结果为 failed，并按名字回滚。
+  // Not admin: nothing can be added, the result is failed, and it is rolled back by name.
   calls.length = 0;
   setPanelFirewallForTests({ platform: 'win32', runner: async (args) => { calls.push([...args]); return args[2] === 'add' ? 1 : 0; } });
   assert.equal(await openPanelPortFirewall(input), 'failed');
   assert.equal(calls.at(-1)![2], 'delete');
 
-  // 面板自带 EasyTier：TCP 和 UDP 各一条，限定监听端口和程序。
+  // The panel's built-in EasyTier: one rule each for TCP and UDP, restricted to the listen port and the program.
   calls.length = 0;
   setPanelFirewallForTests({ platform: 'win32', runner: async (args) => { calls.push([...args]); return 0; } });
   assert.equal(await openPanelNetworkFirewall('C:\\data\\easytier-core.exe', 11010, 3000), 'applied');
   const added = calls.filter((args) => args[2] === 'add');
   assert.deepEqual(added.map((args) => args.find((arg) => arg.startsWith('protocol='))), ['protocol=TCP', 'protocol=UDP']);
   for (const args of added) {
-    // 规则名用面板端口，不用每次启动都会变的 EasyTier 监听端口。
+    // The rule name uses the panel port, not the EasyTier listen port that changes on every start.
     assert.ok(args.includes('name=MystryDashboard-PanelNet-3000'));
     assert.ok(args.includes('localport=11010'));
     assert.ok(args.includes('program=C:\\data\\easytier-core.exe'));
@@ -269,7 +269,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   setPanelFirewallForTests({ platform: 'win32', runner: async (args) => { firewallCalls.push([...args]); return 0; } });
   setPanelNetworkForTests({ platformSupported: () => false });
 
-  // 用回环网段的地址冒充网卡：.2 是局域网，.3 是组网，.4 是实例联机网络，.5 是算不出网段的 /32 网卡。
+  // Loopback-range addresses stand in for interfaces: .2 is LAN, .3 is overlay, .4 is the instance multiplayer network, .5 is a /32 interface with no derivable subnet.
   let interfaces: PanelNetworkInterface[] = [
     { name: 'WLAN', address: '127.0.0.2', cidr: '127.0.0.2/30', kind: 'lan' },
     { name: 'Tailscale', address: '127.0.0.3', cidr: '127.0.0.3/30', kind: 'overlay' },
@@ -293,7 +293,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
     setPanelNetworkForTests(null);
     remote.setRemoteAccessTimeoutForTests(null);
   });
-  // 没开启任何方式时启动不调用 netsh：规则名全机固定，不能无条件清扫。
+  // With no mode enabled, startup does not call netsh: rule names are fixed machine-wide and must not be swept unconditionally.
   assert.equal(firewallCalls.length, 0);
 
   const setup = await request(`http://127.0.0.1:${port}/api/auth/setup`, {
@@ -312,7 +312,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   const put = (mode: 'direct' | 'overlay', body: object, base = local, extra: { localAddress?: string } = {}) =>
     request(`${base}/api/system/remote-access/${mode}`, { method: 'PUT', headers: auth, body, ...extra });
 
-  // 未登录一律 401。
+  // Always 401 when not signed in.
   for (const [method, url] of [
     ['GET', '/api/system/remote-access'],
     ['PUT', '/api/system/remote-access/direct'],
@@ -326,7 +326,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
     assert.equal((await request(`${local}${url}`, { method, body: method === 'GET' ? undefined : {} })).status, 401, url);
   }
 
-  // 默认：没开启，HTTPS 默认值为 true，其他设备连不上。
+  // Default: not enabled, HTTPS defaults to true, other devices cannot connect.
   const initial = await status();
   assert.equal(initial.managedByConfig, false);
   assert.equal(initial.port, port);
@@ -338,7 +338,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   assert.equal(initial.panelNetwork.enabled, false);
   await assert.rejects(request(`http://127.0.0.2:${port}/api/health`), /ECONNREFUSED/);
 
-  // 参数不合法、网卡不存在。
+  // Invalid parameters, nonexistent interface.
   assert.equal((await put('direct', { enabled: true })).status, 400);
   const gone = await put('direct', { enabled: true, interfaceName: 'Nope', restrictToSubnet: false, https: false });
   assert.equal(gone.status, 409);
@@ -346,7 +346,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   const noName = await put('overlay', { enabled: true, interfaceName: null, restrictToSubnet: false, https: false });
   assert.equal((JSON.parse(noName.body) as { code: string }).code, 'server.remoteAccess.interfaceRequired');
 
-  // ---- 不加密开启「所有网卡」：不含实例联机网络 ----
+  // ---- Enable "all interfaces" without encryption: excludes the instance multiplayer network ----
   firewallCalls.length = 0;
   const opened = await put('direct', { enabled: true, interfaceName: null, restrictToSubnet: false, https: false });
   assert.equal(opened.status, 200, opened.body);
@@ -363,26 +363,26 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   assert.ok(!directRule.some((arg) => arg.startsWith('localip=') || arg.startsWith('remoteip=')));
   await assert.rejects(request(`http://127.0.0.4:${port}/api/health`), /ECONNREFUSED/);
 
-  // 其他设备（来源 127.0.0.9）经额外监听器访问：普通请求能通，进程指纹不返回。
+  // Another device (source 127.0.0.9) accessing through an extra listener: ordinary requests work, and the process fingerprint is not returned.
   const far = { localAddress: '127.0.0.9' };
   const health = await request(`http://127.0.0.2:${port}/api/health`, far);
   assert.equal(health.status, 200);
   assert.deepEqual(JSON.parse(health.body), { ok: true, service: 'mystry-dashboard' });
   assert.equal((JSON.parse((await request(`${local}/api/health`)).body) as { processFingerprint?: string }).processFingerprint, 'fingerprint-for-test');
-  // WebSocket 升级经额外监听器也能走通：和连本机得到同样的首帧（没带 ticket 的提示），而不是被挂断。
+  // A WebSocket upgrade also works through an extra listener: it gets the same first frame as connecting locally (the missing-ticket notice) instead of being dropped.
   const localFrame = await consoleSocketFirstFrame(`ws://127.0.0.1:${port}/ws/console/none`);
   assert.equal(localFrame, 'server.instance.consoleTicketMissing');
   assert.equal(await consoleSocketFirstFrame(`ws://127.0.0.2:${port}/ws/console/none`), localFrame);
-  // 已登录的非回环请求可以读状态、改设置。
+  // A signed-in non-loopback request can read the status and change settings.
   assert.equal((await request(`http://127.0.0.2:${port}/api/system/remote-access`, { headers: auth, ...far })).status, 200);
-  // 启动器反复读状态（remote 命令每次都读）不会撞上严格限额，也不影响安全关闭接口。
+  // The launcher reading the status repeatedly (the remote command reads it every time) does not hit the strict limit, nor does it affect the safe shutdown endpoint.
   for (let index = 0; index < 15; index += 1) {
     const res = await request(`${local}/api/launcher/remote-access`, { headers: { 'x-launcher-token': LAUNCHER_TOKEN } });
     assert.equal(res.status, 200, `第 ${index + 1} 次读状态`);
   }
-  // 测试里的 buildApp 没有接关闭回调，所以是 503；关键是它不是 429。
+  // buildApp in tests has no shutdown callback wired, hence 503; the point is that it is not 429.
   assert.equal((await request(`${local}/api/launcher/shutdown`, { method: 'POST', headers: { 'x-launcher-token': LAUNCHER_TOKEN }, body: {} })).status, 503);
-  // 启动器接口：其他设备即使带着正确的 LAUNCHER_TOKEN 也被拒绝。
+  // Launcher endpoints: other devices are rejected even with the correct LAUNCHER_TOKEN.
   const launcherHeaders = { 'x-launcher-token': LAUNCHER_TOKEN };
   for (const [method, url] of [
     ['POST', '/api/launcher/shutdown'],
@@ -394,19 +394,19 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
     const res = await request(`http://127.0.0.2:${port}${url}`, { method, headers: launcherHeaders, body: method === 'GET' ? undefined : {}, ...far });
     assert.equal(res.status, 403, url);
   }
-  // 本机启动器：缺令牌 401，带令牌能读状态。
+  // Local launcher: 401 without the token, and the status is readable with it.
   assert.equal((await request(`${local}/api/launcher/remote-access`)).status, 401);
   const launcherStatus = await request(`${local}/api/launcher/remote-access`, { headers: launcherHeaders });
   assert.equal(launcherStatus.status, 200);
   assert.equal((JSON.parse(launcherStatus.body) as RemoteAccessStatus).direct.enabled, true);
 
-  // 开关都写日志，日志里没有令牌。
+  // Both enabling and disabling are logged, and the logs contain no token.
   const changeLog = logs.find((entry) => entry.msg.includes('设置已更改'));
   assert.ok(changeLog);
   assert.equal((changeLog.obj as { sourceIp: string }).sourceIp, '127.0.0.1');
   assert.ok(!JSON.stringify(logs).includes(LAUNCHER_TOKEN));
 
-  // ---- 网卡变化：新地址补挂，消失的地址关掉 ----
+  // ---- Interface changes: new addresses are attached, vanished addresses are closed ----
   interfaces = [...interfaces, { name: 'Ethernet', address: '127.0.0.6', cidr: '127.0.0.6/24', kind: 'lan' }];
   assert.ok((await status()).direct.urls.some((item) => item.url === `http://127.0.0.6:${port}/` && item.listening));
   assert.equal((await request(`http://127.0.0.6:${port}/api/health`)).status, 200);
@@ -414,7 +414,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   assert.ok(!(await status()).direct.urls.some((item) => item.url.includes('127.0.0.6')));
   await assert.rejects(request(`http://127.0.0.6:${port}/api/health`), /ECONNREFUSED/);
 
-  // 一个地址被别的程序占用：只标出它，其他照常。
+  // One address is taken by another program: only it is flagged, the rest work as usual.
   const blocker = net.createServer();
   await new Promise<void>((resolve) => blocker.listen({ host: '127.0.0.7', port, exclusive: true }, resolve));
   interfaces = [...interfaces, { name: 'Busy', address: '127.0.0.7', cidr: '127.0.0.7/24', kind: 'lan' }];
@@ -425,7 +425,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   assert.equal(partial.direct.problem, null);
   assert.equal((await request(`http://127.0.0.2:${port}/api/health`)).status, 200);
 
-  // 全部失败：返回 listenFailed，设置回到操作前（仍是「所有网卡」）。
+  // Everything fails: listenFailed is returned and the settings go back to before the operation (still "all interfaces").
   const allFailed = await put('direct', { enabled: true, interfaceName: 'Busy', restrictToSubnet: false, https: false });
   assert.equal(allFailed.status, 409);
   assert.equal((JSON.parse(allFailed.body) as { code: string }).code, 'server.remoteAccess.listenFailed');
@@ -436,7 +436,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   await new Promise<void>((resolve) => blocker.close(() => resolve()));
   interfaces = interfaces.filter((entry) => entry.address !== '127.0.0.7');
 
-  // ---- 已装的组网软件：占用 Tailscale 网卡，直接访问让出这个地址但照样列出 ----
+  // ---- Installed virtual networking software: takes the Tailscale interface; direct access gives up this address but still lists it ----
   firewallCalls.length = 0;
   const overlay = await put('overlay', { enabled: true, interfaceName: 'Tailscale', restrictToSubnet: true, https: false });
   assert.equal(overlay.status, 200, overlay.body);
@@ -446,11 +446,11 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   const overlayRule = firewallCalls.find((args) => args[2] === 'add' && args.includes(`name=MystryDashboard-Panel-Overlay-${port}`))!;
   assert.ok(overlayRule.includes('localip=127.0.0.3'));
   assert.ok(overlayRule.includes('remoteip=127.0.0.0/30'));
-  // 只允许同一网段：127.0.0.0/30 内的来源放行，之外的直接断开；没开这个开关的监听器不受影响。
+  // Same subnet only: sources inside 127.0.0.0/30 are allowed and those outside are dropped right away; listeners without this switch are unaffected.
   assert.equal((await request(`http://127.0.0.3:${port}/api/health`, { localAddress: '127.0.0.1' })).status, 200);
   await assert.rejects(request(`http://127.0.0.3:${port}/api/health`, far), /ECONNRESET|socket hang up/);
   assert.equal((await request(`http://127.0.0.2:${port}/api/health`, far)).status, 200);
-  // /32 的非组网网卡算不出网段：开着这个开关时不监听，标 subnetUnknown。
+  // A /32 non-overlay interface has no derivable subnet: with this switch on it is not listened on and is flagged subnetUnknown.
   interfaces = [...interfaces, { name: 'ppp0', address: '127.0.0.5', cidr: '127.0.0.5/32', kind: 'lan' }];
   const unknown = await put('overlay', { enabled: true, interfaceName: 'ppp0', restrictToSubnet: true, https: false });
   assert.equal(unknown.status, 409);
@@ -459,7 +459,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   interfaces = interfaces.filter((entry) => entry.address !== '127.0.0.5');
   assert.equal((await put('overlay', { enabled: false, interfaceName: 'Tailscale', restrictToSubnet: false, https: false })).status, 200);
 
-  // ---- HTTPS（默认）：TLS 握手交给面板，明文跳转到 https ----
+  // ---- HTTPS (default): the TLS handshake is handled by the panel, plaintext redirects to https ----
   setPublicHost('panel.example.com');
   const secured = await put('direct', { enabled: true, interfaceName: 'WLAN', restrictToSubnet: false, https: true });
   assert.equal(secured.status, 200, secured.body);
@@ -472,7 +472,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   assert.ok(securedStatus.certificate!.addresses.includes('127.0.0.2'));
   assert.ok(securedStatus.certificate!.addresses.includes('panel.example.com'));
   const certPem = fs.readFileSync(panelCertificatePaths().cert, 'utf8');
-  // 私钥不进日志，状态接口里也没有。
+  // The private key does not go into logs, and is not in the status endpoint either.
   const keyBody = fs.readFileSync(panelCertificatePaths().key, 'utf8').split('\n')[1]!;
   assert.ok(!JSON.stringify(logs).includes(keyBody));
   assert.ok(!secured.body.includes(keyBody));
@@ -480,11 +480,11 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   const tlsHealth = await request(`https://127.0.0.2:${port}/api/health`, far);
   assert.equal(tlsHealth.status, 200);
   assert.deepEqual(JSON.parse(tlsHealth.body), { ok: true, service: 'mystry-dashboard' });
-  // wss:// 同样可用：手机上看控制台走的就是这条路。
+  // wss:// works as well: this is the path used when viewing the console on a phone.
   assert.equal(await consoleSocketFirstFrame(`wss://127.0.0.2:${port}/ws/console/none`), 'server.instance.consoleTicketMissing');
-  // 明文 ws:// 连到 HTTPS 监听器只会拿到跳转，不会到达面板。
+  // Plaintext ws:// to an HTTPS listener only gets the redirect and never reaches the panel.
   assert.equal(await consoleSocketFirstFrame(`ws://127.0.0.2:${port}/ws/console/none`), 'http 308');
-  // 信任这张证书的客户端按默认规则校验通过；不信任的被拒绝。
+  // A client that trusts this certificate passes verification under the default rules; one that does not is rejected.
   await new Promise<void>((resolve, reject) => {
     const socket = tls.connect({ host: '127.0.0.2', port, ca: certPem }, () => { socket.end(); resolve(); });
     socket.once('error', reject);
@@ -496,9 +496,9 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
     }),
     (error: NodeJS.ErrnoException) => error.code === 'DEPTH_ZERO_SELF_SIGNED_CERT',
   );
-  // 经 HTTPS 监听器访问启动器接口同样被拒绝。
+  // Accessing the launcher endpoints through an HTTPS listener is rejected as well.
   assert.equal((await request(`https://127.0.0.2:${port}/api/launcher/remote-access`, { headers: launcherHeaders, ...far })).status, 403);
-  // 明文：308 跳到同主机的 https，保留路径和查询参数；请求不到达面板路由。
+  // Plaintext: 308 to https on the same host, keeping the path and query parameters; the request does not reach the panel routes.
   const redirect = await request(`http://127.0.0.2:${port}/api/health?x=1`);
   assert.equal(redirect.status, 308);
   assert.equal(redirect.headers.location, `https://127.0.0.2:${port}/api/health?x=1`);
@@ -506,10 +506,10 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   assert.equal(redirect.headers['strict-transport-security'], undefined);
   const dirty = await request(`http://127.0.0.2:${port}/x`, { rawHost: 'evil.example.com"<>;:8443' });
   assert.equal(dirty.headers.location, 'https://evil.example.com:8443/x');
-  // 本机监听器始终是 HTTP。
+  // The local listener is always HTTP.
   assert.equal((await request(`${local}/api/health`)).status, 200);
 
-  // 空连接和握手不完成的连接超时后断开。
+  // Empty connections and connections that never finish the handshake are dropped after the timeout.
   remote.setRemoteAccessTimeoutForTests(80);
   const idleClosed = await new Promise<boolean>((resolve) => {
     const socket = net.connect({ host: '127.0.0.2', port });
@@ -527,13 +527,13 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   assert.equal(stalledClosed, true);
   remote.setRemoteAccessTimeoutForTests(null);
 
-  // 重新生成证书：指纹变化，监听器继续工作。
+  // Regenerate the certificate: the fingerprint changes and the listeners keep working.
   const renewed = await request(`${local}/api/system/remote-access/certificate`, { method: 'POST', headers: auth });
   assert.equal(renewed.status, 200, renewed.body);
   assert.notEqual((JSON.parse(renewed.body) as RemoteAccessStatus).certificate!.fingerprint256, securedStatus.certificate!.fingerprint256);
   assert.equal((await request(`https://127.0.0.2:${port}/api/health`)).status, 200);
 
-  // 选的网卡不在了：读状态时给出 interfaceGone，面板照常工作；网卡回来后自动恢复。
+  // The chosen interface is gone: the status read reports interfaceGone and the panel keeps working; it recovers automatically when the interface returns.
   const saved = interfaces;
   interfaces = interfaces.filter((entry) => entry.name !== 'WLAN');
   const lost = await status();
@@ -542,14 +542,14 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   interfaces = saved;
   assert.equal((await status()).direct.problem, null);
 
-  // ---- 关闭：已建立的长连接立即断开，防火墙规则删除 ----
+  // ---- Disable: established long-lived connections are dropped immediately, firewall rules are deleted ----
   const keepAlive = net.connect({ host: '127.0.0.2', port });
   await new Promise<void>((resolve) => keepAlive.once('connect', () => resolve()));
   let dropped = false;
   keepAlive.on('close', () => { dropped = true; });
   keepAlive.on('error', () => { dropped = true; });
   firewallCalls.length = 0;
-  // 在远程设备上关掉自己正在用的方式：请求本身的连接也会被断开，所以从本机发。
+  // Disabling, from a remote device, the mode it is itself using: the request's own connection would be dropped too, so it is sent from this machine.
   const closed = await put('direct', { enabled: false, interfaceName: 'WLAN', restrictToSubnet: false, https: true });
   assert.equal(closed.status, 200);
   assert.deepEqual((JSON.parse(closed.body) as RemoteAccessStatus).direct.urls, []);
@@ -557,7 +557,7 @@ test('额外监听器：开关、HTTPS、明文跳转、来源限制、启动器
   await assert.rejects(request(`https://127.0.0.2:${port}/api/health`), /ECONNREFUSED/);
   assert.ok(firewallCalls.some((args) => args[2] === 'delete' && args.includes(`name=MystryDashboard-Panel-Direct-${port}`)));
 
-  // 公网地址接口。
+  // Public address endpoint.
   const badHost = await request(`${local}/api/system/public-host`, { method: 'PUT', headers: auth, body: { host: 'mc.example.com:25565' } });
   assert.equal(badHost.status, 400);
   assert.equal((JSON.parse(badHost.body) as { code: string }).code, 'server.publicHost.hasPort');
@@ -572,7 +572,7 @@ test('HOST 已是非回环地址时由配置文件决定，开关只读', async 
   const { setPanelFirewallForTests } = await import('./panel-firewall.js');
   const { setPanelNetworkForTests } = await import('./panel-network.js');
   const { PanelError } = await import('../utils/errors.js');
-  // 平台按 Windows 算：从没开启过的面板，启动和关闭全程不应调用 netsh。
+  // Platform treated as Windows: for a panel that never enabled this, netsh must not be called at any point during startup and shutdown.
   const netshCalls: string[][] = [];
   setPanelFirewallForTests({ platform: 'win32', runner: async (args) => { netshCalls.push([...args]); return 0; } });
   setPanelNetworkForTests({ platformSupported: () => false });
@@ -616,7 +616,7 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   const firewallCalls: string[][] = [];
   setPanelFirewallForTests({ platform: 'win32', runner: async (args) => { firewallCalls.push([...args]); return 0; } });
 
-  // 配置文件内容。
+  // Config file content.
   const toml = network.renderPanelNetworkToml({
     networkName: `mystry-panel-${'a'.repeat(32)}`,
     networkSecret: 'abcdefghijklmnopqrstuvwxyz'.slice(0, 26),
@@ -638,7 +638,7 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   assert.throws(() => network.renderPanelNetworkToml({ ...bad, peers: [] }));
   assert.throws(() => network.renderPanelNetworkToml({ ...bad, networkSecret: 'x"y', peers: ['tcp://a.example.com:1'] }));
 
-  // 设备列表解析：去掉本机节点和没有虚拟地址的共享节点。
+  // Device list parsing: drops the local peer and shared peers without a virtual address.
   assert.deepEqual(
     network.parsePanelNetworkDevices(JSON.stringify([
       { cidr: '10.127.0.1/24', ipv4: '10.127.0.1', hostname: 'mystry-panel', cost: 'Local' },
@@ -657,7 +657,7 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   assert.deepEqual(network.parsePanelNetworkDevices('not json'), []);
   assert.deepEqual(network.parsePanelNetworkDevices('{"x":1}'), []);
 
-  // 运行流程：替身进程和命令行。
+  // Run flow: stubbed process and CLI.
   type FakeChild = EventEmitter & { stdout: EventEmitter; stderr: EventEmitter; exitCode: number | null; kill: () => boolean };
   const children: FakeChild[] = [];
   const spawns: Array<{ command: string; args: readonly string[]; env: NodeJS.ProcessEnv | undefined; cwd: string }> = [];
@@ -715,7 +715,7 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   );
   assert.throws(() => network.updatePanelNetwork({ enabled: true, customPeers: ['http://x'] }, '127.0.0.1'));
 
-  // 开启：先安装，再启动；探测到固定虚拟地址后为 running。
+  // Enable: install first, then start; running once the fixed virtual address is detected.
   const starting = network.updatePanelNetwork({ enabled: true }, '192.168.2.10');
   assert.equal(starting.enabled, true);
   assert.ok(starting.state === 'starting' || starting.state === 'installing');
@@ -728,9 +728,9 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   await network.refreshPanelNetworkDevices();
   const running: PanelNetworkStatus = network.getPanelNetworkStatus();
   assert.equal(running.virtualIp, '10.127.0.1');
-  // 网址用组网专用端口，不是面板端口。
+  // The URL uses the dedicated virtual-network port, not the panel port.
   const accessPort = Number(/^http:\/\/10\.127\.0\.1:(\d+)\/$/.exec(running.url ?? '')?.[1]);
-  // 从面板端口往上找，不用系统的动态端口段（那里的端口下次启动容易被占）。
+  // Searched upward from the panel port, not from the system's dynamic port range (ports there are easily taken on the next start).
   assert.ok(accessPort > 3210 && accessPort <= 3230, running.url ?? 'null');
   assert.deepEqual(running.devices, [{ hostname: 'Pixel-8', virtualIp: '10.127.0.2', connection: 'direct' }]);
   assert.equal(running.firewall, 'applied');
@@ -740,10 +740,10 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   assert.match(join.networkSecret, /^[a-z2-7]{26}$/);
   assert.deepEqual(join.peers, [...LAN_SHARED_PEERS]);
   assert.match(join.androidDownloadUrl, /^https:\/\/github\.com\/EasyTier\/EasyTier\/releases\/tag\/v/);
-  // 密钥只在配置文件和数据库里：不在命令行、子进程环境、状态和日志里。
+  // The secret lives only in the config file and the database: not on the command line, in the child process environment, in the status or in logs.
   const written = fs.readFileSync(path.join(network.panelNetworkWorkDir(), 'core.toml'), 'utf8');
   assert.ok(written.includes(`network_secret = "${join.networkSecret}"`));
-  // 白名单只放行专用端口：组网设备连不到面板端口，也就绕不开来源登记。
+  // The whitelist allows only the dedicated port: virtual-network devices cannot reach the panel port, so they cannot bypass origin registration.
   assert.match(written, new RegExp(`^tcp_whitelist = \\["${accessPort}"\\]$`, 'm'));
   assert.match(written, /^no_tun = true$/m);
   assert.ok(!spawns[0]!.args.join(' ').includes(join.networkSecret));
@@ -756,17 +756,17 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   assert.ok(!logs.join('\n').includes(join.networkSecret));
   assert.ok(!logs.join('\n').includes(join.networkName));
   assert.ok(logs.some((line) => line.includes('192.168.2.10')));
-  // 防火墙规则限定监听端口。
+  // The firewall rule is restricted to the listen port.
   const listenPort = /listeners = \["tcp:\/\/0\.0\.0\.0:(\d+)"/.exec(written)![1]!;
   assert.ok(firewallCalls.some((args) => args[2] === 'add' && args.includes(`localport=${listenPort}`) && args.includes('name=MystryDashboard-PanelNet-3210')));
   assert.notEqual(Number(listenPort), accessPort);
 
-  // 设置没变时不重启。
+  // No restart when the settings are unchanged.
   network.updatePanelNetwork({ enabled: true }, '127.0.0.1');
   await network.waitForPanelNetworkIdle();
   assert.equal(spawns.length, 1);
 
-  // 进程退出：状态为 error。
+  // Process exit: the status is error.
   children[0]!.exitCode = 1;
   children[0]!.emit('exit', 1);
   const exited = network.getPanelNetworkStatus();
@@ -774,7 +774,7 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   assert.equal(exited.detail?.key, 'server.panelNetwork.exited');
   assert.equal(exited.url, null);
 
-  // 重置网络名和密钥：两者都变，进程用新配置重启。
+  // Reset the network name and secret: both change, and the process restarts with the new config.
   network.resetPanelNetworkSecret('127.0.0.1');
   await network.waitForPanelNetworkIdle();
   await waitFor(() => network.getPanelNetworkStatus().state === 'running');
@@ -782,16 +782,16 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   assert.notEqual(rejoin.networkName, join.networkName);
   assert.notEqual(rejoin.networkSecret, join.networkSecret);
   assert.equal(spawns.length, 2);
-  // 重启后沿用同一个专用端口：组网设备里存的网址不变。
+  // The same dedicated port is reused after a restart: URLs saved on virtual-network devices do not change.
   assert.equal(network.getPanelNetworkStatus().url, running.url);
 
-  // 自定义节点、关掉共享节点。
+  // Custom peers, with shared peers turned off.
   network.updatePanelNetwork({ enabled: true, useSharedPeers: false, customPeers: ['TCP://Relay.Example.com:11010'] }, '127.0.0.1');
   await network.waitForPanelNetworkIdle();
   assert.deepEqual(network.getPanelNetworkJoinInfo().peers, ['tcp://relay.example.com:11010']);
   assert.equal(spawns.length, 3);
 
-  // 关闭：进程停止，规则删除。
+  // Disable: the process stops and the rules are deleted.
   firewallCalls.length = 0;
   const stopped = network.updatePanelNetwork({ enabled: false }, '127.0.0.1');
   assert.equal(stopped.enabled, false);
@@ -799,10 +799,10 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   assert.equal(children[2]!.exitCode, 0);
   assert.equal(network.getPanelNetworkStatus().state, 'stopped');
   assert.ok(firewallCalls.some((args) => args[2] === 'delete' && args.includes('name=MystryDashboard-PanelNet-3210')));
-  // 关闭后专用端口不再监听。
+  // After disabling, the dedicated port no longer listens.
   await assert.rejects(request(`http://127.0.0.1:${accessPort}/`), /ECONNREFUSED/);
 
-  // 面板启动时按设置自动启动。
+  // Started automatically according to the settings when the panel starts.
   network.updatePanelNetwork({ enabled: true }, '127.0.0.1');
   await network.waitForPanelNetworkIdle();
   await network.shutdownPanelNetwork();
@@ -813,7 +813,7 @@ test('面板自带网络：配置只放行组网专用端口，密钥不进命�
   await waitFor(() => network.getPanelNetworkStatus().state === 'running');
   assert.equal(network.getPanelNetworkStatus().url, running.url);
 
-  // 保存的专用端口被别的程序占用：换一个新端口照常启动，并写进设置。
+  // The saved dedicated port is taken by another program: a new port is used, startup proceeds as usual, and it is written to settings.
   await network.shutdownPanelNetwork();
   const squatter = net.createServer();
   await new Promise<void>((resolve) => squatter.listen({ host: '127.0.0.1', port: accessPort, exclusive: true }, resolve));
@@ -875,7 +875,7 @@ test('面板自带网络：经专用端口进来的请求按组网设备处理�
   });
   const local = `http://127.0.0.1:${port}`;
 
-  // 前一个测试可能已建过管理员：建不了就用同样的账号登录。
+  // An earlier test may already have created the admin: if creation fails, sign in with the same account.
   const setup = await request(`${local}/api/auth/setup`, {
     method: 'POST',
     headers: { 'x-setup-token': 'b'.repeat(64) },
@@ -894,19 +894,19 @@ test('面板自带网络：经专用端口进来的请求按组网设备处理�
   const url = network.getPanelNetworkStatus().url!;
   const accessPort = Number(new URL(url).port);
   assert.notEqual(accessPort, port);
-  // 组网设备经 EasyTier 连到「虚拟地址:专用端口」，在本机落到 127.0.0.1:专用端口（实测 2.6.4）。
+  // A virtual-network device connects through EasyTier to "virtual address:dedicated port", which lands on 127.0.0.1:dedicated port on this machine (verified on 2.6.4).
   const via = `http://127.0.0.1:${accessPort}`;
 
-  // 普通请求和登录后的接口照常可用；WebSocket 也能升级。
+  // Ordinary requests and signed-in endpoints work as usual; WebSocket can upgrade too.
   const health = await request(`${via}/api/health`);
   assert.equal(health.status, 200);
-  // 进程指纹只给本机启动器：组网设备拿不到，本机照常拿到。
+  // The process fingerprint is only for the local launcher: virtual-network devices do not get it, this machine still does.
   assert.deepEqual(JSON.parse(health.body), { ok: true, service: 'mystry-dashboard' });
   assert.equal((JSON.parse((await request(`${local}/api/health`)).body) as { processFingerprint?: string }).processFingerprint, 'fingerprint-for-test');
   assert.equal((await request(`${via}/api/system/remote-access`, { headers: auth })).status, 200);
   assert.equal(await consoleSocketFirstFrame(`ws://127.0.0.1:${accessPort}/ws/console/none`), 'server.instance.consoleTicketMissing');
 
-  // 启动器接口：带着正确的 LAUNCHER_TOKEN 也被拒绝；本机照常可用。
+  // Launcher endpoints: rejected even with the correct LAUNCHER_TOKEN; still usable from this machine.
   const launcherHeaders = { 'x-launcher-token': LAUNCHER_TOKEN };
   for (const [method, path] of [
     ['POST', '/api/launcher/shutdown'],
@@ -920,7 +920,7 @@ test('面板自带网络：经专用端口进来的请求按组网设备处理�
   }
   assert.equal((await request(`${local}/api/launcher/remote-access`, { headers: launcherHeaders })).status, 200);
 
-  // 组网里有人反复猜密码：组网这边被锁，本机登录不受影响。
+  // Someone on the virtual network keeps guessing the password: the virtual-network side is locked out, and local sign-in is unaffected.
   let lockedOut = false;
   for (let attempt = 0; attempt < 20 && !lockedOut; attempt += 1) {
     const res = await request(`${via}/api/auth/login`, { method: 'POST', body: { username: 'admin', password: 'wrong-password' } });
@@ -931,7 +931,7 @@ test('面板自带网络：经专用端口进来的请求按组网设备处理�
   const localLogin = await request(`${local}/api/auth/login`, { method: 'POST', body: { username: 'admin', password: 'password-for-tests' } });
   assert.equal(localLogin.status, 200, localLogin.body);
 
-  // 关闭自带网络：专用端口立即不再接受连接。
+  // Disable the built-in network: the dedicated port stops accepting connections immediately.
   const disabled = await request(`${local}/api/system/remote-access/panel-network`, { method: 'PUT', headers: auth, body: { enabled: false } });
   assert.equal(disabled.status, 200, disabled.body);
   await network.waitForPanelNetworkIdle();
@@ -960,14 +960,14 @@ test('联机页本机网络：公网地址单独列出，server-ip 填成公网�
   assert.equal(open.platform, process.platform);
   assert.equal(open.serverIpIsUnboundPublicHost, false);
 
-  // server-ip 填网卡上的公网地址（VPS）：算正常，只返回这一个地址。
+  // server-ip set to a public address on the interface (VPS): counts as normal, and only this one address is returned.
   write('203.0.113.10');
   const bound = describeLocalNetwork(instanceId, vps);
   assert.equal(bound.serverIpBlocked, false);
   assert.deepEqual(bound.addresses, []);
   assert.deepEqual(bound.publicIpv4, ['203.0.113.10']);
 
-  // 云服务器（VPC）：网卡上只有私网地址，server-ip 填成了用户填写的公网地址。
+  // Cloud server (VPC): the interface has only a private address, and server-ip was set to the public address entered by the user.
   const vpc = { eth0: [ipv4('172.16.0.8')] };
   setPublicHost('198.51.100.7');
   write('198.51.100.7');

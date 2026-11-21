@@ -13,8 +13,8 @@ type Tab = 'direct' | 'network';
 type NetworkTab = 'builtIn' | 'installed';
 
 /**
- * 「在其他设备上打开」弹窗：直接访问（同一网络或公网）和虚拟组网（面板自带 EasyTier、已装的组网软件）。
- * 打开期间定时读状态，服务端每次都会重新枚举网卡，地址变了这里跟着更新。
+ * The "Open on other devices" dialog: direct access (same network or public) and virtual networking (the panel's built-in EasyTier, installed virtual networking software).
+ * While open it reads the status periodically; the server re-enumerates interfaces every time, so address changes are followed here.
  */
 export function RemoteAccessDialog({ onClose }: { onClose: () => void }) {
   const { t } = useI18n();
@@ -25,7 +25,7 @@ export function RemoteAccessDialog({ onClose }: { onClose: () => void }) {
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<Tab | null>(null);
   const [networkTab, setNetworkTab] = useState<NetworkTab | null>(null);
-  // 用户正在操作时，过期的轮询结果不能盖掉刚保存的状态。
+  // While the user is acting, stale polling results must not overwrite the state just saved.
   const latestRequest = useRef(0);
 
   const applyStatus = useCallback((next: RemoteAccessStatus) => {
@@ -54,7 +54,7 @@ export function RemoteAccessDialog({ onClose }: { onClose: () => void }) {
     setRefreshing(false);
   }
 
-  // 默认显示直接访问；只开了虚拟组网时默认显示它。检测到组网网卡时，组网分段默认「已装的组网软件」。
+  // Direct access is shown by default; when only virtual networking is enabled it is shown by default. When an overlay interface is detected, the networking segment defaults to "installed virtual networking software".
   const networkOn = Boolean(status && (status.overlay.enabled || status.panelNetwork.enabled));
   const activeTab: Tab = tab ?? (status && !status.direct.enabled && networkOn && !status.managedByConfig ? 'network' : 'direct');
   const hasOverlayAdapter = Boolean(status?.interfaces.some((entry) => entry.kind === 'overlay'));

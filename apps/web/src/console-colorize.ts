@@ -1,28 +1,28 @@
 /**
- * 控制台日志着色：按 ECMA-48 / ISO 6429 SGR 标准色映射常见级别。
- * INFO=绿、WARN=黄、ERROR=红（使用亮色变体，便于深色终端阅读）。
+ * Console log coloring: maps common levels to the standard ECMA-48 / ISO 6429 SGR colors.
+ * INFO=green, WARN=yellow, ERROR=red (bright variants, for readability on dark terminals).
  */
 import { LOCALES, translate, type MessageKey } from './i18n';
 
 const RESET = '\x1b[0m';
 
 const ANSI = {
-  info: '\x1b[92m', // 亮绿
-  warn: '\x1b[93m', // 亮黄
-  error: '\x1b[91m', // 亮红
-  debug: '\x1b[96m', // 亮青
-  fatal: '\x1b[95m', // 亮品红
-  command: '\x1b[1;97m', // 粗体亮白：面板回显的已发送命令
+  info: '\x1b[92m', // Bright green
+  warn: '\x1b[93m', // Bright yellow
+  error: '\x1b[91m', // Bright red
+  debug: '\x1b[96m', // Bright cyan
+  fatal: '\x1b[95m', // Bright magenta
+  command: '\x1b[1;97m', // Bold bright white: sent commands echoed by the panel
 } as const;
 
-/** 服务端 process-manager 回显已发送命令的写法：「> 命令」。 */
+/** How the server's process-manager echoes a sent command: "> command". */
 const COMMAND_ECHO_PREFIX = '> ';
 
 const HAS_ANSI = /\x1b\[/;
 
 /**
- * 面板自身提示前缀：收集所有界面语言的写法，切换语言后旧日志和
- * 服务端 process-manager 写入的中文「[面板]」仍能着色。
+ * Prefix of the panel's own notices: the forms in every UI language are collected, so after switching languages old logs and
+ * the Chinese "[面板]" written by the server's process-manager are still colored.
  */
 function prefixesFor(key: MessageKey): string[] {
   return [...new Set(LOCALES.map((locale) => translate(locale, key)))];
@@ -32,8 +32,8 @@ const PANEL_PREFIXES = prefixesFor('console.prefix.panel');
 const ERROR_PREFIXES = prefixesFor('console.prefix.error');
 
 /**
- * 剥离 OSC（ESC ]…：剪贴板读写/标题/清屏）与除 SGR（ESC [ … m）之外的
- * CSI 控制序列，只保留着色，避免 xterm 执行服务端日志里的危险终端序列。
+ * Strips OSC (ESC ]…: clipboard read/write, title, clear screen) and CSI control sequences other than SGR (ESC [ … m),
+ * keeping only coloring, so xterm does not execute dangerous terminal sequences from server logs.
  */
 function sanitizeAnsi(line: string): string {
   const withoutOsc = line.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, '');
@@ -42,7 +42,7 @@ function sanitizeAnsi(line: string): string {
   );
 }
 
-/** 匹配 Minecraft / Log4j 常见级别写法，例如 [Server thread/INFO]、/WARN] */
+/** Matches common Minecraft / Log4j level forms, e.g. [Server thread/INFO], /WARN] */
 const LEVEL_RE =
   /(?:^|[^A-Za-z0-9_])(?:\/)?(FATAL|ERROR|SEVERE|WARN(?:ING)?|INFO|DEBUG|TRACE)(?=[\]:\s])/i;
 
@@ -74,11 +74,11 @@ function colorForLevel(level: string): string | null {
   }
 }
 
-/** 为单行日志附加 ANSI 颜色；已含转义序列的行做净化后原样返回。 */
+/** Adds ANSI color to a single log line; lines that already contain escape sequences are sanitized and returned as is. */
 export function colorizeConsoleLine(line: string): string {
   if (!line || HAS_ANSI.test(line)) return sanitizeAnsi(line);
 
-  // 面板自身提示
+  // The panel's own notices
   if (ERROR_PREFIXES.some((prefix) => line.startsWith(prefix))) return `${ANSI.error}${line}${RESET}`;
   if (PANEL_PREFIXES.some((prefix) => line.startsWith(prefix))) return `${ANSI.debug}${line}${RESET}`;
   if (line.startsWith(COMMAND_ECHO_PREFIX)) return `${ANSI.command}${line}${RESET}`;
@@ -91,8 +91,8 @@ export function colorizeConsoleLine(line: string): string {
 }
 
 /**
- * 流式着色：按完整行着色，未结束的残片留在 state.pending。
- * 保留原始换行形态（\n 或 \r\n）。
+ * Streaming coloring: colors complete lines and keeps the unfinished fragment in state.pending.
+ * The original line break form (\n or \r\n) is preserved.
  */
 export function colorizeConsoleStream(chunk: string, state: ConsoleColorizeState): string {
   const text = state.pending + chunk;
@@ -112,7 +112,7 @@ export function colorizeConsoleStream(chunk: string, state: ConsoleColorizeState
   return out;
 }
 
-/** 连接结束或历史写完时，刷新未完成的残片。 */
+/** Flushes the unfinished fragment when the connection ends or the history has been written. */
 export function flushConsoleColorize(state: ConsoleColorizeState): string {
   if (!state.pending) return '';
   const out = colorizeConsoleLine(state.pending);

@@ -8,35 +8,35 @@ import { javaDownloadUrl } from '../java-download';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TaskProgress } from './TaskProgress';
 
-/** 接口错误或 pollTask 抛出的任务失败带的服务端消息键。 */
+/** The server message key carried by an API error or a task failure thrown by pollTask. */
 function serverErrorKey(error: unknown): string | undefined {
   return (error as { messageI18n?: PanelMessage } | null)?.messageI18n?.key;
 }
 
 /**
- * Java 运行时选择器：
- * - 选项只来自面板探测并已验证的注册表，外加「默认（PATH 中的 java）」。
- * - 传入 mcVersion 时显示推荐版本，所选运行时不匹配给出告警。
- * - autoSelect（只给新建实例用）：用户没手动选过时，自动选中与推荐主版本相同的已装 Java。
- *   实例设置页不开，避免打开页面就悄悄改掉已有实例的 Java。
- * - 推荐版本没装、面板能装时给出「安装 Java N」按钮（D-034），装好后选中它。
+ * Java runtime picker:
+ * - Options come only from the registry the panel detected and verified, plus "Default (java on PATH)".
+ * - When mcVersion is passed the recommended version is shown, and a warning is given when the chosen runtime does not match.
+ * - autoSelect (for new instances only): when the user has not chosen manually, an installed Java with the recommended major version is selected automatically.
+ *   It is off on the instance settings page, so opening the page does not silently change an existing instance's Java.
+ * - When the recommended version is not installed and the panel can install it, an "Install Java N" button is offered (D-034), and it is selected once installed.
  */
-/** 实际要用的 Java 是否就是推荐版本：loading 还没读完；版本未知（不推荐）时算 match。 */
-/** unknown：Java 列表一次都没读到，不知道装没装、是哪个版本，不能说成「版本不符」。 */
+/** Whether the Java that will actually be used is the recommended version: loading means not read yet; an unknown version (no recommendation) counts as match. */
+/** unknown: the Java list has never been read, so whether one is installed and which version is unknown, and it cannot be called a "version mismatch". */
 export type JavaMatchStatus = 'loading' | 'match' | 'mismatch' | 'unknown';
 
 /**
- * 实际要用的 Java 现在怎么样，给页面做摘要用。
- * loading：还没读完；unknown：列表一次都没读到；ready：可以用；missing：没装 Java，或所选的已不可用。
- * matchStatus 在不知道 Minecraft 版本时总是 match，分不出「还在读」和「没有 Java」，所以另给这个。
+ * How the Java that will actually be used is doing right now, for the page's summary.
+ * loading: not read yet; unknown: the list has never been read; ready: usable; missing: no Java installed, or the chosen one is no longer available.
+ * matchStatus is always match when the Minecraft version is unknown and cannot tell "still reading" from "no Java", hence this separate value.
  */
 export type JavaResolvedState = {
   availability: 'loading' | 'unknown' | 'ready' | 'missing';
   major: number | null;
-  /** 用的是系统默认 Java（PATH 里的 java），不是面板登记的某一个。 */
+  /** The system default Java (java on PATH) is used, not one registered with the panel. */
   systemDefault: boolean;
   matchStatus: JavaMatchStatus;
-  /** 当前 Minecraft 版本推荐的主版本；不知道版本时为 null。 */
+  /** The major version recommended for the current Minecraft version; null when the version is unknown. */
   recommended: number | null;
 };
 
@@ -57,11 +57,11 @@ export function JavaRuntimeSelect({
   disabled?: boolean;
   onResolvedMajorChange?: (major: number | null) => void;
   autoSelect?: boolean;
-  /** 一键安装进行中时为 true；页面据此暂停提交，免得用错的 Java 建实例。 */
+  /** true while a one-click install is in progress; the page pauses submission based on it, so an instance is not created with the wrong Java. */
   onInstallingChange?: (installing: boolean) => void;
-  /** 部署页据此在版本不符时禁止开始部署（D-034）。 */
+  /** The deploy page uses this to forbid starting a deployment on a version mismatch (D-034). */
   onMatchStatusChange?: (status: JavaMatchStatus) => void;
-  /** 导入页据此在摘要里写出要用的 Java，有问题时展开设置。 */
+  /** The import page uses this to write the Java to be used in the summary, and to expand the settings when there is a problem. */
   onResolvedChange?: (state: JavaResolvedState) => void;
 }) {
   const { t } = useI18n();
@@ -70,23 +70,23 @@ export function JavaRuntimeSelect({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  // 至少成功读到过一次。之后刷新失败时沿用上次的结果，只在下方报错。
+  // Read successfully at least once. When a later refresh fails the previous result is kept, with only an error shown below.
   const [loaded, setLoaded] = useState(false);
   const [defaultJava, setDefaultJava] = useState<JavaDetectResult | null>(null);
   const [installable, setInstallable] = useState<number[]>([]);
   const [installTask, setInstallTask] = useState<TaskInfo | null>(null);
   const [installError, setInstallError] = useState('');
-  /** 点「安装 Java N」后先弹确认，确认了才开始下载。 */
+  /** Clicking "Install Java N" shows a confirmation first, and the download starts only after confirming. */
   const [confirmOpen, setConfirmOpen] = useState(false);
-  /** 已请求取消、等服务端停下下载；这期间「取消安装」显示「正在取消…」。 */
+  /** Cancel was requested and the server has yet to stop the download; meanwhile "Cancel install" shows "Cancelling…". */
   const [cancelling, setCancelling] = useState(false);
-  /** 用户在下拉框里亲手选过后，自动选择不再改动。 */
+  /** Once the user has picked in the dropdown by hand, auto-selection makes no more changes. */
   const manualRef = useRef(false);
-  /** 卸载时停止轮询安装任务；任务本身在服务端继续跑。 */
+  /** Stops polling the install task on unmount; the task itself keeps running on the server. */
   const installAbortRef = useRef<AbortController | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
-  /** 加载代次：挂载加载与「重新扫描」并发时，丢弃先发起但后到达的旧响应。 */
+  /** Load generation: when the mount load and "Rescan" run concurrently, an old response that was sent first but arrived later is discarded. */
   const loadGenerationRef = useRef(0);
 
   const load = useCallback(async (refresh: boolean) => {
@@ -133,8 +133,8 @@ export function JavaRuntimeSelect({
     onInstallingChange?.(installing);
   }, [installing, onInstallingChange]);
 
-  // 安装中被卸载（页面换了来源、收起了设置）时告诉页面不再安装，否则页面一直以为在装、提交按钮一直灰着。
-  // 服务端的安装任务照常跑完，下次挂载会重新读到装好的 Java。
+  // When unmounted mid-install (the page changed the source or collapsed the settings), the page is told installing has stopped, or it would think it is still installing forever and the submit button would stay grey.
+  // The server's install task runs to completion as usual, and the next mount reads the installed Java again.
   const installingRef = useRef(installing);
   installingRef.current = installing;
   const onInstallingChangeRef = useRef(onInstallingChange);
@@ -143,8 +143,8 @@ export function JavaRuntimeSelect({
     if (installingRef.current) onInstallingChangeRef.current?.(false);
   }, []);
 
-  // 自动选择：默认 Java 正好合适就用默认，否则选已装的同主版本 Java；都没有时回到默认。
-  // 加载完成前不动，免得把用户的值先清空再选回来。
+  // Auto-selection: use the default when the default Java fits exactly, otherwise select an installed Java with the same major version; fall back to the default when there is neither.
+  // Nothing is touched before loading completes, so the user's value is not cleared first and then selected back.
   useEffect(() => {
     if (!autoSelect || manualRef.current || loading || recommended == null) return;
     const wanted = defaultMatches ? null : installedMatch?.id ?? null;
@@ -156,7 +156,7 @@ export function JavaRuntimeSelect({
     const controller = new AbortController();
     installAbortRef.current = controller;
     setInstallError('');
-    // 发出请求前就算「安装中」，按钮立刻变灰，页面也立刻暂停提交。
+    // It counts as "installing" before the request is even sent, so the button greys out at once and the page pauses submission at once.
     setInstallTask({ id: '', type: 'download', status: 'pending', progress: 0, message: '', createdAt: '', updatedAt: '' });
     try {
       const task = await installJavaRuntime(major);
@@ -170,7 +170,7 @@ export function JavaRuntimeSelect({
       if (result?.javaRuntimeId) onChangeRef.current(result.javaRuntimeId);
     } catch (err) {
       if (controller.signal.aborted) return;
-      // 自己取消的不算出错，按钮回到「安装 Java N」就够了。
+      // A cancel by the user is not an error; the button returning to "Install Java N" is enough.
       if (serverErrorKey(err) !== 'server.tasks.cancelledByUser') setInstallError(errorMessage(err));
     } finally {
       if (installAbortRef.current === controller) {
@@ -181,29 +181,29 @@ export function JavaRuntimeSelect({
     }
   };
 
-  /** 取消正在进行的安装：服务端停下下载、清掉临时文件后任务才结束，轮询会接着收到结果。 */
+  /** Cancels the install in progress: the task ends only after the server stops the download and cleans up temp files, and polling then receives the result. */
   const cancelInstall = async (taskId: string) => {
     setCancelling(true);
     try {
       await cancelJavaInstall(taskId);
     } catch (err) {
-      // 刚好装完或失败了：轮询会拿到真正的结果，不用再报一次错。
+      // It happened to finish or fail just then: polling gets the real result, so no second error is reported.
       if (serverErrorKey(err) === 'server.jvm.javaInstall.notCancellable') return;
       setCancelling(false);
       setInstallError(errorMessage(err));
     }
   };
   const selected = value ? runtimes.find((runtime) => runtime.id === value) ?? null : null;
-  // 选中的 Java 不在列表里（还没读完、没读到、或已从注册表里消失）：下拉框里没有对应选项时，
-  // 浏览器会显示第一项「系统默认」，看起来像是用默认 Java，所以单独补一个选项把它显示出来。
+  // The selected Java is not in the list (not read yet, failed to read, or gone from the registry): with no matching option in the dropdown,
+  // the browser would display the first item "System default", looking as if the default Java were used, so a separate option is added to display it.
   const selectedMissing = Boolean(value) && selected === null;
   const resolvedMajor = value ? selected?.majorVersion ?? null : defaultJava?.majorVersion ?? null;
   const resolvedAvailable = value ? Boolean(selected?.available) : Boolean(defaultJava?.available);
   const mismatch =
     resolvedAvailable && resolvedMajor != null && recommended != null && resolvedMajor !== recommended;
-  // 第一次读取就失败：什么都不知道，下面的「没检测到」「已不可用」都不能说。
+  // The very first read failed: nothing is known, and neither "not detected" nor "no longer available" below can be said.
   const unknown = !loading && !loaded;
-  // 没装 Java、选中的已不可用、主版本不是推荐版本，都算不符。
+  // No Java installed, the selected one no longer available, and a major version that is not the recommended one all count as a mismatch.
   const matchStatus: JavaMatchStatus = recommended == null
     ? 'match'
     : loading
@@ -227,7 +227,7 @@ export function JavaRuntimeSelect({
     onResolvedChange?.({ availability, major: resolvedMajor, systemDefault: !value, matchStatus, recommended });
   }, [availability, matchStatus, onResolvedChange, recommended, resolvedMajor, value]);
 
-  // 选项只写主版本，同一个主版本装了不止一个时才带上路径区分；选中的那个的路径放在下拉框的悬停提示里。
+  // Options state only the major version, with the path added to tell them apart only when more than one of the same major version is installed; the selected one's path is in the dropdown's hover tooltip.
   const versionLabel = (runtime: JavaRuntimeInfo) => String(runtime.majorVersion ?? runtime.version ?? t('java.runtime.unknownVersion'));
   const labelCounts = new Map<string, number>();
   for (const runtime of runtimes) labelCounts.set(versionLabel(runtime), (labelCounts.get(versionLabel(runtime)) ?? 0) + 1);
@@ -239,7 +239,7 @@ export function JavaRuntimeSelect({
     return t(runtime.available ? 'java.runtime.optionShort' : 'java.runtime.optionShortUnavailable', params);
   };
 
-  // 推荐版本跟在状态点后面：实际要用的 Java 不是它（含没装 Java，这时没有橙色警告）或列表没读到时才写，对得上就不占位置。
+  // The recommended version follows the status dot: it is written only when the Java that will actually be used is not it (including no Java installed, where there is no orange warning) or the list was not read, and takes no space when they match.
   const showRecommended = recommended != null && (matchStatus === 'mismatch' || matchStatus === 'unknown');
   const showInstall = canInstall && !loading;
   const showStatus = !unknown && (!value || loading || Boolean(selected?.available));
@@ -259,7 +259,7 @@ export function JavaRuntimeSelect({
           }}
         >
           <option value="">{t('java.runtime.systemDefault')}</option>
-          {/* 只有列表读到了、里面确实没有，才说「已不可用」并禁止再选回来；没读到时不下结论。 */}
+          {/* Only when the list was read and it really is not in it does this say "no longer available" and forbid selecting it back; no conclusion is drawn when the list was not read. */}
           {selectedMissing && (
             <option value={value!} disabled={!loading && !unknown}>
               {loading ? t('common.loading') : unknown ? t('java.runtime.optionUnloaded') : t('java.runtime.optionMissing')}
@@ -283,9 +283,9 @@ export function JavaRuntimeSelect({
         </button>
       </div>
       {/*
-        状态点、推荐版本、「安装 Java N」和手动下载排成一行，放不下时自动换行。
-        状态点说的是实际要用的那个 Java：选了面板登记的 Java 就说它，没选才说系统默认 Java。
-        选中的已不可用时不放状态点，下方的橙色提示已经说了。
+        The status dot, the recommended version, "Install Java N" and manual download sit on one row, wrapping automatically when they do not fit.
+        The status dot describes the Java that will actually be used: a Java registered with the panel when one is selected, the system default Java only when none is.
+        No status dot when the selected one is no longer available; the orange notice below already says so.
       */}
       {(showStatus || showRecommended || showInstall) && (
         <div className="java-status-row">
@@ -311,7 +311,7 @@ export function JavaRuntimeSelect({
           {showRecommended && <span className="java-recommended">{t('java.runtime.recommended', { java: recommended })}</span>}
           {showInstall && (
             <>
-              {/* 先弹确认（写明下载来源和大小），确认后才开始下载。 */}
+              {/* Show a confirmation first (stating the download source and size), and start the download only after confirming. */}
               <button
                 className="btn btn-primary btn-sm"
                 type="button"
@@ -333,7 +333,7 @@ export function JavaRuntimeSelect({
           task={installTask}
           label={t('java.install.progress', { java: recommended })}
           action={(
-            // 请求还没拿到任务 ID 时没法取消，先灰着。
+            // It cannot be cancelled before the request has a task ID, so it stays grey for now.
             <button
               className="btn btn-sm btn-plain"
               type="button"
@@ -365,7 +365,7 @@ export function JavaRuntimeSelect({
             actual: resolvedMajor,
             recommended,
           })}
-          {/* 推荐版本已经装了时只需改选，不再引去下载；能一键安装时由下方按钮代替 */}
+          {/* When the recommended version is already installed, only a different choice is needed and no download is suggested; when one-click install is possible the button below takes its place */}
           {!canInstall && !hasRecommended && (
             <>
               {' '}

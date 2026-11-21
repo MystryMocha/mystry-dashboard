@@ -1,4 +1,4 @@
-/* 部署失败摘要和详情弹窗：限制长日志占用空间，并保留完整复制能力。 */
+/* Deploy failure summary and details dialog: limits the space long logs take, while keeping the ability to copy everything. */
 .error-summary {
   display: flex;
   align-items: flex-start;

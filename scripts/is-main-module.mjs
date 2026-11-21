@@ -12,10 +12,10 @@ function realPathOrResolved(target) {
 }
 
 /**
- * 判断脚本是否被 node 直接运行（而不是被测试导入）。
- * Node 会把入口解析成真实路径再加载，argv[1] 却保留调用时的写法；仓库路径含符号链接或
- * junction 时直接比较会误判，脚本什么都不做就以 0 退出，检查类脚本会因此"静默通过"。
- * 与 apps/server/src/utils/real-path.ts 的 isMainModule 保持一致。
+ * Tells whether the script is run directly by node (rather than imported by a test).
+ * Node resolves the entry to its real path before loading it, while argv[1] keeps the path as invoked; when the repo path contains a symlink or
+ * junction a direct comparison gives the wrong answer, the script does nothing and exits with 0, and check scripts would "pass silently" because of it.
+ * Kept in sync with isMainModule in apps/server/src/utils/real-path.ts.
  */
 export function isMainModule(moduleUrl, entry = process.argv[1]) {
   if (!entry) return false;

@@ -1,4 +1,4 @@
-/** 登录与首次初始化页、登录态文案（英文主表）。 */
+/** Login and first-time setup page, and sign-in state strings (English primary table). */
 export default {
   'login.footer': 'Mystry Dashboard v{version}',
   'login.unavailable.title': 'Panel Service Unavailable',

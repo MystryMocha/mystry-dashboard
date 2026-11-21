@@ -74,8 +74,8 @@ function wrongSecret(secret) {
 function panelEnv(overrides) {
   const blocked = new Set(blockedEnvNames);
   const env = {};
-  // Windows 环境块不区分大小写，展开后的对象却区分；Data_Dir 这类写法必须一并丢掉。
-  // NODE_OPTIONS 整段不继承：只裁掉 --inspect 会把 --inspect-port 截成非法的 -port。
+  // The Windows environment block is case-insensitive, but the expanded object is case-sensitive; forms like Data_Dir must be dropped as well.
+  // NODE_OPTIONS is not inherited at all: trimming only --inspect would cut --inspect-port into an invalid -port.
   for (const [key, value] of Object.entries(process.env)) {
     if (value === undefined) continue;
     const comparable = process.platform === 'win32' ? key.toUpperCase() : key;
@@ -107,7 +107,7 @@ function waitForExit(child, timeoutMs) {
 
 async function removeTemp(tempRoot) {
   const resolvedTemp = path.resolve(tempRoot);
-  // 只删除系统临时目录内的演练目录，避免路径异常时误删用户数据。
+  // Only drill directories inside the system temp directory are deleted, so user data is not deleted by mistake when a path is abnormal.
   if (!isInside(os.tmpdir(), resolvedTemp)) {
     throw new Error(`拒绝删除临时目录之外的路径：${resolvedTemp}`);
   }
@@ -158,7 +158,7 @@ function formatBody(body) {
   return redact(text ?? '').slice(0, 200);
 }
 
-/** 轮询健康检查直到命中本次启动的面板（指纹一致）；进程提前退出或超时直接失败。 */
+/** Polls the health check until it hits the panel started this time (matching fingerprint); fails outright if the process exits early or on timeout. */
 async function waitForPanelHealth(child, baseUrl, fingerprint, getStartupError, getLogs) {
   const deadline = Date.now() + START_TIMEOUT_MS;
   let lastFailure = '尚未收到响应';
@@ -213,7 +213,7 @@ test('隔离数据目录启动面板并拒绝未登录访问', { timeout: 90_000
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-panel-smoke-'));
   let child = null;
   t.after(async () => {
-    // Windows 上 kill 不会投递 SIGINT，失败路径只能强行结束子进程。
+    // On Windows kill does not deliver SIGINT, so the failure path can only force the child process to end.
     if (child && !childHasExited(child)) {
       child.kill();
       await waitForExit(child, 5_000);
@@ -338,8 +338,8 @@ test('隔离数据目录启动面板并拒绝未登录访问', { timeout: 90_000
   );
 });
 
-// 终端里按 Ctrl+C 时面板会收到两次 SIGINT（进程组一次、前台控制器转发一次）。
-// Windows 上 kill('SIGINT') 是强制结束，模拟不了控制台 Ctrl+C，只在 POSIX 上验证。
+// When Ctrl+C is pressed in a terminal the panel receives SIGINT twice (once for the process group, once forwarded by the foreground controller).
+// On Windows kill('SIGINT') is a forced termination and cannot simulate a console Ctrl+C, so this is verified only on POSIX.
 test('关闭过程中重复收到 SIGINT 仍完成安全关闭并释放数据目录锁', {
   timeout: 90_000,
   skip: process.platform === 'win32' ? 'Windows 无法用 kill 模拟控制台 Ctrl+C' : false,
@@ -389,8 +389,8 @@ test('关闭过程中重复收到 SIGINT 仍完成安全关闭并释放数据目
   const lockDir = path.join(dataDir, '.mystry-panel-lock');
   await fs.access(lockDir);
 
-  // 空面板几毫秒就能关完，第二次信号很难落在关闭途中。先发一个请求体没传完的登录请求，
-  // app.close() 会等它结束，关闭流程就停在这里，直到测试主动断开连接。
+  // An empty panel finishes closing in a few milliseconds, so a second signal rarely lands mid-shutdown. A login request whose body is never fully sent goes first,
+  // app.close() waits for it to end, and shutdown stalls here until the test deliberately drops the connection.
   const pending = net.connect(port, '127.0.0.1');
   await new Promise((resolve, reject) => {
     pending.once('connect', resolve);
@@ -429,8 +429,8 @@ test('关闭过程中重复收到 SIGINT 仍完成安全关闭并释放数据目
   await assert.rejects(fs.access(lockDir), { code: 'ENOENT' }, '安全关闭后应释放数据目录锁');
 });
 
-// 浏览器标签页开着时，残留连接可能一直不断，app.close() 会一直等下去、锁永远不释放。
-// 用一个请求体永远传不完的连接模拟它：宽限期过后面板应强制断开连接并完成安全关闭。
+// With a browser tab open, leftover connections may never close, and app.close() would wait forever with the lock never released.
+// A connection whose request body is never fully sent simulates it: after the grace period the panel should force the connection closed and complete the safe shutdown.
 test('关闭时残留连接一直不断开也能在宽限期后释放数据目录锁', { timeout: 90_000 }, async (t) => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'mystry-panel-linger-'));
   let child = null;

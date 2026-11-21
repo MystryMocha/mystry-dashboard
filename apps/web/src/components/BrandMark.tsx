@@ -1,4 +1,4 @@
-/** 面板图标：圆角方形渐变底 + 立方体线框，侧栏、登录页和启动画面共用。 */
+/** Panel icon: a rounded-square gradient background + a cube wireframe, shared by the sidebar, login page and splash screen. */
 export function BrandMark({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
   const glyph = size === 'lg' ? 34 : size === 'sm' ? 16 : 20;
   return (

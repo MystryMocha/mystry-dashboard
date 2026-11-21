@@ -4,7 +4,7 @@ import { useDialogOpen } from '../hooks/useDialogOpen';
 import { useI18n } from '../i18n';
 import '../deploy-error.css';
 
-// 页面只保留紧凑摘要，完整错误交给受限尺寸的详情弹窗展示。
+// The page keeps only a compact summary, and the full error is left to a size-limited details dialog.
 const ERROR_PREVIEW_MAX_LENGTH = 240;
 
 function createErrorPreview(message: string): string {
@@ -14,8 +14,8 @@ function createErrorPreview(message: string): string {
 }
 
 /**
- * 长错误的摘要卡片：可复制全文，内容较长时可打开详情弹窗。
- * 调用方以错误文本作为 key，错误变化时复制状态和弹窗随之重置。
+ * Summary card for a long error: the full text can be copied, and a details dialog can be opened when the content is long.
+ * The caller uses the error text as the key, so the copy state and the dialog reset when the error changes.
  */
 export function ErrorSummary({
   title,

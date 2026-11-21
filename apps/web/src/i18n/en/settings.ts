@@ -1,4 +1,4 @@
-/** 面板设置页文案（英文主表）。 */
+/** Panel settings page strings (English primary table). */
 export default {
   'settings.device.title': 'This Device',
   'settings.device.lead': 'Saved in this browser. Other devices keep their own choices.',

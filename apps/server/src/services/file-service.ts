@@ -61,7 +61,7 @@ function samePath(left: string, right: string): boolean {
     : leftResolved === rightResolved;
 }
 
-/** 所有会改变实例目录的入口都不得触碰根目录或 ownership marker。 */
+/** No entry point that changes the instance directory may touch the root directory or the ownership marker. */
 function assertMutableTarget(root: string, target: string): void {
   if (samePath(root, target)) {
     throw new PanelError('server.files.rootImmutable');
@@ -83,14 +83,14 @@ export function listFiles(instanceId: string, relativePath = ''): FileEntry[] {
     throw new PanelError('server.files.notDirectory');
   }
 
-  // 按运行环境区域设置排序（Windows 资源管理器风格：目录优先 + 自然序）
+  // Sorted by the runtime locale (Windows Explorer style: directories first + natural order)
   const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
   const markerPath = path.join(root, OWNERSHIP_MARKER_FILE);
-  // target 已由 resolveSafePath 逐段校验；readdir 返回的条目名不含路径分隔符，
-  // 每个条目只需一次 lstat 拒绝 symlink/junction，避免逐项 realpath 整条路径阻塞事件循环。
+  // target has been validated segment by segment by resolveSafePath; entry names returned by readdir contain no path separators,
+  // so each entry needs only one lstat to reject a symlink/junction, avoiding a per-item realpath of the whole path that would block the event loop.
   return fs
     .readdirSync(target, { withFileTypes: true })
-    // 实例根目录的所有权标记由面板维护，不展示给用户；改写类接口本就拒绝操作它。
+    // The ownership marker in the instance root is maintained by the panel and not shown to users; the modifying endpoints already refuse to operate on it.
     .filter((entry) => !samePath(path.join(target, entry.name), markerPath))
     .map((entry) => {
       const full = path.join(target, entry.name);
@@ -154,7 +154,7 @@ export function writeTextFile(instanceId: string, relativePath: string, content:
   fs.writeFileSync(target, Buffer.from(content, 'utf8'));
 }
 
-/** 在直接读取 server.properties 前检查其是否仍是受限的普通文本文件。 */
+/** Before reading server.properties directly, checks that it is still a restricted regular text file. */
 export function assertTextFileWithinLimit(instanceId: string, relativePath: string): void {
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
@@ -232,8 +232,8 @@ type UploadReplaceOperations = {
   renameSync?: typeof fs.renameSync;
   unlinkSync?: typeof fs.unlinkSync;
   /**
-   * 上传内容接收完、移入实例目录前同步调用；抛错则放弃本次上传。
-   * 接收大文件可能要几分钟，调用方用它重新检查期间是否开始了还原等互斥操作。
+   * Called synchronously after the upload is received and before it is moved into the instance directory; throwing abandons this upload.
+   * Receiving a large file may take minutes, and the caller uses this to re-check whether a mutually exclusive operation such as a restore started in the meantime.
    */
   beforeCommit?: () => void;
 };

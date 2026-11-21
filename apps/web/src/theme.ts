@@ -1,15 +1,15 @@
 /**
- * 外观管理：自动（跟随系统）/ 浅色 / 深色。强调色固定为墨紫，写在 styles.css，不再由用户选择。
- * 初始值由 index.html 内联脚本在渲染前写入 <html> 的 data 属性
- *（含旧版 mystry_theme 六主题的迁移），这里负责读取、切换、跟随系统变化，
- * 并广播事件让多处选择器保持同步。
+ * Appearance management: auto (follow the system) / light / dark. The accent color is fixed to ink purple, written in styles.css, and no longer chosen by the user.
+ * The initial value is written to data attributes on <html> before rendering by the inline script in index.html
+ * (including migration of the six themes of the legacy mystry_theme); this module reads it, switches it, follows system changes,
+ * and broadcasts an event so pickers in several places stay in sync.
  */
 import type { MessageKey } from './i18n';
 
 export const APPEARANCES = ['auto', 'light', 'dark'] as const;
 export type Appearance = (typeof APPEARANCES)[number];
 
-/** 外观的显示名称对应的文案键。 */
+/** String keys for the display names of the appearances. */
 export const APPEARANCE_LABEL_KEYS = {
   auto: 'appearance.auto',
   light: 'appearance.light',
@@ -40,11 +40,11 @@ function store(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
   } catch {
-    /* 隐私模式等场景下静默降级为仅本次会话生效 */
+    /* In cases such as private mode, silently degrade to taking effect for this session only */
   }
 }
 
-/** 用户选择的外观（可能是「自动」）。 */
+/** The appearance the user chose (possibly "auto"). */
 export function getAppearance(): Appearance {
   const current = document.documentElement.dataset.appearancePreference;
   return isAppearance(current) ? current : 'auto';
@@ -62,7 +62,7 @@ export function setAppearance(preference: Appearance): void {
   apply(preference);
 }
 
-/** 「自动」外观下跟随系统深浅色切换；返回取消监听函数。 */
+/** Follows system light/dark changes under the "auto" appearance; returns a function that removes the listener. */
 export function watchSystemAppearance(): () => void {
   let query: MediaQueryList | undefined;
   try {

@@ -17,18 +17,18 @@ function isSessionDuration(value: unknown): value is SessionDuration {
   return (SESSION_DURATION_ENUM as readonly unknown[]).includes(value);
 }
 
-/** 面板设置页的登录有效期一行（D-040）：选了就保存，这台设备随即换上按新有效期签发的令牌。 */
+/** The session duration row on the panel settings page (D-040): saved as soon as chosen, and this device then switches to a token issued with the new duration. */
 export function SessionDurationRow() {
   const { t } = useI18n();
   const selectId = useId();
   const helpId = useId();
-  // null 表示还在读取（或读到的值认不出），选择框暂不可用。
+  // null means still loading (or the value read is unrecognized), and the select is unavailable for now.
   const [duration, setDuration] = useState<SessionDuration | null>(null);
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
-  // 每点一次「重试」加一，重新读取。
+  // Incremented on each "Retry", to read again.
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -79,7 +79,7 @@ export function SessionDurationRow() {
           </div>
         )}
         {error && <p className="error" role="alert">{error}</p>}
-        {/* 状态区一直保留，读屏软件才会播报；空的时候隐藏，不占行内间距。 */}
+        {/* The status area is always kept so screen readers announce it; it is hidden when empty and takes no inline spacing. */}
         <p className={saved ? 'list-row-desc' : 'visually-hidden'} role="status">
           {saved ? t('settings.session.saved') : ''}
         </p>

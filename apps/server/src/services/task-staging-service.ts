@@ -75,7 +75,7 @@ function removeEmptyParents(dir: string, dataDir: string): void {
         continue;
       }
     } catch {
-      /* 忽略 */
+      /* Ignore */
     }
     break;
   }
@@ -93,7 +93,7 @@ export function removeTaskStagingTree(
   return true;
 }
 
-/** 将 staging 目录原子移动到最终 instances/<id>，并移除 staging marker。 */
+/** Atomically moves the staging directory to the final instances/<id>, and removes the staging marker. */
 export function promoteTaskStagingToInstance(
   taskId: string,
   instanceId: string,

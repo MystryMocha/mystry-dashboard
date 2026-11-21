@@ -10,7 +10,7 @@ import {
   publicHostIssue,
 } from '../src/validation';
 
-// 表单本地校验必须与服务端规则一致：这里拦住的值服务端也会拒绝，这里放行的常见写法服务端也接受。
+// Local form validation must match the server rules: a value blocked here is rejected by the server too, and a common form allowed here is accepted by the server too.
 describe('表单本地校验', () => {
   it('实例名称：去掉空格后不能为空，最多 128 个字符', () => {
     expect(instanceNameIssue('')?.key).toBe('validation.instanceName.required');

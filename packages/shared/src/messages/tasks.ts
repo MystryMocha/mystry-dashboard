@@ -1,4 +1,4 @@
-/** 服务端返回给用户的消息：后台任务队列与进度。值为英文模板，`{name}` 为参数占位；其他语言由 Web 文案表按键翻译。 */
+/** User-facing server messages: background task queue and progress. Values are English templates with `{name}` placeholders; the Web string tables translate other languages by key. */
 export const TASKS_MESSAGES = {
   'server.tasks.queued': 'Queued',
   'server.tasks.completed': 'Completed',

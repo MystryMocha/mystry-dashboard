@@ -3,32 +3,32 @@ import { RotateCcw, X } from 'lucide-react';
 import { useI18n } from '../i18n';
 
 /**
- * 编辑已有设置的页面（参数配置、实例设置）共用的保存栏。
- * 没有改动时不显示；有改动时显示「N 项修改未保存」「放弃修改」「保存」；
- * 保存成功且实例在运行时变成「已保存，重启实例后生效」加重启入口，实例没在运行时只短暂提示已保存。
- * 外层占位容器一直在，高度固定：栏出现和消失时页面内容不跳，滚到底时最后一行也不会被挡住。
+ * The save bar shared by pages that edit existing settings (config editor, instance settings).
+ * Not shown when there are no changes; with changes it shows "N unsaved changes", "Discard Changes" and "Save";
+ * after a successful save with the instance running it becomes "Saved, takes effect after restarting the instance" plus a restart entry, and when the instance is not running only a brief saved notice.
+ * The outer placeholder container is always there with a fixed height: page content does not jump when the bar appears and disappears, and the last row is not covered when scrolled to the bottom.
  */
 
-/** 页面交给保存栏的重启入口：仍然走实例页头部那一套重启确认。 */
+/** The restart entry the page hands to the save bar: it still goes through the restart confirmation in the instance page header. */
 export interface RestartControl {
-  /** 实例正在运行：保存的内容要重启才生效。 */
+  /** The instance is running: what was saved takes effect only after a restart. */
   running: boolean;
-  /** 与页头重启按钮相同的禁用条件。 */
+  /** Same disabling conditions as the restart button in the page header. */
   disabled: boolean;
-  /** 每确认一次重启加一，「重启后生效」的提示据此收起。 */
+  /** Incremented on each confirmed restart, and the "takes effect after restart" notice collapses based on it. */
   signal: number;
-  /** 打开重启确认框。 */
+  /** Opens the restart confirmation dialog. */
   request: () => void;
 }
 
 export type SavedNotice = 'restart' | 'saved' | null;
 
-/** 「已保存」的短暂提示停留多久。 */
+/** How long the brief "saved" notice stays. */
 const SAVED_NOTICE_MS = 4000;
 
 /**
- * 保存成功之后的提示。show(needsRestart)：实例在运行且这次保存要重启才生效时给出重启入口，否则只短暂提示。
- * 重启入口在实例被重启或不再运行后自动收起；再次修改时由页面调用 clear()。
+ * The notice after a successful save. show(needsRestart): offers the restart entry when the instance is running and this save needs a restart to take effect, otherwise only a brief notice.
+ * The restart entry collapses automatically after the instance is restarted or no longer running; on the next edit the page calls clear().
  */
 export function useSavedNotice(restart: RestartControl | undefined): {
   notice: SavedNotice;
@@ -45,8 +45,8 @@ export function useSavedNotice(restart: RestartControl | undefined): {
     return () => window.clearTimeout(timer);
   }, [state]);
 
-  // 实例被重启或不再运行后，「重启后生效」这条提示就不成立了：直接清掉，
-  // 否则停止后再启动（状态又回到运行中）它会重新冒出来。渲染期间按属性调整自己的状态，不需要副作用。
+  // After the instance is restarted or no longer running, the "takes effect after restart" notice no longer holds: clear it directly,
+  // or it would pop up again after stopping and starting (the status returns to running). Its own state is adjusted from props during render, with no side effect needed.
   if (state?.kind === 'restart' && (!running || state.signal !== signal)) setState(null);
 
   const show = useCallback(
@@ -61,9 +61,9 @@ export function useSavedNotice(restart: RestartControl | undefined): {
 const NON_TEXT_INPUT_TYPES = new Set(['checkbox', 'radio', 'file', 'button', 'submit', 'reset', 'range', 'color', 'image', 'search']);
 
 /**
- * 判断这次按键是不是「在输入框里按 Enter 提交」。
- * 主按钮禁用或保存栏没显示时浏览器不会触发 submit，所以表单自己接 Enter，并由 useFormSubmit 调用 preventDefault，只走这一条路。
- * 多行文本框、下拉框、搜索框、开关和按钮里的 Enter 不算；输入法选词的 Enter 也不算。
+ * Tells whether this keypress is "Enter in an input to submit".
+ * While the primary button is disabled or the save bar is not showing the browser does not trigger submit, so the form handles Enter itself, and useFormSubmit calls preventDefault so there is only this one path.
+ * Enter in multi-line text boxes, dropdowns, search boxes, switches and buttons does not count; nor does the Enter that confirms an IME candidate.
  */
 export function isEnterSubmit(event: KeyboardEvent<HTMLElement>): boolean {
   if (event.key !== 'Enter' || event.defaultPrevented) return false;
@@ -72,20 +72,20 @@ export function isEnterSubmit(event: KeyboardEvent<HTMLElement>): boolean {
   const target = event.target;
   if (!(target instanceof HTMLInputElement)) return false;
   if (NON_TEXT_INPUT_TYPES.has(target.type)) return false;
-  // 自己实现的下拉、搜索框用 Enter 选中候选项。
+  // Custom-built dropdowns and search boxes use Enter to select a candidate.
   if (target.getAttribute('role') === 'combobox' || target.hasAttribute('aria-autocomplete')) return false;
   return true;
 }
 
-/** 开关、下拉等控件上的 Enter 之后多久以内到达的 submit 算它带出来的。 */
+/** How soon after an Enter on a switch, dropdown or similar control an arriving submit counts as caused by it. */
 const IMPLICIT_SUBMIT_WINDOW_MS = 100;
 
 /**
- * 表单的提交入口，把返回值展开到 <form> 上。submit 由页面实现：合法就保存，不合法就显示原因并跳到要改的字段。
- * - 输入框里的 Enter：这里接管并调用 submit（见 isEnterSubmit）。
- * - 点主按钮：浏览器触发 submit 事件，照常调用 submit。
- * - 开关、单选、下拉上的 Enter：浏览器会顺带「隐式提交」表单（等于替用户点了主按钮），这不是用户的意思，忽略掉。
- *   不能对这些 Enter 调 preventDefault，那会影响控件自己的键盘操作，所以只记下时间，让紧跟着的 submit 事件作废。
+ * The form's submit entry; spread the return value onto <form>. submit is implemented by the page: save when valid, otherwise show the reason and jump to the field to fix.
+ * - Enter in an input: taken over here, calling submit (see isEnterSubmit).
+ * - Clicking the primary button: the browser fires the submit event, and submit is called as usual.
+ * - Enter on a switch, radio or dropdown: the browser also "implicitly submits" the form (as if clicking the primary button for the user), which is not what the user meant, so it is ignored.
+ *   preventDefault cannot be called on these Enters, since that would affect the control's own keyboard handling, so only the time is recorded and the submit event right after is voided.
  */
 export function useFormSubmit(submit: () => void): {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -108,7 +108,7 @@ export function useFormSubmit(submit: () => void): {
         submit();
         return;
       }
-      // 按钮上的 Enter 就是点这个按钮（主按钮即提交），不算隐式提交。
+      // Enter on a button is clicking that button (the primary button being submit), and is not an implicit submit.
       if (event.target instanceof HTMLButtonElement) return;
       ignoreSubmitUntil.current = Date.now() + IMPLICIT_SUBMIT_WINDOW_MS;
     },
@@ -116,18 +116,18 @@ export function useFormSubmit(submit: () => void): {
 }
 
 export interface SaveBarProps {
-  /** 有几项修改还没保存；0 表示没有改动。 */
+  /** How many changes are unsaved; 0 means no changes. */
   dirtyCount: number;
   saving: boolean;
-  /** 主按钮文字，如「保存配置」。 */
+  /** Primary button text, such as "Save Config". */
   saveLabel: string;
-  /** 有不合法项时点名第一个要改的字段（已翻译）；合法时传 null。 */
+  /** Names the first field to fix when something is invalid (already translated); pass null when valid. */
   invalidLabel: string | null;
-  /** 点了状态文字：让各字段显示原因，并跳到第一个要改的字段。 */
+  /** The status text was clicked: makes the fields show their reasons and jumps to the first field to fix. */
   onFixInvalid: () => void;
   onDiscard: () => void;
   notice: SavedNotice;
-  /** 不需要重启（或实例没在运行）时短暂显示的「已保存」文案。 */
+  /** The "saved" text shown briefly when no restart is needed (or the instance is not running). */
   savedLabel: string;
   restart?: RestartControl;
   onDismissNotice: () => void;

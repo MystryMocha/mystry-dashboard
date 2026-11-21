@@ -13,7 +13,7 @@ const OPEN_BINDS: Record<string, true> = {
   localhost: true,
 };
 
-/** 写入 frpc 的字段。本地地址固定为回环，调用方不能改。 */
+/** Fields written to frpc. The local address is fixed to loopback and callers cannot change it. */
 export interface FrpcRenderInput {
   instanceId: string;
   mode: TunnelMode;
@@ -41,7 +41,7 @@ export function assertFrpHost(value: string): string {
   ) {
     throw new PanelError('server.frp.hostInvalid');
   }
-  // 只接受 IPv4 字面量和主机名。上面的黑名单已拒绝 ':' 和 '['，IPv6 字面量不受支持。
+  // Only IPv4 literals and hostnames are accepted. The blocklist above already rejects ':' and '[', so IPv6 literals are not supported.
   if (net.isIP(host) === 4 || HOSTNAME.test(host)) return host;
   throw new PanelError('server.frp.hostInvalid');
 }
@@ -61,7 +61,7 @@ export function assertFrpName(value: string): string {
   return name;
 }
 
-/** server-ip 指向某一块网卡时，frpc 连 127.0.0.1 会失败。 */
+/** When server-ip points at one specific interface, frpc connecting to 127.0.0.1 fails. */
 export function serverIpBlocksTunnel(serverIp: string | undefined): boolean {
   return !Object.prototype.hasOwnProperty.call(OPEN_BINDS, (serverIp ?? '').trim());
 }
@@ -74,7 +74,7 @@ export function proxyIdentity(instanceId: string): { proxyName: string; serverNa
   return { proxyName, serverName: `mystry.${proxyName}` };
 }
 
-/** host 已经过 assertFrpHost，只会是 IPv4 字面量或主机名，不需要 IPv6 方括号。 */
+/** host has passed assertFrpHost, so it can only be an IPv4 literal or a hostname and needs no IPv6 brackets. */
 export function formatJoinAddress(host: string, port: number): string {
   return `${host}:${port}`;
 }
@@ -86,7 +86,7 @@ function tomlString(value: string): string {
   return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
-/** 面板侧 frpc.toml。令牌放在独立文件，配置正文不出现令牌。 */
+/** The panel-side frpc.toml. The token lives in a separate file and never appears in the config body. */
 export function renderServerConfig(input: FrpcRenderInput): string {
   const { proxyName } = proxyIdentity(input.instanceId);
   assertFrpToken(input.token);
@@ -122,8 +122,8 @@ export function renderServerConfig(input: FrpcRenderInput): string {
 }
 
 /**
- * 发给朋友的 visitor 配置。朋友用官方 frpc 打开后，在自己的 127.0.0.1 上进服。
- * 文件含穿透令牌，只应交给要一起玩的人。
+ * The visitor config sent to friends. After opening it with the official frpc, a friend joins the server on their own 127.0.0.1.
+ * The file contains the tunnel token and should only be given to the people you play with.
  */
 export function renderVisitorConfig(input: FrpcRenderInput): string {
   if (input.mode === 'public' || !input.secretKey) {

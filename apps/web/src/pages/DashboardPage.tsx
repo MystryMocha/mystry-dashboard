@@ -52,7 +52,7 @@ type ListFilter = 'all' | 'running' | 'issues';
 
 const XMX_UNITS: Record<string, number> = { '': 1, K: 1024, M: 1024 ** 2, G: 1024 ** 3, T: 1024 ** 4 };
 
-/** 解析 -Xmx 为字节数；未设置或格式不认识时返回 null，由调用方显示「默认」。 */
+/** Parses -Xmx into bytes; returns null when unset or in an unrecognized format, and the caller shows "Default". */
 function parseXmxBytes(jvmArgs: string): number | null {
   const match = jvmArgs.match(/-Xmx(\d+(?:\.\d+)?)([kmgt]?)\b/i);
   if (!match) return null;
@@ -62,11 +62,11 @@ function parseXmxBytes(jvmArgs: string): number | null {
 
 function formatGib(bytes: number, fmt: I18n['fmt']): string {
   const gib = bytes / 1024 ** 3;
-  // 整数 GiB（常见的 2G、4G）不带小数，其余保留一位。
+  // Whole GiB values (the common 2G, 4G) have no decimals; the rest keep one decimal place.
   return `${fmt.gib(bytes, Number.isInteger(gib) ? 0 : 1)} GiB`;
 }
 
-/** 需要用户处理的实例：已崩溃、待迁移、上次启动因可识别原因失败，或选的 Java 已不可用。 */
+/** Instances that need the user's attention: crashed, pending migration, last start failed for a recognizable reason, or the chosen Java is no longer available. */
 function hasIssue(inst: InstanceInfo): boolean {
   return inst.requiresMigration || inst.status === 'crashed' || (canStartInstance(inst.status) && !!inst.startIssue);
 }
@@ -77,7 +77,7 @@ type RowState = {
   fix: { to: string; label: string; icon: LucideIcon } | null;
 };
 
-/** 状态后面那句话，以及这一行最该做的那一步。 */
+/** The sentence after the status, and the one step most worth taking for this row. */
 function rowState(inst: InstanceInfo, t: I18n['t']): RowState {
   const page = `/instances/${inst.id}`;
   if (inst.requiresMigration) {
@@ -167,7 +167,7 @@ function ServerRow({
     <li className="server-row">
       <CoreIcon coreType={inst.coreType} />
       <div className="server-id">
-        {/* 名称链接的点击区域用伪元素铺满整行（按钮除外），行尾箭头提示这一行能打开实例。 */}
+        {/* The name link's click area is spread across the whole row with a pseudo-element (except buttons), and the arrow at the end of the row hints that the row opens the instance. */}
         <Link to={`/instances/${inst.id}`} className="server-name" title={inst.name}>
           {inst.name}
         </Link>
@@ -269,7 +269,7 @@ function ServerRow({
   );
 }
 
-/** 还没有实例时：三种添加方式各一行，说明各自适合什么情况。 */
+/** When there are no instances yet: one row for each of the three ways to add one, explaining which situation each suits. */
 function StartPaths({ onCreateEmpty }: { onCreateEmpty: () => void }) {
   const { t } = useI18n();
   const paths: Array<{ key: string; icon: LucideIcon; title: MessageKey; desc: MessageKey; to?: string }> = [
@@ -327,14 +327,14 @@ export function DashboardPage() {
   const [emptyOpen, setEmptyOpen] = useState(false);
   const [emptyName, setEmptyName] = useState(() => t('dashboard.createEmpty.defaultName'));
   const [emptyJvm, setEmptyJvm] = useState('-Xms1G -Xmx2G');
-  // EULA 必须由用户主动勾选同意，不预先替用户同意。
+  // The EULA must be checked by the user; it is never accepted on the user's behalf in advance.
   const [emptyEula, setEmptyEula] = useState(false);
   const [emptyJavaRuntimeId, setEmptyJavaRuntimeId] = useState<string | null>(null);
   const [emptyJavaMajor, setEmptyJavaMajor] = useState<number | null>(null);
   const [emptyJvmValid, setEmptyJvmValid] = useState(true);
   const [emptyBusy, setEmptyBusy] = useState(false);
   const [emptyError, setEmptyError] = useState('');
-  // 监测从失败恢复时记下那次采样时间，供读屏播报一次「已恢复」；例行刷新不改它。
+  // When monitoring recovers from a failure, that sample time is recorded so screen readers announce "recovered" once; routine refreshes do not change it.
   const [metricsRecoveredAt, setMetricsRecoveredAt] = useState<string | null>(null);
   const previousMetricsErrorRef = useRef(metricsError);
 
@@ -400,7 +400,7 @@ export function DashboardPage() {
       setEmptyOpen(false);
       navigate(`/instances/${inst.id}/files`);
     } catch (err) {
-      // 弹窗仍打开时页面其余部分是 inert 的，错误必须显示在弹窗内才能被看到和播报。
+      // While the dialog is still open the rest of the page is inert, so the error must be shown inside the dialog to be seen and announced.
       setEmptyError(errorMessage(err));
     } finally {
       setEmptyBusy(false);
@@ -432,7 +432,7 @@ export function DashboardPage() {
     : metrics
       ? t('dashboard.metrics.updatedAt', { time: fmt.time(metrics.sampledAt) })
       : t('dashboard.metrics.loading');
-  // 每 5 秒变化的「更新于」时间戳不进 live region；读屏只播报出错、告警变化和从出错中恢复。
+  // The "updated at" timestamp that changes every 5 seconds stays out of the live region; screen readers announce only errors, warning changes and recovery from an error.
   const metricsAnnouncement = metricsError
     ? metricsStatusText
     : [
@@ -444,7 +444,7 @@ export function DashboardPage() {
     <div className="page overview-page">
       <PageHeader
         title={t('nav.overview')}
-        // 有实例时说明行就是当前状态：大字写几台在运行，有需要处理的再接一句红字，代替单独的统计卡。
+        // With instances, the description line is the current status: large text says how many are running, followed by a red sentence when something needs attention, replacing separate stat cards.
         subtitle={
           loaded && instances.length > 0 ? (
             <span className="overview-status">
@@ -455,10 +455,10 @@ export function DashboardPage() {
             </span>
           ) : undefined
         }
-        // 还没有实例时，列表区的三种添加方式就是入口，顶部不再重复一套按钮；加载中也先不画，避免空面板上按钮闪一下又消失。
+        // With no instances yet, the three ways to add one in the list area are the entry, so the top does not repeat a set of buttons; nothing is drawn while loading either, so buttons do not flash on an empty panel and vanish.
         actions={loadState === 'loading' || (loaded && instances.length === 0) ? undefined : (
           <>
-            {/* 这两个入口在手机上由底部标签栏提供，窄屏时隐藏（overview-nav-action）。 */}
+            {/* On phones these two entries are provided by the bottom tab bar, and are hidden on narrow screens (overview-nav-action). */}
             <Link to="/deploy" className="btn btn-primary overview-nav-action">
               <Plus size={16} aria-hidden="true" />
               {t('nav.deploy')}
@@ -489,7 +489,7 @@ export function DashboardPage() {
                 : t('action.refresh')}
           </button>
         </div>
-        {/* 告警单独占一行：塞进右侧状态列会把三条占用条挤到截断。 */}
+        {/* Warnings get a row of their own: squeezing them into the status column on the right would truncate the three usage bars. */}
         {metricsWarningText && (
           <p className="host-strip-warning">
             <TriangleAlert size={14} aria-hidden="true" />
@@ -566,7 +566,7 @@ export function DashboardPage() {
         )}
       </section>
 
-      {/* 创建空实例弹窗 */}
+      {/* Create empty instance dialog */}
       <ConfirmDialog
         open={emptyOpen}
         title={t('dashboard.action.createEmpty')}
@@ -615,7 +615,7 @@ export function DashboardPage() {
         }}
       />
 
-      {/* 重启确认 */}
+      {/* Restart confirmation */}
       <ConfirmDialog
         open={restartTarget !== null}
         title={t('dashboard.restart.title', { name: restartTarget?.name ?? '' })}
@@ -626,7 +626,7 @@ export function DashboardPage() {
         onCancel={() => setRestartTarget(null)}
       />
 
-      {/* 强制停止确认 */}
+      {/* Force stop confirmation */}
       <ConfirmDialog
         open={forceStopTarget !== null}
         title={t('dashboard.forceStop.title', { name: forceStopTarget?.name ?? '' })}
@@ -638,7 +638,7 @@ export function DashboardPage() {
         onCancel={() => setForceStopTarget(null)}
       />
 
-      {/* 删除确认：请求在弹窗里发，成功后关掉并刷新列表。 */}
+      {/* Delete confirmation: the request is sent from the dialog, and on success it closes and the list refreshes. */}
       <DeleteInstanceDialog
         instance={deleteTarget}
         onDeleted={() => {

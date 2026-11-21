@@ -16,7 +16,7 @@ const defaultRunner: JavaDetectRunner = async (file, args, options) => {
   return { stdout: String(result.stdout), stderr: String(result.stderr) };
 };
 
-/** 探测 PATH 中的 java；子进程环境脱敏，不继承面板密钥。 */
+/** Detects the java on PATH; the child process environment is sanitized and does not inherit panel secrets. */
 export async function detectJava(run: JavaDetectRunner = defaultRunner): Promise<JavaDetectResult> {
   try {
     const { stdout, stderr } = await run('java', ['-version'], {

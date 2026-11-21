@@ -1,5 +1,5 @@
 /**
- * 任务 staging 与保守恢复回归。
+ * Task staging and conservative recovery regression.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -14,7 +14,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
       const { closeDb } = await import('../db.js');
       closeDb();
     } catch {
-      /* 模块可能尚未加载 */
+      /* The module may not be loaded yet */
     }
     fs.rmSync(dataRoot, { recursive: true, force: true });
   });
@@ -149,7 +149,7 @@ test('cancelTask：排队的直接取消，运行中的等 worker 收尾后记�
   initDb();
 
   let cleanedUp = 0;
-  // worker 被中止时抛自己的错误：任务结果仍要写成「你取消了这个任务」。
+  // When the worker is aborted it throws its own error: the task result must still be written as "you cancelled this task".
   const blocking = (_taskId: string, signal: AbortSignal) => new Promise<void>((_resolve, reject) => {
     signal.addEventListener('abort', () => {
       cleanedUp += 1;
@@ -189,7 +189,7 @@ test('cancelTask：排队的直接取消，运行中的等 worker 收尾后记�
 
 test('任务消息以键和参数存库，旧库自动补列且旧任务原文照常读取', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
-  // 模拟升级前的 panel.db：tasks 表没有 message_i18n / error_i18n，且已有一条中文旧任务。
+  // Simulates a pre-upgrade panel.db: the tasks table has no message_i18n / error_i18n, and already holds one old task in Chinese.
   const { DatabaseSync } = await import('node:sqlite');
   const legacy = new DatabaseSync(path.join(dataRoot, 'panel.db'));
   legacy.exec(`CREATE TABLE tasks (
@@ -232,7 +232,7 @@ test('任务消息以键和参数存库，旧库自动补列且旧任务原文�
   });
   assert.match(failed.error ?? '', /^The panel restarted .*Cleaning up its temporary folder failed: The task marker/);
 
-  // 原始文本错误只存原文，同时清掉旧的消息键。
+  // Raw text errors store only the original text, and also clear the old message key.
   const raw = updateTask(task.id, { error: 'ENOSPC: no space left on device' });
   assert.equal(raw.error, 'ENOSPC: no space left on device');
   assert.equal(raw.errorI18n, undefined);

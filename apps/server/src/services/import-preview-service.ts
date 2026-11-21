@@ -84,7 +84,7 @@ export function initializeImportPreviews(): { purged: number } {
     try {
       removeEntry(entry);
     } catch {
-      /* 初始化会继续执行专用前缀清理。 */
+      /* Initialization goes on to run the dedicated prefix cleanup. */
     }
   }
   previews.clear();
@@ -104,7 +104,7 @@ export function shutdownImportPreviews(): void {
     try {
       removeEntry(entry);
     } catch {
-      /* 安全关闭时由下一次启动继续清理专用预览前缀。 */
+      /* On a safe shutdown the next start continues cleaning up the dedicated preview prefix. */
     }
   }
   previews.clear();

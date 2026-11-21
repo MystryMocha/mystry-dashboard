@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 
-/** 先写同目录临时文件并 fsync，再 rename 覆盖目标；任何一步失败都不会留下写了一半的目标文件。 */
+/** Writes a temp file in the same directory and fsyncs it, then renames it over the target; a failure at any step never leaves a half-written target file. */
 export function writeFileAtomic(target: string, content: string): void {
   const dir = path.dirname(target);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -18,14 +18,14 @@ export function writeFileAtomic(target: string, content: string): void {
     fs.closeSync(fd);
   }
   try {
-    // 直接 rename 覆盖：POSIX 原子替换，Windows 上 libuv 使用
-    // MOVEFILE_REPLACE_EXISTING。不先删除原文件，rename 失败时原文件仍保留。
+    // Rename directly over the target: an atomic replace on POSIX, and on Windows libuv uses
+    // MOVEFILE_REPLACE_EXISTING. The original file is not deleted first, so it is still there if rename fails.
     fs.renameSync(temp, target);
   } catch (error) {
     try {
       fs.rmSync(temp, { force: true });
     } catch {
-      /* 忽略清理失败 */
+      /* Ignore cleanup failures */
     }
     throw error;
   }

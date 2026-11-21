@@ -32,7 +32,7 @@ interface TunnelRuntime {
 
 const runtimes = new Map<string, TunnelRuntime>();
 const tails = new Map<string, Promise<void>>();
-// 全局单调递增的代号。stopInstanceTunnel 会删掉 runtimes 条目，不能再从旧条目推算下一代，否则代号恒为 1。
+// A globally monotonic generation number. stopInstanceTunnel deletes the runtimes entry, so the next generation cannot be derived from the old entry, or the number would always be 1.
 let nextGeneration = 0;
 let shuttingDown = false;
 let attached = false;
@@ -64,14 +64,14 @@ export function attachFrpLifecycle(): void {
   processManager.on('status', (instanceId: string, status: string) => {
     if (shuttingDown) return;
     if (status === 'running') {
-      // 后台同步会在未安装客户端、端口非法等普通情况下抛错。这里必须接住，否则 Node 22 会因未处理的 rejection 退出整个面板。
+      // The background sync throws in ordinary situations such as the client not being installed or an invalid port. It must be caught here, or Node 22 exits the whole panel on the unhandled rejection.
       void enqueue(instanceId, () => syncInstanceTunnel(instanceId)).catch((error: unknown) => {
         recordTunnelFailure(instanceId, error);
       });
       return;
     }
     if (status === 'stopping' || status === 'stopped' || status === 'crashed') {
-      // 停止失败同样不能变成未处理的 rejection。游戏已经离开运行态，不再另记一条隧道错误。
+      // A stop failure must not become an unhandled rejection either. The game has already left the running state, so no separate tunnel error is recorded.
       void enqueue(instanceId, () => stopInstanceTunnel(instanceId)).catch(() => undefined);
     }
   });
@@ -105,7 +105,7 @@ function recordTunnelFailure(instanceId: string, error: unknown): void {
   });
 }
 
-/** 客户端装好后把已经启用的隧道接上。失败记到状态里，不往外抛。 */
+/** Once the client is installed, brings up the tunnels that are already enabled. Failures are recorded in the state and not thrown. */
 export async function syncEnabledTunnels(): Promise<void> {
   await Promise.all(listEnabledTunnelInstanceIds().map((instanceId) => (
     enqueue(instanceId, () => syncInstanceTunnel(instanceId)).catch((error: unknown) => {
@@ -285,7 +285,7 @@ function noteFrpcLine(runtime: TunnelRuntime, line: string, token: string, secre
 export async function stopInstanceTunnel(instanceId: string): Promise<void> {
   const runtime = runtimes.get(instanceId);
   if (!runtime) return;
-  // 删除条目后，旧子进程的回调按闭包里的代号比对 runtimes，自然失效。
+  // After the entry is deleted, callbacks of the old child process compare the generation in their closure against runtimes and become no-ops naturally.
   const child = runtime.child;
   runtimes.delete(instanceId);
   if (!child || child.exitCode !== null) return;

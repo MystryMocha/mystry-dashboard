@@ -1,4 +1,4 @@
-/** 文件管理文案（英文主表）。 */
+/** File management strings (English primary table). */
 export default {
   'files.validation.nameEmpty': 'Enter a name.',
   'files.validation.nameSeparator': 'The name can\'t contain / or \\.',

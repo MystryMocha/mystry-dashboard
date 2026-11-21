@@ -11,8 +11,8 @@ import { useI18n } from '../i18n';
 import { ProgressBar } from './TaskProgress';
 
 /**
- * 导入页「上传文件夹」的来源卡片：选文件夹（按钮或拖进来）→ 上传进度 → 上传并检查后的结果。
- * 上传和确认导入由导入页的提交按钮驱动，这里只负责显示和选择。
+ * The source card for "Upload Folder" on the import page: pick a folder (button or drag in) → upload progress → the result after upload and check.
+ * Upload and confirming the import are driven by the import page's submit button; this only handles display and selection.
  */
 export function FolderUploadSection({
   folder,
@@ -28,7 +28,7 @@ export function FolderUploadSection({
 }: {
   folder: SelectedFolder | null;
   upload: FolderUploadInfo | null;
-  /** 正在上传时的进度；不在上传时为 null。 */
+  /** Progress while uploading; null when not uploading. */
   progress: FolderUploadProgress | null;
   restoring: boolean;
   busy: boolean;
@@ -36,7 +36,7 @@ export function FolderUploadSection({
   onError: (message: string) => void;
   onCancelUpload: () => void;
   onDiscard: () => void;
-  /** 改用「从 imports 文件夹复制」；方式切换里已经有这一项时不传，不显示链接。 */
+  /** Switches to "Copy from the imports folder"; not passed when the mode switcher already has that item, and the link is not shown. */
   onUseImports?: () => void;
 }) {
   const { t, tm, rich, fmt } = useI18n();
@@ -52,7 +52,7 @@ export function FolderUploadSection({
     else onChoose(next);
   }
 
-  // 文件全部发完、等面板检查时进度条停在最后，文案换成「正在检查」。
+  // Once all files are sent and the panel is checking, the progress bar stays at the end and the text changes to "Checking".
   const allSent = progress !== null && progress.files === progress.totalFiles;
   const percent = progress === null ? 0
     : progress.totalBytes > 0 ? (progress.bytes / progress.totalBytes) * 100
@@ -142,7 +142,7 @@ export function FolderUploadSection({
               id="import-folder-input"
               ref={(node) => {
                 inputRef.current = node;
-                // webkitdirectory 不在 React 的属性类型里，直接设在元素上；它让文件选择框改成选整个文件夹。
+                // webkitdirectory is not in React's attribute types and is set on the element directly; it makes the file picker choose a whole folder.
                 node?.setAttribute('webkitdirectory', '');
               }}
               type="file"

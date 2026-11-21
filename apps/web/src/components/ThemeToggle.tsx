@@ -17,8 +17,8 @@ type Placement = 'topbar' | 'login';
 const POPOVER_WIDTH = 300;
 
 /**
- * 外观选择器：参照 macOS「外观」设置，选择自动/浅色/深色；强调色固定为墨紫，不提供选择。
- * 选项是原生单选框，方向键切换由浏览器提供；面板挂到 body 并用 fixed 定位，避免被裁切或错位。
+ * Appearance picker: modeled on the macOS "Appearance" setting, choosing auto/light/dark; the accent color is fixed to ink purple and not selectable.
+ * The options are native radios, with arrow-key switching provided by the browser; the panel is attached to body and fixed-positioned, so it is not clipped or misplaced.
  */
 export function ThemeToggle({ placement = 'topbar' }: { placement?: Placement }) {
   const { t } = useI18n();
@@ -50,7 +50,7 @@ export function ThemeToggle({ placement = 'topbar' }: { placement?: Placement })
         <SunMoon size={18} aria-hidden="true" />
       </button>
 
-      {/* 工具栏的毛玻璃（backdrop-filter）会成为 fixed 定位的包含块，面板必须挂到 body。 */}
+      {/* The toolbar's frosted glass (backdrop-filter) becomes the containing block for fixed positioning, so the panel must be attached to body. */}
       {popover.open && createPortal(
         <div
           id={popover.panelId}

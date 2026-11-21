@@ -79,7 +79,7 @@ function assertEmptyOutput(outputDir) {
   if (entries.length > 0) throw new Error(`运行时输出目录不是空目录：${outputDir}`);
 }
 
-/** 便携包内置的 Node 版本，本机 CI 也用它，保证测的就是用户实际运行的版本。 */
+/** The Node version bundled in the portable package; local CI uses it too, so what is tested is the version users actually run. */
 export const nodeRuntimeVersion = runtimeConfig.nodeVersion;
 
 function resolveTarget(version, platform, arch) {
@@ -89,8 +89,8 @@ function resolveTarget(version, platform, arch) {
 }
 
 /**
- * 从 nodejs.org 下载官方压缩包到 directory（须为空目录），并按同版本的 SHASUMS256.txt 校验。
- * 便携包组装和本机 CI 共用这一份下载与校验逻辑。
+ * Downloads the official archive from nodejs.org into directory (which must be empty), and verifies it against the SHASUMS256.txt of the same version.
+ * Portable package assembly and local CI share this download and verification logic.
  */
 export async function downloadVerifiedNodeArchive({
   version = runtimeConfig.nodeVersion,
@@ -128,7 +128,7 @@ export async function fetchNodeRuntime({
   outputDir,
 }) {
   if (!outputDir) throw new Error('必须指定 Node 运行时输出目录');
-  // 先校验目标平台，不支持时不创建输出目录
+  // Validate the target platform first, so no output directory is created when it is unsupported
   const { targetPlatform, targetArch, archiveName } = resolveTarget(version, platform, arch);
   const tempRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-node-runtime-'));
   const extractDir = path.join(tempRoot, 'extract');

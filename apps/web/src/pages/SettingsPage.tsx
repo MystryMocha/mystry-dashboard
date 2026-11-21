@@ -27,12 +27,12 @@ import {
   type Appearance,
 } from '../theme';
 
-// 弹窗连同二维码库只在点开时加载。
+// The dialog, together with the QR code library, is loaded only when opened.
 const RemoteAccessDialog = lazy(() =>
   import('../components/RemoteAccessDialog').then(({ RemoteAccessDialog }) => ({ default: RemoteAccessDialog })),
 );
 
-/** 一组设置：组名和一句适用范围在前，设置行在后；页面够宽时组名在左边一列。 */
+/** A group of settings: the group name and a sentence on its scope come first, then the setting rows; when the page is wide enough the group name is in a column on the left. */
 function SettingsSection({
   title,
   lead,
@@ -54,7 +54,7 @@ function SettingsSection({
   );
 }
 
-/** 语言：和顶栏的语言按钮改的是同一个设置，两边互相同步。 */
+/** Language: changes the same setting as the language button in the top bar, and the two stay in sync. */
 function LanguageRow() {
   const { t, locale } = useI18n();
   const selectId = useId();
@@ -99,7 +99,7 @@ function LanguageRow() {
   );
 }
 
-/** 外观：和顶栏的外观按钮改的是同一个设置。 */
+/** Appearance: changes the same setting as the appearance button in the top bar. */
 function AppearanceRow() {
   const { t } = useI18n();
   const titleId = useId();
@@ -135,7 +135,7 @@ function AppearanceRow() {
   );
 }
 
-/** 地址里的 IPv6 要加方括号，否则和端口的冒号分不开。 */
+/** IPv6 in an address needs square brackets, or it cannot be told apart from the port's colon. */
 function listenAddress(info: PanelInfo): string {
   return `${info.host.includes(':') ? `[${info.host}]` : info.host}:${info.port}`;
 }
@@ -149,12 +149,12 @@ function isPanelInfo(value: unknown): value is PanelInfo {
     && typeof info.configPath === 'string';
 }
 
-/** 运行信息：版本随前端构建写入；监听地址和目录来自配置文件，这里只展示。 */
+/** Runtime info: the version is written in by the frontend build; the listen address and directories come from the config file and are only displayed here. */
 function PanelInfoSection() {
   const { t } = useI18n();
   const [info, setInfo] = useState<PanelInfo | null>(null);
   const [error, setError] = useState('');
-  // 每点一次「重试」加一，重新读取。
+  // Incremented on each "Retry", to read again.
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -172,7 +172,7 @@ function PanelInfoSection() {
     return () => {
       active = false;
     };
-    // 挂载时读取一次，之后只在重试时再读
+    // Read once on mount, then again only on retry
   }, [attempt]);
 
   return (

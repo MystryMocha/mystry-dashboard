@@ -1,4 +1,4 @@
-/** 「在其他设备上打开」弹窗文案（英文主表）。语气是说明，不是警告。 */
+/** "Open on other devices" dialog strings (English primary table). The tone is explanatory, not a warning. */
 export default {
   'remoteAccess.entry': 'Open on Another Device',
   'remoteAccess.entry.short': 'Other Devices',

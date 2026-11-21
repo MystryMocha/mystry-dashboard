@@ -6,45 +6,45 @@ export const EASYTIER_VERSION = '2.6.4';
 export const LAN_STATUSES = ['disabled', 'stopped', 'starting', 'running', 'error'] as const;
 export type LanStatus = (typeof LAN_STATUSES)[number];
 
-/** 每个实例最多填写的自定义中继节点数。 */
+/** Maximum number of custom relay peers that can be entered per instance. */
 export const LAN_CUSTOM_PEER_LIMIT = 8;
 
 export interface LanRuntimeInfo {
   version: string;
   installed: boolean;
   platformSupported: boolean;
-  /** 本机平台对应的官方压缩包。连不上 GitHub 时，用户可从任意镜像下载同名文件再上传，面板按摘要核对。 */
+  /** The official archive for this machine's platform. When GitHub is unreachable, the user can download the same file from any mirror and upload it; the panel verifies it by digest. */
   archive: RuntimeArchiveInfo | null;
 }
 
 export interface InstanceLanInput {
   enabled: boolean;
-  /** 自定义中继节点，形如 tcp://relay.example.com:11010。省略表示不改。 */
+  /** Custom relay peers, such as tcp://relay.example.com:11010. Omitted means no change. */
   peers?: string[];
-  /** 是否同时使用面板内置的社区共享节点。省略表示不改。 */
+  /** Whether to also use the community shared peers built into the panel. Omitted means no change. */
   useSharedPeers?: boolean;
 }
 
-/** 状态响应不含网络名或密钥。密钥只出现在单独下载的朋友说明里。 */
+/** The status response contains no network name or secret. The secret appears only in the separately downloaded instructions for friends. */
 export interface InstanceLan {
   instanceId: string;
   enabled: boolean;
   status: LanStatus;
-  /** 当前 server.properties 的游戏端口。无法读取时为空。 */
+  /** Current game port from server.properties. Empty when it cannot be read. */
   localPort: number | null;
-  /** 朋友要添加的虚拟地址。尚未启用或端口不可用时为空。 */
+  /** The virtual address friends should add. Empty when not enabled yet or the port is unavailable. */
   virtualIp: string | null;
   joinAddress: string | null;
   serverIpBlocked: boolean;
   runtimeInstalled: boolean;
-  /** 用户填写的中继节点（已规范化）。 */
+  /** Relay peers entered by the user (normalized). */
   peers: string[];
   useSharedPeers: boolean;
-  /** 面板内置的社区共享节点，只用于展示。 */
+  /** Community shared peers built into the panel, for display only. */
   sharedPeers: string[];
-  /** EasyTier 本次监听的端口（TCP 与 UDP 相同），供 IPv6 等非打洞直连使用。未运行时为空。 */
+  /** The port EasyTier is listening on in this run (same for TCP and UDP), for direct connections that do not rely on hole punching, such as IPv6. Empty when not running. */
   listenPort: number | null;
   detail: PanelMessage | null;
-  /** 不阻止运行、但可能让朋友连不上的问题，例如防火墙规则没加上。 */
+  /** Problems that do not stop it from running but may keep friends from connecting, such as a firewall rule that could not be added. */
   warning: PanelMessage | null;
 }

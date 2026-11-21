@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { errorMessage } from '../errors';
 
 /**
- * 实例操作（启停、删除）的忙碌标记和错误提示。
- * 操作结束后无论成败都重新读取实例，界面状态以服务端为准。
+ * Busy flag and error message for instance actions (start/stop, delete).
+ * After an action ends, whether it succeeded or failed, the instance is re-read, so the UI state follows the server.
  */
 export function useInstanceAction(reload: () => Promise<void>) {
   const [busyId, setBusyId] = useState<string | null>(null);

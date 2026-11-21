@@ -50,7 +50,7 @@ async function main(): Promise<void> {
   process.env.MAX_CONCURRENT_FILE_DOWNLOADS = '1';
   process.env.MAX_COMMAND_BYTES = '4';
 
-  // 先写入不含 Java 运行时字段的旧库，验证启动期兼容迁移。
+  // Write an old database without the Java runtime fields first, to verify the startup compatibility migration.
   const legacyDb = new DatabaseSync(path.join(dataRoot, 'panel.db'));
   legacyDb.exec(`
     CREATE TABLE instances (
@@ -307,7 +307,7 @@ async function main(): Promise<void> {
     assert.equal((await login('password1234')).statusCode, 200, '改密失败时旧密码必须仍然有效');
     const changedPassword = await changePasswordRequest(authorization, 'password1234', 'changed-password');
     assert.equal(changedPassword.statusCode, 200);
-    // 改密后旧令牌立即失效，后续请求改用换发的新令牌。
+    // After the password change the old token is invalid immediately; later requests use the reissued token.
     const staleMe = await app.inject({ method: 'GET', url: '/api/auth/me', headers: authorization });
     assert.equal(staleMe.statusCode, 401, '改密后此前签发的令牌必须失效');
     authorization.authorization = `Bearer ${changedPassword.json<{ token: string }>().token}`;
@@ -369,7 +369,7 @@ async function main(): Promise<void> {
       headers: authorization,
     });
     assert.equal(existingSources.statusCode, 200);
-    // imports 的路径只给登录用户看：是绝对路径，和面板实际使用的交接区一致。
+    // The imports path is shown only to signed-in users: it is an absolute path and matches the handoff area the panel actually uses.
     const listedImportDir = existingSources.json<{ importDir: string }>().importDir;
     assert.ok(path.isAbsolute(listedImportDir));
     assert.equal(listedImportDir, path.resolve(config.existingServerImportDir));
@@ -424,7 +424,7 @@ async function main(): Promise<void> {
     const existingTaskId = existingImport.json<{ id: string }>().id;
     let existingTask = getTask(existingTaskId);
     for (let attempt = 0; attempt < 200 && existingTask?.status !== 'completed' && existingTask?.status !== 'failed'; attempt += 1) {
-      // 后台复制任务应很快完成；短轮询只用于等待测试夹具进入终态。
+      // The background copy task should finish quickly; the short polling only waits for the test fixture to reach a final state.
       await new Promise((resolve) => setTimeout(resolve, 10));
       existingTask = getTask(existingTaskId);
     }
@@ -547,7 +547,7 @@ async function main(): Promise<void> {
     });
     assert.equal(shortLogin.statusCode, 401);
 
-    // 正确密码不应消耗失败配额，避免正常管理员因重复登录被锁定。
+    // A correct password must not consume the failure quota, so a normal admin is not locked out by signing in repeatedly.
     for (let attempt = 0; attempt <= config.authRateLimitMax; attempt += 1) {
       const successfulLogin = await app.inject({
         method: 'POST',
@@ -557,7 +557,7 @@ async function main(): Promise<void> {
       assert.equal(successfulLogin.statusCode, 200);
     }
 
-    // 少于阈值的失败后，正确登录应恢复可用并清除该用户的失败记录。
+    // After fewer failures than the threshold, a correct sign-in should work again and clear that user's failure records.
     for (let attempt = 0; attempt < config.authRateLimitMax - 1; attempt += 1) {
       const failedLogin = await app.inject({
         method: 'POST',
@@ -619,7 +619,7 @@ async function main(): Promise<void> {
     const mismatched = reserveDownloadTicket('user', 'instance', 'server.properties', noRelease);
     assert.equal(beginDownloadStream(mismatched.ticket, 'instance', 'eula.txt'), null);
     assert.equal(beginDownloadStream(mismatched.ticket, 'other-instance', 'server.properties'), null);
-    // 开流失败后票据作废，浏览器轮询能拿到失败原因
+    // After the stream fails to open the ticket is void, and browser polling gets the failure reason
     const failing = reserveDownloadTicket('user', 'instance', 'ops.txt', noRelease);
     assert.ok(beginDownloadStream(failing.ticket, 'instance', 'ops.txt'));
     failDownloadStream(failing.ticket, { key: 'server.files.download.openFailed' });

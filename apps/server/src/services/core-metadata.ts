@@ -70,7 +70,7 @@ async function fetchMetadataText(url: string, signal?: AbortSignal): Promise<str
       try {
         await response.body?.cancel();
       } catch {
-        /* 忽略错误响应正文清理失败 */
+        /* Ignore failures to clean up the error response body */
       }
       throw new PanelError('server.deploy.metadataHttpFailed', { status: response.status, url });
     }
@@ -91,10 +91,10 @@ export async function fetchJson<T>(url: string, signal?: AbortSignal): Promise<T
   return JSON.parse(text) as T;
 }
 
-/** 一个元数据来源：mirror 为 true 的来源只在选了国内来源时使用，并排在官方之前。 */
+/** A metadata source: sources with mirror true are used only when the China source is selected, and come before official. */
 type MetadataSource<T> = { label: string; mirror?: boolean; load: () => Promise<T> };
 
-/** 按来源顺序读取元数据，解析也算在内，所以镜像返回异常内容时同样回到官方。 */
+/** Reads metadata in source order, parsing included, so a mirror returning abnormal content also falls back to official. */
 async function loadMetadata<T>(
   source: DownloadSource,
   sources: Array<MetadataSource<T>>,
@@ -113,7 +113,7 @@ async function loadMetadata<T>(
   throw new PanelError('server.system.metadataAllSourcesFailed', { attempts: describeFailures(failures) });
 }
 
-/** 镜像列表为空时视为失败，让官方来确认这个版本是否真的没有内容。 */
+/** An empty mirror list counts as a failure, letting official confirm whether this version really has nothing. */
 function requireEntries<T>(entries: T[]): T[] {
   if (!entries.length) throw new TypeError('empty metadata');
   return entries;
@@ -125,11 +125,11 @@ function parseMavenVersions(xml: string): string[] {
 }
 
 /**
- * NeoForge 版本号 → Minecraft 版本。新旧版号靠段数区分，不靠主版本大小：
- * - 三段 `<小版本>.<补丁>.<构建>`：21.1.244 → 1.21.1，21.0.167 → 1.21
- * - 四段 `<年份>.<序号>.<热修>.<构建>`：26.1.2.126 → 26.1.2，26.3.0.101 → 26.3
- * - 快照构建在 `+` 后带快照名：26.1.0.0-alpha.1+snapshot-1 → 26.1-snapshot-1
- * - 愚人节版：0.25w14craftmine.3-beta → 25w14craftmine
+ * NeoForge version → Minecraft version. Old and new schemes are told apart by segment count, not by the size of the major version:
+ * - three segments `<minor>.<patch>.<build>`: 21.1.244 → 1.21.1, 21.0.167 → 1.21
+ * - four segments `<year>.<sequence>.<hotfix>.<build>`: 26.1.2.126 → 26.1.2, 26.3.0.101 → 26.3
+ * - snapshot builds carry the snapshot name after `+`: 26.1.0.0-alpha.1+snapshot-1 → 26.1-snapshot-1
+ * - April Fools versions: 0.25w14craftmine.3-beta → 25w14craftmine
  */
 export function neoForgeVersionToMc(neoVersion: string): string {
   const special = /^0\.(\d+w\d+\w*)\./.exec(neoVersion);
@@ -143,10 +143,10 @@ export function neoForgeVersionToMc(neoVersion: string): string {
   return snapshot ? `${release}-${snapshot}` : release;
 }
 
-/** Minecraft 正式版的版本号；快照、预发布和愚人节版都不符合。 */
+/** Version number of a Minecraft release; snapshots, pre-releases and April Fools versions do not match. */
 const MC_RELEASE_VERSION = /^\d+\.\d+(?:\.\d+)?$/;
 
-/** 版本号按数字降序，21.0.167 排在 21.0.98-beta 前面。 */
+/** Version numbers in descending numeric order, with 21.0.167 before 21.0.98-beta. */
 function newestFirst(a: string, b: string): number {
   return b.localeCompare(a, undefined, { numeric: true });
 }
@@ -174,7 +174,7 @@ function loadMojangManifest(source: DownloadSource, signal?: AbortSignal): Promi
 
 type FabricVersionEntry = { version: string; stable: boolean };
 
-/** Fabric Meta 的列表接口；BMCLAPI 在 /fabric-meta 下路径相同。 */
+/** Fabric Meta's list API; BMCLAPI has the same paths under /fabric-meta. */
 function loadFabricMeta<T>(
   source: DownloadSource,
   pathname: string,
@@ -256,10 +256,10 @@ export async function listCoreVersions(
     for (const v of await loadNeoForgeVersions(source, signal)) {
       try {
         const mcVersion = neoForgeVersionToMc(v);
-        // 和其他核心一样只列正式版。
+        // Like the other cores, only releases are listed.
         if (MC_RELEASE_VERSION.test(mcVersion)) mcSet.add(mcVersion);
       } catch {
-          /* 忽略无法映射到 Minecraft 版本的条目 */
+          /* Ignore entries that cannot be mapped to a Minecraft version */
       }
     }
     return [...mcSet].sort(newestFirst);
@@ -309,7 +309,7 @@ export async function listFabricInstallers(
 
 type BmclForgeEntry = { version: string; build: number; branch?: string | null };
 
-/** Forge loader 版本列表（不含 MC 前缀），新版本在前。 */
+/** Forge loader version list (without the MC prefix), newest first. */
 export async function listForgeLoaders(
   mcVersion: string,
   signal?: AbortSignal,
@@ -324,7 +324,7 @@ export async function listForgeLoaders(
           bmclapiUrl(`/forge/minecraft/${encodeURIComponent(mcVersion)}`),
           signal,
         );
-        // BMCLAPI 的返回不保证顺序；旧版本的文件名还带分支后缀，要拼回去才能组成下载地址。
+        // BMCLAPI's response has no guaranteed order; file names of old versions also carry a branch suffix, which has to be put back to form the download URL.
         return requireEntries([...data].sort((a, b) => b.build - a.build))
           .map((x) => (x.branch ? `${x.version}-${x.branch}` : x.version));
       },
@@ -339,7 +339,7 @@ export async function listForgeLoaders(
   ], signal);
 }
 
-/** NeoForge 版本列表（完整 NeoForge 版本号），新版本在前。 */
+/** NeoForge version list (full NeoForge version numbers), newest first. */
 export async function listNeoForgeLoaders(
   mcVersion: string,
   signal?: AbortSignal,
@@ -354,8 +354,8 @@ export async function listNeoForgeLoaders(
           bmclapiUrl(`/neoforge/list/${encodeURIComponent(mcVersion)}`),
           signal,
         );
-        // 1.20.1 的早期版本发布在另一个 Maven 坐标下，官方列表也不含它们，这里同样过滤。
-        // BMCLAPI 的返回不保证顺序，部署时留空会取第一项，所以要自己排序。
+        // Early 1.20.1 versions were published under another Maven coordinate and the official list does not include them either, so they are filtered out here too.
+        // BMCLAPI's response has no guaranteed order, and deploy takes the first item when left empty, so it has to be sorted here.
         return requireEntries(data.map((x) => x.version).filter((v) => matchesNeoForgeMc(v, mcVersion)))
           .sort(newestFirst);
       },
@@ -374,7 +374,7 @@ type VanillaDetail = { downloads?: { server?: { url?: string; sha1?: string } } 
 
 const SHA1_HEX = /^[0-9a-f]{40}$/i;
 
-/** 读取版本详情并对上清单里的 SHA-1：镜像会把它转到社区节点，官方地址也一样核对，jar 的校验值才可信。 */
+/** Reads the version details and checks them against the SHA-1 in the manifest: the mirror redirects them to community nodes, and the official URL is checked the same way, which is what makes the jar's checksum trustworthy. */
 async function fetchVerifiedDetail(url: string, sha1: string, signal: AbortSignal): Promise<VanillaDetail> {
   const text = await fetchText(url, signal);
   if (createHash('sha1').update(text).digest('hex') !== sha1.toLowerCase()) {
@@ -384,12 +384,12 @@ async function fetchVerifiedDetail(url: string, sha1: string, signal: AbortSigna
 }
 
 /**
- * 解析 Vanilla 服务端的下载计划。信任链：清单里的 SHA-1 核对版本详情，版本详情里的 SHA-1 核对 jar。
- * 清单是这条链的根，两种来源都只从 Mojang 取：BMCLAPI 会把清单 302 到社区节点，
- * 节点改了清单就能连同详情和 jar 的校验值一起改，镜像上的清单无从核对。
- * 国内来源下详情和 jar 仍先试 BMCLAPI，校验值都来自 Mojang 的清单。版本列表只列版本号，仍可走镜像。
- * 详情和 jar 的地址都必须是 Mojang 的 https 地址、校验值都必须给出（Mojang 一向提供），
- * 否则直接报错，不退回到不校验的下载。
+ * Resolves the download plan for the Vanilla server. Chain of trust: the SHA-1 in the manifest verifies the version details, and the SHA-1 in the details verifies the jar.
+ * The manifest is the root of this chain and is fetched only from Mojang under both sources: BMCLAPI 302s the manifest to community nodes,
+ * and a node that altered the manifest could alter the checksums of the details and the jar along with it, with nothing to verify a mirrored manifest against.
+ * Under the China source the details and jar still try BMCLAPI first, with checksums all coming from Mojang's manifest. The version list only lists version numbers and can still use the mirror.
+ * The details and jar URLs must both be Mojang https URLs and both checksums must be present (Mojang has always provided them),
+ * otherwise it fails outright instead of falling back to an unverified download.
  */
 export async function resolveVanillaDownload(
   mcVersion: string,
@@ -401,7 +401,7 @@ export async function resolveVanillaDownload(
     manifest = await loadMojangManifest('official', signal);
   } catch (error) {
     if (signal.aborted || source !== 'china') throw error;
-    // 国内来源下清单同样只走 Mojang：说明原因，免得用户以为是镜像出了问题。
+    // Under the China source the manifest still goes only to Mojang: explain why, so users do not think the mirror is at fault.
     throw new PanelError('server.deploy.vanillaManifestNeedsMojang', {
       attempts: describeFailures([{ source: 'Mojang', error }]),
     });
@@ -447,7 +447,7 @@ export async function resolvePaperDownload(
 
   let selected: PaperBuild;
   if (build !== undefined) {
-    // 指定的构建不存在时直接报错，不能悄悄换成最新构建。
+    // Fail outright when the specified build does not exist; it must not be silently replaced by the latest build.
     const requested = builds.find((b) => b.id === build);
     if (!requested) throw new PanelError('server.deploy.paperBuildNotFound', { version, build });
     selected = requested;
@@ -461,7 +461,7 @@ export async function resolvePaperDownload(
   if (!file?.url) throw new PanelError('server.deploy.paperNoDownloadUrl', { version, build: selected.id });
   const sha256 = file.checksums?.sha256;
   return {
-    // PaperMC 没有可靠的国内镜像，始终走官方；校验值由 Fill 接口一并给出。
+    // PaperMC has no reliable mirror in China, so it always goes to official; the checksum comes with the Fill API response.
     plan: createDownloadPlan(
       [officialCandidate('PaperMC', file.url)],
       sha256 ? { algorithm: 'sha256', hex: sha256 } : undefined,
@@ -471,7 +471,7 @@ export async function resolvePaperDownload(
   };
 }
 
-/** 基于解析后的不可变版本生成核心缓存文件名（不含目录）。 */
+/** Builds the core cache file name (without directory) from the resolved immutable version. */
 export function buildResolvedCoreCacheBasename(
   coreType: 'vanilla' | 'paper' | 'fabric',
   mcVersion: string,
@@ -508,7 +508,7 @@ export function neoForgeInstallerUrl(neoVersion: string): string {
   return `https://maven.neoforged.net/releases/net/neoforged/neoforge/${neoVersion}/neoforge-${neoVersion}-installer.jar`;
 }
 
-/** 从官方 Maven 读取 .sha256 校验文件；取不到时返回 undefined，由调用方决定怎么处理。 */
+/** Reads the .sha256 checksum file from the official Maven; returns undefined when it cannot be fetched, leaving the caller to decide what to do. */
 async function fetchOfficialSha256(fileUrl: string, signal?: AbortSignal): Promise<ExpectedDigest | undefined> {
   try {
     const hex = (await fetchText(`${fileUrl}.sha256`, signal)).trim().split(/\s+/)[0] ?? '';
@@ -520,9 +520,9 @@ async function fetchOfficialSha256(fileUrl: string, signal?: AbortSignal): Promi
 }
 
 /**
- * 解析 Forge / NeoForge 安装器的下载计划。安装器随后会被执行，校验值只从官方 Maven 取：
- * BMCLAPI 的 Maven 路径会跳转到社区节点，同一来源的校验文件证明不了什么。
- * 官方校验文件取不到时计划里只留官方地址。
+ * Resolves the download plan for the Forge / NeoForge installer. The installer is executed afterwards, so the checksum is taken only from the official Maven:
+ * BMCLAPI's Maven paths redirect to community nodes, and a checksum file from the same source proves nothing.
+ * When the official checksum file cannot be fetched, the plan keeps only the official URL.
  */
 export async function resolveInstallerDownload(
   coreType: 'forge' | 'neoforge',

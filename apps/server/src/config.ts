@@ -24,16 +24,16 @@ const configPath = configuredConfigPath
   ? resolveFromHome(configuredConfigPath, homeDir)
   : path.join(homeDir, configuredHome ? 'config' : '', configuredHome ? 'panel.env' : '.env');
 
-// 开发模式默认读取仓库 .env；便携包由 mystryctl 指向 config/panel.env。
+// Development mode reads the repo's .env by default; the portable package has mystryctl point this at config/panel.env.
 dotenv.config({ path: configPath });
 
 const realParentCache = new Map<string, string>();
 
 /**
- * 只解析目录所在上级路径（安装位置）中的符号链接和 junction，目录本身保持原名。
- * 例如 /home 本身是链接的发行版、或安装在 junction 下时，实例目录的安全检查会把真实路径
- * 判为逃逸；在这里先换成真实路径即可。目录本身是链接、或目录内部有链接时，仍由
- * utils/path.ts 照旧拒绝。按配置值缓存，避免每次访问配置都逐级 lstat。
+ * Resolves symlinks and junctions only in the parent path (the install location) of the directory; the directory itself keeps its name.
+ * For example, on distros where /home itself is a link, or when installed under a junction, the instance directory safety check would
+ * treat the real path as an escape; switching to the real path here is enough. When the directory itself is a link, or contains links,
+ * utils/path.ts still rejects it as before. Cached per config value so that not every config access walks the path with lstat.
  */
 function withRealParent(dir: string): string {
   let real = realParentCache.get(dir);
@@ -50,7 +50,7 @@ function resolveDataDir(): string {
   return withRealParent(resolveFromHome(configured, homeDir));
 }
 
-/** 备份目录：BACKUP_DIR 未设置时为数据根下的 backups；相对值按 MYSTRY_HOME（或仓库根）解析。 */
+/** Backup directory: backups under the data root when BACKUP_DIR is unset; a relative value is resolved against MYSTRY_HOME (or the repo root). */
 function resolveBackupDir(): string {
   const configured = process.env.BACKUP_DIR?.trim();
   return configured
@@ -150,13 +150,13 @@ export const config = {
   maxCommandBytes: parsePositiveInt('MAX_COMMAND_BYTES', 4096),
   maxConsoleBufferBytes: parsePositiveInt('MAX_CONSOLE_BUFFER_BYTES', 1048576),
   maxConsoleChunkBytes: parsePositiveInt('MAX_CONSOLE_CHUNK_BYTES', 65536),
-  /** 单个上传文件上限，默认 512MB */
+  /** Per-file upload limit, 512MB by default */
   maxUploadBytes: parsePositiveInt('MAX_UPLOAD_BYTES', 512 * 1024 * 1024),
-  /** 上传备份文件上限，默认 10 GiB（世界存档通常远大于普通上传）。 */
+  /** Backup upload limit, 10 GiB by default (world saves are usually far larger than ordinary uploads). */
   maxBackupUploadBytes: parsePositiveInt('MAX_BACKUP_UPLOAD_BYTES', 10 * 1024 * 1024 * 1024),
   uploadIdleTimeoutMs: parsePositiveInt('UPLOAD_IDLE_TIMEOUT_MS', 30_000),
   maxConcurrentUploads: parsePositiveInt('MAX_CONCURRENT_UPLOADS', 1),
-  /** ZIP 导入预览有效期与全局容量。 */
+  /** ZIP import preview lifetime and global capacity. */
   importPreviewTtlSeconds: parsePositiveInt('IMPORT_PREVIEW_TTL_SECONDS', 30 * 60),
   maxImportPreviews: parsePositiveInt('MAX_IMPORT_PREVIEWS', 2),
   maxConcurrentFileDownloads: parsePositiveInt('MAX_CONCURRENT_FILE_DOWNLOADS', 4),
@@ -164,7 +164,7 @@ export const config = {
   maxConcurrentTasks: parsePositiveInt('MAX_CONCURRENT_TASKS', 1),
   maxQueuedTasks: parsePositiveInt('MAX_QUEUED_TASKS', 2),
   taskTimeoutMs: parsePositiveInt('TASK_TIMEOUT_MS', 1800000),
-  /** 备份与还原任务的运行时限，默认 6 小时：大世界打包、还原前备份与解压都算在一次任务里。 */
+  /** Time limit for backup and restore tasks, 6 hours by default: packing a large world, the pre-restore backup and extraction all count within one task. */
   backupTaskTimeoutMs: parsePositiveInt('BACKUP_TASK_TIMEOUT_MS', 6 * 60 * 60 * 1000),
   maxCoreDownloadBytes: parsePositiveInt('MAX_CORE_DOWNLOAD_BYTES', 536870912),
   coreDownloadTimeoutMs: parsePositiveInt('CORE_DOWNLOAD_TIMEOUT_MS', 300000),
@@ -180,7 +180,7 @@ export const config = {
   maxConsoleStdinBytes: parsePositiveInt('MAX_CONSOLE_STDIN_BYTES', 65_536),
   installerKillGraceMs: parsePositiveInt('INSTALLER_KILL_GRACE_MS', 5_000),
   maxInstallerOutputBytes: parsePositiveInt('MAX_INSTALLER_OUTPUT_BYTES', 65536),
-  /** ZIP 安全配额 */
+  /** ZIP safety quotas */
   maxZipEntries: parsePositiveInt('MAX_ZIP_ENTRIES', 10_000),
   maxZipEntryBytes: parsePositiveInt('MAX_ZIP_ENTRY_BYTES', 1024 * 1024 * 1024),
   maxZipUncompressedBytes: parsePositiveInt(
@@ -191,22 +191,22 @@ export const config = {
     'MAX_ZIP_CENTRAL_DIRECTORY_BYTES',
     32 * 1024 * 1024,
   ),
-  /** 同机已有服务端交接区的扫描与复制配额。 */
+  /** Scan and copy quotas for the handoff area of existing servers on the same machine. */
   maxExistingImportEntries: parsePositiveInt('MAX_EXISTING_IMPORT_ENTRIES', 200_000),
   maxExistingImportBytes: parsePositiveInt(
     'MAX_EXISTING_IMPORT_BYTES',
     100 * 1024 * 1024 * 1024,
   ),
-  /** 已有服务端列表接口中的 ModLoader 预检预算 */
+  /** ModLoader precheck budget in the existing-server list endpoint */
   modLoaderPrecheckMaxDepth: parsePositiveInt('MOD_LOADER_PRECHECK_MAX_DEPTH', 4),
   modLoaderPrecheckMaxEntries: parsePositiveInt('MOD_LOADER_PRECHECK_MAX_ENTRIES', 200),
   modLoaderPrecheckTimeoutMs: parsePositiveInt('MOD_LOADER_PRECHECK_TIMEOUT_MS', 250),
-  /** 导入/部署任务中的 ModLoader 深度扫描预算 */
+  /** ModLoader deep-scan budget in import/deploy tasks */
   modLoaderScanMaxDepth: parsePositiveInt('MOD_LOADER_SCAN_MAX_DEPTH', 64),
   modLoaderScanMaxEntries: parsePositiveInt('MOD_LOADER_SCAN_MAX_ENTRIES', 50_000),
   modLoaderScanTimeoutMs: parsePositiveInt('MOD_LOADER_SCAN_TIMEOUT_MS', 30_000),
   consoleTicketTtlSeconds: parsePositiveInt('CONSOLE_TICKET_TTL_SECONDS', 60),
-  /** 文件下载一次性 ticket 有效期（秒） */
+  /** Lifetime of a one-time file download ticket (seconds) */
   fileDownloadTicketTtlSeconds: parsePositiveInt('FILE_DOWNLOAD_TICKET_TTL_SECONDS', 60),
   rateLimitMax: parsePositiveInt('RATE_LIMIT_MAX', 120),
   rateLimitWindowMs: parsePositiveInt('RATE_LIMIT_WINDOW_MS', 60_000),

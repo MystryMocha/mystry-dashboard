@@ -141,7 +141,7 @@ test('ZIP 预览与解压保留条目读取、大小校验及取消边界', asyn
     });
   }
 
-  // preview：预览诊断的英文文本（诊断项只有文本）；extractKey：解压时抛出的消息键。
+  // preview: the English text of the preview diagnostic (diagnostic items have text only); extractKey: the message key thrown during extraction.
   const entryName = { name: 'user_jvm_args.txt' };
   const corruptions: Array<{ name: string; mutate: (zip: Buffer) => void; preview: PanelMessage; extractKey: string }> = [
     {

@@ -8,17 +8,17 @@ import { writeFileAtomic } from '../utils/atomic-write.js';
 import { ensureSecureDirectory, forceSecureSensitiveFile } from '../utils/data-dir-permissions.js';
 
 /**
- * 面板的自签名 HTTPS 证书。Node 没有生成 X.509 证书的接口，这里按固定结构拼出最小的 DER 编码：
- * ECDSA P-256 + SHA-256，CN 为 Mystry Dashboard，SAN 写入网卡地址和用户填的公网地址，
- * 扩展密钥用途含 serverAuth，basicConstraints 为 CA:false，有效期 800 天。
- * 不调用系统的 openssl，不联网，不加依赖。私钥只写在 <数据根>/tls/panel.key，不进数据库和日志。
+ * The panel's self-signed HTTPS certificate. Node has no API to generate X.509 certificates, so a minimal DER encoding is assembled here in a fixed structure:
+ * ECDSA P-256 + SHA-256, CN Mystry Dashboard, SAN containing the interface addresses and the public address entered by the user,
+ * extended key usage including serverAuth, basicConstraints CA:false, valid for 800 days.
+ * No system openssl, no network, no extra dependency. The private key is written only to <data root>/tls/panel.key and never goes into the database or logs.
  */
 
 export const CERTIFICATE_VALID_DAYS = 800;
-/** 剩余有效期少于这个天数时重新生成。 */
+/** Regenerate when fewer than this many days of validity remain. */
 export const CERTIFICATE_RENEW_BEFORE_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** SAN 条目上限：网卡很多的电脑不会让证书无限变大。 */
+/** SAN entry limit: a computer with many interfaces does not make the certificate grow without bound. */
 const MAX_SAN_ENTRIES = 64;
 
 export interface PanelCertificate {
@@ -27,7 +27,7 @@ export interface PanelCertificate {
   info: PanelCertificateInfo;
 }
 
-// ---- DER 编码 ----
+// ---- DER encoding ----
 
 function derLength(length: number): Buffer {
   if (length < 0x80) return Buffer.from([length]);
@@ -48,7 +48,7 @@ const bitString = (value: Buffer, unusedBits = 0) => der(0x03, Buffer.from([unus
 const utf8String = (value: string) => der(0x0c, Buffer.from(value, 'utf8'));
 const boolTrue = () => der(0x01, Buffer.from([0xff]));
 
-/** 非负整数：最高位为 1 时前面补 0，去掉多余的前导 0。 */
+/** Non-negative integer: prepend a 0 when the top bit is 1, and strip redundant leading zeros. */
 function integer(value: Buffer): Buffer {
   let start = 0;
   while (start < value.length - 1 && value[start] === 0) start += 1;
@@ -67,7 +67,7 @@ function oid(dotted: string): Buffer {
   return der(0x06, Buffer.from(bytes));
 }
 
-/** UTCTime 只能表示到 2049 年，之后用 GeneralizedTime（RFC 5280 4.1.2.5）。 */
+/** UTCTime can only represent dates through 2049; GeneralizedTime is used after that (RFC 5280 4.1.2.5). */
 function time(date: Date): Buffer {
   const pad = (value: number) => String(value).padStart(2, '0');
   const rest = `${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}${pad(date.getUTCHours())}`
@@ -97,11 +97,11 @@ function ipv4Bytes(address: string): Buffer {
   return Buffer.from(address.split('.').map(Number));
 }
 
-/** 把 IPv6 文本展开成 16 字节；带区域标识（%eth0）或写法不合法时返回 null。 */
+/** Expands IPv6 text into 16 bytes; returns null when it has a zone identifier (%eth0) or is malformed. */
 function ipv6Bytes(address: string): Buffer | null {
   if (address.includes('%') || net.isIPv6(address) === false) return null;
   let text = address;
-  // 末尾内嵌的 IPv4（如 ::ffff:192.168.1.2）先换成两组十六进制。
+  // A trailing embedded IPv4 (such as ::ffff:192.168.1.2) is first converted into two hex groups.
   const lastColon = text.lastIndexOf(':');
   const tail = text.slice(lastColon + 1);
   if (tail.includes('.')) {
@@ -121,7 +121,7 @@ function ipv6Bytes(address: string): Buffer | null {
 
 const DNS_NAME_RE = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
 
-/** 一个 SAN 条目的 GeneralName 编码；认不出的值返回 null（跳过，不让整张证书失败）。 */
+/** GeneralName encoding of one SAN entry; returns null for unrecognized values (skipped, so the whole certificate does not fail). */
 function generalName(host: string): Buffer | null {
   if (net.isIPv4(host)) return der(0x87, ipv4Bytes(host));
   if (net.isIPv6(host)) {
@@ -131,7 +131,7 @@ function generalName(host: string): Buffer | null {
   return DNS_NAME_RE.test(host) ? der(0x82, Buffer.from(host.toLowerCase(), 'ascii')) : null;
 }
 
-/** 去重、去掉认不出的值；一个都没有时写入 localhost，SAN 不能为空。 */
+/** Deduplicates and drops unrecognized values; writes localhost when none remain, since the SAN cannot be empty. */
 export function normalizeCertificateHosts(hosts: readonly string[]): string[] {
   const seen = new Set<string>();
   for (const raw of hosts) {
@@ -142,24 +142,24 @@ export function normalizeCertificateHosts(hosts: readonly string[]): string[] {
   return seen.size > 0 ? [...seen] : ['localhost'];
 }
 
-// ---- 生成与读取 ----
+// ---- Generation and loading ----
 
 export function generatePanelCertificate(hosts: readonly string[], now = new Date()): { certPem: string; keyPem: string } {
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
   const spki = publicKey.export({ type: 'spki', format: 'der' });
-  // 序列号：16 字节随机数，最高位清零保证为正。
+  // Serial number: 16 random bytes with the top bit cleared so it is positive.
   const serial = crypto.randomBytes(16);
   serial[0] = (serial[0]! & 0x7f) | 0x01;
   const signatureAlgorithm = sequence(oid(OID_ECDSA_SHA256));
   const name = sequence(set(sequence(oid(OID_COMMON_NAME), utf8String('Mystry Dashboard'))));
-  // 起始时间往前拨一小时，容忍设备之间的时钟误差。
+  // The start time is moved back one hour to tolerate clock skew between devices.
   const notBefore = new Date(Math.floor(now.getTime() / 1000) * 1000 - 60 * 60 * 1000);
   const notAfter = new Date(Math.floor(now.getTime() / 1000) * 1000 + CERTIFICATE_VALID_DAYS * DAY_MS);
   const names = normalizeCertificateHosts(hosts).map((host) => generalName(host)!);
   const extensions = sequence(
-    // CA:false：空 SEQUENCE，cA 取默认值 FALSE。
+    // CA:false: an empty SEQUENCE, with cA taking its default value FALSE.
     extension(OID_BASIC_CONSTRAINTS, true, sequence()),
-    // digitalSignature（第 0 位），ECDHE 握手只需要它。
+    // digitalSignature (bit 0), the only one an ECDHE handshake needs.
     extension(OID_KEY_USAGE, true, bitString(Buffer.from([0x80]), 7)),
     extension(OID_EXT_KEY_USAGE, false, sequence(oid(OID_SERVER_AUTH))),
     extension(OID_SUBJECT_KEY_ID, false, octetString(crypto.createHash('sha1').update(spki).digest())),
@@ -184,7 +184,7 @@ export function generatePanelCertificate(hosts: readonly string[], now = new Dat
   };
 }
 
-/** 从 subjectAltName 文本（如 "IP Address:192.168.1.2, DNS:mc.example.com"）取出地址和域名。 */
+/** Extracts addresses and domain names from subjectAltName text (such as "IP Address:192.168.1.2, DNS:mc.example.com"). */
 function parseSubjectAltName(value: string | undefined): string[] {
   if (!value) return [];
   return value
@@ -208,7 +208,7 @@ export function panelCertificatePaths(dataDir = config.dataDir): { dir: string; 
   return { dir, key: path.join(dir, 'panel.key'), cert: path.join(dir, 'panel.crt') };
 }
 
-/** 读出磁盘上的证书；缺失、读不出、私钥不匹配、已过期或快过期时返回 null。 */
+/** Loads the certificate from disk; returns null when it is missing, unreadable, mismatched with the private key, expired or about to expire. */
 function readUsableCertificate(paths: { key: string; cert: string }, now: Date): PanelCertificate | null {
   try {
     const certPem = fs.readFileSync(paths.cert, 'utf8');
@@ -223,7 +223,7 @@ function readUsableCertificate(paths: { key: string; cert: string }, now: Date):
   }
 }
 
-/** 只读：给状态接口显示指纹和有效期，不生成。 */
+/** Read-only: shows the fingerprint and validity for the status endpoint without generating anything. */
 export function readPanelCertificateInfo(dataDir = config.dataDir): PanelCertificateInfo | null {
   try {
     return describeCertificate(fs.readFileSync(panelCertificatePaths(dataDir).cert, 'utf8'));
@@ -233,8 +233,8 @@ export function readPanelCertificateInfo(dataDir = config.dataDir): PanelCertifi
 }
 
 /**
- * 取得面板证书：能用就复用（指纹不变，浏览器不用重新确认），否则在本机重新生成。
- * hosts 只在生成时写入 SAN；已有证书不因地址变化而重新生成。
+ * Gets the panel certificate: reused when usable (the fingerprint stays the same, so the browser does not need to confirm again), otherwise regenerated locally.
+ * hosts are written into the SAN only at generation time; an existing certificate is not regenerated because addresses changed.
  */
 export function loadOrCreatePanelCertificate(
   hosts: readonly string[],
@@ -248,7 +248,7 @@ export function loadOrCreatePanelCertificate(
   }
   const generated = generatePanelCertificate(hosts, now);
   ensureSecureDirectory(paths.dir);
-  // 先写私钥再写证书：中途失败时留下的是「没有证书」，下次会整对重新生成。
+  // Write the private key before the certificate: a failure midway leaves "no certificate", and the pair is regenerated next time.
   writeFileAtomic(paths.key, generated.keyPem);
   forceSecureSensitiveFile(paths.key);
   writeFileAtomic(paths.cert, generated.certPem);

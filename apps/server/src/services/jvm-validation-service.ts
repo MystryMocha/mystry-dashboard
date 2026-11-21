@@ -25,14 +25,14 @@ export function serverJvmValidationContext(
   };
 }
 
-/** 保存和启动前使用同一套共享规则，并将合法参数规范化后落库。 */
+/** The same shared rules are used before saving and before starting, and valid arguments are normalized before being stored. */
 export function normalizeAndAssertJvmArgs(
   value: string,
   input: ServerJvmValidationInput = {},
 ): string {
   const issue = firstJvmValidationIssue(value, serverJvmValidationContext(input));
   if (issue) {
-    // 第一条错误诊断直接作为可翻译错误抛出，文本与诊断一致；没有键的诊断保留原文。
+    // The first error diagnostic is thrown directly as a translatable error, with the same text as the diagnostic; diagnostics without a key keep their original text.
     if (issue.key) throw new PanelError(issue.key, issue.params);
     throw new Error(issue.message);
   }

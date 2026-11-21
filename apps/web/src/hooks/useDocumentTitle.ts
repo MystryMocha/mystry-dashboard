@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { useI18n } from '../i18n';
 
-/** 品牌名不翻译；没有页面名时浏览器标签只显示它。 */
+/** The brand name is not translated; when there is no page name the browser tab shows only it. */
 export const APP_TITLE = 'Mystry Dashboard';
 
 /**
- * 按「页面名 · Mystry Dashboard」设置浏览器标签标题，让读屏和多标签用户分清当前页面。
- * 传入的页面名应已按当前语言翻译；切换语言后调用方重新渲染，标题随之更新。
- * 同一时刻只应有一个组件为当前路由设置标题，见 App.tsx 的 RouteAnnouncer。
+ * Sets the browser tab title as "page name · Mystry Dashboard", so screen reader and multi-tab users can tell the current page.
+ * The page name passed in should already be translated into the current language; after a language switch the caller re-renders and the title updates with it.
+ * Only one component should set the title for the current route at any time; see RouteAnnouncer in App.tsx.
  */
 export function useDocumentTitle(page: string | null | undefined): void {
   const { t } = useI18n();

@@ -3,13 +3,13 @@ import { Eye, EyeOff } from 'lucide-react';
 import { useI18n } from '../i18n';
 
 export interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
-  /** 紧跟在输入框后面渲染的内容。登录页的浮动标签靠「input + label」相邻选择器定位，要从这里放进来。 */
+  /** Content rendered right after the input. The login page's floating label is positioned with the "input + label" adjacent selector and has to be passed in here. */
   after?: ReactNode;
 }
 
 /**
- * 带「显示 / 隐藏」按钮的密码框。默认隐藏；始终允许粘贴。
- * 放在 .field 外面时自己加 className="input"。
+ * A password box with a "show / hide" button. Hidden by default; pasting is always allowed.
+ * Add className="input" yourself when placing it outside .field.
  */
 export function PasswordInput({ after, className, disabled, ...rest }: PasswordInputProps) {
   const { t } = useI18n();
@@ -17,7 +17,7 @@ export function PasswordInput({ after, className, disabled, ...rest }: PasswordI
   return (
     <span className="input-affix has-affix-button">
       <input
-        // 明文显示时不要让浏览器拼写检查和自动大写去动密码。
+        // While shown in plain text, keep the browser's spell check and auto-capitalization away from the password.
         spellCheck={false}
         autoCapitalize="off"
         autoCorrect="off"
@@ -33,7 +33,7 @@ export function PasswordInput({ after, className, disabled, ...rest }: PasswordI
         aria-label={t(visible ? 'common.password.hide' : 'common.password.show')}
         aria-pressed={visible}
         disabled={disabled}
-        // 按下时不让输入框失焦：否则点一下「显示」就算离开过这个字段，还没输完的密码会提前报错。
+        // Do not let the input blur on press: otherwise one click on "show" would count as having left the field, and an unfinished password would report an error early.
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => setVisible((prev) => !prev)}
       >
