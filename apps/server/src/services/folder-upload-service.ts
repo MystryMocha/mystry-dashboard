@@ -142,7 +142,6 @@ async function writeUploadedFile(
   relative: string,
   input: Readable & { truncated?: boolean },
 ): Promise<void> {
-  const target = resolveSafePath(session.dir, relative);
   let fileBytes = 0;
   let idleTimer: NodeJS.Timeout | null = null;
   let timedOut = false;
@@ -162,6 +161,8 @@ async function writeUploadedFile(
   });
 
   try {
+    // 路径检查也放在这里面：上一级已经是文件时，Linux 上检查本身就报 ENOTDIR（Windows 报 ENOENT，到建目录时才报错）。
+    const target = resolveSafePath(session.dir, relative);
     await fs.promises.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
     armIdleTimer();
     await pipeline(input, counter, fs.createWriteStream(target, { flags: 'wx', mode: 0o600 }));
