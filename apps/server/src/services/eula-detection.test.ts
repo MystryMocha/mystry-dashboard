@@ -3,7 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { eulaFileFingerprint, hasAcceptedEula, isEulaAcceptedText } from './eula-detection.js';
+
+// eula-detection reaches config through the path helpers, and config refuses to load without these secrets (CI has no .env).
+process.env.JWT_SECRET = 'a'.repeat(64);
+process.env.SETUP_TOKEN = 'b'.repeat(64);
+process.env.LAUNCHER_TOKEN = 'c'.repeat(64);
+const { eulaFileFingerprint, hasAcceptedEula, isEulaAcceptedText } = await import('./eula-detection.js');
 
 test('eula.txt counts as accepted only where the server itself would read acceptance', () => {
   const accepted = [
