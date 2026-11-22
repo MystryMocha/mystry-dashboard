@@ -5,12 +5,13 @@ import { resolveSafePath } from '../utils/path.js';
 export const MAX_EULA_FILE_BYTES = 64 * 1024;
 
 /**
- * Whether eula.txt text records acceptance the way the server itself reads it: java.util.Properties, the last `eula` key wins, and
- * Boolean.parseBoolean on the value, so `true` in any case but nothing around it. A recorded acceptance makes the panel write
- * eula=true on every start, so anything the server would not take as accepted must count as not accepted here, or the panel would
- * accept the EULA on the user's behalf.
+ * Whether eula.txt text records acceptance, read as java.util.Properties and Boolean.parseBoolean would: the last `eula` key wins,
+ * and its value is `true` in any case with nothing around it. When this says yes the import page stops asking, so a file the server
+ * might read differently must count as not accepted: otherwise the user is not asked and the server then refuses to start.
  */
 export function isEulaAcceptedText(text: string): boolean {
+  // Properties joins a line ending in a backslash to the next one and unescapes values; such files are not the plain one the server writes.
+  if (text.includes('\\')) return false;
   let value: string | null = null;
   for (const rawLine of text.split(/\r\n|\r|\n/)) {
     const line = rawLine.replace(/^[ \t\f]+/, '');

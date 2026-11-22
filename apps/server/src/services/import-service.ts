@@ -21,7 +21,6 @@ import {
 import { assertUploadPath, removeUploadTemp } from './upload-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { safeExtract } from './zip-service.js';
-import { hasAcceptedEula } from './eula-detection.js';
 import { PanelError, throwIfAborted } from '../utils/errors.js';
 
 /** If there is only a single directory level after extraction, moves its content up into the instance root. */
@@ -115,8 +114,7 @@ export async function importZipPackage(options: {
           mcVersion: options.mcVersion?.trim() || launchTarget.mcVersion || undefined,
           jarFile: launchTarget.value,
           jvmArgs: options.jvmArgs,
-          // A server that already agreed in its own eula.txt keeps that agreement: recording it keeps the instance settings in line with the file.
-          acceptEula: Boolean(options.acceptEula) || hasAcceptedEula(dir),
+          acceptEula: options.acceptEula,
           javaRuntimeId: options.javaRuntimeId ?? null,
         });
         completed = true;

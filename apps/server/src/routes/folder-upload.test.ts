@@ -194,7 +194,7 @@ test('browser folder upload endpoints', async (t) => {
     assert.equal((await get(upload.id)).statusCode, 404);
   });
 
-  await t.test('a server that agreed in its own eula.txt keeps that agreement without being asked again, and the import does not rewrite the file', async () => {
+  await t.test('a server that agreed in its own eula.txt is not asked again, and its file stays as it was', async () => {
     const eulaText = '#By changing the setting below to TRUE you are indicating your agreement to our EULA.\neula=TRUE\n';
     const parts = [
       { path: 'server.jar', content: 'fake jar' },
@@ -221,8 +221,9 @@ test('browser folder upload endpoints', async (t) => {
     assert.equal(task.status, 'completed', task.error);
     const instanceId = task.result?.instanceId as string;
     assert.equal(fs.readFileSync(path.join(defaultInstanceDir(instanceId), 'eula.txt'), 'utf8'), eulaText);
+    // The panel does not take the agreement over, so it never rewrites that file on start either.
     const instance = await app.inject({ method: 'GET', url: `/api/instances/${instanceId}`, headers: authorization });
-    assert.equal(instance.json<{ acceptEula: boolean }>().acceptEula, true);
+    assert.equal(instance.json<{ acceptEula: boolean }>().acceptEula, false);
   });
 
   await t.test('the whole upload is voided on a bad path, a duplicate, a missing path or exceeding what was declared', async () => {

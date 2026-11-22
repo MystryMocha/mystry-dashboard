@@ -25,6 +25,8 @@ test('eula.txt counts as accepted only where the server itself would read accept
     'eulas=true\n',
     '﻿eula=true\n',
     'eula=true\neula=false\n',
+    // A trailing backslash joins the next line into this value, so Java does not see eula=true here.
+    'note=see \\\neula=true\n',
   ];
   for (const text of accepted) assert.equal(isEulaAcceptedText(text), true, JSON.stringify(text));
   for (const text of rejected) assert.equal(isEulaAcceptedText(text), false, JSON.stringify(text));

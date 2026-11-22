@@ -473,19 +473,18 @@ export async function runServerFolderImport(
     report(95, { key: 'server.imports.progress.writingInstance' });
     throwIfAborted(signal);
     promoteTaskStagingToInstance(taskId, instanceId);
-    const instanceRoot = path.join(config.instancesDir, instanceId);
     registerPromotedInstance(instanceId, {
       name: input.name.trim(),
       coreType: resolveImportedCoreType(input.coreType, copiedLaunchTarget.coreType),
       mcVersion: input.mcVersion?.trim() || copiedLaunchTarget.mcVersion || undefined,
       jarFile: copiedLaunchTarget.value,
       jvmArgs: input.jvmArgs,
-      // A server that already agreed in its own eula.txt keeps that agreement: recording it keeps the instance settings in line with the file.
-      acceptEula: Boolean(input.acceptEula) || hasAcceptedEula(instanceRoot),
+      acceptEula: input.acceptEula,
       javaRuntimeId: input.javaRuntimeId ?? null,
     });
     completed = true;
     if (input.acceptEula) {
+      const instanceRoot = path.join(config.instancesDir, instanceId);
       fs.writeFileSync(resolveSafePath(instanceRoot, 'eula.txt'), 'eula=true\n', 'utf8');
     }
 

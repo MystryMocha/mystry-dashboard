@@ -187,8 +187,8 @@ test('ZIP import preview enforces the owner, capacity, expiry, restart and confi
     const instanceId = completed?.result?.instanceId as string;
     const { getInstance } = await import('./instance-service.js');
     const { defaultInstanceDir } = await import('../utils/path.js');
-    assert.equal(getInstance(instanceId)?.acceptEula, true);
-    // Importing does not rewrite the server's own file.
+    // The panel does not take the agreement over: the server's own file stays as it was and stays in charge.
+    assert.equal(getInstance(instanceId)?.acceptEula, false);
     assert.equal(fs.readFileSync(path.join(defaultInstanceDir(instanceId), 'eula.txt'), 'utf8'), eulaText);
   });
 

@@ -331,7 +331,7 @@ In both kinds of import request, an omitted or `custom` `coreType` means auto-de
 
 Stop the original server before submitting. Pre-copy checks and limits are in [Copy from imports](user-guide.md#copy-from-imports). The source directory is never deleted, whether the task succeeds or fails; on failure the newly created, half-finished instance is cleaned up.
 
-When a regular `eula.txt` in the directory root records acceptance, the source info includes `eulaAccepted: true`; Web then hides the EULA checkbox, and importing records the agreement on the instance (`acceptEula: true`) even when the request leaves `acceptEula` out. When a regular `user_jvm_args.txt` exists in the directory root, the source info can include `detectedJvmConfig`. The file is at most 64 KiB; files in subdirectories are not read, links are not followed, and `.bat` / `.sh` are neither parsed nor executed. Once arguments are detected, Web automatically fills `canonicalArgs` into the JVM configurator and shows a notice; the user can cancel (restoring the previous arguments) or reapply, and only `jvmArgs` is sent on submit. When parsing fails, `canonicalArgs` is `null` and nothing is adopted. Each item of `issues[]` has a stable `code`, a `severity` and an English `message`; diagnostics produced by the shared JVM validation also carry `key` (`server.jvm.issue.*`) and `params` for the UI to translate.
+When a regular `eula.txt` in the directory root records acceptance, the source info includes `eulaAccepted: true` and Web hides the EULA checkbox. The import does not record it as `acceptEula`, so the panel leaves that file to the server and never rewrites it. When a regular `user_jvm_args.txt` exists in the directory root, the source info can include `detectedJvmConfig`. The file is at most 64 KiB; files in subdirectories are not read, links are not followed, and `.bat` / `.sh` are neither parsed nor executed. Once arguments are detected, Web automatically fills `canonicalArgs` into the JVM configurator and shows a notice; the user can cancel (restoring the previous arguments) or reapply, and only `jvmArgs` is sent on submit. When parsing fails, `canonicalArgs` is `null` and nothing is adopted. Each item of `issues[]` has a stable `code`, a `severity` and an English `message`; diagnostics produced by the shared JVM validation also carry `key` (`server.jvm.issue.*`) and `params` for the UI to translate.
 
 ### Two-Phase ZIP Import
 
@@ -344,7 +344,7 @@ Content-Type: multipart/form-data
 file=<server.zip>
 ```
 
-The server streams it into a controlled temp directory and validates the ZIP central directory, entry quotas, ZIP64, links/special files and duplicate entries; beyond that, it extracts only `user_jvm_args.txt` and `eula.txt` from the root or a single top-level directory, each up to 64 KiB. `eulaAccepted: true` is present only when that `eula.txt` records acceptance the way the server reads it (the last `eula` key, value `true` in any case with nothing around it). A successful response:
+The server streams it into a controlled temp directory and validates the ZIP central directory, entry quotas, ZIP64, links/special files and duplicate entries; beyond that, it extracts only `user_jvm_args.txt` and `eula.txt` from the root or a single top-level directory, each up to 64 KiB. `eulaAccepted: true` is present only when that `eula.txt` plainly records acceptance: the last `eula` key has the value `true` (in any case, with nothing around it), and the file contains no backslash. A successful response:
 
 ```json
 {

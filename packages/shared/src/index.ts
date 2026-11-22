@@ -319,7 +319,7 @@ export interface ExistingServerSourceInfo {
   ready: boolean;
   /** Arguments detected from user_jvm_args.txt; omitted when the file does not exist. */
   detectedJvmConfig?: DetectedJvmConfig;
-  /** True when the server's own eula.txt already records acceptance; the import then keeps it and does not ask again. Omitted otherwise. */
+  /** True when the server's own eula.txt already records acceptance; the import page then does not ask again and the file is left as it is. Omitted otherwise. */
   eulaAccepted?: boolean;
   /** English description (why it cannot be imported, or a precheck hint); the original text for system errors that cannot be classified. */
   error?: string;

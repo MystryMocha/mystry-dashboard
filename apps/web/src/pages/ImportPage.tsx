@@ -120,7 +120,7 @@ export function ImportPage() {
   // The "Edit Settings" collapsible section: collapsed by default, auto-expanded when it contains a problem to handle (once per source; the user can still collapse it afterwards).
   const [settingsOpen, setSettingsOpen] = useState(false);
   const autoOpenedForRef = useRef<string | null>(null);
-  // The EULA must be checked by the user; when the server's own eula.txt already records acceptance the box is not shown, and the import keeps that record.
+  // The EULA must be checked by the user; when the server's own eula.txt already records acceptance the box is not shown, and that file is left as it is.
   const [acceptEula, setAcceptEula] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<TaskInfo | null>(null);
@@ -213,7 +213,7 @@ export function ImportPage() {
   const detectedJvmConfig = mode === 'directory'
     ? selectedSource?.detectedJvmConfig
     : mode === 'zip' ? preview?.detectedJvmConfig : folderCheck?.detectedJvmConfig;
-  // The server already agreed in its own eula.txt: the import keeps that record, so the page does not ask again.
+  // The server already agreed in its own eula.txt and keeps reading that file, so the page does not ask again.
   const sourceEulaAccepted = (mode === 'directory'
     ? selectedSource?.eulaAccepted
     : mode === 'zip' ? preview?.eulaAccepted : folderCheck?.eulaAccepted) === true;

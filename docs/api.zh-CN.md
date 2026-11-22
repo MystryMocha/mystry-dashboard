@@ -331,7 +331,7 @@ Authorization: Bearer <token>
 
 提交前应停止原服务器。复制前的检查与限制见 [从 imports 文件夹复制](user-guide.zh-CN.md#从-imports-文件夹复制)。无论成功与否，源目录均不会被删除；失败时清理新建的半成品实例。
 
-目录根部的普通文件 `eula.txt` 已记录同意时，来源信息包含 `eulaAccepted: true`；Web 随之隐藏 EULA 勾选框；即使请求未带 `acceptEula`，导入时也在实例上记录该同意（`acceptEula: true`）。目录根部存在普通文件 `user_jvm_args.txt` 时，来源信息可包含 `detectedJvmConfig`。该文件最大 64 KiB；不读取子目录中的文件，不跟随链接，也不解析或执行 `.bat` / `.sh`。检测到参数后，Web 自动将 `canonicalArgs` 填入 JVM 配置器并给出提示，用户可取消（恢复为沿用前的参数）或重新应用；提交时仍只发送 `jvmArgs`。解析失败时 `canonicalArgs` 为 `null`，不予沿用。`issues[]` 每项含稳定的 `code`、`severity` 与英文 `message`；共享 JVM 校验产生的诊断另带 `key`（`server.jvm.issue.*`）与 `params`，供界面翻译。
+目录根部的普通文件 `eula.txt` 已记录同意时，来源信息包含 `eulaAccepted: true`，Web 随之隐藏 EULA 勾选框。导入不会将其记为 `acceptEula`，该文件始终交由服务端读取，面板不会改写。目录根部存在普通文件 `user_jvm_args.txt` 时，来源信息可包含 `detectedJvmConfig`。该文件最大 64 KiB；不读取子目录中的文件，不跟随链接，也不解析或执行 `.bat` / `.sh`。检测到参数后，Web 自动将 `canonicalArgs` 填入 JVM 配置器并给出提示，用户可取消（恢复为沿用前的参数）或重新应用；提交时仍只发送 `jvmArgs`。解析失败时 `canonicalArgs` 为 `null`，不予沿用。`issues[]` 每项含稳定的 `code`、`severity` 与英文 `message`；共享 JVM 校验产生的诊断另带 `key`（`server.jvm.issue.*`）与 `params`，供界面翻译。
 
 ### ZIP 二阶段导入
 
@@ -344,7 +344,7 @@ Content-Type: multipart/form-data
 file=<server.zip>
 ```
 
-服务端将其流式写入受控临时目录，并校验 ZIP 中央目录、条目配额、ZIP64、链接/特殊文件与重复条目；此外仅解压根目录或单一顶层目录中的 `user_jvm_args.txt` 与 `eula.txt`，各不超过 64 KiB。仅当该 `eula.txt` 按服务端的读法记录了同意（最后一个 `eula` 键，值为不区分大小写且前后无多余字符的 `true`）时，响应含 `eulaAccepted: true`。成功响应：
+服务端将其流式写入受控临时目录，并校验 ZIP 中央目录、条目配额、ZIP64、链接/特殊文件与重复条目；此外仅解压根目录或单一顶层目录中的 `user_jvm_args.txt` 与 `eula.txt`，各不超过 64 KiB。仅当该 `eula.txt` 明确记录了同意（最后一个 `eula` 键的值为不区分大小写、前后无多余字符的 `true`，且文件不含反斜杠）时，响应含 `eulaAccepted: true`。成功响应：
 
 ```json
 {

@@ -8,7 +8,7 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ### Changed
 
-- Importing a server whose own `eula.txt` already records acceptance no longer asks for the EULA again: the import page hides the checkbox and the summary says "Accepted", and the imported instance keeps the agreement, so its settings show the box checked. This holds for ZIP, folder upload and the imports folder alike.
+- Importing a server whose own `eula.txt` already records acceptance no longer asks for the EULA again: the import page hides the checkbox and the summary says "Accepted", and the panel leaves that file to the server. This holds for ZIP, folder upload and the imports folder alike.
 
 ### Removed
 

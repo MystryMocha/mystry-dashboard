@@ -231,7 +231,7 @@ The panel never changes or deletes the original folder or the copy in `imports`.
 | Core Type / Minecraft Version | In **Change Settings**. Optional; used for how the instance is shown and for the Java version hint. The panel still detects the launch file |
 | JVM Settings | In **Change Settings**. Uses the shared configurator. If the ZIP has a `user_jvm_args.txt`, it's applied automatically, and you can click **Cancel** |
 | Java Runtime | In **Change Settings**. Defaults to the system default Java; you can also choose another Java that the panel has found |
-| Minecraft EULA | When the original server's `eula.txt` already records acceptance, the checkbox is not shown: the summary says "Accepted", and the imported instance's settings keep the box checked. Otherwise it is unchecked by default, and when checked, `eula=true` is written at startup |
+| Minecraft EULA | When the original server's `eula.txt` already records acceptance, the checkbox is not shown and the summary says "Accepted"; the server reads that file itself, and the panel leaves it alone. Otherwise it is unchecked by default, and when checked, `eula=true` is written at startup |
 
 Importing takes two steps:
 
