@@ -6,6 +6,10 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Changed
+
+- Importing a server whose own `eula.txt` already records acceptance no longer asks for the EULA again: the import page hides the checkbox and the summary says "Accepted", and the imported instance keeps the agreement, so its settings show the box checked. This holds for ZIP, folder upload and the imports folder alike.
+
 ### Removed
 
 - The `knowledge:check` and `knowledge:test` scripts; `npm run verify` no longer runs them.

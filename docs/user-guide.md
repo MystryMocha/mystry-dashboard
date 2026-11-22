@@ -180,7 +180,7 @@ High resource use, an unverified Java version and too little memory for Paper ar
 
 The page offers three methods. Each copies the server into a new managed instance; none lets the instance run directly in the original folder.
 
-Until a source is ready, the page shows only the source column. Once the upload is checked (or a usable folder in imports is selected), **Import Settings** appears on the right (below on narrow screens): the instance name, the server the panel recognized (core and version), the Java and maximum memory it will use, and the EULA checkbox. The core type, Minecraft version, Java runtime and JVM settings are in **Change Settings**, which you don't need to open when the recognized values are right. **Change Settings** opens automatically when the Java version doesn't match, no usable Java is found, the JVM arguments have an error or warning, or `user_jvm_args.txt` can't be used, and closes again when you switch to another source. When the Minecraft version isn't known yet (for example with a ZIP, whose version is detected only during the import), the summary says the panel can't tell whether the Java fits; you can enter the version in **Change Settings**.
+Until a source is ready, the page shows only the source column. Once the upload is checked (or a usable folder in imports is selected), **Import Settings** appears on the right (below on narrow screens): the instance name, the server the panel recognized (core and version), the Java and maximum memory it will use, and the EULA checkbox (not shown when the server's own `eula.txt` already records acceptance; the summary says so instead). The core type, Minecraft version, Java runtime and JVM settings are in **Change Settings**, which you don't need to open when the recognized values are right. **Change Settings** opens automatically when the Java version doesn't match, no usable Java is found, the JVM arguments have an error or warning, or `user_jvm_args.txt` can't be used, and closes again when you switch to another source. When the Minecraft version isn't known yet (for example with a ZIP, whose version is detected only during the import), the summary says the panel can't tell whether the Java fits; you can enter the version in **Change Settings**.
 
 ### Upload a Folder
 
@@ -231,7 +231,7 @@ The panel never changes or deletes the original folder or the copy in `imports`.
 | Core Type / Minecraft Version | In **Change Settings**. Optional; used for how the instance is shown and for the Java version hint. The panel still detects the launch file |
 | JVM Settings | In **Change Settings**. Uses the shared configurator. If the ZIP has a `user_jvm_args.txt`, it's applied automatically, and you can click **Cancel** |
 | Java Runtime | In **Change Settings**. Defaults to the system default Java; you can also choose another Java that the panel has found |
-| Minecraft EULA | Unchecked by default. If the original server's `eula.txt` is already accepted, you can leave it unchecked. When checked, `eula=true` is written at startup |
+| Minecraft EULA | When the original server's `eula.txt` already records acceptance, the checkbox is not shown: the summary says "Accepted", and the imported instance's settings keep the box checked. Otherwise it is unchecked by default, and when checked, `eula=true` is written at startup |
 
 Importing takes two steps:
 

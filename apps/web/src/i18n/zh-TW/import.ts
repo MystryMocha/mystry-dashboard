@@ -93,6 +93,9 @@ export default {
   'import.summary.memoryValue': '最多 {value} GB',
   'import.summary.memoryCustom': '自訂 JVM 參數',
   'import.summary.memoryFromFile': '來自 {source}',
+  'import.summary.eula': 'EULA',
+  'import.summary.eulaAccepted': '已同意',
+  'import.summary.eulaFromFile': '沿用伺服器內附的 eula.txt',
 
   'import.error.notZip': '請選擇 ZIP 格式的伺服器壓縮檔。',
   'import.error.noSource': '請選擇一個可以匯入的資料夾',

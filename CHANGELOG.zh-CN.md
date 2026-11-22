@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 导入的服务端若自带的 `eula.txt` 已记录同意，不再要求重新同意 EULA：导入页不显示勾选框，摘要中注明「已同意」；导入后的实例沿用这一同意，实例设置中该项保持勾选。ZIP、上传文件夹与 imports 文件夹三种方式均适用。
+
 ### Removed
 
 - 移除 `knowledge:check` 与 `knowledge:test` 两个脚本，`npm run verify` 不再运行它们。

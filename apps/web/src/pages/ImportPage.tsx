@@ -120,7 +120,7 @@ export function ImportPage() {
   // The "Edit Settings" collapsible section: collapsed by default, auto-expanded when it contains a problem to handle (once per source; the user can still collapse it afterwards).
   const [settingsOpen, setSettingsOpen] = useState(false);
   const autoOpenedForRef = useRef<string | null>(null);
-  // The EULA must be checked by the user; when an existing server comes with its own acceptance record in eula.txt, it can stay unchecked.
+  // The EULA must be checked by the user; when the server's own eula.txt already records acceptance the box is not shown, and the import keeps that record.
   const [acceptEula, setAcceptEula] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState<TaskInfo | null>(null);
@@ -213,6 +213,10 @@ export function ImportPage() {
   const detectedJvmConfig = mode === 'directory'
     ? selectedSource?.detectedJvmConfig
     : mode === 'zip' ? preview?.detectedJvmConfig : folderCheck?.detectedJvmConfig;
+  // The server already agreed in its own eula.txt: the import keeps that record, so the page does not ask again.
+  const sourceEulaAccepted = (mode === 'directory'
+    ? selectedSource?.eulaAccepted
+    : mode === 'zip' ? preview?.eulaAccepted : folderCheck?.eulaAccepted) === true;
   function selectZip(selected: File | null) {
     if (busy || restoringPreview || !selected) return;
     if (!selected.name.toLowerCase().endsWith('.zip')) {
@@ -705,6 +709,15 @@ export function ImportPage() {
                         ) : null}
                       </dd>
                     </div>
+                    {sourceEulaAccepted ? (
+                      <div className="import-summary-row">
+                        <dt>{t('import.summary.eula')}</dt>
+                        <dd>
+                          {t('import.summary.eulaAccepted')}
+                          <span className="import-summary-note">{t('import.summary.eulaFromFile')}</span>
+                        </dd>
+                      </div>
+                    ) : null}
                   </dl>
 
                   {/*
@@ -776,7 +789,7 @@ export function ImportPage() {
                     </div>
                   </details>
 
-                  <EulaCheckbox checked={acceptEula} disabled={busy} onChange={setAcceptEula} />
+                  {!sourceEulaAccepted && <EulaCheckbox checked={acceptEula} disabled={busy} onChange={setAcceptEula} />}
                 </div>
               </section>
             </div>

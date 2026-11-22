@@ -319,6 +319,8 @@ export interface ExistingServerSourceInfo {
   ready: boolean;
   /** Arguments detected from user_jvm_args.txt; omitted when the file does not exist. */
   detectedJvmConfig?: DetectedJvmConfig;
+  /** True when the server's own eula.txt already records acceptance; the import then keeps it and does not ask again. Omitted otherwise. */
+  eulaAccepted?: boolean;
   /** English description (why it cannot be imported, or a precheck hint); the original text for system errors that cannot be classified. */
   error?: string;
   /** Message key and params for `error`, which Web uses to show it in the UI language; raw system error text does not have this field. */
@@ -334,7 +336,7 @@ export interface ExistingServerSourceListResult {
 /** Precheck result for a server folder: shared by the imports source and browser-uploaded folders. */
 export type ServerFolderCheck = Pick<
   ExistingServerSourceInfo,
-  'launchTarget' | 'coreType' | 'mcVersion' | 'ready' | 'detectedJvmConfig' | 'error' | 'errorI18n'
+  'launchTarget' | 'coreType' | 'mcVersion' | 'ready' | 'detectedJvmConfig' | 'eulaAccepted' | 'error' | 'errorI18n'
 >;
 
 /** Starts a server folder upload from the browser: the folder name, file count and total size are declared first, and the panel checks quota and free space against them. */
@@ -383,6 +385,8 @@ export interface ImportPreviewInfo {
   sizeBytes: number;
   expiresAt: string;
   detectedJvmConfig?: DetectedJvmConfig;
+  /** True when the package's own eula.txt (at the root, or in its single top-level folder) already records acceptance. */
+  eulaAccepted?: boolean;
 }
 
 export interface ConfirmZipImportInput {

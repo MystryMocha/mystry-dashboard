@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import type { ConfirmZipImportInput, ImportPreviewInfo, ServerMessageKey, TaskInfo } from '@mystry/shared';
 import { config } from '../config.js';
 import { importZipPackage } from './import-service.js';
-import { inspectZipJvmConfig } from './zip-service.js';
+import { inspectZipEulaAccepted, inspectZipJvmConfig } from './zip-service.js';
 import {
   assertImportPreviewUploadPath,
   removeUploadTemp,
@@ -130,6 +130,7 @@ export async function createImportPreview(input: {
 
   const zipPath = assertImportPreviewUploadPath(input.zipPath);
   const detectedJvmConfig = await inspectZipJvmConfig(zipPath);
+  const eulaAccepted = await inspectZipEulaAccepted(zipPath);
   const stat = fs.statSync(zipPath);
   const info: ImportPreviewInfo = {
     id: nanoid(32),
@@ -137,6 +138,7 @@ export async function createImportPreview(input: {
     sizeBytes: stat.size,
     expiresAt: new Date(now + config.importPreviewTtlSeconds * 1000).toISOString(),
     ...(detectedJvmConfig ? { detectedJvmConfig } : {}),
+    ...(eulaAccepted ? { eulaAccepted: true } : {}),
   };
   previews.set(info.id, { info, userId: input.userId, zipPath, state: 'available' });
   if (previous) removeEntry(previous);

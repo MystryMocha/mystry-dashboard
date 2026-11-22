@@ -18,6 +18,7 @@ import {
 import { registerPromotedInstance } from './instance-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { detectJvmConfigFile, jvmConfigFileFingerprint } from './jvm-detection-service.js';
+import { eulaFileFingerprint, hasAcceptedEula } from './eula-detection.js';
 import {
   describeJarLaunchTarget,
   detectJarFile,
@@ -46,6 +47,7 @@ type SourceScan = {
 type PrecheckCacheEntry = {
   mtimeMs: number;
   jvmFingerprint: string;
+  eulaFingerprint: string;
   info: ExistingServerSourceInfo;
 };
 
@@ -106,7 +108,11 @@ export function resolveExistingServerSource(sourceId: string): string {
 export async function precheckServerFolder(sourceDir: string): Promise<ServerFolderCheck> {
   const withJvmConfig = (check: ServerFolderCheck): ServerFolderCheck => {
     const detectedJvmConfig = detectJvmConfigFile(sourceDir, check.coreType);
-    return detectedJvmConfig ? { ...check, detectedJvmConfig } : check;
+    return {
+      ...check,
+      ...(detectedJvmConfig ? { detectedJvmConfig } : {}),
+      ...(hasAcceptedEula(sourceDir) ? { eulaAccepted: true } : {}),
+    };
   };
 
   if (fs.existsSync(resolveSafePath(sourceDir, OWNERSHIP_MARKER_FILE))) {
@@ -171,13 +177,19 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
     const sourceDir = resolveExistingServerSource(sourceId);
     const stat = fs.statSync(sourceDir);
     const jvmFingerprint = jvmConfigFileFingerprint(sourceDir);
+    const eulaFingerprint = eulaFileFingerprint(sourceDir);
     const cached = sourcePrecheckCache.get(sourceId);
-    if (cached && cached.mtimeMs === stat.mtimeMs && cached.jvmFingerprint === jvmFingerprint) {
+    if (
+      cached
+      && cached.mtimeMs === stat.mtimeMs
+      && cached.jvmFingerprint === jvmFingerprint
+      && cached.eulaFingerprint === eulaFingerprint
+    ) {
       return cached.info;
     }
     const check = await precheckServerFolder(sourceDir);
     const info: ExistingServerSourceInfo = { id: sourceId, ...check, modifiedAt: stat.mtime.toISOString() };
-    sourcePrecheckCache.set(sourceId, { mtimeMs: stat.mtimeMs, jvmFingerprint, info });
+    sourcePrecheckCache.set(sourceId, { mtimeMs: stat.mtimeMs, jvmFingerprint, eulaFingerprint, info });
     return info;
   } catch (error) {
     return { id: sourceId, ...failedServerFolderCheck(error), modifiedAt: new Date(0).toISOString() };
@@ -461,18 +473,19 @@ export async function runServerFolderImport(
     report(95, { key: 'server.imports.progress.writingInstance' });
     throwIfAborted(signal);
     promoteTaskStagingToInstance(taskId, instanceId);
+    const instanceRoot = path.join(config.instancesDir, instanceId);
     registerPromotedInstance(instanceId, {
       name: input.name.trim(),
       coreType: resolveImportedCoreType(input.coreType, copiedLaunchTarget.coreType),
       mcVersion: input.mcVersion?.trim() || copiedLaunchTarget.mcVersion || undefined,
       jarFile: copiedLaunchTarget.value,
       jvmArgs: input.jvmArgs,
-      acceptEula: input.acceptEula,
+      // A server that already agreed in its own eula.txt keeps that agreement: recording it keeps the instance settings in line with the file.
+      acceptEula: Boolean(input.acceptEula) || hasAcceptedEula(instanceRoot),
       javaRuntimeId: input.javaRuntimeId ?? null,
     });
     completed = true;
     if (input.acceptEula) {
-      const instanceRoot = path.join(config.instancesDir, instanceId);
       fs.writeFileSync(resolveSafePath(instanceRoot, 'eula.txt'), 'eula=true\n', 'utf8');
     }
 

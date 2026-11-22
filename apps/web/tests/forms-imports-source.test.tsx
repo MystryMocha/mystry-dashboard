@@ -121,6 +121,27 @@ test('imports: when empty it says what to do next; "Refresh" reads again, and a 
   expect(screen.queryByText(/imports 里还没有服务端/)).toBeNull();
 });
 
+test('imports: a server that agreed in its own eula.txt is not asked again, and the summary says the agreement is kept', async () => {
+  const user = userEvent.setup();
+  mountImport([{
+    body: {
+      importDir: IMPORT_DIR,
+      sources: [
+        { id: 'agreed', launchTarget: 'server.jar', coreType: 'paper', mcVersion: '1.21.1', eulaAccepted: true, ...base },
+        { id: 'fresh', launchTarget: 'server.jar', coreType: 'paper', mcVersion: '1.21.1', ...base },
+      ],
+    },
+  }]);
+
+  await waitFor(() => expect(radio('agreed').checked).toBe(true));
+  expect(await screen.findByText('沿用服务端自带的 eula.txt')).toBeTruthy();
+  expect(screen.queryByRole('checkbox', { name: /Minecraft EULA/ })).toBeNull();
+
+  await user.click(screen.getByText('fresh'));
+  expect(await screen.findByRole('checkbox', { name: /Minecraft EULA/ })).toBeTruthy();
+  expect(screen.queryByText('沿用服务端自带的 eula.txt')).toBeNull();
+});
+
 test('imports: on a read failure the reason is shown, not "no servers yet"', async () => {
   mountImport([{ status: 500, body: { error: 'Instance directory not found', messageI18n: { key: 'server.files.instanceDirNotFound' } } }]);
   expect(await screen.findByText(/无法读取导入文件夹/)).toBeTruthy();

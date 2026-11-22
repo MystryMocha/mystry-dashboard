@@ -93,6 +93,9 @@ export default {
   'import.summary.memoryValue': '最多 {value} GB',
   'import.summary.memoryCustom': '自定义 JVM 参数',
   'import.summary.memoryFromFile': '来自 {source}',
+  'import.summary.eula': 'EULA',
+  'import.summary.eulaAccepted': '已同意',
+  'import.summary.eulaFromFile': '沿用服务端自带的 eula.txt',
 
   'import.error.notZip': '请选择 ZIP 格式的服务端压缩包。',
   'import.error.noSource': '请选择一个可导入的文件夹',
