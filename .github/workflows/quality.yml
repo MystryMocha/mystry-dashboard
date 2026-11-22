@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   verify:
-    name: Knowledge and build verification
+    name: Linux verification
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
