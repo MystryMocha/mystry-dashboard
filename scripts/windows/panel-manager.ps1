@@ -35,10 +35,27 @@ Normalize-ProcessPath
 
 # UI language: MYSTRY_LANG first, then the Windows display language; Chinese on a Chinese system, English for everything else.
 # The result is written back to MYSTRY_LANG, so the controller and the live log window use the same language.
+# CurrentUICulture alone is not the display language: when the console code page is UTF-8 (65001), which mdash.cmd switches to,
+# Windows PowerShell reports en-US on a Chinese system. GetUserDefaultUILanguage does not depend on the console, so it is asked
+# whenever CurrentUICulture is not Chinese; if that lookup fails (Add-Type can be blocked), the answer stays English as before.
+function Test-ChineseDisplayLanguage {
+  if ([Globalization.CultureInfo]::CurrentUICulture.Name -match '^zh') { return $true }
+  try {
+    # The type stays defined for the session, so a second dot-source of this script must not add it again.
+    if (-not ('MystryDashboard.DisplayLanguage' -as [type])) {
+      Add-Type -Namespace MystryDashboard -Name DisplayLanguage -MemberDefinition '[DllImport("kernel32.dll")] public static extern ushort GetUserDefaultUILanguage();'
+    }
+    $languageId = [int][MystryDashboard.DisplayLanguage]::GetUserDefaultUILanguage()
+    return [Globalization.CultureInfo]::GetCultureInfo($languageId).Name -match '^zh'
+  } catch {
+    return $false
+  }
+}
+
 $script:Chinese = if ($env:MYSTRY_LANG) {
   $env:MYSTRY_LANG -match '^zh'
 } else {
-  [Globalization.CultureInfo]::CurrentUICulture.Name -match '^zh'
+  Test-ChineseDisplayLanguage
 }
 $env:MYSTRY_LANG = if ($script:Chinese) { 'zh-CN' } else { 'en-US' }
 

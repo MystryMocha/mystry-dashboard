@@ -17,6 +17,7 @@ This file records notable changes to the project. The format follows [Keep a Cha
 ### Fixed
 
 - On Windows computers with large PowerShell modules installed, as is common on servers, the CPU and memory of running servers on the overview could stay unavailable: the process query first had PowerShell analyze every installed module and ran past its time limit. It now loads only the two built-in modules it needs.
+- On a Chinese Windows, the source launcher (`mdash.cmd`) showed its menu and messages in English, including the first password that is shown only once: after `mdash.cmd` switches the console to UTF-8, Windows PowerShell reports its UI language as en-US. The launcher now reads the Windows display language instead.
 - The virtual LAN kept offering **Copy Join Instructions** after it had failed, and, without administrator rights, while the server was stopped, so players could be sent instructions that cannot work. **Let Players Join** is now hidden in those cases, and the failure is shown as an error. The messages for a virtual adapter that cannot be created and for firewall rules that cannot be added now give the steps.
 
 ## [0.2.0-preview.6] - 2026-11-22
