@@ -54,9 +54,11 @@ const RESTORE_PREVIOUS_DIR = '.mystry-restore-previous';
 const RESTORE_FREE_SPACE_MARGIN_BYTES = 64 * 1024 * 1024;
 /**
  * The message the server itself prints once save-all flush completes: Saved the game since 1.13, Saved the world in 1.12 and earlier.
+ * Paper 26.3 prints it as `System chat: Saved the game` (other 26.x servers not checked); without accepting that prefix every
+ * backup of a running Paper 26.3 server waited out the timeout and was cancelled.
  * Only the whole message after the log prefix is compared, so player chat (`<Steve> Saved the game`) is not taken as save complete.
  */
-const SAVE_CONFIRM_MESSAGE = /^(?:Saved the (?:game|world)|All dimensions are saved)\.?$/i;
+const SAVE_CONFIRM_MESSAGE = /^(?:System chat: )?(?:Saved the (?:game|world)|All dimensions are saved)\.?$/i;
 /** Separator between the log line prefix and the message: Vanilla/Forge `[..] [Server thread/INFO]: `, Paper `[.. INFO]: `. */
 const LOG_MESSAGE_SEPARATOR = ']: ';
 const ANSI_ESCAPE = /\x1b\[[0-9;?]*[A-Za-z]/g;
