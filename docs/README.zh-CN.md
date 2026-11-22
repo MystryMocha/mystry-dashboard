@@ -49,4 +49,4 @@ npm.cmd run knowledge:check
 npm.cmd run knowledge:test
 ```
 
-Linux/macOS 脚本名相同，将 `npm.cmd` 换为 `npm` 即可。检查器校验机器事实与本地 Markdown 链接目标是否存在，不校验标题锚点、外部链接可用性或真实用户流程。提交前还须按 [验证矩阵](ai/verification.md) 运行 `npm.cmd run verify`。
+Linux/macOS 脚本名相同，将 `npm.cmd` 换为 `npm` 即可。检查器校验机器事实与本地 Markdown 链接目标是否存在，不校验标题锚点、外部链接可用性或真实用户流程。完整的 `npm run verify` 由每个 PR 上的 Quality Gate 运行，其余检查按 [验证矩阵](ai/verification.md) 选用。

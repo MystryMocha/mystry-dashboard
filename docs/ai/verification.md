@@ -24,7 +24,7 @@ npm.cmd run build
 npm.cmd run audit:production
 ```
 
-完整门禁（推送前运行，远程 Quality Gate 也会在推送和 PR 上运行；提交前不必每次单独跑，只跑和改动相关的检查）：
+完整门禁（由 PR 上的 Quality Gate 在 Linux 与 Windows 上运行，见「远程 CI」；提交和推送前只跑和改动相关的检查，需要在本机复现门禁时再运行）：
 
 ```powershell
 npm.cmd run verify
@@ -57,7 +57,7 @@ npm.cmd run test:smoke
 
 | 变更 | 最低自动验证 | 额外人工验证 |
 |---|---|---|
-| 纯知识库或文档 | `knowledge:check`、`knowledge:test`；推送前 `verify` | 标题锚点、阅读路径和事实源可读 |
+| 纯知识库或文档 | `knowledge:check`、`knowledge:test` | 标题锚点、阅读路径和事实源可读 |
 | npm 下载源或锁文件 | `lockfile:check`、`mirror:test`、`windows:test`、`linux:test` | 用小包实测所选下载源能完成 `npm ci` |
 | shared 类型/schema | shared build、typecheck、build | 请求与响应兼容 |
 | 服务端路由/认证 | typecheck、安全自检、`test:smoke`、build | health、setup/login、授权失败 |

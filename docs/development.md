@@ -98,7 +98,7 @@ Output: `packages/shared/dist/`. Add fields shared by the frontend and backend h
 
 ## Local Verification Checklist
 
-Before committing, run the checks related to your change; before pushing, run the full `npm.cmd run verify`; the Quality Gate runs it again on your pull request. The full gate does not include the production dependency audit; dependency changes and releases also need `npm.cmd run audit:production`. Choose the manual items below by the scope of the change and use separate test data; database drills use copies only. Passing automated checks is no substitute for verifying real interaction.
+Before committing or pushing, run the checks related to your change; the Quality Gate runs the full `npm run verify` on Linux and Windows for your pull request. To reproduce the gate locally, run `npm.cmd run verify`. The full gate does not include the production dependency audit; dependency changes and releases also need `npm.cmd run audit:production`. Choose the manual items below by the scope of the change and use separate test data; database drills use copies only. Passing automated checks is no substitute for verifying real interaction.
 
 - [ ] `npm run knowledge:check` and `npm run knowledge:test` report no errors
 - [ ] `npm run test:smoke` after `npm run build -w @mystry/shared` (already included in `verify`; it does not start Minecraft or use `data/` in the repository)

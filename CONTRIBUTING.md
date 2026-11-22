@@ -65,7 +65,7 @@ The Chinese terminology table and punctuation rules are in the [Chinese version 
 
 Before opening a PR, check for yourself:
 
-- [ ] `npm.cmd run verify` passes (use `npm run verify` on Linux/macOS)
+- [ ] The checks related to your change pass; the Quality Gate runs the full `npm run verify` on Linux and Windows once the PR is open
 - [ ] If the API changed, [docs/api.md](docs/api.md) and its Chinese copy are updated
 - [ ] If configuration options changed, `.env.example` and [docs/configuration.md](docs/configuration.md) are updated
 - [ ] Related flows were verified manually (sign-in / deploy / console / files, etc.)

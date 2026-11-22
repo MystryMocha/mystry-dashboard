@@ -57,7 +57,7 @@
 3. 面向用户的文档有英文和简体中文两份：`docs/README.md`、`getting-started.md`、`user-guide.md`、`tutorials.md`、`configuration.md`、`portable-release.md` 是英文，同名的 `*.zh-CN.md` 是中文。改其中一份必须同步另一份；英文里的界面名称以 `apps/web/src/i18n/en/*.ts` 的实际文案为准，中文文档之间互相链接 `*.zh-CN.md`，英文文档之间链接英文版。`api.md`、`architecture.md`、`development.md` 目前只有中文。
 4. 历史审查、计划和验证结果保留日期与适用范围；不把分支提交数、远程发布状态或旧审计结果写成长期有效事实。
 5. Windows 示例使用 `npm.cmd` 与 `.\mdash.cmd`；配置模板复制仅用于首次配置，不引导覆盖已有文件。
-6. 运行 `knowledge:check` 与 `knowledge:test`，额外核对标题锚点和阅读路径；推送前运行完整 `verify`。配置、路由、脚本或 AI 入口变化时同步机器事实。
+6. 运行 `knowledge:check` 与 `knowledge:test`，额外核对标题锚点和阅读路径；完整 `verify` 由 PR 上的 Quality Gate 运行。配置、路由、脚本或 AI 入口变化时同步机器事实。
 
 ## 完成声明
 

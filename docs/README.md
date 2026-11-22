@@ -49,4 +49,4 @@ npm.cmd run knowledge:check
 npm.cmd run knowledge:test
 ```
 
-On Linux/macOS the script names are the same; use `npm` instead of `npm.cmd`. The checker verifies the machine facts and that local Markdown link targets exist, but not heading anchors, external links or real user flows. Before committing, you must also run `npm.cmd run verify` as described in the [verification matrix](ai/verification.md) (Chinese).
+On Linux/macOS the script names are the same; use `npm` instead of `npm.cmd`. The checker verifies the machine facts and that local Markdown link targets exist, but not heading anchors, external links or real user flows. The full `npm run verify` runs in the Quality Gate on every pull request; choose other checks by the [verification matrix](ai/verification.md) (Chinese).

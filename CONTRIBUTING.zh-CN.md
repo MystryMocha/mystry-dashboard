@@ -83,7 +83,7 @@ Web 界面支持英文（默认）、简体中文与繁體中文，规则如下�
 
 提交 PR 前请自行确认：
 
-- [ ] `npm.cmd run verify` 通过（Linux/macOS 使用 `npm run verify`）
+- [ ] 与改动相关的检查已通过；PR 开启后，Quality Gate 将在 Linux 与 Windows 上运行完整的 `npm run verify`
 - [ ] 若改动 API，已更新 [docs/api.zh-CN.md](docs/api.zh-CN.md) 及其英文版
 - [ ] 若改动配置项，已更新 `.env.example` 与 [docs/configuration.zh-CN.md](docs/configuration.zh-CN.md)
 - [ ] 已手动验证相关流程（登录 / 部署 / 控制台 / 文件等）

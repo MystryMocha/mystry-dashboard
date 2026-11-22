@@ -98,7 +98,7 @@ npm run build -w @mystry/shared
 
 ## 本地验证清单
 
-提交前运行与改动相关的检查；推送前运行完整的 `npm.cmd run verify`，PR 上的 Quality Gate 将再次运行。完整门禁不含生产依赖审计，依赖变更与发布须另行运行 `npm.cmd run audit:production`。以下人工检查项按改动范围选用，并使用独立的测试数据；数据库演练仅使用副本。自动检查通过不能替代真实交互验证。
+提交与推送前运行与改动相关的检查；完整的 `npm run verify` 由 PR 上的 Quality Gate 在 Linux 与 Windows 上运行，如需在本机复现，运行 `npm.cmd run verify`。完整门禁不含生产依赖审计，依赖变更与发布须另行运行 `npm.cmd run audit:production`。以下人工检查项按改动范围选用，并使用独立的测试数据；数据库演练仅使用副本。自动检查通过不能替代真实交互验证。
 
 - [ ] `npm run knowledge:check` 与 `npm run knowledge:test` 无错误
 - [ ] `npm run build -w @mystry/shared` 后运行 `npm run test:smoke`（已包含在 `verify` 中；不启动 Minecraft，不使用仓库内的 `data/`）

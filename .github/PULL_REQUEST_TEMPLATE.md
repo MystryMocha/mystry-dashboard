@@ -14,7 +14,7 @@
 
 <!-- How did you verify these changes? -->
 
-- [ ] `npm run verify` passes
+- [ ] Checks related to this change pass (the Quality Gate runs the full `npm run verify`)
 - [ ] Related flows verified manually (please describe)
 
 <!-- List separately: implemented, verified, unverified, and remaining risks or warnings -->

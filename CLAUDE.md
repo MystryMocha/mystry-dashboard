@@ -102,13 +102,13 @@ Linux/macOS 使用相同脚本名，入口为 `npm run ...`。推送到 `main` �
 
 ## 验证与交付
 
-按 [`verification.md`](docs/ai/verification.md) 选择与风险匹配的检查。提交前跑和改动相关的检查（如 web 类型检查、相关测试、改文档时的 `knowledge:check`），不必每次跑完整 `verify`；推送前运行：
+按 [`verification.md`](docs/ai/verification.md) 选择与风险匹配的检查。提交和推送前只跑和改动相关的检查（如 web 类型检查、相关测试、改文档时的 `knowledge:check`），不必在本机跑完整 `verify`：PR 上的 Quality Gate 会在 Linux 与 Windows 上运行它（D-044），两个 job 都通过后再合并。需要在本机复现门禁时运行：
 
 ```powershell
 npm.cmd run verify
 ```
 
-推送后远程 Quality Gate 会在 Linux 与 Windows 上再跑一遍。最终报告里写明跑了哪些检查、没跑完整 `verify`。
+最终报告里写明跑了哪些检查、没跑完整 `verify`。
 
 若受限沙箱中的 Vite/esbuild 因父目录访问被拒绝而失败，应在获准的正常环境重跑，不得直接判定为代码错误。
 
