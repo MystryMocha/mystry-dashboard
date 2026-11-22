@@ -10,6 +10,10 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 - When a server's whitelist is on and lists no players, a notice above the console and on the Multiplayer page says that everyone else is turned away, and names the two ways out: add players with `whitelist add` in the console, or turn off "Enable Whitelist" in Properties. The panel does not change the setting itself, and a server whose whitelist already lists players gets no notice. Paper 26.3 turns the whitelist on at its first start, so without this a new server rejected everyone with no word from the panel.
 
+### Changed
+
+- Importing a server whose own `eula.txt` already records acceptance no longer asks for the EULA again: the import page hides the checkbox and the summary says "Accepted", and the panel leaves that file to the server. This holds for ZIP, folder upload and the imports folder alike.
+
 ### Removed
 
 - The `knowledge:check` and `knowledge:test` scripts; `npm run verify` no longer runs them.
