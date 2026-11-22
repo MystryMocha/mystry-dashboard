@@ -186,9 +186,9 @@ The panel listens on `127.0.0.1` by default, and access from other devices is so
 | `apps/web/` | React 19, Vite 6, React Router 6 and xterm.js |
 | `packages/shared/` | Shared TypeScript types, JSON Schemas, JVM presets and i18n message keys |
 | `scripts/` | Launcher (`mdash`), verification scripts and portable packager |
-| `docs/` | Bilingual user documentation (`en` & `zh-CN`), architecture/API reference and AI knowledge base |
+| `docs/` | Bilingual user documentation (`en` & `zh-CN`), and architecture/API reference |
 
-User documentation ([Documentation Center](docs/README.md), [Getting Started](docs/getting-started.md), [Tutorials](docs/tutorials.md), [User Guide](docs/user-guide.md), [Configuration](docs/configuration.md), [Portable Release](docs/portable-release.md)) is available in both **English** and **Simplified Chinese**. Developer references ([Development Guide](docs/development.md), [API Reference](docs/api.md), [Architecture](docs/architecture.md)), the [Contributing Guide](CONTRIBUTING.md) and the [Changelog](CHANGELOG.md) are available in both languages as well. [CLAUDE.md](CLAUDE.md) and the AI knowledge base in `docs/ai/` are maintained in Chinese. Run the full verification suite with `npm run verify`.
+User documentation ([Documentation Center](docs/README.md), [Getting Started](docs/getting-started.md), [Tutorials](docs/tutorials.md), [User Guide](docs/user-guide.md), [Configuration](docs/configuration.md), [Portable Release](docs/portable-release.md)) is available in both **English** and **Simplified Chinese**. Developer references ([Development Guide](docs/development.md), [API Reference](docs/api.md), [Architecture](docs/architecture.md)), the [Contributing Guide](CONTRIBUTING.md) and the [Changelog](CHANGELOG.md) are available in both languages as well. Run the full verification suite with `npm run verify`.
 
 ## Roadmap
 

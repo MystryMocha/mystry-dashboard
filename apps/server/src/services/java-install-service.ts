@@ -12,7 +12,7 @@ import { cancelTask, getTask, runBackgroundTask } from './task-service.js';
 import { safeExtract } from './zip-service.js';
 
 /**
- * Automatic Java install by the panel (D-034): downloads a pinned version of the Eclipse Temurin JRE, verifies it against the pinned SHA-256,
+ * Automatic Java install by the panel: downloads a pinned version of the Eclipse Temurin JRE, verifies it against the pinned SHA-256,
  * extracts it to <data root>/runtimes/java/<version>, and after confirming with -version registers it in the Java runtime registry.
  * The download source follows the panel's download source setting (GitHub or a public GitHub proxy); the digest is pinned, so the source does not affect trust.
  * To upgrade a version: change the tag, file name and digest in TEMURIN_RELEASES (taken from the .sha256.txt of the same Release).

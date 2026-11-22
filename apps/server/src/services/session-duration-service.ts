@@ -1,5 +1,5 @@
 /**
- * Session duration (D-040): how long after sign-in the password must be entered again. Stored in panel_settings, changeable in the panel at any time, 12 hours by default.
+ * Session duration: how long after sign-in the password must be entered again. Stored in panel_settings, changeable in the panel at any time, 12 hours by default.
  * When a token is issued, exp is written from the current setting (not written for never expire); on every request the issue time iat is checked against the current setting again,
  * so after shortening, tokens whose sign-in is older than the new duration (including ones issued earlier as "never expire") are invalidated immediately.
  */

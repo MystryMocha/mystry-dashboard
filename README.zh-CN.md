@@ -186,9 +186,9 @@ Linux/macOS 将 `npm.cmd` 换成 `npm`。后端直接托管预压缩（`.br` / `
 | `apps/web/` | React 19、Vite 6、React Router 6 与 xterm.js |
 | `packages/shared/` | 前后端共享类型、JSON Schema、JVM 预设与多语言消息键 |
 | `scripts/` | 启动器（`mdash`）、验证与便携打包工具 |
-| `docs/` | 中英双语用户文档、开发参考与 AI 知识库 |
+| `docs/` | 中英双语用户文档与开发参考 |
 
-用户文档（[文档中心](docs/README.zh-CN.md)、[快速开始](docs/getting-started.zh-CN.md)、[分步教程](docs/tutorials.zh-CN.md)、[使用指南](docs/user-guide.zh-CN.md)、[配置说明](docs/configuration.zh-CN.md)、[便携预览版](docs/portable-release.zh-CN.md)）均提供 **简体中文** 与 **English** 双语版本。开发参考（[开发指南](docs/development.zh-CN.md)、[API 参考](docs/api.zh-CN.md)、[架构设计](docs/architecture.zh-CN.md)）、[贡献指南](CONTRIBUTING.zh-CN.md) 与 [变更日志](CHANGELOG.zh-CN.md) 也有中英两版。[CLAUDE.md](CLAUDE.md) 与 `docs/ai/` 下的 AI 知识库用中文维护。完整验证套件可运行 `npm.cmd run verify`（Linux/macOS 为 `npm run verify`）。
+用户文档（[文档中心](docs/README.zh-CN.md)、[快速开始](docs/getting-started.zh-CN.md)、[分步教程](docs/tutorials.zh-CN.md)、[使用指南](docs/user-guide.zh-CN.md)、[配置说明](docs/configuration.zh-CN.md)、[便携预览版](docs/portable-release.zh-CN.md)）均提供 **简体中文** 与 **English** 双语版本。开发参考（[开发指南](docs/development.zh-CN.md)、[API 参考](docs/api.zh-CN.md)、[架构设计](docs/architecture.zh-CN.md)）、[贡献指南](CONTRIBUTING.zh-CN.md) 与 [变更日志](CHANGELOG.zh-CN.md) 也有中英两版。完整验证套件可运行 `npm.cmd run verify`（Linux/macOS 为 `npm run verify`）。
 
 ## 路线图
 

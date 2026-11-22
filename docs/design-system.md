@@ -155,7 +155,7 @@ The classes to use. Each is a plain CSS class in `styles.css`; the React compone
 
 1. Page skeleton: `.page` holds a `.page-header` (via `PageHeader`: `.large-title`, `.page-subtitle`, actions on the right) followed by `.page-section` blocks. Form pages put the main action in an `.action-bar` and wrap the fields in a `<form>`: the main button is `type="submit"`, every other button `type="button"`, and Enter in a text box submits or, when the form is not valid, shows the reasons and moves focus to the first field to fix.
 2. Reuse the classes above before adding new ones; new values that repeat belong in the `:root` blocks of `styles.css`, with a dark-appearance value when they are colors.
-3. Write copy into the locale tables, then check the page in light and dark, every shipped language and at 375px, as [UI 与交互](ai/change-playbooks.md#ui-与交互) requires.
+3. Write copy into the locale tables, then check the page in light and dark, every shipped language and at 375px, including the loading, empty, error and disabled states and keyboard focus.
 4. Run the template check below on the screenshots, not only on the code.
 5. Primary buttons stay disabled until the form holds enough valid input, using the same rules as the server (shared helpers in `apps/web/src/validation.ts`; the server still checks again). Say what is missing: the action-bar status for page forms, an `error` line under a field that was filled in wrongly. Do not flag empty required fields before the user has typed, and do not show an error while the user is still typing in that field for the first time. Set the busy state on the click itself, so a double click cannot submit twice.
 

@@ -45,7 +45,7 @@ declare module '@fastify/jwt' {
 }
 
 /**
- * Issues a JWT carrying the token version; the expiry follows the session duration set in the panel (D-040), and exp is not written for "never expire".
+ * Issues a JWT carrying the token version; the expiry follows the session duration set in the panel, and exp is not written for "never expire".
  * This is the only place that issues sign-in tokens; @fastify/jwt is registered without a default expiry. The user in the response does not include the version.
  */
 async function signSession(reply: FastifyReply, user: SessionUser): Promise<{ token: string; user: AuthUser }> {

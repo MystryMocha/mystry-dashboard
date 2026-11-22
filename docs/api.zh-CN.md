@@ -69,7 +69,7 @@ X-Setup-Token: <SETUP_TOKEN>
 
 ### 登录有效期
 
-登录有效期（D-040）保存在 `panel_settings`，于「面板设置」页设置，默认 12 小时，可选 2 小时、12 小时、1 天、7 天、30 天或不过期。`.env` 中的 `JWT_EXPIRES_IN` 已不再生效；若仍保留该项，启动时终端会给出提示。
+登录有效期保存在 `panel_settings`，于「面板设置」页设置，默认 12 小时，可选 2 小时、12 小时、1 天、7 天、30 天或不过期。`.env` 中的 `JWT_EXPIRES_IN` 已不再生效；若仍保留该项，启动时终端会给出提示。
 
 - setup、登录、修改密码与保存有效期时，按当前设置签发令牌；选择「不过期」时令牌不含 `exp`。
 - 每次请求都以令牌的签发时间 `iat` 重新对照当前设置：缩短后，登录已超过新时长的令牌（含按「不过期」签发的）在下一次请求时返回 **401**。
@@ -96,7 +96,7 @@ X-Setup-Token: <SETUP_TOKEN>
 | GET | `/api/system/java-runtimes` | 是 | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
 | POST | `/api/system/java-runtimes/install` | 是 | 请求体 `{ major }`（8、17、21、25），返回后台任务 `TaskInfo`；完成后 `result.javaRuntimeId` 为新运行时 |
 | POST | `/api/system/java-runtimes/install/:taskId/cancel` | 是 | 取消仍在排队或运行的一键安装 Java 任务，返回任务当前状态；目标不是进行中的 Java 安装任务时返回 409（`server.jvm.javaInstall.notCancellable`） |
-| GET | `/api/system/panel-info` | 是 | `PanelInfo`：`{ host, port, dataDir, backupDir, configPath }`，即面板启动时从配置文件读取的监听地址与目录（绝对路径）。只读，不含密钥，供「面板设置」页的「运行信息」展示（D-042） |
+| GET | `/api/system/panel-info` | 是 | `PanelInfo`：`{ host, port, dataDir, backupDir, configPath }`，即面板启动时从配置文件读取的监听地址与目录（绝对路径）。只读，不含密钥，供「面板设置」页的「运行信息」展示 |
 | GET | `/api/system/download-source` | 是 | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | 是 | 请求体 `{ source }`，返回保存后的值；其他取值返回 400 |
 | GET | `/api/system/remote-access` | 是 | `RemoteAccessStatus`；每次读取都重新枚举网卡 |
@@ -113,7 +113,7 @@ X-Setup-Token: <SETUP_TOKEN>
 
 ### 从其他设备访问面板
 
-面板的主监听器保持不变（`HOST:PORT`，默认 `127.0.0.1:3000`）。开启访问后，服务端在每个待开放的 IPv4 地址上另起监听器（同一端口），并将连接转交同一个 HTTP 服务；设置保存在 `panel.db` 的 `panel_settings` 表，保存即生效，无需重启。任何已登录的请求均可开关此功能，不限于本机。见 [D-033](ai/decisions.md)。
+面板的主监听器保持不变（`HOST:PORT`，默认 `127.0.0.1:3000`）。开启访问后，服务端在每个待开放的 IPv4 地址上另起监听器（同一端口），并将连接转交同一个 HTTP 服务；设置保存在 `panel.db` 的 `panel_settings` 表，保存即生效，无需重启。任何已登录的请求均可开关此功能，不限于本机。
 
 - **`direct`（直接访问）**：`interfaceName` 为 `null` 表示所有网卡（不含实例的联机网络），也可指定单块网卡的名称。`https` 默认 `true`：监听器按首字节分流，TLS 握手交给面板，明文请求仅返回 `308` 跳转至同主机的 `https://`，不发送 HSTS。`restrictToSubnet` 默认 `false`：开启后，每个监听器仅接受来自所在网卡网段的来源（`100.64.0.0/10` 内的组网网卡放行整个网段；其他 `/32` 网卡无法推算网段，因此不监听并标记为 `subnetUnknown`）。
 - **`overlay`（已装的组网软件）**：仅在选定的网卡上监听，`https` 默认 `false`。直接访问的「所有网卡」会让出该网卡的地址。
@@ -313,7 +313,7 @@ Authorization: Bearer <token>
 }
 ```
 
-`id` 仅为 `DATA_DIR/imports` 下的单层目录名，而非系统路径。`importDir` 为 imports 文件夹在面板所在电脑上的绝对路径，仅用于向已登录用户展示复制目标（D-041）；面板不接受客户端提交的任何路径。`coreType` 依据启动文件名判断（`paper`、`fabric`、`neoforge`、`forge`；`server.jar` 与 `minecraft_server*` 为 `vanilla`；其余为 `custom`）。`mcVersion` 为从启动文件名或 Forge args 目录名中识别出的 `1.7`–`1.21.x` 版本号；无法识别、核心为 `custom` 或为 NeoForge 时省略。
+`id` 仅为 `DATA_DIR/imports` 下的单层目录名，而非系统路径。`importDir` 为 imports 文件夹在面板所在电脑上的绝对路径，仅用于向已登录用户展示复制目标；面板不接受客户端提交的任何路径。`coreType` 依据启动文件名判断（`paper`、`fabric`、`neoforge`、`forge`；`server.jar` 与 `minecraft_server*` 为 `vanilla`；其余为 `custom`）。`mcVersion` 为从启动文件名或 Forge args 目录名中识别出的 `1.7`–`1.21.x` 版本号；无法识别、核心为 `custom` 或为 NeoForge 时省略。
 
 两种导入的请求中，`coreType` 省略或为 `custom` 均表示自动识别，以面板复制或解压后的识别结果为准；指定其他类型时按指定值使用。`mcVersion` 留空时采用识别出的版本，无法识别则保持为空。创建任务示例：
 
@@ -380,7 +380,7 @@ ZIP 导入只能通过上述预览流程；旧的一阶段 `POST /api/import` �
 
 ### 浏览器上传文件夹
 
-浏览器读取用户所选的服务端文件夹，将文件分批传给面板（D-039）。面板仅接收文件内容及其在文件夹内的相对路径，不接收也不记录用户电脑上的路径。
+浏览器读取用户所选的服务端文件夹，将文件分批传给面板。面板仅接收文件内容及其在文件夹内的相对路径，不接收也不记录用户电脑上的路径。
 
 1. 开始：`POST /api/import/folder-uploads`，Body `{ "folderName": "survival", "fileCount": 6210, "totalBytes": 2147483648 }`。`folderName` 仅用于显示，不得含 `/`、`\` 或控制字符。文件数与总大小沿用 `MAX_EXISTING_IMPORT_ENTRIES` / `MAX_EXISTING_IMPORT_BYTES`，超出时返回 **413**；数据盘剩余空间不足时返回 **507**。
 2. 分批上传：`POST /api/import/folder-uploads/:id/files`，multipart，每个文件之前须有一个 `path` 字段，其值为去掉最外层文件夹名、以 `/` 分隔的相对路径。每次请求最多 500 个文件，同一会话同一时间仅接收一批（否则返回 **409**）。

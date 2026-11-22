@@ -69,13 +69,12 @@ Before opening a PR, check for yourself:
 - [ ] If the API changed, [docs/api.md](docs/api.md) and its Chinese copy are updated
 - [ ] If configuration options changed, `.env.example` and [docs/configuration.md](docs/configuration.md) are updated
 - [ ] Related flows were verified manually (sign-in / deploy / console / files, etc.)
-- [ ] When configuration, routes, scripts or AI entry points change, `docs/ai/project-facts.json` is synced
 - [ ] UI changes were verified along the real user path on desktop, narrow screens and neighboring entries
 - [ ] The PR description separates implemented, verified, unverified and remaining risks
 
 ## Documentation Contributions
 
-Find the page through the [documentation hub](docs/README.md) and fix it in place; the Wiki holds navigation only. Check feature descriptions against the current source; historical reviews and plans keep their dates and scope and are not rewritten as current conclusions. When a document has both an English page (`X.md`) and a Chinese page (`X.zh-CN.md`), update both together. Documentation checks and commit requirements are in the [verification matrix](docs/ai/verification.md).
+Find the page through the [documentation hub](docs/README.md) and fix it in place; the Wiki holds navigation only. Check feature descriptions against the current source; historical records keep their dates and scope and are not rewritten as current conclusions. When a document has both an English page (`X.md`) and a Chinese page (`X.zh-CN.md`), update both together. The checks to run are in the [development guide](docs/development.md#local-verification-checklist).
 
 ## Reporting Issues
 

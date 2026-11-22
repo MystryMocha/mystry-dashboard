@@ -13,7 +13,7 @@ export const CORE_TYPE_ENUM = [
 /** Panel download source: official uses only the official servers; china prefers mirrors in China and falls back to official on failure. */
 export const DOWNLOAD_SOURCE_ENUM = ['official', 'china'] as const;
 
-/** Session duration: how long after sign-in the password must be entered again; never does not expire. Defaults to 12h (D-040). */
+/** Session duration: how long after sign-in the password must be entered again; never does not expire. Defaults to 12h. */
 export const SESSION_DURATION_ENUM = ['2h', '12h', '1d', '7d', '30d', 'never'] as const;
 
 /** Core types that support one-click deploy (excluding custom) */

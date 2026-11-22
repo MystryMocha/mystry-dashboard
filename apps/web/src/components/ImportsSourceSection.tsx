@@ -20,7 +20,7 @@ type Props = {
 
 /**
  * "Copy from the imports folder": first tells the user where imports is on the panel's computer and how to put things there, then lists the servers inside to choose from.
- * The path is only for display and copying; the panel accepts no path submitted by the client (D-015, D-041).
+ * The path is only for display and copying; the panel accepts no path submitted by the client.
  */
 export function ImportsSourceSection({ importDir, sources, sourceId, loading, error, busy, onSelect, onRefresh }: Props) {
   const { t, tm } = useI18n();

@@ -1,5 +1,5 @@
 /**
- * One-click Java install regression (D-034): endpoint authentication and parameter validation, unsupported platform, repeated clicks on the same major version reusing the task,
+ * One-click Java install regression: endpoint authentication and parameter validation, unsupported platform, repeated clicks on the same major version reusing the task,
  * registered with the panel source after install and kept across rescans, no repeated download when already installed, and no directory left behind on a digest mismatch / download failure / wrong archive structure.
  * No network and no real java: the download and java -version are both stubbed.
  */

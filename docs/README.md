@@ -14,10 +14,9 @@ Mystry Dashboard is a self-hosted game server panel, now supporting Minecraft: J
 | Import, configure or manage instances | [User Guide](user-guide.md) | [Backup and migration](tutorials.md#tutorial-8-backup-and-migration) |
 | Let friends join your server | [Multiplayer](user-guide.md#multiplayer) | [Security policy](../SECURITY.md) |
 | Change the listen address, secrets or resource limits | [Configuration](configuration.md) | [Security policy](../SECURITY.md) |
-| Change the code or open a PR | [Development guide](development.md) | [Contributing guide](../CONTRIBUTING.md), [Verification matrix](ai/verification.md) (Chinese) |
+| Change the code or open a PR | [Development guide](development.md) | [Contributing guide](../CONTRIBUTING.md) |
 | Integrate with the API or understand the implementation | [API reference](api.md) | [Architecture](architecture.md) |
 | Design the UI or write UI copy | [Design system](design-system.md) | [Localization guide](localization.md) |
-| Develop with AI assistance | [Project development rules](../CLAUDE.md) (Chinese) | [AI project knowledge base](ai/README.md) (Chinese) |
 
 New users should read in this order: Getting Started → Step-by-Step Tutorials → User Guide.
 
@@ -25,7 +24,6 @@ New users should read in this order: Getting Started → Step-by-Step Tutorials 
 
 - Root [README](../README.md): what the project is, its scope and limits, and how to run it.
 - Topic docs in this folder: the source of truth for user operations, configuration, the API and the development workflow.
-- [AI knowledge base](ai/README.md) (Chinese): traceable implementation facts, architecture decisions, off-limits areas and verification methods.
 - Historical records: conclusions and evidence as of their date, not a list of current defects or release status.
 
 ## History and Community
@@ -40,13 +38,4 @@ New users should read in this order: Getting Started → Step-by-Step Tutorials 
 
 ## Maintenance and Checks
 
-Before changing a feature description, check the related source code, shared contracts, frontend entry points and tests. When configuration, routes, scripts or AI entry points change, update the [machine facts](ai/project-facts.json) as well. The doc change workflow is in the [change playbooks](ai/change-playbooks.md#文档与知识库) (Chinese).
-
-From the repository root:
-
-```powershell
-npm.cmd run knowledge:check
-npm.cmd run knowledge:test
-```
-
-On Linux/macOS the script names are the same; use `npm` instead of `npm.cmd`. The checker verifies the machine facts and that local Markdown link targets exist, but not heading anchors, external links or real user flows. The full `npm run verify` runs in the Quality Gate on every pull request; choose other checks by the [verification matrix](ai/verification.md) (Chinese).
+Before changing a feature description, check the related source code, shared contracts, frontend entry points and tests. Keep each procedure and default in one document and link to it from the others. The full `npm run verify` runs in the Quality Gate on every pull request; the checks to run before that are in the [development guide](development.md#local-verification-checklist).

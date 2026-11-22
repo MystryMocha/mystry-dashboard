@@ -27,7 +27,7 @@ import { getPanelNetworkStatus, initPanelNetwork, shutdownPanelNetwork } from '.
 import { getPublicHost, hostForUrl } from './public-host.js';
 
 /**
- * Access the panel from other devices (D-033). HOST and the main listener stay unchanged; when access is enabled, on each address to be opened
+ * Access the panel from other devices. HOST and the main listener stay unchanged; when access is enabled, on each address to be opened
  * another net.Server listens on "address:panel port" and hands connections to Fastify's HTTP server.
  * - Direct access (direct): all interfaces by default, or a single chosen one;
  * - Installed virtual networking software (overlay): listens only on the chosen overlay interface.

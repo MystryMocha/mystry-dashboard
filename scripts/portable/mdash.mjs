@@ -544,7 +544,7 @@ async function createInitialAdmin({ setupToken }, connection) {
 }
 
 async function resetPassword() {
-  // A new password may only be shown in a terminal (D-027): when output is redirected or piped it would end up in a file or log.
+  // A new password may only be shown in a terminal: when output is redirected or piped it would end up in a file or log.
   // This must be checked and refused before contacting the server; resetting first and then hiding the password would leave the user unable to sign in.
   if (!process.stdout.isTTY) {
     throw new Error(text(
@@ -634,7 +634,7 @@ async function announceStarted({ configuration, connection }) {
   await showRemoteAccessOnStart(configuration, { adminCreated: Boolean(credentials) });
 }
 
-// ---- Access the panel from other devices: first-start prompt and the remote command (D-033) ----
+// ---- Access the panel from other devices: first-start prompt and the remote command ----
 
 /** Whether logged in through SSH. "No graphical interface" is not used to guess: WSL and home computers without a monitor have no graphical interface either. */
 function isRemoteLogin(env = process.env) {
