@@ -63,6 +63,12 @@ export default {
   'instance.ready.action': '邀请玩家',
   'instance.ready.dismiss': '不再提示',
 
+  // 白名单已开启但名单为空（控制台上方与联机页）
+  'instance.whitelist.title': '白名单已开启，名单里还没有玩家。',
+  'instance.whitelist.body': '不在名单里的玩家进服时会被拒绝。',
+  'instance.whitelist.add': '要让玩家进服，在服务器运行时到<console>控制台</console>执行 <cmd>whitelist add 玩家名</cmd>。',
+  'instance.whitelist.off': '不需要白名单时，到<config>参数配置</config>关闭「启用白名单」，再重启服务器。',
+
   // 保存栏（设置与参数配置共用）：有修改才出现
   'instance.saveBar.dirty_one': '{count} 项修改未保存',
   'instance.saveBar.dirty_other': '{count} 项修改未保存',

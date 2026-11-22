@@ -16,6 +16,7 @@ import { TaskCenter } from '../src/components/TaskCenter';
 import { ConsolePanel } from '../src/components/ConsolePanel';
 import { BackupsTab } from '../src/components/BackupsTab';
 import { ConfigTab } from '../src/components/ConfigTab';
+import { WhitelistNotice } from '../src/components/WhitelistNotice';
 import { ChangePasswordDialog } from '../src/components/ChangePasswordDialog';
 import { RemoteAccessDialog } from '../src/components/RemoteAccessDialog';
 import { qrMatrix } from '../src/components/QrCode';
@@ -637,6 +638,63 @@ test('backups page: a note is shown when the instance record was updated to matc
   await user.click(screen.getByRole('button', { name: '还原', exact: true }));
   expect(await screen.findByText(/服务端文件、核心类型和版本已按备份更新/)).toBeTruthy();
   expect(onRestored).toHaveBeenCalledTimes(1);
+});
+
+function stubWhitelistFiles(properties: Record<string, string>, whitelist: string | null) {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/config/server.properties') return new Response(JSON.stringify(properties));
+    if (url === '/api/instances/test/files/content?path=whitelist.json') {
+      return whitelist === null
+        ? new Response(JSON.stringify({ error: 'File not found', code: 'server.files.fileNotFound' }), { status: 400 })
+        : new Response(JSON.stringify({ path: 'whitelist.json', content: whitelist }));
+    }
+    return baseFetch(url, options);
+  }));
+}
+
+test('whitelist notice: with the whitelist on and no one on it, both ways out are named and lead to the console and the properties', async () => {
+  stubWhitelistFiles({ 'white-list': 'true', 'online-mode': 'true' }, '[]');
+  mount(<WhitelistNotice instanceId="test" status="running" linkConsole />);
+  const notice = await screen.findByRole('status');
+  expect(notice.textContent).toContain('白名单已开启，名单里还没有玩家');
+  expect(notice.textContent).toContain('whitelist add 玩家名');
+  expect(screen.getByRole('link', { name: '控制台' }).getAttribute('href')).toBe('/instances/test');
+  expect(screen.getByRole('link', { name: '参数配置' }).getAttribute('href')).toBe('/instances/test/config');
+});
+
+test('whitelist notice: above the console it does not link to the console, and a missing whitelist.json counts as an empty list', async () => {
+  stubWhitelistFiles({ 'white-list': 'true' }, null);
+  mount(<WhitelistNotice instanceId="test" status="stopped" linkConsole={false} />);
+  expect((await screen.findByRole('status')).textContent).toContain('白名单已开启');
+  expect(screen.queryByRole('link', { name: '控制台' })).toBeNull();
+  expect(screen.getByRole('link', { name: '参数配置' })).toBeTruthy();
+});
+
+test('whitelist notice: nothing is shown when the whitelist already lists players, is off, or has not been written yet', async () => {
+  const propertiesUrl = '/api/instances/test/config/server.properties';
+  const whitelistUrl = '/api/instances/test/files/content?path=whitelist.json';
+  // The last request each case makes: the list is read only when the whitelist is on.
+  const cases: Array<[Record<string, string>, string | null, string]> = [
+    [{ 'white-list': 'true' }, '[{"uuid":"3bdcf18e-f975-3fba-b25b-f59340950037","name":"Steve"}]', whitelistUrl],
+    [{ 'white-list': 'false' }, '[]', propertiesUrl],
+    [{ 'online-mode': 'true' }, null, propertiesUrl],
+  ];
+  for (const [properties, whitelist, lastRequest] of cases) {
+    const reads: string[] = [];
+    stubWhitelistFiles(properties, whitelist);
+    const stubbed = globalThis.fetch;
+    vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+      reads.push(String(url));
+      return stubbed(url, options);
+    }));
+    const view = mount(<WhitelistNotice instanceId="test" status="running" linkConsole />);
+    await waitFor(() => expect(reads).toContain(lastRequest));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(screen.queryByText(/白名单已开启/)).toBeNull();
+    if (lastRequest === propertiesUrl) expect(reads).not.toContain(whitelistUrl);
+    view.unmount();
+  }
 });
 
 test('deleting an instance deletes its backups by default, and unchecking sends keepBackups=1 and says where the backups go', async () => {
