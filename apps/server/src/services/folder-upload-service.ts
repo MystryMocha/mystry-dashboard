@@ -1,5 +1,5 @@
 /**
- * Folder upload from the browser (D-039): the browser reads the server folder the user picked and sends the files to the panel in batches.
+ * Folder upload from the browser: the browser reads the server folder the user picked and sends the files to the panel in batches.
  *
  * One upload is one session: declare the file count and total size at the start → receive files in batches → precheck once everything is received → confirm the import or cancel.
  * Files are written into the panel's own temp directory under uploads/, and the server never touches paths on the user's computer;

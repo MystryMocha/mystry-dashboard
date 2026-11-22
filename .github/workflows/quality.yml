@@ -1,7 +1,6 @@
 # Third-party Actions pinned by SHA: see .github/actions-pins.md (reviewed 2026-08-07)
 name: Quality Gate
 
-# See D-044 in docs/ai/decisions.md.
 on:
   push:
     branches:

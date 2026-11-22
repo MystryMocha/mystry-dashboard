@@ -1620,7 +1620,7 @@ test('copy: without navigator.clipboard (insecure context) it falls back to exec
   button.remove();
 });
 
-// ---- Java picker: new instances auto-select the recommended version, with one-click install when it is missing (D-034) ----
+// ---- Java picker: new instances auto-select the recommended version, with one-click install when it is missing ----
 
 const java21 = { id: 'rt21', path: 'C:/Java/jdk-21/bin/java.exe', version: '21.0.5', majorVersion: 21, source: 'scan', verifiedAt: '2026-11-01T00:00:00Z', available: true };
 const java8 = { id: 'rt8', path: 'C:/Java/jre8/bin/java.exe', version: '1.8.0_492', majorVersion: 8, source: 'scan', verifiedAt: '2026-11-01T00:00:00Z', available: true };

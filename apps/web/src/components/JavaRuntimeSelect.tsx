@@ -19,7 +19,7 @@ function serverErrorKey(error: unknown): string | undefined {
  * - When mcVersion is passed the recommended version is shown, and a warning is given when the chosen runtime does not match.
  * - autoSelect (for new instances only): when the user has not chosen manually, an installed Java with the recommended major version is selected automatically.
  *   It is off on the instance settings page, so opening the page does not silently change an existing instance's Java.
- * - When the recommended version is not installed and the panel can install it, an "Install Java N" button is offered (D-034), and it is selected once installed.
+ * - When the recommended version is not installed and the panel can install it, an "Install Java N" button is offered, and it is selected once installed.
  */
 /** Whether the Java that will actually be used is the recommended version: loading means not read yet; an unknown version (no recommendation) counts as match. */
 /** unknown: the Java list has never been read, so whether one is installed and which version is unknown, and it cannot be called a "version mismatch". */
@@ -59,7 +59,7 @@ export function JavaRuntimeSelect({
   autoSelect?: boolean;
   /** true while a one-click install is in progress; the page pauses submission based on it, so an instance is not created with the wrong Java. */
   onInstallingChange?: (installing: boolean) => void;
-  /** The deploy page uses this to forbid starting a deployment on a version mismatch (D-034). */
+  /** The deploy page uses this to forbid starting a deployment on a version mismatch. */
   onMatchStatusChange?: (status: JavaMatchStatus) => void;
   /** The import page uses this to write the Java to be used in the summary, and to expand the settings when there is a problem. */
   onResolvedChange?: (state: JavaResolvedState) => void;

@@ -17,7 +17,7 @@ function isSessionDuration(value: unknown): value is SessionDuration {
   return (SESSION_DURATION_ENUM as readonly unknown[]).includes(value);
 }
 
-/** The session duration row on the panel settings page (D-040): saved as soon as chosen, and this device then switches to a token issued with the new duration. */
+/** The session duration row on the panel settings page: saved as soon as chosen, and this device then switches to a token issued with the new duration. */
 export function SessionDurationRow() {
   const { t } = useI18n();
   const selectId = useId();

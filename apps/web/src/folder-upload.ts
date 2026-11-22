@@ -1,5 +1,5 @@
 /**
- * Folder upload from the browser (D-039): sends the server folder the user picked to the panel in batches.
+ * Folder upload from the browser: sends the server folder the user picked to the panel in batches.
  * The panel cannot get paths on the user's computer; it only receives the files the browser read and their relative paths within the folder.
  */
 import type { FolderUploadInfo } from '@mystry/shared';

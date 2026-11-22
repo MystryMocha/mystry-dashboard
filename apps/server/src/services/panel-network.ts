@@ -28,7 +28,7 @@ import { ensureLanInstalled, lanCliPath, lanCorePath, lanInstalled, lanPlatformS
 import { closePanelFirewall, openPanelNetworkFirewall } from './panel-firewall.js';
 
 /**
- * The panel's built-in EasyTier network (D-033): only for opening the panel from your own phone and computers. It and the instance multiplayer network (D-024)
+ * The panel's built-in EasyTier network: only for opening the panel from your own phone and computers. It and the instance multiplayer network
  * are two independent networks with different network names, secrets and address ranges.
  * It runs in no-TUN mode: no virtual interface is created and no admin rights are needed; when another device accesses "virtual address:port",
  * the connection lands on the same port of 127.0.0.1 on this machine, and its source is also 127.0.0.1 (verified on 2.6.4).

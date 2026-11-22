@@ -4,7 +4,7 @@
 
 ## 前置步骤
 
-先阅读 [项目开发规则](../CLAUDE.md)，并运行 `git status --short --branch` 确认当前分支与已有修改。使用 Node.js ≥ 22，在仓库根目录执行命令。
+先阅读 [贡献指南](../CONTRIBUTING.zh-CN.md)，并运行 `git status --short --branch` 确认当前分支与已有修改。使用 Node.js ≥ 22，在仓库根目录执行命令。
 
 首次运行须先完成 [手动安装与密钥配置](getting-started.zh-CN.md#手动安装与首次配置)，再分别运行 `npm.cmd run dev:server` 与 `npm.cmd run dev:web`。Windows PowerShell 使用 `npm.cmd`；下文的 `npm` 示例适用于 Linux/macOS，脚本名相同。
 
@@ -62,7 +62,7 @@ npm run build -w @mystry/shared
 3. 在 `apps/server/src/routes/` 注册路由；若需登录，挂载 `authenticate`；body schema 优先从 `@mystry/shared` 引入。
 4. 在 `apps/web/src/api.ts` 或页面中调用。
 5. 确认用户可见入口、加载状态与错误反馈；新增路由模块时，更新 `apps/server/src/index.ts` 中的注册。
-6. 更新 [API 参考](api.zh-CN.md) 与相关知识库，并按 [验证矩阵](ai/verification.md) 检查契约与真实操作链路。
+6. 更新 [API 参考](api.zh-CN.md)，并核对契约与真实操作链路。
 
 ## 路径与安全
 
@@ -86,21 +86,16 @@ npm run build -w @mystry/shared
 - 注释使用英文。Web 界面文案写入 `apps/web/src/i18n/` 的英文、简体中文与繁體中文文案表，规则见 [贡献指南](../CONTRIBUTING.zh-CN.md#用户可见文案)。
 - 避免无关重构，优先小范围修复。
 
-## AI 项目知识库
+## 检查与 CI
 
-- 根目录 `CLAUDE.md` 是 Claude Code 的强制入口，详细资料位于 `docs/ai/`。
-- 路由、环境变量、workspaces、入口或验证脚本变化时，必须同步 `docs/ai/project-facts.json`。
-- 当前事实、计划、已否决方案与历史故障必须分层记录，不得将旧计划视为已实现的能力。
-- 快速检查：`npm run knowledge:check`；检查器负向测试：`npm run knowledge:test`。
 - 锁文件只记录官方地址。若本机 npm 配置了镜像，安装新依赖后运行 `npm run lockfile:fix`。
 - 完整门禁：`npm run verify`。在 Windows PowerShell 终端中直接执行时，使用 `npm.cmd run verify`。
-- 远程 CI：Quality Gate（`.github/workflows/quality.yml`）在推送到 `main` 和每个 PR 时，于 `ubuntu-latest` 与 `windows-2025` 上各执行一次 `npm ci` 与 `npm run verify`（见 [验证矩阵](ai/verification.md#远程-ci)）。
+- 远程 CI：Quality Gate（`.github/workflows/quality.yml`）在推送到 `main` 和每个 PR 时，于 `ubuntu-latest` 与 `windows-2025` 上各执行一次 `npm ci` 与 `npm run verify`。
 
 ## 本地验证清单
 
-提交前运行与改动相关的检查；推送前运行完整的 `npm.cmd run verify`，PR 上的 Quality Gate 将再次运行。完整门禁不含生产依赖审计，依赖变更与发布须另行运行 `npm.cmd run audit:production`。以下人工检查项按改动范围选用，并使用独立的测试数据；数据库演练仅使用副本。自动检查通过不能替代真实交互验证。
+提交与推送前运行与改动相关的检查；完整的 `npm run verify` 由 PR 上的 Quality Gate 在 Linux 与 Windows 上运行，如需在本机复现，运行 `npm.cmd run verify`。完整门禁不含生产依赖审计，依赖变更与发布须另行运行 `npm.cmd run audit:production`。以下人工检查项按改动范围选用，并使用独立的测试数据；数据库演练仅使用副本。自动检查通过不能替代真实交互验证。
 
-- [ ] `npm run knowledge:check` 与 `npm run knowledge:test` 无错误
 - [ ] `npm run build -w @mystry/shared` 后运行 `npm run test:smoke`（已包含在 `verify` 中；不启动 Minecraft，不使用仓库内的 `data/`）
 - [ ] `npm run typecheck` 无错误
 - [ ] `GET /api/health` 返回 ok
@@ -132,4 +127,3 @@ node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.6-windows
 - [架构设计](architecture.zh-CN.md)
 - [配置说明](configuration.zh-CN.md)
 - [便携预览版](portable-release.zh-CN.md)
-- [AI 项目知识库](ai/README.md)

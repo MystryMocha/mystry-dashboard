@@ -4,7 +4,7 @@
 
 ## Before You Start
 
-Read the [project development rules](../CLAUDE.md) first, then run `git status --short --branch` to confirm the current branch and existing changes. Use Node.js ≥ 22 and run commands from the repository root.
+Read the [contributing guide](../CONTRIBUTING.md) first, then run `git status --short --branch` to confirm the current branch and existing changes. Use Node.js ≥ 22 and run commands from the repository root.
 
 For the first run, complete [manual install and secret configuration](getting-started.md#manual-install-and-first-time-configuration), then run `npm.cmd run dev:server` and `npm.cmd run dev:web` separately. Use `npm.cmd` in Windows PowerShell; the `npm` examples below are for Linux/macOS and use the same script names.
 
@@ -62,7 +62,7 @@ Output: `packages/shared/dist/`. Add fields shared by the frontend and backend h
 3. Register the route in `apps/server/src/routes/`, attach `authenticate` if sign-in is required, and prefer importing the body schema from `@mystry/shared`.
 4. Call it from `apps/web/src/api.ts` or a page.
 5. Confirm the user-visible entry, loading state and error feedback; when adding a route module, update its registration in `apps/server/src/index.ts`.
-6. Update the [API reference](api.md) and the related knowledge base, and check the contract and the real operation path against the [verification matrix](ai/verification.md).
+6. Update the [API reference](api.md), then check the contract and the real operation path end to end.
 
 ## Paths and Security
 
@@ -86,21 +86,16 @@ Output: `packages/shared/dist/`. Add fields shared by the frontend and backend h
 - Comments are written in English. Web UI text goes into the English, Simplified Chinese and Traditional Chinese string tables in `apps/web/src/i18n/`; the rules are in the [contributing guide](../CONTRIBUTING.md#user-facing-text).
 - Avoid unrelated refactoring; prefer small, focused fixes.
 
-## AI Project Knowledge Base
+## Checks and CI
 
-- `CLAUDE.md` in the root is the mandatory entry for Claude Code; detailed material lives in `docs/ai/`.
-- When routes, environment variables, workspaces, entry points or verification scripts change, `docs/ai/project-facts.json` must be synced.
-- Current facts, plans, rejected options and historical failures must be recorded in separate layers; an old plan must not be treated as an implemented capability.
-- Quick check: `npm run knowledge:check`; negative tests for the checker: `npm run knowledge:test`.
 - The lockfile records only official URLs. If your local npm is configured with a mirror, run `npm run lockfile:fix` after installing a new dependency.
 - Full gate: `npm run verify`. When running it directly from a Windows PowerShell terminal, use `npm.cmd run verify`.
-- Remote CI: the Quality Gate (`.github/workflows/quality.yml`) runs `npm ci` and `npm run verify` on both `ubuntu-latest` and `windows-2025` for every push to `main` and every pull request (see the [verification matrix](ai/verification.md)).
+- Remote CI: the Quality Gate (`.github/workflows/quality.yml`) runs `npm ci` and `npm run verify` on both `ubuntu-latest` and `windows-2025` for every push to `main` and every pull request.
 
 ## Local Verification Checklist
 
-Before committing, run the checks related to your change; before pushing, run the full `npm.cmd run verify`; the Quality Gate runs it again on your pull request. The full gate does not include the production dependency audit; dependency changes and releases also need `npm.cmd run audit:production`. Choose the manual items below by the scope of the change and use separate test data; database drills use copies only. Passing automated checks is no substitute for verifying real interaction.
+Before committing or pushing, run the checks related to your change; the Quality Gate runs the full `npm run verify` on Linux and Windows for your pull request. To reproduce the gate locally, run `npm.cmd run verify`. The full gate does not include the production dependency audit; dependency changes and releases also need `npm.cmd run audit:production`. Choose the manual items below by the scope of the change and use separate test data; database drills use copies only. Passing automated checks is no substitute for verifying real interaction.
 
-- [ ] `npm run knowledge:check` and `npm run knowledge:test` report no errors
 - [ ] `npm run test:smoke` after `npm run build -w @mystry/shared` (already included in `verify`; it does not start Minecraft or use `data/` in the repository)
 - [ ] `npm run typecheck` reports no errors
 - [ ] `GET /api/health` returns ok
@@ -132,4 +127,3 @@ node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.6-windows
 - [Architecture](architecture.md)
 - [Configuration](configuration.md)
 - [Portable Preview](portable-release.md)
-- [AI project knowledge base](ai/README.md)

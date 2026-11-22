@@ -122,7 +122,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     app.log.info(folderUploadRecovery, '已清理上次面板进程遗留的文件夹上传');
   }
   if (process.env.JWT_EXPIRES_IN?.trim()) {
-    app.log.warn('JWT_EXPIRES_IN 已不再使用：登录有效期改在面板「面板设置」页设置，默认 12 小时（D-040）');
+    app.log.warn('JWT_EXPIRES_IN 已不再使用：登录有效期改在面板「面板设置」页设置，默认 12 小时');
   }
   app.addHook('onClose', async () => {
     shutdownImportPreviews();
@@ -130,7 +130,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
   });
 
   await app.register(cors, { origin: config.corsOrigins, credentials: true });
-  // No default expiry: sign-in tokens are issued only by signSession, using the session duration set in the panel (D-040).
+  // No default expiry: sign-in tokens are issued only by signSession, using the session duration set in the panel.
   await app.register(jwt, { secret: config.jwtSecret });
   await app.register(multipart, {
     limits: {

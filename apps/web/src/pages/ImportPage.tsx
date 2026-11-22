@@ -503,7 +503,7 @@ export function ImportPage() {
           ? preview ? 'import.submit.replacePreview' : 'import.submit.upload'
           : preview ? 'import.submit.confirm' : 'import.submit.chooseZip');
 
-  // "Copy from the imports folder" is a secondary entry (D-039): when the browser can pick folders, it appears in the mode switcher only when imports already has something in it,
+  // "Copy from the imports folder" is a secondary entry: when the browser can pick folders, it appears in the mode switcher only when imports already has something in it,
   // this mode is the current one, or the user clicked the link below "Upload Folder".
   const showImportsTab = !folderPickSupported || importsRevealed || mode === 'directory' || sources.length > 0;
 

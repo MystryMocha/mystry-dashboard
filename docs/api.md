@@ -69,7 +69,7 @@ Once the user is created, the setup endpoint is no longer available. `mdash` use
 
 ### Session Duration
 
-The session duration (D-040) is stored in `panel_settings` and set on the "Panel Settings" page; it defaults to 12 hours, and the options are 2 hours, 12 hours, 1 day, 7 days, 30 days or never expire. `JWT_EXPIRES_IN` in `.env` no longer applies; if it is still set, the terminal prints a note at startup.
+The session duration is stored in `panel_settings` and set on the "Panel Settings" page; it defaults to 12 hours, and the options are 2 hours, 12 hours, 1 day, 7 days, 30 days or never expire. `JWT_EXPIRES_IN` in `.env` no longer applies; if it is still set, the terminal prints a note at startup.
 
 - Setup, sign-in, password change and saving the duration issue tokens with the current setting; with "never expire" the token carries no `exp`.
 - Every request re-checks the token's issue time `iat` against the current setting: after the duration is shortened, a token whose sign-in is older than the new duration (including ones issued as "never expire") gets **401** on its next request.
@@ -96,7 +96,7 @@ Tokens issued by 0.2.0-preview.3 and earlier have no `tv` and are treated as ver
 | GET | `/api/system/java-runtimes` | Yes | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
 | POST | `/api/system/java-runtimes/install` | Yes | Request body `{ major }` (8, 17, 21, 25); returns the background task `TaskInfo`; on completion `result.javaRuntimeId` is the new runtime |
 | POST | `/api/system/java-runtimes/install/:taskId/cancel` | Yes | Cancels a one-click Java install task still queued or running and returns the task's current state; 409 when it is not a Java install task in progress (`server.jvm.javaInstall.notCancellable`) |
-| GET | `/api/system/panel-info` | Yes | `PanelInfo`: `{ host, port, dataDir, backupDir, configPath }`, the listen address and directories (absolute paths) the panel read from the config file at startup. Read-only, without secrets, shown as "Runtime Info" on the "Panel Settings" page (D-042) |
+| GET | `/api/system/panel-info` | Yes | `PanelInfo`: `{ host, port, dataDir, backupDir, configPath }`, the listen address and directories (absolute paths) the panel read from the config file at startup. Read-only, without secrets, shown as "Runtime Info" on the "Panel Settings" page |
 | GET | `/api/system/download-source` | Yes | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | Yes | Request body `{ source }`; returns the saved value; other values return 400 |
 | GET | `/api/system/remote-access` | Yes | `RemoteAccessStatus`; interfaces are re-enumerated on every read |
@@ -113,7 +113,7 @@ The download source defaults to `official` and is stored in `panel.db`; download
 
 ### Accessing the Panel from Other Devices
 
-The panel's main listener stays unchanged (`HOST:PORT`, `127.0.0.1:3000` by default). When access is enabled, the server starts an extra listener (same port) on each IPv4 address to open and hands connections to the same HTTP server; the settings are stored in the `panel_settings` table of `panel.db` and take effect on save, without a restart. Any signed-in request can toggle it, not only requests from this machine. See [D-033](ai/decisions.md).
+The panel's main listener stays unchanged (`HOST:PORT`, `127.0.0.1:3000` by default). When access is enabled, the server starts an extra listener (same port) on each IPv4 address to open and hands connections to the same HTTP server; the settings are stored in the `panel_settings` table of `panel.db` and take effect on save, without a restart. Any signed-in request can toggle it, not only requests from this machine.
 
 - **`direct` (direct access)**: `interfaceName` `null` means all interfaces (excluding the instances' multiplayer networks); alternatively, give the name of one interface. `https` defaults to `true`: the listener dispatches on the first byte and hands TLS handshakes to the panel, while plaintext requests get only a `308` to `https://` on the same host, with no HSTS. `restrictToSubnet` defaults to `false`: when on, each listener accepts only sources in its own interface's subnet (overlay interfaces in `100.64.0.0/10` allow that whole range; other `/32` interfaces have no derivable subnet, so they are not listened on and are flagged `subnetUnknown`).
 - **`overlay` (installed virtual networking software)**: listens only on the chosen interface; `https` defaults to `false`. "All interfaces" in direct access leaves out this interface's addresses.
@@ -313,7 +313,7 @@ Deploy and import always write content into `DATA_DIR/instances/<id>` of the new
 }
 ```
 
-`id` is only a single-level directory name under `DATA_DIR/imports`, not a system path. `importDir` is the absolute path of the imports folder on the panel's computer, shown to the signed-in user only as the copy destination (D-041); the panel accepts no path submitted by the client. `coreType` is inferred from the launch file name (`paper`, `fabric`, `neoforge`, `forge`; `server.jar` and `minecraft_server*` are `vanilla`; the rest are `custom`). `mcVersion` is a `1.7`–`1.21.x` version number recognized from the launch file name or the Forge args directory name, and is omitted when unrecognized, when the core is `custom`, or for NeoForge.
+`id` is only a single-level directory name under `DATA_DIR/imports`, not a system path. `importDir` is the absolute path of the imports folder on the panel's computer, shown to the signed-in user only as the copy destination; the panel accepts no path submitted by the client. `coreType` is inferred from the launch file name (`paper`, `fabric`, `neoforge`, `forge`; `server.jar` and `minecraft_server*` are `vanilla`; the rest are `custom`). `mcVersion` is a `1.7`–`1.21.x` version number recognized from the launch file name or the Forge args directory name, and is omitted when unrecognized, when the core is `custom`, or for NeoForge.
 
 In both kinds of import request, an omitted or `custom` `coreType` means auto-detect, and the panel's detection after copying or extraction applies; any other type is used as given. An empty `mcVersion` takes the recognized version, or stays empty when none is recognized. Example request to create a task:
 
@@ -380,7 +380,7 @@ A ZIP import can only go through the preview flow above; the old one-phase `POST
 
 ### Browser Folder Upload
 
-The browser reads the server folder the user picked and sends the files to the panel in batches (D-039). The panel receives only the file contents and their relative paths within the folder, and neither receives nor records paths on the user's computer.
+The browser reads the server folder the user picked and sends the files to the panel in batches. The panel receives only the file contents and their relative paths within the folder, and neither receives nor records paths on the user's computer.
 
 1. Start: `POST /api/import/folder-uploads`, Body `{ "folderName": "survival", "fileCount": 6210, "totalBytes": 2147483648 }`. `folderName` is for display only and cannot contain `/`, `\` or control characters. The file count and total size reuse `MAX_EXISTING_IMPORT_ENTRIES` / `MAX_EXISTING_IMPORT_BYTES` and return **413** when exceeded; insufficient free space on the data disk returns **507**.
 2. Batched upload: `POST /api/import/folder-uploads/:id/files`, multipart; each file is preceded by a `path` field holding its relative path without the outermost folder name, separated by `/`. At most 500 files per request, and a session accepts only one batch at a time (otherwise **409**).

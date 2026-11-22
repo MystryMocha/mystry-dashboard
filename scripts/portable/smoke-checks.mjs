@@ -29,7 +29,7 @@ const CREDENTIAL_DIVIDER = /^={64}\r?$/m;
 const PASSWORD_LINE = /^[ \t]*(?:Password:|密码：)/m;
 
 /**
- * The admin password must not be written when output is not a terminal (D-027). Only the password block's markers are recognized, without comparing the password itself;
+ * The admin password must not be written when output is not a terminal. Only the password block's markers are recognized, without comparing the password itself;
  * on failure the content is not echoed either, to avoid printing a password that might be there once more.
  */
 export function assertNoCredentialsShown(content, source) {

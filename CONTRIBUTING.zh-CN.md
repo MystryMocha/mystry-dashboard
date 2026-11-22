@@ -83,17 +83,16 @@ Web 界面支持英文（默认）、简体中文与繁體中文，规则如下�
 
 提交 PR 前请自行确认：
 
-- [ ] `npm.cmd run verify` 通过（Linux/macOS 使用 `npm run verify`）
+- [ ] 与改动相关的检查已通过；PR 开启后，Quality Gate 将在 Linux 与 Windows 上运行完整的 `npm run verify`
 - [ ] 若改动 API，已更新 [docs/api.zh-CN.md](docs/api.zh-CN.md) 及其英文版
 - [ ] 若改动配置项，已更新 `.env.example` 与 [docs/configuration.zh-CN.md](docs/configuration.zh-CN.md)
 - [ ] 已手动验证相关流程（登录 / 部署 / 控制台 / 文件等）
-- [ ] 配置、路由、脚本或 AI 入口变化时，已同步 `docs/ai/project-facts.json`
 - [ ] UI 改动已按真实路径验证桌面、窄屏与相邻入口
 - [ ] PR 描述区分已实现、已验证、未验证与剩余风险
 
 ## 文档贡献
 
-通过 [文档中心](docs/README.zh-CN.md) 找到对应正文，在原页修正；Wiki 仅维护导航。功能描述须与当前源码核对；历史审查和计划保留其日期与适用范围，不改写为当前结论。同时有英文版（`X.md`）与中文版（`X.zh-CN.md`）的文档，须一并修改。文档检查与提交要求见 [验证矩阵](docs/ai/verification.md)。
+通过 [文档中心](docs/README.zh-CN.md) 找到对应正文，在原页修正；Wiki 仅维护导航。功能描述须与当前源码核对；历史记录保留其日期与适用范围，不改写为当前结论。同时有英文版（`X.md`）与中文版（`X.zh-CN.md`）的文档，须一并修改。应运行的检查见 [开发指南](docs/development.zh-CN.md#本地验证清单)。
 
 ## Issue 报告建议
 

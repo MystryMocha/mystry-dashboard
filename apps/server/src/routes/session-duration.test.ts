@@ -1,5 +1,5 @@
 /**
- * Session duration (D-040): 12 hours by default, changed in the panel, and a change reissues the current device's token right away;
+ * Session duration: 12 hours by default, changed in the panel, and a change reissues the current device's token right away;
  * tokens issued as "never expire" carry no exp, but after shortening, tokens that have timed out by issue time are invalidated immediately. JWT_EXPIRES_IN in .env no longer applies.
  */
 import assert from 'node:assert/strict';

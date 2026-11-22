@@ -234,7 +234,7 @@ async function main() {
     if (!health.ok || health.body?.service !== 'mystry-dashboard') {
       throw new Error(`Health check failed: HTTP ${health.status}`);
     }
-    // The first start creates the admin automatically with the internal token (D-027); the Web login page also uses this endpoint to tell whether setup is still needed.
+    // The first start creates the admin automatically with the internal token; the Web login page also uses this endpoint to tell whether setup is still needed.
     const authStatus = await requestPanel(`http://127.0.0.1:${port}/api/auth/status`);
     const authBody = authStatus.body;
     if (!authStatus.ok || authBody?.needsSetup !== false) {

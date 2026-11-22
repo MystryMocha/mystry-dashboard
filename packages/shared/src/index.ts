@@ -327,7 +327,7 @@ export interface ExistingServerSourceInfo {
 
 export interface ExistingServerSourceListResult {
   sources: ExistingServerSourceInfo[];
-  /** Absolute path of the imports handoff area on the panel's computer, shown only to the signed-in user to copy into; the panel never accepts a path submitted by the client (D-041). */
+  /** Absolute path of the imports handoff area on the panel's computer, shown only to the signed-in user to copy into; the panel never accepts a path submitted by the client. */
   importDir: string;
 }
 

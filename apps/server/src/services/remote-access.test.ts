@@ -1,5 +1,5 @@
 /**
- * Regression for accessing the panel from other devices (D-033): interface classification, public address validation, firewall arguments, extra listeners
+ * Regression for accessing the panel from other devices: interface classification, public address validation, firewall arguments, extra listeners
  * (HTTP handoff, HTTPS dispatch and redirect, source restriction, launcher endpoint isolation) and the panel's built-in EasyTier network.
  * Listener tests use only the loopback range (127.0.0.x) and random ports and never touch real interfaces; netsh and EasyTier are both stubbed.
  */

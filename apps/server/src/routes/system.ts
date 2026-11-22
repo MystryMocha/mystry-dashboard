@@ -70,7 +70,7 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // ---- Access the panel from other devices (D-033): any signed-in user can toggle it, not limited to this machine ----
+  // ---- Access the panel from other devices: any signed-in user can toggle it, not limited to this machine ----
 
   app.get('/api/system/remote-access', async (_req, reply) => {
     try {
@@ -176,7 +176,7 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // One-click Java install (D-034): only accepts major versions whose installer the panel has pinned, and returns a background task;
+  // One-click Java install: only accepts major versions whose installer the panel has pinned, and returns a background task;
   // when the same major version is already being installed, that task is returned.
   app.post<{ Body: InstallJavaRequest }>(
     '/api/system/java-runtimes/install',
