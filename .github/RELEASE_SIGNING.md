@@ -12,7 +12,7 @@ The `SHA256SUMS` of public Preview assets is signed with a GPG key held by the m
 4. In the GitHub repository under **Settings → Environments → `release`**, configure:
    - `RELEASE_GPG_PRIVATE_KEY`: the ASCII-armored private key (Secret, required)
    - `RELEASE_GPG_PASSPHRASE`: the private key passphrase (Secret, required when there is one)
-   - `RELEASE_GPG_FINGERPRINT`: the same fingerprint as the `.fingerprint` file in the repository (Secret or Variable, required)
+   - `RELEASE_GPG_FINGERPRINT`: the same fingerprint as the `.fingerprint` file in the repository (Secret, required; the workflow reads `secrets.RELEASE_GPG_FINGERPRINT`, so a Variable is not seen)
 5. Enable **Required reviewers** (manual approval) for the `release` Environment, and restrict access to workflows triggered by tags on `main` (see [docs/portable-release.md](../docs/portable-release.md)).
 
 To check the fingerprint locally:

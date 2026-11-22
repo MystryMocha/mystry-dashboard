@@ -119,7 +119,7 @@ npm run portable:test
 npm run audit:production
 npm run build
 node scripts/portable/package-portable.mjs --platform win32 --arch x64 --output-dir release
-node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.5-windows-x64.zip
+node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.6-windows-x64.zip
 ```
 
 `package-portable.mjs` 从 Node.js 官方发布站下载固定版本的运行时并按 `SHASUMS256.txt` 校验，以 `npm ci --omit=dev` 创建独立的生产依赖树，物理复制 `@mystry/shared`，并拒绝包内的符号链接。不要直接从当前仓库的 `node_modules` 打包。
