@@ -28,9 +28,7 @@ test('concurrent requests share a sample, the short-term cache does not query ag
 });
 
 test('real collection on this platform queries only the target process and returns cumulative CPU and resident memory', { skip: !['win32', 'linux'].includes(process.platform) }, async () => {
-  // A cold powershell.exe on a GitHub Windows runner takes longer than the 3.5 s production
-  // budget (about 0.25 s on a warm desktop); this test checks what is collected, not how fast.
-  const rows = await readProcesses([{ id: 'test-only', pid: process.pid }], 30_000);
+  const rows = await readProcesses([{ id: 'test-only', pid: process.pid }]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.pid, process.pid);
   assert.ok(rows[0]!.memoryBytes > 0);
