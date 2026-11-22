@@ -15,7 +15,7 @@ export function cpuUsage(deltaCpuMs: number, deltaWallMs: number, cores: number)
   return Math.min(100, Math.max(0, deltaCpuMs / deltaWallMs / cores * 100));
 }
 
-export async function readProcesses(targets: Target[]): Promise<RawProcess[]> {
+export async function readProcesses(targets: Target[], powershellTimeoutMs = 3500): Promise<RawProcess[]> {
   if (!targets.length) return [];
   if (process.platform === 'win32') {
     // Only integer PIDs obtained internally are interpolated; all instances are queried in one batch, with time and output limits.
@@ -23,7 +23,7 @@ export async function readProcesses(targets: Target[]): Promise<RawProcess[]> {
     const script = `Get-Process -Id ${ids} -ErrorAction SilentlyContinue | ForEach-Object { try { [PSCustomObject]@{ pid=$_.Id; identity=$_.StartTime.ToUniversalTime().Ticks.ToString(); cpuMs=$_.TotalProcessorTime.TotalMilliseconds; memoryBytes=$_.WorkingSet64 } } catch {} } | ConvertTo-Json -Compress`;
     const executable = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
     const { stdout } = await execute(executable, ['-NoProfile', '-NonInteractive', '-Command', script], {
-      windowsHide: true, timeout: 3500, maxBuffer: 1024 * 1024,
+      windowsHide: true, timeout: powershellTimeoutMs, maxBuffer: 1024 * 1024,
       env: { SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR },
     });
     if (!stdout.trim()) return [];
