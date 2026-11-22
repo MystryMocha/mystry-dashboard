@@ -94,7 +94,7 @@ Output: `packages/shared/dist/`. Add fields shared by the frontend and backend h
 - Quick check: `npm run knowledge:check`; negative tests for the checker: `npm run knowledge:test`.
 - The lockfile records only official URLs. If your local npm is configured with a mirror, run `npm run lockfile:fix` after installing a new dependency.
 - Full gate: `npm run verify`. When running it directly from a Windows PowerShell terminal, use `npm.cmd run verify`.
-- Remote CI: the Quality Gate (`.github/workflows/quality.yml`) runs `npm ci` and `npm run verify` on `ubuntu-latest` for every push to `main` and every pull request (see the [verification matrix](ai/verification.md)).
+- Remote CI: the Quality Gate (`.github/workflows/quality.yml`) runs `npm ci` and `npm run verify` on both `ubuntu-latest` and `windows-2025` for every push to `main` and every pull request (see the [verification matrix](ai/verification.md)).
 
 ## Local Verification Checklist
 

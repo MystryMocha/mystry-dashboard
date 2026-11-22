@@ -26,7 +26,8 @@ test('Java picker: on a list read failure the status is "unknown", it does not s
   const alert = await screen.findByRole('alert');
   expect(alert.textContent).toContain('无法读取本机 Java 列表');
   expect(alert.textContent).toContain('重新扫描');
-  expect(statuses.at(-1)).toBe('unknown');
+  // The status reaches the parent from a passive effect, which can run after the alert is already in the DOM.
+  await waitFor(() => expect(statuses.at(-1)).toBe('unknown'));
   expect(statuses).not.toContain('mismatch');
   // Without a successful read it cannot say "not detected".
   expect(screen.queryByText(/未检测到|没有检测到/)).toBeNull();
