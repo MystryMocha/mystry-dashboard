@@ -228,9 +228,14 @@ test('save-complete detection: recognizes server logs of each version, not playe
     '\x1b[36m[12:00:00 INFO]: \x1b[0mSaved the game\x1b[m',
     '[12:00:00] [Server thread/INFO]: All dimensions are saved',
     'Saved the game',
+    '[19:08:28] [Server thread/INFO]: System chat: Saved the game',
+    '[19:08:28 INFO]: System chat: Saved the game',
   ];
   const rejected = [
     '[12:00:00] [Server thread/INFO]: <Steve> Saved the game',
+    '[19:08:28] [Server thread/INFO]: System chat: Saving the game (this may take a moment!)',
+    '[19:08:28] [Server thread/INFO]: System chat: [Steve] Saved the game',
+    '[19:08:28] [Server thread/INFO]: System chat: <Steve> Saved the game',
     '[12:00:00] [Server thread/INFO]: <Steve> ]: Saved the game',
     '[12:00:00 INFO]: [Server] Saved the game',
     '[12:00:00 INFO]: * Steve Saved the game',

@@ -639,6 +639,28 @@ test('backups page: a note is shown when the instance record was updated to matc
   expect(onRestored).toHaveBeenCalledTimes(1);
 });
 
+test('backups page: when a backup task fails, its reason stays on the page after the backup list reloads', async () => {
+  const failed = { id: 'backup-task', type: 'backup', status: 'failed', progress: 0, message: '', error: 'x', errorI18n: { key: 'server.backups.saveTimeout', params: { seconds: 60 } }, createdAt: '2026-10-26T01:02:03.000Z' };
+  const backup = { id: '20261026-010203-abcdef', instanceId: 'test', instanceName: '测试', source: 'manual', createdAt: '2026-10-26T01:02:03.000Z', sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' };
+  let listRequests = 0;
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/backups' && !options?.method) {
+      listRequests += 1;
+      // The reload after the failure returns a row, so waiting for it proves the reload has rendered.
+      return new Response(JSON.stringify({ backups: listRequests > 1 ? [backup] : [] }));
+    }
+    if (url === '/api/instances/test/backups' && options?.method === 'POST') return new Response(JSON.stringify({ ...failed, status: 'running', error: undefined, errorI18n: undefined }));
+    if (url === '/api/tasks/backup-task') return new Response(JSON.stringify(failed));
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  mount(<BackupsTab instance={{ ...instance, status: 'running' } as never} onRestored={() => {}} />);
+  await user.click(await screen.findByRole('button', { name: '立即备份' }));
+  expect(await screen.findByRole('button', { name: /的备份操作$/ })).toBeTruthy();
+  expect(screen.getByRole('alert').textContent).toContain('60 秒内没有确认世界已保存');
+});
+
 test('deleting an instance deletes its backups by default, and unchecking sends keepBackups=1 and says where the backups go', async () => {
   const deletes: string[] = [];
   const baseFetch = globalThis.fetch;
