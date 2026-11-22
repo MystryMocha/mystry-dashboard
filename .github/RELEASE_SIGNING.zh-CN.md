@@ -12,7 +12,7 @@
 4. 在 GitHub 仓库 **Settings → Environments → `release`** 中配置：
    - `RELEASE_GPG_PRIVATE_KEY`：ASCII armored 私钥（Secret，必需）
    - `RELEASE_GPG_PASSPHRASE`：私钥密码（Secret，有密码时必需）
-   - `RELEASE_GPG_FINGERPRINT`：与仓库 `.fingerprint` 文件相同的指纹（Secret 或 Variables，必需）
+   - `RELEASE_GPG_FINGERPRINT`：与仓库 `.fingerprint` 文件相同的指纹（Secret，必需；工作流读取 `secrets.RELEASE_GPG_FINGERPRINT`，配置成 Variable 读不到）
 5. 为 `release` Environment 启用 **Required reviewers**（人工审批），并限制仅 `main` 上标签触发的 workflow 可访问（见 [docs/portable-release.zh-CN.md](../docs/portable-release.zh-CN.md)）。
 
 本地核对指纹：

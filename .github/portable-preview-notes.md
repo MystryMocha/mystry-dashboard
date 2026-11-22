@@ -2,6 +2,10 @@
 
 ## English
 
+### New in 0.2.0-preview.6
+
+- **Launcher renamed to `mdash`**: The portable `mystryctl.cmd` / `mystryctl` are now `mdash.cmd` / `mdash`, and the source launchers `PanelManager.cmd` / `PanelManager.sh` are now `mdash.cmd` / `mdash.sh`. The commands are unchanged, and the old names have no aliases, so update shortcuts and scripts.
+
 ### New in 0.2.0-preview.5
 
 - **Open the panel on other devices**: The "Other Devices" button turns access from a phone or another computer on or off inside the panel and shows a URL and QR code. Choose direct access (HTTPS with a panel-issued certificate by default) or a virtual network, including a built-in EasyTier network that allows only the panel.
@@ -34,12 +38,16 @@ First run `mdash stop` in the old folder (`mystryctl stop` in 0.2.0-preview.5 an
 
 - **Platform scope**: This preview ships for Windows x64 and Linux x64 only. Linux ARM64 and macOS builds, a system installer, service registration, start at boot, native auto-update and Windows code signing are not available yet.
 - **Network boundary**: By default the panel listens only on `127.0.0.1`. Access from other devices stays off until an administrator turns it on in the panel. Once it is on, the sign-in page is reachable from the networks you chose, so keep HTTPS on and do not expose the panel to the untrusted public internet.
-- **Signature & checksum verification**: After downloading, check the files against `SHA256SUMS`. Import `mystry-release-signing-key.asc`, confirm its fingerprint is `F0272DFEE5F03A9907C4FA492E4ECE89B8DECEF8` (the same value as `.github/release-signing-key.fingerprint` in the repository; `gpg --fingerprint` prints it in groups of four, so ignore spaces and case when comparing), then verify `SHA256SUMS.asc` with that public key.
-- **Dependency audit**: The production dependency audit against the official registry on 2026-11-21 found 0 critical, 0 high and 2 moderate advisories. Both moderate advisories concern React Router 6 (GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg) and are fixed only in 7.18 and later. The frontend uses no SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs. The advisories remain a residual preview risk, and the audit is rerun for every release.
+- **Signature & checksum verification**: After downloading, check the files against `SHA256SUMS`. Import `mystry-release-signing-key.asc`, confirm its fingerprint is `89776870C5B4C56BE7D0E32BA3AA7D21DB154796` (the same value as `.github/release-signing-key.fingerprint` in the repository; `gpg --fingerprint` prints it in groups of four, so ignore spaces and case when comparing), then verify `SHA256SUMS.asc` with that public key.
+- **Dependency audit**: The production dependency audit against the official registry on 2026-11-22 found 0 critical, 0 high and 2 moderate advisories. Both moderate advisories concern React Router 6 (GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg) and are fixed only in 7.18 and later. The frontend uses no SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs. The advisories remain a residual preview risk, and the audit is rerun for every release.
 
 Full details are in `docs/portable-release.md` in the repository; the Chinese version is `docs/portable-release.zh-CN.md`.
 
 ## 简体中文
+
+### 0.2.0-preview.6 新增
+
+- **启动命令改名为 `mdash`**：便携版 `mystryctl.cmd` / `mystryctl` 改名为 `mdash.cmd` / `mdash`，源码启动器 `PanelManager.cmd` / `PanelManager.sh` 改名为 `mdash.cmd` / `mdash.sh`。命令本身不变，旧名称不保留别名，快捷方式与脚本须一并更新。
 
 ### 0.2.0-preview.5 新增
 
@@ -73,7 +81,7 @@ Full details are in `docs/portable-release.md` in the repository; the Chinese ve
 
 - **平台范围**：本 Preview 仅发布 Windows x64 与 Linux x64 版本；暂不提供 Linux ARM64 与 macOS 版本、系统安装器、服务注册、开机启动、原生自动更新或 Windows 代码签名。
 - **监听边界**：面板默认仅监听 `127.0.0.1`；从其他设备访问默认关闭，须由管理员在面板中开启。开启后，所选网络均可访问登录页，因此请保持 HTTPS 开启，切勿将面板暴露于不可信的公网。
-- **哈希与签名校验**：下载后先以 `SHA256SUMS` 校验文件；导入 `mystry-release-signing-key.asc`，核对指纹为 `F0272DFEE5F03A9907C4FA492E4ECE89B8DECEF8`（与仓库 `.github/release-signing-key.fingerprint` 相同；`gpg --fingerprint` 每 4 位分组显示，比对时忽略空格与大小写），再以该公钥验证 `SHA256SUMS.asc`。
-- **依赖安全审计**：2026-11-21 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系依赖公告（GHSA-wrjc-x8rr-h8h6、GHSA-337j-9hxr-rhxg），仅 7.18 及更高版本修复。当前前端不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；这两项仍作为 Preview 残余风险保留，每次发布均重新审计。
+- **哈希与签名校验**：下载后先以 `SHA256SUMS` 校验文件；导入 `mystry-release-signing-key.asc`，核对指纹为 `89776870C5B4C56BE7D0E32BA3AA7D21DB154796`（与仓库 `.github/release-signing-key.fingerprint` 相同；`gpg --fingerprint` 每 4 位分组显示，比对时忽略空格与大小写），再以该公钥验证 `SHA256SUMS.asc`。
+- **依赖安全审计**：2026-11-22 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系依赖公告（GHSA-wrjc-x8rr-h8h6、GHSA-337j-9hxr-rhxg），仅 7.18 及更高版本修复。当前前端不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；这两项仍作为 Preview 残余风险保留，每次发布均重新审计。
 
 完整说明见仓库中的 `docs/portable-release.zh-CN.md`，英文版为 `docs/portable-release.md`。
