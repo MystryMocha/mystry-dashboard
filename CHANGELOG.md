@@ -17,6 +17,7 @@ This file records notable changes to the project. The format follows [Keep a Cha
 ### Fixed
 
 - On Windows computers with large PowerShell modules installed, as is common on servers, the CPU and memory of running servers on the overview could stay unavailable: the process query first had PowerShell analyze every installed module and ran past its time limit. It now loads only the two built-in modules it needs.
+- Backing up a running Paper 26.3 server always failed after a 60-second wait: it prints the save confirmation behind a `System chat: ` prefix, which the panel did not recognize. The "Backups" page also cleared the reason of a failed backup or restore at once, leaving it only in the task center; the reason now stays on the page.
 
 ## [0.2.0-preview.6] - 2026-11-22
 

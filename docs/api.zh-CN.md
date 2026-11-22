@@ -251,7 +251,7 @@ Authorization: Bearer <token>
 
 备份文件为 gzip 压缩的 tar，末尾条目 `.mystry-backup/manifest.json` 记录每个文件的大小与 SHA-256。备份范围为实例目录 `DATA_DIR/instances/<id>` 下的全部文件，不含面板的所有权标记与运行时被 JVM 锁定的 `session.lock`（启动时自动重建），也不含 `panel.db`（用户与实例设置不在备份中）。目录中含符号链接或目录联接时拒绝备份。
 
-- **运行中备份**：先发送 `save-off` 与 `save-all flush`，等待服务端自身打印 `Saved the game`（1.12 及更早为 `Saved the world`；仅匹配日志前缀之后的完整消息，玩家聊天不计；最长 60 秒），打包完成后发送 `save-on`。期间服务器启动、停止或崩溃将取消备份；启动中或停止中的实例返回 **409**。
+- **运行中备份**：先发送 `save-off` 与 `save-all flush`，等待服务端自身打印 `Saved the game`（1.12 及更早为 `Saved the world`，Paper 26.3 为 `System chat: Saved the game`；仅匹配日志前缀之后的完整消息，玩家聊天不计；最长 60 秒），打包完成后发送 `save-on`。期间服务器启动、停止或崩溃将取消备份；启动中或停止中的实例返回 **409**。
 - **还原**：服务器须已停止，否则返回 **409**。`backupCurrent` 为 `true`（界面默认）时，先生成一份 `source: 'pre-restore'` 的备份。备份先经完整校验并解压到 `DATA_DIR/.mystry-staging/<taskId>/`，全部通过后才整体替换实例目录；替换中途失败时移回原目录。若面板在替换中途退出，下次启动时自动回滚或完成收尾。替换成功后，若清单记录的启动文件（jar 或 Forge `@args:` 参数文件）存在于还原后的目录，实例的 `jarFile`、`coreType`、`mcVersion` 将改为清单中的值。
 - **校验**：拒绝绝对路径、`..`、链接与特殊文件、重复路径、面板保留文件、清单以外的文件及校验值不符的文件；条目数与总大小沿用 `MAX_EXISTING_IMPORT_ENTRIES` / `MAX_EXISTING_IMPORT_BYTES`。
 - **互斥**：备份或还原期间，拒绝启动、重启、删除与接管该实例（**409**）；还原期间另拒绝写入、删除、改名与上传实例文件（上传在接收完毕、写入实例目录前再检查一次）。还原任务正在使用的备份不可删除（**409**）。

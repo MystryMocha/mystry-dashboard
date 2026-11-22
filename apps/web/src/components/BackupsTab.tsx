@@ -23,6 +23,8 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Kept apart from action errors: the list reload that follows a failed backup or restore would otherwise wipe its reason.
+  const [listError, setListError] = useState('');
   const [notice, setNotice] = useState('');
   const [task, setTask] = useState<TaskInfo | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -45,9 +47,9 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
     try {
       setBackups(await listBackups(instanceId));
       setLoaded(true);
-      setError('');
+      setListError('');
     } catch (err) {
-      setError(errorMessage(err));
+      setListError(errorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -141,6 +143,8 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
   async function confirmDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
+    setError('');
+    setNotice('');
     try {
       await deleteBackup(instanceId, deleteTarget.id);
       setDeleteTarget(null);
@@ -242,6 +246,7 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
       </div>
 
       {task && <TaskProgress task={task} label={t('backups.progress.label')} />}
+      {listError && <p className="callout callout-danger" role="alert">{listError}</p>}
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
       {notice && <p className="callout callout-success" role="status">{notice}</p>}
 
