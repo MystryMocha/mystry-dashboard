@@ -37,7 +37,7 @@
 - `mdash.cmd`（Windows）与 `mdash.sh`（Linux / WSL 源码）只负责检查 Node、安装依赖和构建，启停、状态、日志和 `remote` 命令都转调 `scripts/portable/mdash.mjs`，经本机 `POST /api/launcher/shutdown` 安全关闭。两个源码启动器只允许 `mirror` 和 `remote` 带参数。Windows 默认配置为仓库根 `.env`。三个入口的提示跟随系统语言（中文系统用中文，其余英文），`MYSTRY_LANG` 可覆盖。
 - 跨平台 `mdash`：自动随机配置、后台 PID 指纹、健康检查、安全停止、状态和日志；便携包使用包内 Node，Linux 源码入口在依赖/构建预检后复用同一控制器。无参数且 stdin 为终端时（通常是双击启动）执行 `watch`：面板以后台进程运行，窗口只读日志文件，关窗不影响面板和服务端，Ctrl+C 走安全停止。`menu` 打开交互菜单，命令执行完或出错后等待回车再退出；带参数调用与非终端 stdin 不暂停（`portable:test` 覆盖）。
 - 目标平台原生便携组装与最终压缩包冒烟脚本；发布包物理复制 `@mystry/shared`，并生成文件级 manifest。
-- GitHub Preview Release 流水线：标签/main/版本门禁、Windows x64 与 Linux x64 矩阵、生产依赖审计、校验和签名、SBOM 和自动 Release Notes。
+- GitHub Preview Release 流水线：标签/main/版本门禁、Windows x64 与 Linux x64 矩阵、生产依赖审计、校验和签名、SBOM 和自动 Release Notes；以正常 Release 发布，不标预发布（D-045）。
 - 上传、下载、任务、元数据、控制台和 ZIP 解压均有大小、并发或超时边界。
 - 任务中心：`GET /api/tasks` 返回最近 50 条任务；桌面与移动布局均通过顶栏「任务中心」进入（共享单例轮询，429 退避、页面隐藏暂停），离开部署/导入页后仍可查看任务到终态。抽屉通过 portal 挂到 body，使用原生模态 dialog；关闭时不参与键盘导航，Escape、遮罩与关闭按钮均恢复入口焦点，任务进度带 progressbar 语义。
 - ZIP 可通过「选择 ZIP」按钮或拖放选择，两者共享扩展名校验与中文错误反馈；busy 和预览恢复期间禁止更换。上传大小与解压限制由面板配置决定，前端不承诺固定 4GB。

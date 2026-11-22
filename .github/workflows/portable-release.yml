@@ -276,7 +276,10 @@ jobs:
           test -f release-assets/sbom.cdx.json
           test -f release-assets/mystry-release-signing-key.asc
 
-      - name: Create GitHub prerelease
+      # Not --prerelease: GitHub never treats a prerelease as Latest, so the repository home
+      # page and /releases/latest would offer no download. Not --latest either: rerunning an
+      # older tag would then demote the newest release. See D-045.
+      - name: Create GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -287,5 +290,4 @@ jobs:
             --verify-tag \
             --generate-notes \
             --notes "$(cat .github/portable-preview-notes.md)" \
-            --prerelease \
             --title "$RELEASE_TAG"

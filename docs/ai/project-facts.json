@@ -278,7 +278,7 @@
         "--verify-tag",
         "--generate-notes",
         "--notes",
-        "--prerelease"
+        "Create GitHub release"
       ]
     },
     {
