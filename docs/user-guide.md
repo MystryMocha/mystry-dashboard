@@ -427,6 +427,7 @@ If there's no notice:
 - Does **server-port** in `server.properties` match the port entered in the game?
 - For a test on this computer, use `127.0.0.1`. On a LAN, use the host's LAN IP. On a cloud server, use the public IP and allow the game port in the security group.
 - Does the firewall allow Java or that port?
+- The game says you are not whitelisted: the server has its whitelist on (`white-list=true`). Run `whitelist add PlayerName` in the console to add the player, or turn off "Enable Whitelist" on the Properties page and restart. While the whitelist is on and empty, the panel says so above the console and on the Multiplayer page.
 
 ### You See "Your session has expired"
 

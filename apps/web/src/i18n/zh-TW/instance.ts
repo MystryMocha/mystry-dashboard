@@ -63,6 +63,12 @@ export default {
   'instance.ready.action': '邀請玩家',
   'instance.ready.dismiss': '不再提示',
 
+  // 白名單已啟用但名單為空（主控台上方與多人連線頁）
+  'instance.whitelist.title': '白名單已啟用，名單裡還沒有玩家。',
+  'instance.whitelist.body': '不在名單裡的玩家進入伺服器時會被拒絕。',
+  'instance.whitelist.add': '要讓玩家進入，請在伺服器執行時到<console>主控台</console>輸入 <cmd>whitelist add 玩家名稱</cmd>。',
+  'instance.whitelist.off': '不需要白名單時，請到<config>參數設定</config>關閉「啟用白名單」，再重新啟動伺服器。',
+
   // 保存栏（设置与参数配置共用）：有修改才出现
   'instance.saveBar.dirty_one': '{count} 項修改尚未儲存',
   'instance.saveBar.dirty_other': '{count} 項修改尚未儲存',
