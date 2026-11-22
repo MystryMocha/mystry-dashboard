@@ -14,7 +14,7 @@
 
 <!-- How did you verify these changes? -->
 
-- [ ] `npm run verify` passes
+- [ ] Checks related to this change pass (the Quality Gate runs the full `npm run verify`)
 - [ ] Related flows verified manually (please describe)
 
 <!-- List separately: implemented, verified, unverified, and remaining risks or warnings -->
@@ -27,6 +27,5 @@
 
 - [ ] I have read [CONTRIBUTING.md](../CONTRIBUTING.md)
 - [ ] If the API / configuration is involved, the documentation is updated to match
-- [ ] If routes, environment variables, scripts or architectural facts are involved, the AI knowledge base is updated to match
 - [ ] A backend endpoint, a commit title or a passing build is not treated as proof that a feature works end to end
 - [ ] No `.env`, `data/` or secrets are committed

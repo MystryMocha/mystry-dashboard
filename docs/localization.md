@@ -12,7 +12,7 @@ Writing rules for every language of the web UI, how to add a language, and right
 | `fr`, `ru`, `es` | Français, Русский, Español | Planned; draft glossary below |
 | `ar` | العربية (right-to-left) | Planned; needs the right-to-left work below first |
 
-Together these are the six official UN languages. The implementation lives in [`apps/web/src/i18n/`](../apps/web/src/i18n/): `LOCALES` and the browser-language detection in `locale.ts`, one table per UI area in `en/<area>.ts`, and the same keys in every other locale. Messages produced by the server (errors, task progress, console errors) are translated too; see [Server messages](#server-messages) ().
+Together these are the six official UN languages. The implementation lives in [`apps/web/src/i18n/`](../apps/web/src/i18n/): `LOCALES` and the browser-language detection in `locale.ts`, one table per UI area in `en/<area>.ts`, and the same keys in every other locale. Messages produced by the server (errors, task progress, console errors) are translated too; see [Server messages](#server-messages).
 
 **The glossary is code.** Status words, common actions and navigation names are defined once in [`i18n/en/common.ts`](../apps/web/src/i18n/en/common.ts) and its `zh-CN` / `zh-TW` counterparts. Use those strings; do not paraphrase them per screen, and do not copy them into this page.
 
@@ -93,7 +93,7 @@ The server never writes user-facing text in Chinese or any other locale. It retu
 2. Add `i18n/<locale>/*.ts` with every key of `en` (the `satisfies Record<keyof typeof en, string>` check enforces this) and register it in `i18n/index.ts`.
 3. Plural categories: tables currently carry `_one` / `_other`. Russian (`one`, `few`, `many`) and Arabic (`zero`, `one`, `two`, `few`, `many`) need extra keys such as `files.count_few`; widen the per-locale table type so those extra keys type-check before translating.
 4. Start from the draft glossary below, then have a native speaker review the locale before it ships.
-5. Check every page in the new locale, in light and dark and at 375px, as [UI 与交互](ai/change-playbooks.md#ui-与交互) requires, and update the Status table above, [current state](ai/current-state.md) and .
+5. Check every page in the new locale, in light and dark and at 375px, and update the Status table above.
 
 ## Right-to-left (Arabic)
 

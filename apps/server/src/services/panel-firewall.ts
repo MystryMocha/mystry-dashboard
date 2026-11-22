@@ -6,7 +6,7 @@ import { runNetsh } from './lan-firewall.js';
  * Windows firewall allow rules for the panel port (used when accessing the panel from other devices).
  * One rule per access mode, managed by name: on enable, the old rule of the same name is deleted before adding; on disabling the mode or shutting down the panel, it is deleted by name.
  * The rule name includes the panel port: two panels on the same computer always have different ports, so toggling never deletes the other's rules.
- * Still only rules added by this process are deleted, with no unconditional sweep at startup (same as for instance multiplayer rules);
+ * Still only rules added by this process are deleted, with no unconditional sweep at startup (the same as for the instance multiplayer firewall rules);
  * rules left behind by a crashed panel are overwritten by delete-then-add the next time the same mode is enabled on the same port.
  * Adding a rule with netsh needs admin rights and the panel usually does not run as admin, so failed is a common result, and the UI explains how to allow it manually.
  * Other systems are not handled (skipped); the user's own firewall decides.

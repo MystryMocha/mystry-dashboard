@@ -6,6 +6,10 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Removed
+
+- The `knowledge:check` and `knowledge:test` scripts; `npm run verify` no longer runs them.
+
 ### Fixed
 
 - On Windows computers with large PowerShell modules installed, as is common on servers, the CPU and memory of running servers on the overview could stay unavailable: the process query first had PowerShell analyze every installed module and ran past its time limit. It now loads only the two built-in modules it needs.

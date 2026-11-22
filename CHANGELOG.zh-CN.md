@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Removed
+
+- 移除 `knowledge:check` 与 `knowledge:test` 两个脚本，`npm run verify` 不再运行它们。
+
 ### Fixed
 
 - 装有大型 PowerShell 模块的 Windows 电脑（服务器上很常见）上，总览中运行中服务端的 CPU 与内存可能一直无法显示：进程查询会让 PowerShell 先分析全部已装模块，因而超出时限。现在只加载所需的两个内置模块。

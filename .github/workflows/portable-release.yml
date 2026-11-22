@@ -278,7 +278,7 @@ jobs:
 
       # Not --prerelease: GitHub never treats a prerelease as Latest, so the repository home
       # page and /releases/latest would offer no download. Not --latest either: rerunning an
-      # older tag would then demote the newest release..
+      # older tag would then demote the newest release.
       - name: Create GitHub release
         shell: bash
         env:
