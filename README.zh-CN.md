@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-![Version](https://img.shields.io/badge/version-0.2.0--preview.5-6439e0)
+![Version](https://img.shields.io/badge/version-0.2.0--preview.6-6439e0)
 ![License](https://img.shields.io/badge/license-MIT-6439e0)
 ![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-6439e0)
 ![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522%20%28%E4%BE%BF%E6%90%BA%E7%89%88%E5%B7%B2%E5%86%85%E7%BD%AE%29-6439e0)
