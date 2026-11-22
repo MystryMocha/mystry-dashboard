@@ -2658,6 +2658,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 
 /* Start failure reason notice: the title, description and action buttons are stacked vertically */
 .start-issue { margin-bottom: 12px; }
+/* Other notices above the console (the empty whitelist) keep the same 12px to it */
+.console-notice { margin-bottom: 12px; }
 .start-issue-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .start-issue-actions .btn { align-self: auto; }
 /* Copy from the imports folder: the path and "Copy Path" are in one row, the path wraps on its own when long, and the button is not pushed away;

@@ -6,6 +6,10 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- When a server's whitelist is on and lists no players, a notice above the console and on the Multiplayer page says that everyone else is turned away, and names the two ways out: add players with `whitelist add` in the console, or turn off "Enable Whitelist" in Properties. The panel does not change the setting itself, and a server whose whitelist already lists players gets no notice. Paper 26.3 turns the whitelist on at its first start, so without this a new server rejected everyone with no word from the panel.
+
 ### Removed
 
 - The `knowledge:check` and `knowledge:test` scripts; `npm run verify` no longer runs them.

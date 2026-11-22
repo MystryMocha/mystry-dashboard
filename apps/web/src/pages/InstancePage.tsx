@@ -32,6 +32,7 @@ import { SaveBar, useFormSubmit, useSavedNotice, type RestartControl } from '../
 import { StartIssueBanner } from '../components/StartIssueBanner';
 import { InstanceStatusPill } from '../components/StatusPill';
 import { UnsavedChangesDialog } from '../components/UnsavedChangesDialog';
+import { WhitelistNotice } from '../components/WhitelistNotice';
 import { errorMessage } from '../errors';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useToolbarTitle } from '../hooks/useToolbarTitle';
@@ -69,6 +70,7 @@ function ConsoleTab({
         />
       )}
       {instance.status === 'running' && instance.ready && <ReadyHint instanceId={instance.id} />}
+      <WhitelistNotice instanceId={instance.id} status={instance.status} linkConsole={false} className="console-notice" />
       <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} />
     </>
   );
