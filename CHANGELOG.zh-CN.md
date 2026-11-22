@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [0.2.0-preview.6] - 2026-11-22
+
 ### Changed
 
 - 启动命令统一为 `mdash`：源码启动器 `PanelManager.cmd` / `PanelManager.sh` 改名为 `mdash.cmd` / `mdash.sh`，便携版 `mystryctl.cmd` / `mystryctl` 改名为 `mdash.cmd` / `mdash`，命令本身不变。旧名称不保留别名，快捷方式和脚本需要跟着改；旧版便携包启动的面板，在它的目录里用 `mystryctl stop` 停止。产品名、`MYSTRY_*` 环境变量和数据目录结构不变。
