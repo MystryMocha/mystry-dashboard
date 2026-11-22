@@ -98,7 +98,7 @@ npm.cmd run knowledge:check
 npm.cmd run verify
 ```
 
-Linux/macOS 使用相同脚本名，入口为 `npm run ...`。推送到 `main` 和每个 PR 都会由远程 Quality Gate 在 Linux 上跑 `verify`（D-032）。源码整合启动可用 `mdash.cmd` / `./mdash.sh`。
+Linux/macOS 使用相同脚本名，入口为 `npm run ...`。推送到 `main` 和每个 PR 都会由远程 Quality Gate 在 Linux 与 Windows 上跑 `verify`（D-044）。源码整合启动可用 `mdash.cmd` / `./mdash.sh`。
 
 ## 验证与交付
 
@@ -108,7 +108,7 @@ Linux/macOS 使用相同脚本名，入口为 `npm run ...`。推送到 `main` �
 npm.cmd run verify
 ```
 
-推送后远程 Quality Gate 会在 Linux 上再跑一遍。最终报告里写明跑了哪些检查、没跑完整 `verify`。
+推送后远程 Quality Gate 会在 Linux 与 Windows 上再跑一遍。最终报告里写明跑了哪些检查、没跑完整 `verify`。
 
 若受限沙箱中的 Vite/esbuild 因父目录访问被拒绝而失败，应在获准的正常环境重跑，不得直接判定为代码错误。
 
