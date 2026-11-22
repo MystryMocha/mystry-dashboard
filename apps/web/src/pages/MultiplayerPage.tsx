@@ -8,6 +8,7 @@ import { LanSection } from '../components/LanSection';
 import { useGuideOpen } from '../components/MultiplayerLayout';
 import { MultiplayerTab } from '../components/MultiplayerTab';
 import { PageHeader } from '../components/PageHeader';
+import { WhitelistNotice } from '../components/WhitelistNotice';
 import { errorMessage } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n } from '../i18n';
@@ -147,6 +148,9 @@ export function MultiplayerPage() {
               </button>
             )}
           </div>
+          {selected && (
+            <WhitelistNotice key={selected.id} instanceId={selected.id} status={selected.status} linkConsole />
+          )}
           {selected && method === 'direct' && (
             <DirectSection
               key={selected.id}

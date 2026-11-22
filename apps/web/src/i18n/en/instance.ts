@@ -61,6 +61,12 @@ export default {
   'instance.ready.action': 'Invite Players',
   'instance.ready.dismiss': 'Don\'t Show Again',
 
+  // Whitelist on with no one on it (above the console and on Multiplayer)
+  'instance.whitelist.title': 'The whitelist is on, and no players are on it yet.',
+  'instance.whitelist.body': 'Players who are not on the whitelist are turned away when they join.',
+  'instance.whitelist.add': 'To let a player in, run <cmd>whitelist add PlayerName</cmd> in the <console>Console</console> while the server is running.',
+  'instance.whitelist.off': 'Not using a whitelist? Turn off "Enable Whitelist" in <config>Properties</config>, then restart the server.',
+
   // Save bar (shared by settings and the config editor): appears only when there are changes
   'instance.saveBar.dirty_one': '{count} unsaved change',
   'instance.saveBar.dirty_other': '{count} unsaved changes',
