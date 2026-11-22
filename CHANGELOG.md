@@ -8,6 +8,7 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ### Added
 
+- The sign-in page says how to reset a forgotten password on the computer running the panel: double-click `mdash.cmd` and choose **Reset the administrator password**, or run the `reset-password` command. The source launcher's menu gains that item (`[7]`) while the panel is running; only the portable launcher had it before.
 - Virtual LAN: on Windows, when the panel is not running as administrator, the page says so before EasyTier is downloaded and names the steps (right-click `mdash.cmd`, choose Run as administrator, then Restart the panel). `/api/lan/runtime` gains `needsAdmin`.
 
 ### Removed

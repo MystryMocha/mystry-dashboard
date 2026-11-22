@@ -442,7 +442,7 @@ Mystry Dashboard 运行在你的**本机**上，通过网页管理多个 Minecra
 
 ### 忘记管理员密码
 
-面板运行期间，在运行面板的电脑上执行 `reset-password` 命令：Windows 为 `.\mdash.cmd reset-password`；Linux 便携版为 `./mdash reset-password`，源码版为 `./mdash.sh reset-password`。窗口显示一个新的随机密码，仅显示一次。请直接在终端窗口中运行：输出被重定向到文件或经管道传出时，命令将拒绝执行，旧密码继续有效。登录后点击左下角的齿轮进入「面板设置」，点击「修改密码」改为自己的密码。
+面板运行期间，在运行面板的电脑上执行 `reset-password` 命令：Windows 为 `.\mdash.cmd reset-password`；Linux 便携版为 `./mdash reset-password`，源码版为 `./mdash.sh reset-password`。Windows 上也可双击 `mdash.cmd`，在菜单中选择「重置管理员密码」；登录页附有同样的提示。窗口显示一个新的随机密码，仅显示一次。请直接在终端窗口中运行：输出被重定向到文件或经管道传出时，命令将拒绝执行，旧密码继续有效。登录后点击左下角的齿轮进入「面板设置」，点击「修改密码」改为自己的密码。
 
 重置密码会使所有浏览器与设备上的登录失效，包括你正在使用的；重新打开面板，以新密码登录即可。
 

@@ -17,6 +17,7 @@ export default {
   'login.form.setupTokenCount': '{count} / {max}',
   'login.form.setupTokenLength': 'The token is {max} characters long. This one has {count}.',
   'login.form.passwordHelp': 'Use at least 12 characters.',
+  'login.forgot': 'Forgot the password? Reset it on the computer running the panel. On Windows, double-click mdash.cmd and choose Reset the administrator password. On Linux, run <cmd>./mdash reset-password</cmd> (<cmd>./mdash.sh reset-password</cmd> for the source build).',
 
   'login.submit.busy': 'Working…',
   'login.submit.setup': 'Create and Continue',

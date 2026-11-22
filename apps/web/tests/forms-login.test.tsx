@@ -215,3 +215,16 @@ test('sign-in: the button is not disabled in advance, neither blur nor Enter pro
   await waitFor(() => expect(posts.length).toBe(1));
   expect(posts[0]).toMatchObject({ url: '/api/auth/login', body: { username: 'admin', password: 'x' } });
 });
+
+test('forgot password: sign-in points to the reset on the computer running the panel, and first-time setup does not', async () => {
+  needsSetup = false;
+  const { unmount } = render(<AuthProvider><LoginPage /></AuthProvider>);
+  const hint = await screen.findByText(/忘记密码时，在运行面板的电脑上重置/);
+  expect(hint.textContent).toContain('双击 mdash.cmd，选「重置管理员密码」');
+  expect([...hint.querySelectorAll('code')].map((node) => node.textContent)).toEqual(['./mdash reset-password', './mdash.sh reset-password']);
+  unmount();
+
+  needsSetup = true;
+  await mountSetup();
+  expect(screen.queryByText(/忘记密码时/)).toBeNull();
+});

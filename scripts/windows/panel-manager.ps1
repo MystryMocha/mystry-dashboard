@@ -339,13 +339,15 @@ function Invoke-Command {
 }
 
 # Menu items: [key, command, description]. A bare Enter equals 1; live-logs and npm-mirror are interactive operations only for the menu.
+# reset-password carries the portable launcher's label word for word: the sign-in page sends people to it once the window with the first password is closed.
 $script:RunningMenu = @(
   @('1', 'open', (T '打开管理页面（直接回车）' 'Open the dashboard (Enter)')),
   @('2', 'live-logs', (T '查看实时日志' 'View live logs')),
   @('3', 'restart', (T '重启面板' 'Restart the panel')),
   @('4', 'stop', (T '安全停止面板' 'Stop the panel safely')),
   @('5', 'rebuild', (T '重新安装依赖、构建并重启' 'Reinstall dependencies, build and restart')),
-  @('6', 'npm-mirror', (T '选择 npm 下载源' 'Choose the npm download source'))
+  @('6', 'npm-mirror', (T '选择 npm 下载源' 'Choose the npm download source')),
+  @('7', 'reset-password', (T '重置管理员密码' 'Reset the administrator password'))
 )
 $script:StoppedMenu = @(
   @('1', 'start', (T '后台启动面板（直接回车）' 'Start the panel in the background (Enter)')),
