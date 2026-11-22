@@ -40,7 +40,7 @@ Linux/macOS 使用相同脚本名，但命令入口为 `npm run ...`。
 
 ## 远程 CI
 
-`.github/workflows/quality.yml`（Quality Gate）在推送到 `main`、每个 PR 和手动触发时运行（D-032）：在 `ubuntu-latest` 上用 Node 22 执行 `npm ci` 和 `npm run verify`。它只覆盖 Linux；Windows 上的问题要靠本机 `verify` 或发布工作流 `portable-release.yml` 的 Windows 构建发现。
+`.github/workflows/quality.yml`（Quality Gate）在推送到 `main`、每个 PR 和手动触发时运行（D-044）：在 `ubuntu-latest` 与 `windows-2025` 上各用 Node 22 执行 `npm ci` 和 `npm run verify`，分别对应 `Knowledge and build verification` 与 `Windows verification` 两个 job。macOS 不在其中。
 
 ## 源码进程冒烟
 
