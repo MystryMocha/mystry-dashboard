@@ -484,7 +484,7 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/lan/runtime` | `{ version, installed, platformSupported, archive }`，`archive` 同上 |
+| GET | `/api/lan/runtime` | `{ version, installed, platformSupported, archive, needsAdmin }`，`archive` 同上。`needsAdmin` 仅在 Windows 上、面板本身未以管理员身份运行时为 `true`（每个进程依 `whoami /groups` 的完整性级别判断一次），此时 EasyTier 无法创建虚拟网卡；其他系统或无法判断时为 `false` |
 | POST | `/api/lan/runtime` | 从 GitHub 下载并校验固定版本的官方客户端；已安装时直接返回 |
 | POST | `/api/lan/runtime/upload` | multipart 字段 `file`：上传用户自行下载的官方压缩包。仅在 SHA-256 一致时安装，否则返回 400 `server.lan.uploadMismatch` |
 | GET | `/api/instances/:id/lan` | 该实例的虚拟局域网状态 `InstanceLan`。不含网络密钥；含 `peers`、`useSharedPeers`、`sharedPeers`、`listenPort` 和非阻断提示 `warning` |
@@ -493,7 +493,7 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 
 面板端 EasyTier 每次启动时选取一个随机空闲端口，同时监听 TCP 与 UDP（EasyTier 自动补充同端口的 IPv6），供使用 IPv6 或处于同一局域网的好友直连；好友端仍不监听。连接须提供网络名与密钥（`private_mode`），且不为其他网络中转。Windows 上，面板在启动前添加名为 `MystryDashboard-LAN-<实例 id>` 的入站放行规则（游戏 TCP 端口仅限本实例的虚拟 IP；监听端口的 TCP 与 UDP 仅限面板启动的 easytier-core 程序，无法添加限定程序的规则时退回不限程序），并在停止、崩溃或面板关闭时按名称删除；无法添加时 `warning` 为 `server.lan.firewallFailed`。面板异常退出后残留的规则，会在下次面板启动时按本面板已知的实例 ID（有虚拟局域网记录或 `DATA_DIR/lan/<id>` 工作目录的实例）清理，此后停止、关闭虚拟局域网或删除实例时也会补删；不按 `MystryDashboard-LAN-` 前缀删除，以免误删其他面板的规则。
 
-游戏未运行时客户端不启动，但仍返回已保存的开关与将使用的虚拟地址。若 `server-ip` 指向某一块网卡，虚拟局域网不会启动。实例停止、崩溃或面板关闭时，对应的 EasyTier 随之退出。Windows 上，面板与好友的命令均须以管理员权限运行，否则无法创建虚拟网卡。
+游戏未运行时客户端不启动，但仍返回已保存的开关与将使用的虚拟地址。若 `server-ip` 指向某一块网卡，虚拟局域网不会启动。实例停止、崩溃或面板关闭时，对应的 EasyTier 随之退出。Windows 上，面板与好友的命令均须以管理员权限运行，否则无法创建虚拟网卡。在 Windows 上创建失败时，`detail` 为 `server.lan.needsAdminWindows`，消息写明操作步骤：右键 `mdash.cmd`，选择「以管理员身份运行」，再在菜单中选择「重启面板」，然后重新启动服务器（重启面板会停止正在运行的服务器）。
 
 ## 节点 `/api/nodes`
 

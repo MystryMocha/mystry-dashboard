@@ -193,6 +193,12 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
 
   const installed = Boolean(runtime?.installed);
   const ready = installed || Boolean(lan?.enabled);
+  const needsAdmin = Boolean(runtime?.needsAdmin);
+  // Without administrator rights EasyTier never gets its adapter, and EasyTier only starts with the game, so a stopped server would still look fine.
+  // Until it actually runs, the join steps would only hand players instructions that cannot work.
+  const canInvite = Boolean(lan?.enabled) && lan?.status !== 'error' && !(needsAdmin && lan?.status !== 'running');
+  // The warning above already says what to do, so the same failure from the client is not repeated below the switch.
+  const detail = lan?.detail && !(needsAdmin && lan.detail.key === 'server.lan.needsAdminWindows') ? lan.detail : null;
   const guideContent = (
     <>
       <h3>{t('multiplayer.guide.troubleshoot')}</h3>
@@ -208,6 +214,12 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
       <p className="section-lead">{t('multiplayer.lan.intro')}</p>
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
       {notice && <p className="callout" role="status">{notice}</p>}
+      {needsAdmin && (
+        <div className="callout callout-warning" role="status">
+          <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
+          <p>{t('multiplayer.lan.adminRequired')}</p>
+        </div>
+      )}
       {runtime && !runtime.platformSupported && (
         <p className="callout callout-danger" role="alert">{t('multiplayer.lan.runtime.unsupported')}</p>
       )}
@@ -233,7 +245,9 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
           onChange={(next) => void toggle(next)}
         />
       )}
-      {lan?.detail && <p className="callout" role="status">{tm(lan.detail)}</p>}
+      {detail && (lan?.status === 'error'
+        ? <p className="callout callout-danger" role="alert">{tm(detail)}</p>
+        : <p className="callout" role="status">{tm(detail)}</p>)}
       {lan?.warning && (
         <div className="callout callout-warning" role="status">
           <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
@@ -241,7 +255,7 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
         </div>
       )}
 
-      {lan?.enabled && (
+      {lan && canInvite && (
         <JoinSteps
           steps={[
             <>

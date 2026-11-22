@@ -72,6 +72,7 @@ export default {
   'multiplayer.lan.copied': 'Join instructions copied.',
   'multiplayer.lan.friendHelp': 'The instructions contain the network secret. Anyone who has it can reach this game port, so send them only to players who are joining.',
   'multiplayer.lan.admin': 'On Windows, both the panel and players must run as administrator, or the virtual network adapter can\'t be created.',
+  'multiplayer.lan.adminRequired': "The panel isn't running as administrator, so it can't create the virtual network adapter. On the computer running the panel, right-click mdash.cmd, choose Run as administrator, then choose Restart the panel. Restarting stops running servers; start them again afterwards.",
   'multiplayer.open': 'Open This Instance to Players',
   'multiplayer.join.title': 'Let Players Join',
   'multiplayer.join.connect': 'Players join this address in Minecraft:',

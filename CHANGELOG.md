@@ -6,6 +6,10 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- Virtual LAN: on Windows, when the panel is not running as administrator, the page says so before EasyTier is downloaded and names the steps (right-click `mdash.cmd`, choose Run as administrator, then Restart the panel). `/api/lan/runtime` gains `needsAdmin`.
+
 ### Removed
 
 - The `knowledge:check` and `knowledge:test` scripts; `npm run verify` no longer runs them.
@@ -13,6 +17,7 @@ This file records notable changes to the project. The format follows [Keep a Cha
 ### Fixed
 
 - On Windows computers with large PowerShell modules installed, as is common on servers, the CPU and memory of running servers on the overview could stay unavailable: the process query first had PowerShell analyze every installed module and ran past its time limit. It now loads only the two built-in modules it needs.
+- The virtual LAN kept offering **Copy Join Instructions** after it had failed, and, without administrator rights, while the server was stopped, so players could be sent instructions that cannot work. **Let Players Join** is now hidden in those cases, and the failure is shown as an error. The messages for a virtual adapter that cannot be created and for firewall rules that cannot be added now give the steps.
 
 ## [0.2.0-preview.6] - 2026-11-22
 

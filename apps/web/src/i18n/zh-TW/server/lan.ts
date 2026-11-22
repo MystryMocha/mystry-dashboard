@@ -15,6 +15,7 @@ export default {
   'server.lan.startFailed': '虛擬區域網路用戶端啟動失敗',
   'server.lan.exited': '虛擬區域網路用戶端已停止',
   'server.lan.needsAdmin': '虛擬網卡需要系統管理員權限。請以系統管理員身分啟動面板後再試',
+  'server.lan.needsAdminWindows': '建立虛擬網卡需要系統管理員權限。在執行面板的電腦上按右鍵點 mdash.cmd，選「以系統管理員身分執行」，再在選單裡選「重启面板」，然後重新啟動伺服器',
   'server.lan.waitingForAddress': '虛擬區域網路還在等待位址。完成之前玩家無法加入',
   'server.lan.addressMismatch': '虛擬區域網路得到了未預期的位址，已保持關閉',
   'server.lan.uploadMissing': '請選擇要上傳的 EasyTier 壓縮檔',
@@ -22,5 +23,5 @@ export default {
   'server.lan.peerInvalid': '中繼節點 {peer} 無效。請用 tcp://、udp://、ws://、wss:// 或 quic:// 加主機和連接埠，例如 tcp://relay.example.com:11010',
   'server.lan.peersRequired': '至少填寫一個中繼節點，或者保留社群共享節點',
   'server.lan.listenPortUnavailable': '找不到可用於直連的空閒連接埠。請關閉佔用大量連接埠的程式後再試',
-  'server.lan.firewallFailed': '無法新增虛擬區域網路的 Windows 防火牆規則。玩家可能進得了虛擬網路卻連不上遊戲。請以系統管理員身分啟動面板',
+  'server.lan.firewallFailed': '無法新增虛擬區域網路的 Windows 防火牆規則。玩家可能進得了虛擬網路卻連不上遊戲。在執行面板的電腦上按右鍵點 mdash.cmd，選「以系統管理員身分執行」，再在選單裡選「重启面板」，然後重新啟動伺服器',
 } as const;

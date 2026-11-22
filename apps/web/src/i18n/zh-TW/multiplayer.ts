@@ -74,6 +74,7 @@ export default {
   'multiplayer.lan.copied': '已複製加入說明。',
   'multiplayer.lan.friendHelp': '說明裡有網路金鑰，拿到的人都能連上這個遊戲連接埠。只傳給要加入的玩家。',
   'multiplayer.lan.admin': '在 Windows 上，面板和玩家都要以系統管理員身分執行，否則建立不了虛擬網卡。',
+  'multiplayer.lan.adminRequired': '面板沒有以系統管理員身分執行，建立不了虛擬網卡。在執行面板的電腦上按右鍵點 mdash.cmd，選「以系統管理員身分執行」，再在選單裡選「重启面板」。重新啟動會停止正在執行的伺服器，之後再啟動它們。',
   'multiplayer.open': '對玩家開放這個實例',
   'multiplayer.join.title': '讓玩家加入',
   'multiplayer.join.connect': '玩家在 Minecraft 裡連這個位址：',

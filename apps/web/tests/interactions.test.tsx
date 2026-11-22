@@ -1268,6 +1268,55 @@ test('the virtual LAN switch saves immediately with only the relay peers saved o
   expect(JSON.parse(bodies[2])).toEqual({ enabled: true, peers: ['tcp://relay.example.com:11010', 'tcp://draft.example.com:11010'], useSharedPeers: true });
 });
 
+function mountLanTab(runtime: Record<string, unknown>, lan: Record<string, unknown>) {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23'], publicIpv4: [], publicIpv6: [], publicHost: null, serverIpBlocked: false, serverIpIsUnboundPublicHost: false, panelPort: 3000, platform: 'win32' }
+      : url === '/api/lan/runtime' ? { version: '2.6.4', installed: true, platformSupported: true, archive: null, needsAdmin: false, ...runtime }
+      : url === '/api/instances/test/lan' ? { instanceId: 'test', enabled: true, status: 'stopped', localPort: 25565, virtualIp: null, joinAddress: null, serverIpBlocked: false, runtimeInstalled: true, peers: [], useSharedPeers: true, sharedPeers: [], listenPort: null, detail: null, warning: null, ...lan }
+      : null;
+    return data ? new Response(JSON.stringify(data)) : baseFetch(url, options);
+  }));
+  mount(<MultiplayerPage />);
+}
+
+test('virtual LAN without administrator rights: the restart steps come first, and no join instructions are offered while the server is stopped', async () => {
+  const user = userEvent.setup();
+  mountLanTab({ needsAdmin: true, installed: false, archive: { name: 'easytier.zip', sha256: 'a'.repeat(64), url: 'https://example.invalid/easytier.zip', maxBytes: 1 } }, { enabled: false, status: 'disabled', runtimeInstalled: false });
+  await user.click(await screen.findByRole('button', { name: '虚拟局域网' }));
+  // Said before the client is downloaded, not after the switch fails.
+  expect(await screen.findByText(/面板没有以管理员身份运行.*右键 mdash\.cmd，选「以管理员身份运行」，再在菜单里选「重启面板」/)).toBeTruthy();
+  expect(screen.getByRole('button', { name: '下载 EasyTier' })).toBeTruthy();
+  cleanup();
+
+  // Already on from an earlier elevated run: EasyTier only starts with the game, so a stopped server shows no failure yet.
+  mountLanTab({ needsAdmin: true }, { detail: { key: 'server.lan.notRunning' } });
+  await user.click(await screen.findByRole('button', { name: '虚拟局域网' }));
+  expect(await screen.findByText(/面板没有以管理员身份运行/)).toBeTruthy();
+  const toggle = await screen.findByRole('switch', { name: '对玩家开放这个实例' }) as HTMLInputElement;
+  expect(toggle.checked).toBe(true);
+  expect(toggle.disabled).toBe(false);
+  expect(screen.queryByRole('heading', { name: '让玩家加入' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '复制加入说明' })).toBeNull();
+});
+
+test('virtual LAN that failed: the reason is an alert, the join instructions are withdrawn, and the administrator failure is not said twice', async () => {
+  const user = userEvent.setup();
+  mountLanTab({ needsAdmin: true }, { status: 'error', detail: { key: 'server.lan.needsAdminWindows' } });
+  await user.click(await screen.findByRole('button', { name: '虚拟局域网' }));
+  expect(await screen.findByText(/面板没有以管理员身份运行/)).toBeTruthy();
+  expect(screen.queryByText(/建虚拟网卡需要管理员权限/)).toBeNull();
+  expect(screen.queryByRole('button', { name: '复制加入说明' })).toBeNull();
+  cleanup();
+
+  mountLanTab({}, { status: 'error', detail: { key: 'server.lan.exited' } });
+  await user.click(await screen.findByRole('button', { name: '虚拟局域网' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('虚拟局域网客户端已停止');
+  expect(screen.queryByText(/面板没有以管理员身份运行/)).toBeNull();
+  expect(screen.queryByRole('heading', { name: '让玩家加入' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '复制加入说明' })).toBeNull();
+});
+
 test('the first save of frp tunnel settings is "Save and Open", and afterwards the tunnel settings are tucked into the collapsible section', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;

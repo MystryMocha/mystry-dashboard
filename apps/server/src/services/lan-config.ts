@@ -198,13 +198,14 @@ export function renderFriendInstructions(input: LanRenderInput): string {
   ].join('\n');
 }
 
-export function lanFailureDetail(line: string, secret: string): PanelMessage | null {
+export function lanFailureDetail(line: string, secret: string, platform: NodeJS.Platform = process.platform): PanelMessage | null {
   if (secret.length > 0 && line.includes(secret)) return null;
   // "Failed to create adapter" is EasyTier's own wording, so it matches whatever language Windows uses; the OS text
   // next to it is localized (a Chinese system prints 拒绝访问 instead of "Access is denied"). The localized text and
   // 0x80070005 are not matched on purpose: EasyTier also prints them in a non-fatal firewall warning.
   if (/administrator|access is denied|requires elevation|operation not permitted|wintun|failed to create adapter/i.test(line)) {
-    return { key: 'server.lan.needsAdmin' };
+    // Only Windows gets the steps: there the panel is always started from mdash.cmd, which can be run as administrator from its context menu.
+    return { key: platform === 'win32' ? 'server.lan.needsAdminWindows' : 'server.lan.needsAdmin' };
   }
   if (/address already in use|addrinuse|os error 10048|os error 98\b/i.test(line)) {
     return { key: 'server.lan.listenPortUnavailable' };

@@ -15,6 +15,11 @@ export interface LanRuntimeInfo {
   platformSupported: boolean;
   /** The official archive for this machine's platform. When GitHub is unreachable, the user can download the same file from any mirror and upload it; the panel verifies it by digest. */
   archive: RuntimeArchiveInfo | null;
+  /**
+   * Windows only: the panel is not running as administrator, so EasyTier cannot create its virtual adapter.
+   * False on other systems and when it cannot be determined.
+   */
+  needsAdmin: boolean;
 }
 
 export interface InstanceLanInput {

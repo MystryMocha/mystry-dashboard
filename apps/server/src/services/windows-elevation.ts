@@ -1,0 +1,58 @@
+import { execFile } from 'node:child_process';
+import path from 'node:path';
+import { getMinecraftChildEnv } from '../utils/child-env.js';
+
+/**
+ * Whether the panel process runs elevated on Windows. EasyTier can create its virtual adapter only from an elevated process, and the panel
+ * starts easytier-core as its own child, so it is the panel that has to be started as administrator.
+ * The answer comes from the integrity label in `whoami /groups`, whose SIDs are not localized (the group names are). Under UAC an
+ * administrator's unelevated token is Medium (S-1-16-8192); elevated is High (S-1-16-12288) and the SYSTEM account is System (S-1-16-16384).
+ * A process keeps its token for its whole life, so the first answer is cached.
+ */
+
+const WHOAMI_TIMEOUT_MS = 10_000;
+const HIGH_INTEGRITY_RID = 12288;
+
+export type WhoamiGroupsRunner = () => Promise<string>;
+
+let runner: WhoamiGroupsRunner = runWhoamiGroups;
+let platform: NodeJS.Platform = process.platform;
+let cached: Promise<boolean | null> | null = null;
+
+/** For tests: replaces the whoami runner and the platform check and clears the cached answer; pass null to restore the defaults. */
+export function setWindowsElevationForTests(next: { runner: WhoamiGroupsRunner; platform: NodeJS.Platform } | null): void {
+  runner = next?.runner ?? runWhoamiGroups;
+  platform = next?.platform ?? process.platform;
+  cached = null;
+}
+
+/** true when elevated, false when not, null when the output carries no integrity label. */
+export function parseWindowsElevation(whoamiGroups: string): boolean | null {
+  const label = /S-1-16-(\d+)/.exec(whoamiGroups);
+  if (!label) return null;
+  return Number(label[1]) >= HIGH_INTEGRITY_RID;
+}
+
+/**
+ * Windows only. null on other systems, and when whoami cannot run or its output cannot be read: an unknown answer must not
+ * warn someone who already started the panel as administrator.
+ */
+export function windowsPanelElevated(): Promise<boolean | null> {
+  if (platform !== 'win32') return Promise.resolve(null);
+  cached ??= runner().then(parseWindowsElevation, () => null);
+  return cached;
+}
+
+/** Uses the whoami in the system directory, without a PATH lookup. */
+function runWhoamiGroups(): Promise<string> {
+  const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? 'C:\\Windows';
+  const whoami = path.join(systemRoot, 'System32', 'whoami.exe');
+  return new Promise((resolve, reject) => {
+    execFile(
+      whoami,
+      ['/groups', '/fo', 'csv', '/nh'],
+      { env: getMinecraftChildEnv(), windowsHide: true, timeout: WHOAMI_TIMEOUT_MS },
+      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+    );
+  });
+}
