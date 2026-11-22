@@ -91,6 +91,9 @@ export default {
   'import.summary.memoryValue': 'Up to {value} GB',
   'import.summary.memoryCustom': 'Custom JVM arguments',
   'import.summary.memoryFromFile': 'From {source}',
+  'import.summary.eula': 'EULA',
+  'import.summary.eulaAccepted': 'Accepted',
+  'import.summary.eulaFromFile': 'Kept from the server\'s eula.txt',
 
   'import.error.notZip': 'Choose a server archive in ZIP format.',
   'import.error.noSource': 'Choose a folder that can be imported.',
