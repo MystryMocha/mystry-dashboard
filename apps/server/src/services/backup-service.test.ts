@@ -851,3 +851,32 @@ test('the scheduler makes one backup on the day the clock repeats the scheduled 
   await s.checkAt('2027-03-14T12:00:00Z');
   assert.equal(s.scheduled(id).length, 3);
 });
+
+test('with nothing injected but the clock, the scheduler reads the time zone and the free disk space of this machine', async () => {
+  const { id } = await setup();
+  const { createBackupScheduler, saveBackupSchedule } = await import('./backup-schedule-service.js');
+  const { listBackups, startBackupTask } = await import('./backup-service.js');
+  // Starts from an empty table, like the other cases; the scheduler used here is this case's own.
+  await scheduling();
+  // An earlier backup makes the free-space check run for real, against the disk that holds the test data.
+  const manual = await waitForTask(await startBackupTask(id));
+  assert.equal(manual.status, 'completed', manual.error);
+
+  let now = new Date('2026-06-01T10:00:00Z');
+  const scheduler = createBackupScheduler({ now: () => now });
+  saveBackupSchedule(id, { enabled: true, time: '04:00', keep: 7 }, { now });
+  scheduler.start();
+  try {
+    await scheduler.check();
+    await waitForIdleQueue();
+    assert.equal(listBackups(id).length, 1, '保存时不立即备份');
+    // Whatever the time zone, 04:00 has come round by 25 hours later, and slots that went by together make one backup.
+    now = new Date('2026-06-02T11:00:00Z');
+    await scheduler.check();
+    await waitForIdleQueue();
+  } finally {
+    scheduler.stop();
+  }
+  const scheduled = listBackups(id).filter((backup) => backup.source === 'scheduled');
+  assert.equal(scheduled.length, 1);
+});
