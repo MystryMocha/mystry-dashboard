@@ -78,7 +78,21 @@ Output: `packages/shared/dist/`. Add fields shared by the frontend and backend h
 ## Database
 
 - Initialization: `initDb()` is called at startup in `index.ts`.
-- Schema changes: there is currently no migration framework; when changing a table, handle existing `panel.db` files manually or with a one-off migration script.
+- Schema changes are versioned. The version is stored in `PRAGMA user_version`; `PANEL_DB_MIGRATIONS` in `apps/server/src/db.ts` lists every step in order, and `apps/server/src/db-migrations.ts` runs the pending ones at startup.
+- To change the schema, append an entry with the next version number, and update the row types and queries in the same change:
+
+  ```ts
+  {
+    version: 2,
+    name: 'add instances.notes',
+    up: (db) => db.exec('ALTER TABLE instances ADD COLUMN notes TEXT'),
+  },
+  ```
+
+- Never edit, reorder or remove an entry that has been released: databases already past it will not run it again. The startup check rejects a list whose versions do not count up from 1 without gaps.
+- An entry runs in one transaction together with the version update, so a throw or SQL error undoes the whole step and leaves the version as it was. `up` must not begin or end a transaction itself.
+- A step that rebuilds a table (create the new table, copy the rows, drop the old one, rename) sets `disableForeignKeys: true`. The pragma has no effect inside a transaction, so the runner switches foreign keys off before the transaction and back on after it, and commits only if `PRAGMA foreign_key_check` finds nothing. Without the flag, dropping a referenced table deletes or rejects the rows that point to it.
+- Cover each new entry in `apps/server/src/db-migrations.test.ts` with a database at the previous version that already holds data. Rehearse on copies only, never on a real `panel.db`.
 
 ## Code Style
 
