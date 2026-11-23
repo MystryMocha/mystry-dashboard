@@ -352,7 +352,9 @@ export async function safeExtract(
       await extractZipEntry(zipPath, destDir, entry, totalWritten, signal);
     }
   } catch (err) {
-    fs.rmSync(destDir, { recursive: true, force: true });
+    // A failed extraction may already have written most of a large archive: awaited rather than rmSync, which would hold
+    // every request and all console output until the half-extracted tree was gone.
+    await fs.promises.rm(destDir, { recursive: true, force: true });
     if (signal.aborted) throw abortError(signal);
     throw err;
   }

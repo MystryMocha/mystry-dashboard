@@ -210,17 +210,17 @@ async function main(): Promise<void> {
 
     const lockedInstance = createInstance({ name: '模拟文件锁实例', coreType: 'custom' });
     const lockedDirectory = defaultInstanceDir(lockedInstance.id);
-    const originalRmSync = fs.rmSync;
-    fs.rmSync = ((target, options) => {
+    const originalRm = fs.promises.rm;
+    fs.promises.rm = (async (target, options) => {
       if (path.resolve(String(target)) === path.resolve(lockedDirectory)) {
         throw new Error('模拟 Windows 文件锁');
       }
-      return originalRmSync(target, options);
-    }) as typeof fs.rmSync;
+      return originalRm(target, options);
+    }) as typeof fs.promises.rm;
     try {
       await assert.rejects(() => deleteInstance(lockedInstance.id), /模拟 Windows 文件锁/);
     } finally {
-      fs.rmSync = originalRmSync;
+      fs.promises.rm = originalRm;
     }
     assert.notEqual(getInstanceRow(lockedInstance.id), null);
     assert.equal(fs.existsSync(lockedDirectory), true);
