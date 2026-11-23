@@ -13,6 +13,7 @@ This file records notable changes to the project. The format follows [Keep a Cha
 ### Changed
 
 - Importing a server whose own `eula.txt` already records acceptance no longer asks for the EULA again: the import page hides the checkbox and the summary says "Accepted", and the panel leaves that file to the server. This holds for ZIP, folder upload and the imports folder alike.
+- The panel's pages are now served with a Content Security Policy that allows only the panel's own scripts, as a second line of defense for the sign-in token kept in the browser.
 
 ### Removed
 
