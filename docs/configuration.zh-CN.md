@@ -150,6 +150,7 @@ ZIP 导入的预检结果暂存于 `uploads/.tmp-import-preview-*`，按登录�
 | 路径 | 说明 |
 |------|------|
 | `panel.db` | SQLite 数据库（用户、实例、任务） |
+| `db-backups/` | 每次结构升级前留存的 `panel.db` 副本，命名为 `panel-<UTC 时间>-v<升级前的结构版本>.db`；仅保留最近 5 份 |
 | `instances/` | 实例唯一托管根目录 |
 | `instances/<id>/` | 对应实例的全部文件、jar 和工作目录 |
 | `imports/<目录名>/` | 同机已有服务端交接区；仅作为复制源，并非实例工作目录 |
@@ -161,7 +162,9 @@ ZIP 导入的预检结果暂存于 `uploads/.tmp-import-preview-*`，按登录�
 
 **符号链接**：若数据目录或备份目录的上级文件夹是符号链接或目录联接（例如 `/home` 本身即为链接的 Linux 发行版），面板读取配置时将其解析为真实位置。数据目录本身及其中的内容均不得为链接，否则面板将拒绝操作实例。
 
-**权限**：在 Linux/macOS 上，面板启动时创建数据根及 `instances`、`imports`、`uploads`、`.mystry-staging`、`.mystry-panel-lock` 等目录，并校验其权限为 `0700`，`panel.db` 及其 WAL/SHM 文件为 `0600`。若已有目录对 group/other 可访问，默认拒绝启动；设置 `MYSTRY_REPAIR_DATA_PERMISSIONS=1` 可在启动时自动收紧权限。在 Windows 上，Node 无法可靠验证 ACL，首次启动将输出阻断级警告：请确保 `DATA_DIR` 仅运行面板的用户可读写（便携版由 `mdash` 创建用户专属目录）。
+**权限**：在 Linux/macOS 上，面板启动时创建数据根及 `instances`、`imports`、`uploads`、`.mystry-staging`、`.mystry-panel-lock` 等目录，并校验其权限为 `0700`，`panel.db` 及其 WAL/SHM 文件为 `0600`。若已有目录对 group/other 可访问，默认拒绝启动；设置 `MYSTRY_REPAIR_DATA_PERMISSIONS=1` 可在启动时自动收紧权限。在 Windows 上，Node 无法可靠验证 ACL，首次启动将输出阻断级警告：请确保 `DATA_DIR` 仅运行面板的用户可读写（便携版由 `mdash` 创建用户专属目录）。`db-backups` 在首次留存副本时创建，权限要求相同，每份副本为 `0600`。
+
+**结构升级**：`panel.db` 自身记录结构版本。新版面板需要升级结构时，先将数据库复制到 `db-backups/`，再逐步执行，每一步各在一个事务中完成；某一步失败即回滚，面板拒绝启动并指明该步骤。数据库若已被更新版本的面板升级，面板同样拒绝启动，并列出两个版本号。若要换回某份副本：先停止面板，将 `panel.db` 及可能存在的 `panel.db-wal`、`panel.db-shm` 移出数据目录，再将 `db-backups/` 中选定的文件复制为 `panel.db`。副本留存之后的改动不在其中。副本与数据库一样含有账号与密钥。
 
 `MYSTRY_HOME` 与 `MYSTRY_CONFIG_PATH` 决定配置文件的位置，因此配置文件无法改变自身的加载位置；须在启动前经由 `mdash`、shell 或进程环境设置。便携版用户通常无需手动设置这些变量。
 

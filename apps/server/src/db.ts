@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { config } from './config.js';
+import { migrateDatabase, type DbMigration } from './db-migrations.js';
 import { STAGING_ROOT_DIR } from './services/task-staging-service.js';
 import {
   finalizeSensitiveDataFiles,
@@ -96,6 +97,22 @@ export function getDb(): DatabaseSync {
   return db;
 }
 
+/**
+ * Pre-migration copies of panel.db, under DATA_DIR. Kept apart from backups/, which holds instance backups
+ * and can be moved elsewhere with BACKUP_DIR.
+ */
+const DB_BACKUP_DIR_NAME = 'db-backups';
+const DB_BACKUPS_KEPT = 5;
+
+/**
+ * Schema history of panel.db, applied in order at startup and recorded in PRAGMA user_version.
+ * Append new entries with the next version number; never edit, remove or reorder an entry that has shipped,
+ * because databases already past it will not run it again.
+ */
+export const PANEL_DB_MIGRATIONS: readonly DbMigration[] = [
+  { version: 1, name: 'baseline schema', up: applyBaselineSchema },
+];
+
 export function initDb(): void {
   prepareSecureDataLayout(config.dataDir, [
     'instances',
@@ -107,14 +124,40 @@ export function initDb(): void {
   ]);
 
   db = new DatabaseSync(config.dbPath);
-  db.exec('PRAGMA journal_mode = WAL');
-  db.exec('PRAGMA foreign_keys = ON');
-  // SQLite creates the main database and WAL/SHM files with the process umask; tighten them to 0600 right away
-  forceSecureSensitiveFile(config.dbPath);
-  forceSecureSensitiveFile(`${config.dbPath}-wal`);
-  forceSecureSensitiveFile(`${config.dbPath}-shm`);
-  finalizeSensitiveDataFiles(config.dbPath);
+  try {
+    db.exec('PRAGMA journal_mode = WAL');
+    db.exec('PRAGMA foreign_keys = ON');
+    // SQLite creates the main database and WAL/SHM files with the process umask; tighten them to 0600 right away
+    forceSecureSensitiveFile(config.dbPath);
+    forceSecureSensitiveFile(`${config.dbPath}-wal`);
+    forceSecureSensitiveFile(`${config.dbPath}-shm`);
+    finalizeSensitiveDataFiles(config.dbPath);
 
+    migrateDatabase(db, PANEL_DB_MIGRATIONS, {
+      backupDir: path.join(config.dataDir, DB_BACKUP_DIR_NAME),
+      backupPrefix: 'panel',
+      keepBackups: DB_BACKUPS_KEPT,
+    });
+
+    ensureLocalNode();
+
+    const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number };
+    if (Number(userCount.c) === 0 && config.setupToken === null) {
+      throw new Error('用户表为空且未配置 SETUP_TOKEN，拒绝启动');
+    }
+  } catch (error) {
+    // A refused start must not keep panel.db open: on Windows the handle would block replacing or restoring the file.
+    closeDb();
+    throw error;
+  }
+}
+
+/**
+ * Version 1: the schema as it stood before versioned migrations. Databases from before then all report
+ * user_version 0 in whichever shape they had reached, so every step here checks before it changes anything.
+ * Leave it as it is; later changes are new entries in PANEL_DB_MIGRATIONS.
+ */
+function applyBaselineSchema(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -259,7 +302,7 @@ export function initDb(): void {
     db.exec('ALTER TABLE tasks ADD COLUMN phase TEXT');
   }
   taskCols = db.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>;
-  migrateLegacyTaskPhases(taskCols);
+  migrateLegacyTaskPhases(db, taskCols);
   // Localized task messages: only nullable columns are added; old tasks stay NULL and keep showing their existing text.
   if (!taskCols.some((c) => c.name === 'message_i18n')) {
     db.exec('ALTER TABLE tasks ADD COLUMN message_i18n TEXT');
@@ -274,19 +317,12 @@ export function initDb(): void {
     CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
     CREATE INDEX IF NOT EXISTS idx_instances_node_id ON instances(node_id);
   `);
-
-  ensureLocalNode();
-
-  const userCount = db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number };
-  if (Number(userCount.c) === 0 && config.setupToken === null) {
-    throw new Error('用户表为空且未配置 SETUP_TOKEN，拒绝启动');
-  }
 }
 
 /** Backfills phase for old task rows; idempotent and safe to run repeatedly. */
-function migrateLegacyTaskPhases(taskCols: Array<{ name: string }>): void {
+function migrateLegacyTaskPhases(db: DatabaseSync, taskCols: Array<{ name: string }>): void {
   if (!taskCols.some((c) => c.name === 'phase')) return;
-  getDb().exec(`
+  db.exec(`
     UPDATE tasks SET phase = 'completed'
     WHERE phase IS NULL AND status = 'completed';
     UPDATE tasks SET phase = 'failed'
