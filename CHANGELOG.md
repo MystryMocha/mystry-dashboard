@@ -9,6 +9,7 @@ This file records notable changes to the project. The format follows [Keep a Cha
 ### Added
 
 - When a server's whitelist is on and lists no players, a notice above the console and on the Multiplayer page says that everyone else is turned away, and names the two ways out: add players with `whitelist add` in the console, or turn off "Enable Whitelist" in Properties. The panel does not change the setting itself, and a server whose whitelist already lists players gets no notice. Paper 26.3 turns the whitelist on at its first start, so without this a new server rejected everyone with no word from the panel.
+- The panel now records the schema version of `panel.db`. Before an upgrade changes the database, it writes a copy to `db-backups/` in the data directory and keeps the newest five. A database already upgraded by a newer release is refused at startup instead of being opened by older code.
 
 ### Changed
 
