@@ -131,6 +131,8 @@ Except for `auth/status`, `auth/setup`, `auth/login`, the health check and the l
 | `jvm-validation-service` | Normalizes and re-verifies JVM arguments with the shared rules before saving, before queuing a task and before starting |
 | `server-launch-detect` | Detects plain jar and modern Forge/NeoForge args launch targets |
 | `task-service` | In-memory task scheduling, persisted state, settling interrupted tasks at startup, and cleaning up half-finished output |
+| `backup-service` | Instance backup, upload, restore and delete; pausing autosave for a running server; the directory swap of a restore and its recovery after a crash; deleting scheduled backups beyond the kept count |
+| `backup-schedule-service` | One daily backup schedule per instance, stored in `instance_backup_schedules`; a once-a-minute in-process check that queues a due backup through `task-service`, one at a time, and remembers across restarts which day is settled and whether the server has run since |
 | `java-detect` | Runs `java -version` and returns availability and version |
 | `java-runtime-service` | Scans, verifies and registers Java runtimes, merges refreshes, and re-verifies the bound entry before execution |
 | `node-service` | Node CRUD and secret hashing; remote creation is controlled by `REMOTE_NODE_CREATION_ENABLED` |

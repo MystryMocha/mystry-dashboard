@@ -131,6 +131,8 @@ mystry-dashboard/
 | `jvm-validation-service` | 使用共享规则在保存、任务入队和启动前规范化与复验 JVM 参数 |
 | `server-launch-detect` | 探测普通 jar 与现代 Forge/NeoForge args 启动目标 |
 | `task-service` | 内存任务调度、持久化状态、启动中断收敛与半成品清理 |
+| `backup-service` | 实例备份、上传、还原与删除；运行中备份时暂停自动保存；还原的目录替换及崩溃后的恢复；删除超出保留份数的定时备份 |
+| `backup-schedule-service` | 每个实例一份每日备份计划，存于 `instance_backup_schedules`；进程内每分钟检查一次，到期的备份经 `task-service` 逐个排入，并跨重启记住已处理到哪一天、此后服务器是否运行过 |
 | `java-detect` | 执行 `java -version` 并返回可用状态与版本 |
 | `java-runtime-service` | 扫描、验证、注册 Java 运行时，合并刷新并在执行前复验绑定条目 |
 | `node-service` | 节点 CRUD、密钥哈希；远程创建受 `REMOTE_NODE_CREATION_ENABLED` 控制 |

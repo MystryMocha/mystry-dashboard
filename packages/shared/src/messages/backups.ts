@@ -29,6 +29,7 @@ export const BACKUPS_MESSAGES = {
   // Task progress
   'server.backups.task.backupQueued': 'Waiting to back up',
   'server.backups.task.restoreQueued': 'Waiting to restore',
+  'server.backups.task.scheduledQueued': 'Waiting to back up {name} automatically',
   'server.backups.progress.saving': 'Saving the world…',
   'server.backups.progress.scanning': 'Listing files…',
   'server.backups.progress.archiving': 'Archiving files ({done}/{total})…',
@@ -40,6 +41,11 @@ export const BACKUPS_MESSAGES = {
   'server.backups.diskSpace': 'Not enough disk space. The restore needs about {needed} bytes, but only {available} bytes are free.',
   'server.backups.replaceFailed': 'Replacing the server files failed, so the original files were put back: {reason}',
   'server.backups.rollbackFailed': "Replacing the server files failed and the original files couldn't be put back automatically. They're kept in {path}.",
+
+  // Automatic backups
+  'server.backups.schedule.invalidParams': 'The automatic backup settings contain unsupported fields or are malformed.',
+  'server.backups.schedule.runFailed': 'The automatic backup of {name} failed: {reason}',
+  'server.backups.schedule.diskSpace': 'Not enough disk space. The automatic backup needs about {needed} bytes, but only {available} bytes are free.',
 
   // Upload
   'server.backups.upload.missing': 'Choose a backup file to upload.',

@@ -1,6 +1,8 @@
 import type {
   BackupInfo,
   BackupListResult,
+  BackupScheduleInfo,
+  BackupScheduleInput,
   ConfirmZipImportInput,
   CreateFolderUploadInput,
   ExistingServerSourceListResult,
@@ -329,6 +331,15 @@ export async function restoreBackup(instanceId: string, backupId: string, backup
 
 export async function deleteBackup(instanceId: string, backupId: string) {
   await api<unknown>(instanceApi(instanceId, `/backups/${encodeURIComponent(backupId)}`), { method: 'DELETE' });
+}
+
+/** The instance's daily automatic backup: whether it is on, its time and count, and how the latest run went. */
+export async function getBackupSchedule(instanceId: string, signal?: AbortSignal) {
+  return api<BackupScheduleInfo>(instanceApi(instanceId, '/backup-schedule'), { signal });
+}
+
+export async function saveBackupSchedule(instanceId: string, input: BackupScheduleInput) {
+  return api<BackupScheduleInfo>(instanceApi(instanceId, '/backup-schedule'), { method: 'PUT', json: input });
 }
 
 /** Task center: fetches the recent task list (including queued/running and finished tasks). */
