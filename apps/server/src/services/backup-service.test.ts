@@ -124,6 +124,120 @@ test('start, instance deletion and another backup or restore are refused while a
   assert.equal(processManager.getMaintenance(id), null);
 });
 
+test('a file delete is refused for the whole of a restore, and is not blocked by a backup', async () => {
+  const { id, dir } = await setup();
+  const { processManager } = await import('./process-manager.js');
+  const { deleteInstancePath } = await import('../routes/files.js');
+
+  const endRestore = processManager.beginMaintenance(id, 'server.backups.busyRestoring');
+  try {
+    await assert.rejects(
+      deleteInstancePath(id, 'world'),
+      (error: unknown) => hasKey('server.backups.busyRestoring')(error) && (error as { statusCode?: number }).statusCode === 409,
+    );
+  } finally {
+    endRestore();
+  }
+  assert.equal(fs.readFileSync(path.join(dir, 'world', 'level.dat'), 'utf8'), 'level-v1');
+
+  const endBackup = processManager.beginMaintenance(id, 'server.backups.busyBackingUp');
+  try {
+    await deleteInstancePath(id, 'world/session.lock');
+  } finally {
+    endBackup();
+  }
+  assert.equal(fs.existsSync(path.join(dir, 'world', 'session.lock')), false);
+});
+
+test('a file delete still removing entries holds the instance lock: the restore swaps the directory only afterwards and the restored files stay intact', async (t) => {
+  const { id, dir } = await setup();
+  const { processManager } = await import('./process-manager.js');
+  const { startBackupTask, startRestoreTask } = await import('./backup-service.js');
+  const { deleteInstancePath } = await import('../routes/files.js');
+  const backup = await waitForTask(await startBackupTask(id));
+  assert.equal(backup.status, 'completed', backup.error);
+  const world = path.join(dir, 'world');
+  fs.writeFileSync(path.join(world, 'level.dat'), 'level-v2');
+
+  // Hold the removal of world/ before it touches anything, standing in for a large tree that is still being removed
+  // when the restore request arrives. Without the lock the swap would go through meanwhile, and the removal would then
+  // carry on at the same path inside the directory that was just restored.
+  const originalRm = fs.promises.rm.bind(fs.promises);
+  let releaseRemoval!: () => void;
+  const removalHeld = new Promise<void>((resolve) => {
+    releaseRemoval = resolve;
+  });
+  let removalWasHeld = false;
+  let markRemovalReached!: () => void;
+  const removalReached = new Promise<void>((resolve) => {
+    markRemovalReached = resolve;
+  });
+  t.mock.method(fs.promises, 'rm', async (target: fs.PathLike, options?: fs.RmOptions) => {
+    if (path.resolve(String(target)) === world) {
+      removalWasHeld = true;
+      markRemovalReached();
+      await removalHeld;
+    }
+    return originalRm(target, options);
+  });
+
+  const deleting = deleteInstancePath(id, 'world');
+  let restoring: Promise<TaskInfo>;
+  try {
+    // Raced with the delete itself so the test fails rather than waits forever if the removal never reaches the hold.
+    await Promise.race([removalReached, deleting]);
+    assert.equal(removalWasHeld, true, '删除应停在被拦住的那一步');
+    restoring = startRestoreTask(id, backup.result!.backupId as string, { backupCurrent: false });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(processManager.getMaintenance(id), null, '删除持锁期间，还原不得进入维护');
+    assert.equal(fs.readFileSync(path.join(world, 'level.dat'), 'utf8'), 'level-v2', '删除持锁期间，实例目录不得被替换');
+  } finally {
+    releaseRemoval();
+  }
+  await deleting;
+
+  const restored = await waitForTask(await restoring);
+  assert.equal(restored.status, 'completed', restored.error);
+  assert.equal(fs.readFileSync(path.join(world, 'level.dat'), 'utf8'), 'level-v1');
+  assert.ok(fs.existsSync(path.join(world, 'region', 'r.0.0.mca')), '还原出的目录不得被此前的删除波及');
+});
+
+test('a file delete that was waiting for the instance lock is refused once a restore has entered maintenance ahead of it', async () => {
+  const { id, dir } = await setup();
+  const { processManager } = await import('./process-manager.js');
+  const { startBackupTask, startRestoreTask } = await import('./backup-service.js');
+  const { deleteInstancePath } = await import('../routes/files.js');
+  const backup = await waitForTask(await startBackupTask(id));
+  assert.equal(backup.status, 'completed', backup.error);
+  fs.writeFileSync(path.join(dir, 'world', 'level.dat'), 'level-v2');
+
+  // Another operation on the instance holds the lock; the restore queues behind it first, then the delete.
+  let releaseHolder!: () => void;
+  const held = new Promise<void>((resolve) => {
+    releaseHolder = resolve;
+  });
+  const holder = processManager.runExclusive(id, () => held);
+  let restoring: Promise<TaskInfo>;
+  let deleteOutcome: Promise<unknown>;
+  try {
+    restoring = startRestoreTask(id, backup.result!.backupId as string, { backupCurrent: false });
+    // The restore has not entered maintenance yet, so the delete passes the check made before waiting for the lock.
+    assert.equal(processManager.getMaintenance(id), null);
+    deleteOutcome = deleteInstancePath(id, 'world').then(() => null, (error: unknown) => error);
+  } finally {
+    releaseHolder();
+  }
+  await holder;
+
+  const refused = await deleteOutcome;
+  assert.ok(hasKey('server.backups.busyRestoring')(refused), `删除应在进锁后被拒绝，实际：${String(refused)}`);
+  assert.equal((refused as { statusCode?: number }).statusCode, 409);
+  const restored = await waitForTask(await restoring);
+  assert.equal(restored.status, 'completed', restored.error);
+  assert.equal(fs.readFileSync(path.join(dir, 'world', 'level.dat'), 'utf8'), 'level-v1');
+  assert.ok(fs.existsSync(path.join(dir, 'world', 'region', 'r.0.0.mca')));
+});
+
 test('a running server first pauses autosave and flushes to disk, and autosave resumes after packing; restore is refused while running', { skip: process.platform === 'win32' }, async (t) => {
   const { id, dir } = await setup();
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-fake-java-'));

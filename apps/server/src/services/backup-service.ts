@@ -557,7 +557,7 @@ function removeIfEmpty(dir: string): void {
  * Replaces the instance directory as a whole with the verified staging directory. The swap marker is written first, then the old directory is moved into the task temp directory,
  * and the old directory is deleted only after the new one is in place; if the second step fails, the old directory is moved back immediately. Must be called inside the instance lock.
  */
-function swapInstanceDirectory(taskId: string, instanceId: string, staging: string, marker: string): void {
+async function swapInstanceDirectory(taskId: string, instanceId: string, staging: string, marker: string): Promise<void> {
   const instanceDir = assertSafeInstanceRoot(defaultInstanceDir(instanceId));
   writeOwnershipMarker(instanceId, staging, marker);
   const taskDir = path.dirname(staging);
@@ -578,7 +578,10 @@ function swapInstanceDirectory(taskId: string, instanceId: string, staging: stri
     throw new PanelError('server.backups.replaceFailed', { reason: errorParam(error) });
   }
   fs.rmSync(path.join(instanceDir, STAGING_MARKER_FILE), { force: true });
-  fs.rmSync(previous, { recursive: true, force: true });
+  // The old directory is a whole server, so its removal is awaited rather than done with rmSync, which would hold every request
+  // and all console output until it finished. The caller keeps the instance lock and the maintenance flag meanwhile. The swap
+  // marker is still removed last: if the panel exits during the removal, the next start finishes it.
+  await fs.promises.rm(previous, { recursive: true, force: true });
   fs.rmSync(swapMarker, { force: true });
   removeIfEmpty(taskDir);
 }
@@ -650,7 +653,7 @@ async function restoreBackup(
       if (processManager.isRunning(instanceId)) {
         throw new PanelError('server.backups.restoreRunning', undefined, { statusCode: 409 });
       }
-      swapInstanceDirectory(taskId, instanceId, staging, row.ownership_marker!);
+      await swapInstanceDirectory(taskId, instanceId, staging, row.ownership_marker!);
       // The files were already replaced successfully: a failure to sync the record should not make the whole restore show as failed, and the user can still change it manually in settings.
       let instanceRecordUpdated = false;
       try {
@@ -661,7 +664,7 @@ async function restoreBackup(
       return { instanceRecordUpdated };
     });
   } catch (error) {
-    if (fs.existsSync(staging)) removeTaskStagingTree(taskId, instanceId);
+    if (fs.existsSync(staging)) await removeTaskStagingTree(taskId, instanceId);
     throw error;
   }
 }

@@ -128,7 +128,7 @@ export async function importZipPackage(options: {
       } finally {
         if (!completed && instanceId && stagingToken) {
           try {
-            removeTaskStagingTree(taskId, instanceId);
+            await removeTaskStagingTree(taskId, instanceId);
           } catch {
             /* A cleanup failure does not override the original error */
           }

@@ -173,14 +173,22 @@ export function assertTextFileWithinLimit(instanceId: string, relativePath: stri
   }
 }
 
-export function deletePath(instanceId: string, relativePath: string): void {
+/**
+ * A directory here may hold tens of thousands of files, so the removal is awaited rather than done with rmSync, which would hold
+ * every request and all console output until it finished. Other requests therefore run while entries are still being removed:
+ * the caller must hold the instance lock (processManager.runExclusive), otherwise a restore could swap the instance directory
+ * midway and the remaining removals would land in the restored one.
+ * Known gap: when an entry cannot be removed, fs.promises.rm rejects at that first error while the removals it has already started
+ * on sibling entries keep running briefly, so on failure the caller's lock is released a moment before the tree is quiet.
+ */
+export async function deletePath(instanceId: string, relativePath: string): Promise<void> {
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
   assertMutableTarget(root, target);
   if (!fs.existsSync(target)) {
     throw new PanelError('server.files.pathNotFound');
   }
-  fs.rmSync(target, { recursive: true, force: true });
+  await fs.promises.rm(target, { recursive: true, force: true });
 }
 
 export function renamePath(instanceId: string, from: string, to: string): void {

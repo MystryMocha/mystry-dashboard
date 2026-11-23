@@ -81,7 +81,24 @@ function removeEmptyParents(dir: string, dataDir: string): void {
   }
 }
 
-export function removeTaskStagingTree(
+/**
+ * Cleanup after a task fails while the panel is serving requests. A half-finished server can hold tens of thousands of files,
+ * so the removal is awaited rather than done with rmSync, which would hold every request and all console output until it finished.
+ */
+export async function removeTaskStagingTree(
+  taskId: string,
+  instanceId: string,
+  dataDir = config.dataDir,
+): Promise<boolean> {
+  const dir = taskStagingDir(taskId, instanceId, dataDir);
+  if (!fs.existsSync(dir)) return false;
+  await fs.promises.rm(dir, { recursive: true, force: true });
+  removeEmptyParents(dir, dataDir);
+  return true;
+}
+
+/** Startup recovery only: the panel is not listening yet, so there is nothing to hold up, and recovery runs as one synchronous pass. */
+export function removeTaskStagingTreeSync(
   taskId: string,
   instanceId: string,
   dataDir = config.dataDir,

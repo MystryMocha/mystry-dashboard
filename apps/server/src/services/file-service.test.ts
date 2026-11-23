@@ -137,6 +137,90 @@ test('the directory listing denies access on a symlink or directory junction', a
   );
 });
 
+const hasKey = (key: string) => (err: unknown) => (err as { messageKey?: string }).messageKey === key;
+
+test('delete removes a file or a whole directory tree, and refuses the instance root, the ownership marker, missing paths and paths outside the instance', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath } = await import('./file-service.js');
+  const { defaultInstanceDir, OWNERSHIP_MARKER_FILE } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'delete-semantics' });
+  const root = defaultInstanceDir(inst.id);
+  fs.mkdirSync(path.join(root, 'world', 'region'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'world', 'level.dat'), 'level');
+  fs.writeFileSync(path.join(root, 'world', 'region', 'r.0.0.mca'), 'region');
+  fs.writeFileSync(path.join(root, 'notes.txt'), 'notes');
+  fs.writeFileSync(path.join(root, 'server.jar'), 'jar');
+
+  await deletePath(inst.id, 'notes.txt');
+  assert.equal(fs.existsSync(path.join(root, 'notes.txt')), false);
+  await deletePath(inst.id, 'world');
+  assert.equal(fs.existsSync(path.join(root, 'world')), false);
+
+  await assert.rejects(deletePath(inst.id, ''), hasKey('server.files.rootImmutable'));
+  await assert.rejects(deletePath(inst.id, 'plugins/..'), hasKey('server.files.rootImmutable'));
+  await assert.rejects(deletePath(inst.id, OWNERSHIP_MARKER_FILE), hasKey('server.files.markerImmutable'));
+  await assert.rejects(deletePath(inst.id, 'missing.txt'), hasKey('server.files.pathNotFound'));
+  await assert.rejects(deletePath(inst.id, '../outside.txt'), hasKey('server.files.path.outside'));
+  assert.deepEqual(fs.readdirSync(root).sort(), [OWNERSHIP_MARKER_FILE, 'server.jar'].sort());
+});
+
+test('deleting a directory removes a symlink or directory junction inside it without touching what it points at', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'delete-links' });
+  const root = defaultInstanceDir(inst.id);
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-delete-outside-'));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(outside, 'keep.txt'), 'keep');
+  fs.mkdirSync(path.join(root, 'plugins'));
+  fs.symlinkSync(outside, path.join(root, 'plugins', 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+
+  await deletePath(inst.id, 'plugins');
+
+  assert.equal(fs.existsSync(path.join(root, 'plugins')), false);
+  assert.equal(fs.readFileSync(path.join(outside, 'keep.txt'), 'utf8'), 'keep');
+});
+
+test('the event loop keeps turning while a directory tree is being deleted', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'delete-nonblocking' });
+  const region = path.join(defaultInstanceDir(inst.id), 'world', 'region');
+  fs.mkdirSync(region, { recursive: true });
+  for (let index = 0; index < 200; index += 1) fs.writeFileSync(path.join(region, `r.${index}.mca`), 'x');
+
+  // setImmediate runs once per turn of the event loop: a removal done synchronously inside deletePath would leave this at zero.
+  let turns = 0;
+  let watching = true;
+  const spin = () => {
+    turns += 1;
+    if (watching) setImmediate(spin);
+  };
+  setImmediate(spin);
+  try {
+    await deletePath(inst.id, 'world');
+  } finally {
+    watching = false;
+  }
+
+  assert.equal(fs.existsSync(path.join(defaultInstanceDir(inst.id), 'world')), false);
+  assert.ok(turns > 0, '删除期间事件循环应继续运转');
+});
+
 test('a failed rename on upload overwrite should restore the old file and clean up the temp file', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
