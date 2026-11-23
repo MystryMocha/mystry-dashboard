@@ -320,7 +320,9 @@ export async function deleteInstance(id: string): Promise<void> {
     // Keep the order of deleting the directory before the DB row: security self-test R1 asserts "the database record must be kept when deleting the directory fails".
     if (canRemoveDirectory && fs.existsSync(dir)) {
       assertSafeInstanceRoot(dir);
-      fs.rmSync(dir, { recursive: true, force: true });
+      // Awaited rather than rmSync: a whole server directory can take seconds to remove, and rmSync would hold every request
+      // and all console output for that long. The instance lock stays held until the removal has finished.
+      await fs.promises.rm(dir, { recursive: true, force: true });
     }
     const result = getDb().prepare('DELETE FROM instances WHERE id = ?').run(id);
     if (Number(result.changes) !== 1) {

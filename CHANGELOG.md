@@ -22,6 +22,7 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 - On Windows computers with large PowerShell modules installed, as is common on servers, the CPU and memory of running servers on the overview could stay unavailable: the process query first had PowerShell analyze every installed module and ran past its time limit. It now loads only the two built-in modules it needs.
 - Backing up a running Paper 26.3 server always failed after a 60-second wait: it prints the save confirmation behind a `System chat: ` prefix, which the panel did not recognize. The "Backups" page also cleared the reason of a failed backup or restore at once, leaving it only in the task center; the reason now stays on the page.
+- Deleting a large folder in the file manager, deleting an instance or restoring a backup no longer freezes the panel while the files are removed; on a server with tens of thousands of files, every request and all console output used to stop for seconds. While a folder is being deleted, starting and stopping that instance wait for it to finish.
 
 ## [0.2.0-preview.6] - 2026-11-22
 

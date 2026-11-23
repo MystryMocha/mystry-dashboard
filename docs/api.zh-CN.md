@@ -218,7 +218,7 @@ Authorization: Bearer <token>
 | GET | `/files?path=` | 列出实例根目录内的目录，返回 `FileEntry[]`；实例根目录下的面板所有权标记 `.mystry-instance.json` 不在列表中 |
 | GET | `/files/content?path=` | 读取文本 `{ path, content }` |
 | PUT | `/files/content` | Body：`{ path, content }` |
-| DELETE | `/files?path=` | 删除实例根目录内的文件或目录 |
+| DELETE | `/files?path=` | 删除实例根目录内的文件或目录。与该实例的启动、停止、重启及实例删除共用实例锁：其中一项进行时，删除排队等待；删除完成前，这些操作亦须等待 |
 | POST | `/files/mkdir` | Body：`{ path }` |
 | POST | `/files/rename` | Body：`{ from, to }` |
 | GET | `/files/download?path=` | 二进制流；可选 `ticket=` 一次性下载票据；响应含 `Content-Disposition: attachment` |
@@ -254,7 +254,7 @@ Authorization: Bearer <token>
 - **运行中备份**：先发送 `save-off` 与 `save-all flush`，等待服务端自身打印 `Saved the game`（1.12 及更早为 `Saved the world`，Paper 26.3 为 `System chat: Saved the game`；仅匹配日志前缀之后的完整消息，玩家聊天不计；最长 60 秒），打包完成后发送 `save-on`。期间服务器启动、停止或崩溃将取消备份；启动中或停止中的实例返回 **409**。
 - **还原**：服务器须已停止，否则返回 **409**。`backupCurrent` 为 `true`（界面默认）时，先生成一份 `source: 'pre-restore'` 的备份。备份先经完整校验并解压到 `DATA_DIR/.mystry-staging/<taskId>/`，全部通过后才整体替换实例目录；替换中途失败时移回原目录。若面板在替换中途退出，下次启动时自动回滚或完成收尾。替换成功后，若清单记录的启动文件（jar 或 Forge `@args:` 参数文件）存在于还原后的目录，实例的 `jarFile`、`coreType`、`mcVersion` 将改为清单中的值。
 - **校验**：拒绝绝对路径、`..`、链接与特殊文件、重复路径、面板保留文件、清单以外的文件及校验值不符的文件；条目数与总大小沿用 `MAX_EXISTING_IMPORT_ENTRIES` / `MAX_EXISTING_IMPORT_BYTES`。
-- **互斥**：备份或还原期间，拒绝启动、重启、删除与接管该实例（**409**）；还原期间另拒绝写入、删除、改名与上传实例文件（上传在接收完毕、写入实例目录前再检查一次）。还原任务正在使用的备份不可删除（**409**）。
+- **互斥**：备份或还原期间，拒绝启动、重启、删除与接管该实例（**409**）；还原期间另拒绝写入、删除、改名与上传实例文件（上传在接收完毕、写入实例目录前再检查一次；删除在取得实例锁后再检查一次）。还原任务正在使用的备份不可删除（**409**）。
 - 备份与还原任务的运行时限为 `BACKUP_TASK_TIMEOUT_MS`（默认 6 小时），不受 `TASK_TIMEOUT_MS` 限制。
 - 上传超过 `MAX_BACKUP_UPLOAD_BYTES` 返回 **413**。下载票据的状态查询与取消沿用 `/files/download-ticket/:ticket/status` 和 `DELETE /files/download-ticket/:ticket`。
 

@@ -100,6 +100,19 @@ function rejectWhileRestoring(instanceId: string): void {
   }
 }
 
+/**
+ * File manager delete. The removal yields to the event loop while it works through the tree, so the check made before it is not
+ * enough on its own: the delete takes the instance lock, which a restore also holds while it swaps the instance directory, so the
+ * two cannot interleave. A restore may enter maintenance while this call waits for the lock, hence the second check inside it.
+ */
+export async function deleteInstancePath(instanceId: string, relativePath: string): Promise<void> {
+  rejectWhileRestoring(instanceId);
+  await processManager.runExclusive(instanceId, async () => {
+    rejectWhileRestoring(instanceId);
+    await deletePath(instanceId, relativePath);
+  });
+}
+
 function validationMessage(reply: { code: (statusCode: number) => { send: (payload: unknown) => unknown } }, key: ServerMessageKey) {
   return reply.code(400).send(panelErrorBody(key));
 }
@@ -315,8 +328,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       if (req.validationError) return validationMessage(reply, 'server.files.validation.path');
       try {
-        rejectWhileRestoring(req.params.id);
-        deletePath(req.params.id, req.query.path);
+        await deleteInstancePath(req.params.id, req.query.path);
         return { ok: true };
       } catch (err) {
         return sendRouteError(reply, err);
