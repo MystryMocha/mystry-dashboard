@@ -28,7 +28,11 @@ test('concurrent requests share a sample, the short-term cache does not query ag
 });
 
 test('real collection on this platform queries only the target process and returns cumulative CPU and resident memory', { skip: !['win32', 'linux'].includes(process.platform) }, async () => {
-  const rows = await readProcesses([{ id: 'test-only', pid: process.pid }]);
+  // This checks what is queried and returned, not how fast. On GitHub's Windows runners, with the other
+  // test files running alongside, one powershell.exe start takes 2 to 3.5 s, so the 3.5 s the overview
+  // allows fails here now and then. Keep the limit well under 30 s all the same: with module autoloading
+  // back in the query it ran past 30 s on those runners, and this test is what catches that.
+  const rows = await readProcesses([{ id: 'test-only', pid: process.pid }], 15_000);
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.pid, process.pid);
   assert.ok(rows[0]!.memoryBytes > 0);
