@@ -78,7 +78,21 @@ npm run build -w @mystry/shared
 ## 数据库
 
 - 初始化：`initDb()` 在 `index.ts` 启动时调用。
-- 表结构变更：当前无迁移框架；改表时须手动处理已有的 `panel.db`，或编写一次性迁移脚本。
+- 表结构变更采用版本化迁移。版本号记录在 `PRAGMA user_version`；`apps/server/src/db.ts` 中的 `PANEL_DB_MIGRATIONS` 按顺序列出每一步，启动时由 `apps/server/src/db-migrations.ts` 执行尚未执行的步骤。
+- 改表时，在列表末尾追加一项，版本号取下一个整数，并在同一变更中更新行类型与查询：
+
+  ```ts
+  {
+    version: 2,
+    name: 'add instances.notes',
+    up: (db) => db.exec('ALTER TABLE instances ADD COLUMN notes TEXT'),
+  },
+  ```
+
+- 已发布的条目不得修改、调整顺序或删除：已越过该版本的数据库不会再执行它。版本号须从 1 起连续递增，否则启动时即报错。
+- 每一项与版本号更新在同一事务中完成，抛出异常或 SQL 出错都会撤销整步，版本号保持不变。`up` 不得自行开启或结束事务。
+- 需要重建表的步骤（建新表、复制数据、删旧表、改名）须设置 `disableForeignKeys: true`。该 pragma 在事务内不生效，因此执行器在事务开始前关闭外键、结束后重新开启，并仅在 `PRAGMA foreign_key_check` 无结果时提交。未设置时，删除被引用的表会连带删除或拒绝指向它的行。
+- 每新增一项，都在 `apps/server/src/db-migrations.test.ts` 中以「处于上一版本且已有数据」的数据库覆盖。演练只用副本，不得拿真实的 `panel.db` 测试。
 
 ## 代码风格
 

@@ -702,7 +702,8 @@ test('the download source is saved to the database, and the official source is u
 test('an old database without the settings table gets it added automatically at startup', async (t) => {
   const { initDb, closeDb, getDb } = await tempDatabase(t);
   const { getDownloadSource } = await import('./download-sources.js');
-  getDb().exec('DROP TABLE panel_settings');
+  // Databases from before versioned migrations all report user_version 0, which is what sends them through the baseline.
+  getDb().exec('DROP TABLE panel_settings; PRAGMA user_version = 0');
   closeDb();
   initDb();
   assert.equal(getDownloadSource(), 'official');
