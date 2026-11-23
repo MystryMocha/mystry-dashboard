@@ -346,9 +346,14 @@ function applyBaselineSchema(db: DatabaseSync): void {
   `);
 }
 
+/**
+ * A database can report an earlier version than its tables show: one rebuilt from a dump keeps its tables and reports
+ * user_version 0, and then runs every step again. So the table is created only when it is missing, and the schedules
+ * already in it are left as they are.
+ */
 function createBackupSchedules(db: DatabaseSync): void {
   db.exec(`
-    CREATE TABLE instance_backup_schedules (
+    CREATE TABLE IF NOT EXISTS instance_backup_schedules (
       instance_id TEXT PRIMARY KEY,
       enabled INTEGER NOT NULL DEFAULT 0,
       time_of_day TEXT NOT NULL,

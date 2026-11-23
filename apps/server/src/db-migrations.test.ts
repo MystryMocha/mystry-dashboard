@@ -466,6 +466,32 @@ test('the backup schedule table is added to a database at the version before it,
   );
 });
 
+test('a database that already has the backup schedule table but reports version 0 runs the steps again and keeps its schedules', async (t) => {
+  const s = scratch(t, 'backup-schedules-rerun');
+  useDataDir(s);
+  const { initDb, getDb, closeDb, PANEL_DB_MIGRATIONS } = await import('./db.js');
+  initDb();
+  const schema = schemaDump(getDb());
+  getDb().prepare('INSERT INTO instances (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)').run('i1', 'Survival', now, now);
+  getDb().prepare(
+    `INSERT INTO instance_backup_schedules
+       (instance_id, enabled, time_of_day, keep_count, last_slot, last_backup_at, last_backup_id, server_ran,
+        last_failure_at, last_failure, last_failure_i18n, created_at, updated_at)
+     VALUES (?, 1, '23:30', 3, '2026-01-01', ?, '20260101-233000-abcdef', 1, ?, 'Not enough disk space.', ?, ?, ?)`,
+  ).run('i1', now, now, JSON.stringify({ key: 'server.backups.schedule.diskSpace', params: { needed: 2, available: 1 } }), now, now);
+  const schedules = JSON.stringify(getDb().prepare('SELECT * FROM instance_backup_schedules').all());
+  // What a database rebuilt from a dump looks like: every table is there, and the version reads 0.
+  getDb().exec('PRAGMA user_version = 0');
+  closeDb();
+
+  initDb();
+  const db = getDb();
+  assert.equal(pragmaNumber(db, 'user_version'), PANEL_DB_MIGRATIONS.length);
+  assert.equal(schemaDump(db), schema, 'running the steps again leaves the schema as it was');
+  assert.equal(JSON.stringify(db.prepare('SELECT * FROM instance_backup_schedules').all()), schedules);
+  assert.equal(backupsIn(s)?.length, 1, 'the copy is still taken before the steps run');
+});
+
 const tree: DbMigration = {
   version: 1,
   name: 'tree',
