@@ -50,6 +50,10 @@ test('only a regular eula.txt in the server root is read, and its fingerprint fo
   assert.equal(hasAcceptedEula(root), false);
 
   fs.writeFileSync(file, 'eula=true\n\n');
+  // Same size as the first write on purpose, so only the modification time tells the two apart. Two writes this close
+  // together can get the same timestamp (seen on Windows), so the time is moved on by hand, as a later edit would do.
+  const edited = new Date(fs.statSync(file).mtimeMs + 2000);
+  fs.utimesSync(file, edited, edited);
   assert.equal(hasAcceptedEula(root), true);
   assert.notEqual(eulaFileFingerprint(root), before);
 
