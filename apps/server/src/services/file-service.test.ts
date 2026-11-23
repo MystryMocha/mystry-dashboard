@@ -2,6 +2,7 @@
  * File rename and path safety regression.
  */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -154,6 +155,10 @@ test('delete removes a file or a whole directory tree, and refuses the instance 
   fs.writeFileSync(path.join(root, 'world', 'region', 'r.0.0.mca'), 'region');
   fs.writeFileSync(path.join(root, 'notes.txt'), 'notes');
   fs.writeFileSync(path.join(root, 'server.jar'), 'jar');
+  // Read-only entries and empty directories go like any other.
+  fs.mkdirSync(path.join(root, 'world', 'datapacks'));
+  fs.chmodSync(path.join(root, 'world', 'level.dat'), 0o444);
+  if (process.platform === 'win32') execFileSync('attrib', ['+R', path.join(root, 'world', 'region')]);
 
   await deletePath(inst.id, 'notes.txt');
   assert.equal(fs.existsSync(path.join(root, 'notes.txt')), false);
@@ -188,6 +193,43 @@ test('deleting a directory removes a symlink or directory junction inside it wit
 
   assert.equal(fs.existsSync(path.join(root, 'plugins')), false);
   assert.equal(fs.readFileSync(path.join(outside, 'keep.txt'), 'utf8'), 'keep');
+});
+
+test('a delete stops at the first entry it cannot remove, and nothing more is removed once it has failed', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'delete-stops' });
+  const world = path.join(defaultInstanceDir(inst.id), 'world');
+  for (const dir of ['region', 'entities', 'poi']) {
+    fs.mkdirSync(path.join(world, dir), { recursive: true });
+    for (let index = 0; index < 5; index += 1) fs.writeFileSync(path.join(world, dir, `r.${index}.mca`), 'x');
+  }
+  const left = () => (fs.readdirSync(world, { recursive: true }) as string[]).sort();
+  const filesLeft = () => left().filter((entry) => entry.endsWith('.mca')).length;
+
+  // The seventh file is refused, as one held open by the running server would be. By then one directory is gone and the
+  // removal is inside the next, with a third not yet reached; which is which depends on the order the file system lists them in.
+  const originalUnlink = fs.promises.unlink.bind(fs.promises);
+  let attempts = 0;
+  t.mock.method(fs.promises, 'unlink', async (target: fs.PathLike) => {
+    attempts += 1;
+    if (attempts === 7) throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' });
+    return originalUnlink(target);
+  });
+
+  await assert.rejects(deletePath(inst.id, 'world'), (err: unknown) => (err as { code?: string }).code === 'EBUSY');
+  const atFailure = left();
+  assert.equal(filesLeft(), 9, '失败前只应删掉 6 个文件');
+  assert.equal(atFailure.length, 11, '应剩 2 个目录和 9 个文件');
+
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(attempts, 7, '失败之后不应再发起任何删除');
+  assert.deepEqual(left(), atFailure);
 });
 
 test('the event loop keeps turning while a directory tree is being deleted', async (t) => {

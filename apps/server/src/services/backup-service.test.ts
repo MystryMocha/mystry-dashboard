@@ -159,10 +159,10 @@ test('a file delete still removing entries holds the instance lock: the restore 
   const world = path.join(dir, 'world');
   fs.writeFileSync(path.join(world, 'level.dat'), 'level-v2');
 
-  // Hold the removal of world/ before it touches anything, standing in for a large tree that is still being removed
-  // when the restore request arrives. Without the lock the swap would go through meanwhile, and the removal would then
-  // carry on at the same path inside the directory that was just restored.
-  const originalRm = fs.promises.rm.bind(fs.promises);
+  // Hold the removal of world/ at its first step, before it has removed anything, standing in for a large tree that is
+  // still being removed when the restore request arrives. Without the lock the swap would go through meanwhile, and the
+  // removal would then carry on at the same path inside the directory that was just restored.
+  const originalRmdir = fs.promises.rmdir.bind(fs.promises);
   let releaseRemoval!: () => void;
   const removalHeld = new Promise<void>((resolve) => {
     releaseRemoval = resolve;
@@ -172,13 +172,13 @@ test('a file delete still removing entries holds the instance lock: the restore 
   const removalReached = new Promise<void>((resolve) => {
     markRemovalReached = resolve;
   });
-  t.mock.method(fs.promises, 'rm', async (target: fs.PathLike, options?: fs.RmOptions) => {
-    if (path.resolve(String(target)) === world) {
+  t.mock.method(fs.promises, 'rmdir', async (target: fs.PathLike, options?: fs.RmDirOptions) => {
+    if (!removalWasHeld && path.resolve(String(target)) === world) {
       removalWasHeld = true;
       markRemovalReached();
       await removalHeld;
     }
-    return originalRm(target, options);
+    return originalRmdir(target, options);
   });
 
   const deleting = deleteInstancePath(id, 'world');

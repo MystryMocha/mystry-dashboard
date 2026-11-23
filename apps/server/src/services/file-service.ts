@@ -174,12 +174,44 @@ export function assertTextFileWithinLimit(instanceId: string, relativePath: stri
 }
 
 /**
+ * Removes a file or a directory tree one entry at a time, with the choices Node's own recursive removal makes: a link is removed,
+ * never followed, and a directory is entered only after removing it as it stands has failed because it is not empty.
+ * fs.promises.rm is not used because it removes all entries of a directory at once. When one of them cannot be removed it rejects
+ * while the others are still being removed, so the caller would release the instance lock before the tree is quiet; it also keeps
+ * the thread pool busy enough to hold up every other file read and write. One at a time, nothing is still running once this has
+ * thrown, and other file work carries on, at the cost of a removal that takes about two and a half times as long.
+ */
+async function removeEntry(target: string, listed?: fs.Dirent): Promise<void> {
+  try {
+    // A directory listing on Windows reports every reparse point as a link, including directories that are not links (cloud
+    // placeholders, mounted volumes), so only a plain file or a plain directory is taken at its word.
+    const isDirectory = listed?.isDirectory()
+      || (!listed?.isFile() && (await fs.promises.lstat(target)).isDirectory());
+    if (!isDirectory) {
+      await fs.promises.unlink(target);
+      return;
+    }
+    try {
+      await fs.promises.rmdir(target);
+      return;
+    } catch (error) {
+      if (!hasErrorCode(error, 'ENOTEMPTY') && !hasErrorCode(error, 'EEXIST')) throw error;
+    }
+    for (const child of await fs.promises.readdir(target, { withFileTypes: true })) {
+      await removeEntry(path.join(target, child.name), child);
+    }
+    await fs.promises.rmdir(target);
+  } catch (error) {
+    // Already gone, for example removed by the running server in the meantime.
+    if (!hasErrorCode(error, 'ENOENT')) throw error;
+  }
+}
+
+/**
  * A directory here may hold tens of thousands of files, so the removal is awaited rather than done with rmSync, which would hold
  * every request and all console output until it finished. Other requests therefore run while entries are still being removed:
  * the caller must hold the instance lock (processManager.runExclusive), otherwise a restore could swap the instance directory
  * midway and the remaining removals would land in the restored one.
- * Known gap: when an entry cannot be removed, fs.promises.rm rejects at that first error while the removals it has already started
- * on sibling entries keep running briefly, so on failure the caller's lock is released a moment before the tree is quiet.
  */
 export async function deletePath(instanceId: string, relativePath: string): Promise<void> {
   const root = getInstanceDir(instanceId);
@@ -188,7 +220,7 @@ export async function deletePath(instanceId: string, relativePath: string): Prom
   if (!fs.existsSync(target)) {
     throw new PanelError('server.files.pathNotFound');
   }
-  await fs.promises.rm(target, { recursive: true, force: true });
+  await removeEntry(target);
 }
 
 export function renamePath(instanceId: string, from: string, to: string): void {
