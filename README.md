@@ -52,7 +52,7 @@ For players hosting servers for themselves and their friends, at home or in the 
 | **Files & Properties** | Browse, upload and download files of any size, edit text files, rename, and edit `server.properties` in a grouped form that keeps your comments. |
 | **Quick Deploy** | Deploy **Paper**, **Fabric**, **Forge**, **NeoForge** or **Vanilla**, from legacy versions up to Minecraft 26.x. Paper and the latest stable release are preselected. |
 | **Import Server** | See what's inside a ZIP before importing it, or copy in an existing server folder. Your original folder is never changed. |
-| **Backups** | Back up a whole server folder, even while it's running. Download, upload and delete backups, and restore after every file is checked. |
+| **Backups** | Back up a whole server folder, even while it's running, by hand or automatically every day with the newest few kept. Download, upload and delete backups, and restore after every file is checked. |
 | **Multiplayer** | Choose **Direct Connection** (LAN IPv4, public IPv6 or a public server address), **Virtual LAN** (EasyTier, no public IP needed) or **frp Tunnel**. Only the game port is shared. |
 | **Java & JVM** | Find the Java already installed, pick the right version for each new server, install Eclipse Temurin in one click when it's missing, and set memory with JVM presets. |
 | **Download sources** | **Official** (default) or **China Mirrors** (BMCLAPI and GitHub mirrors, falling back to official). frp, EasyTier and Java downloads are checked against pinned SHA-256 hashes. |
@@ -170,7 +170,7 @@ In the docs, `DATA_DIR/...` means the resolved data root; see [Data Directory](d
 - **Managed instance root**: Every server lives in `instances/<id>` under the data root. The panel never browses arbitrary system paths or binds directly to external directories. Instances that older panel versions kept in an external folder can be moved in; see [Adopting a Legacy External Instance](docs/user-guide.md#adopting-a-legacy-external-instance).
 - **Folder import**: To import an existing server, stop it first, then choose its folder in the browser. The panel receives a copy and the original folder is kept untouched. Very large servers can be copied into `DATA_DIR/imports/` instead. See [Upload a Folder](docs/user-guide.md#upload-a-folder).
 - **In-memory task queue**: Task metadata is stored in SQLite, while workers run in memory. If the panel restarts, unfinished tasks are marked as failed and their staging folders are cleaned up.
-- **Per-instance backups**: Backups cover one server folder at a time. Scheduled backups, retention rules and full-panel database (`panel.db`) backups are not included yet. See [backup and migration](docs/tutorials.md#tutorial-8-backup-and-migration).
+- **Per-instance backups**: Backups cover one server folder at a time, made by hand or on a daily schedule. Backups of the whole panel, including its database (`panel.db`), are not included yet. See [backup and migration](docs/tutorials.md#tutorial-8-backup-and-migration).
 - **Multiplayer requirements**: On Windows, Virtual LAN requires starting the panel as administrator, and friends must run their join command as administrator too. When direct P2P fails, encrypted traffic is relayed through shared community nodes (or your custom nodes). frp requires your own frp server. Share the network secret or **Player Config** only with people you trust. See [multiplayer](docs/user-guide.md#multiplayer).
 - **Single admin account**: Changing or resetting the password immediately revokes existing tokens, tickets and console connections, but multi-user roles, session listing and 2FA are not implemented yet.
 
@@ -193,7 +193,6 @@ User documentation ([Documentation Center](docs/README.md), [Getting Started](do
 ## Roadmap
 
 - Public Minecraft preview with portable Windows x64 and Linux x64 builds
-- Scheduled automatic backups and retention policies
 - Full support for the mainstream dedicated servers available through SteamCMD, starting with Left 4 Dead 2
 - Managing servers on multiple machines from one panel
 

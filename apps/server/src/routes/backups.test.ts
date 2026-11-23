@@ -1,12 +1,13 @@
 /**
- * Backup endpoint regression: authentication, create, list, ticket download, upload, restore parameter validation, delete, and rejecting file changes during a restore.
+ * Backup endpoint regression: authentication, create, list, ticket download, upload, restore parameter validation, delete, rejecting file changes during a restore,
+ * and reading and saving the automatic backup schedule.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import type { BackupInfo, BackupListResult, FileDownloadTicketResult, TaskInfo } from '@mystry/shared';
+import type { BackupInfo, BackupListResult, BackupScheduleInfo, FileDownloadTicketResult, TaskInfo } from '@mystry/shared';
 
 process.env.JWT_SECRET = 'a'.repeat(64);
 process.env.SETUP_TOKEN = 'b'.repeat(64);
@@ -165,8 +166,48 @@ test('backup endpoints end to end', async (t) => {
   const missing = await app.inject({ method: 'DELETE', url: `/api/instances/${id}/backups/${backup.id}`, headers: authorization });
   assert.equal(missing.statusCode, 404);
 
+  // Automatic backup schedule: defaults until saved, strict validation, and the saved values read back.
+  const scheduleUrl = `/api/instances/${id}/backup-schedule`;
+  assert.equal((await app.inject({ method: 'GET', url: scheduleUrl })).statusCode, 401);
+  assert.equal((await app.inject({ method: 'GET', url: '/api/instances/doesnotexist/backup-schedule', headers: authorization })).statusCode, 404);
+  const defaults = await app.inject({ method: 'GET', url: scheduleUrl, headers: authorization });
+  assert.equal(defaults.statusCode, 200, defaults.body);
+  const defaultSchedule = defaults.json<BackupScheduleInfo>();
+  assert.deepEqual(
+    { ...defaultSchedule, utcOffsetMinutes: 0 },
+    { enabled: false, time: '04:00', keep: 7, utcOffsetMinutes: 0, lastBackupAt: null, lastFailure: null },
+  );
+  assert.equal(defaultSchedule.utcOffsetMinutes, -new Date().getTimezoneOffset() || 0);
+  for (const payload of [
+    { enabled: true, time: '24:00', keep: 7 },
+    { enabled: true, time: '4:00', keep: 7 },
+    { enabled: true, time: '04:00', keep: 0 },
+    { enabled: true, time: '04:00', keep: 366 },
+    { enabled: true, time: '04:00', keep: 2.5 },
+    { enabled: true, time: '04:00' },
+    { enabled: true, time: '04:00', keep: 7, timeZone: 'UTC' },
+  ]) {
+    const rejected = await app.inject({ method: 'PUT', url: scheduleUrl, headers: authorization, payload });
+    assert.equal(rejected.statusCode, 400, JSON.stringify(payload));
+    assert.equal(rejected.json<{ code: string }>().code, 'server.backups.schedule.invalidParams');
+  }
+  assert.equal((await app.inject({ method: 'PUT', url: scheduleUrl, payload: { enabled: true, time: '23:30', keep: 3 } })).statusCode, 401);
+  const saved = await app.inject({ method: 'PUT', url: scheduleUrl, headers: authorization, payload: { enabled: true, time: '23:30', keep: 3 } });
+  assert.equal(saved.statusCode, 200, saved.body);
+  const reread = await app.inject({ method: 'GET', url: scheduleUrl, headers: authorization });
+  for (const schedule of [saved.json<BackupScheduleInfo>(), reread.json<BackupScheduleInfo>()]) {
+    assert.deepEqual(
+      { enabled: schedule.enabled, time: schedule.time, keep: schedule.keep, lastBackupAt: schedule.lastBackupAt, lastFailure: schedule.lastFailure },
+      { enabled: true, time: '23:30', keep: 3, lastBackupAt: null, lastFailure: null },
+    );
+  }
+
   // Deleting an instance: the backup directory is deleted with it by default, and kept when keepBackups=1.
   const { backupRoot } = await import('../services/backup-service.js');
+  const { getDb } = await import('../db.js');
+  const scheduleRows = (instanceId: string) => Number((getDb()
+    .prepare('SELECT COUNT(*) AS c FROM instance_backup_schedules WHERE instance_id = ?')
+    .get(instanceId) as { c: number }).c);
   async function instanceWithBackup(name: string): Promise<string> {
     const response = await app.inject({ method: 'POST', url: '/api/instances', headers: authorization, payload: { name } });
     const instanceId = response.json<{ id: string }>().id;
@@ -180,9 +221,19 @@ test('backup endpoints end to end', async (t) => {
   }
   const dropped = await instanceWithBackup('drop-backups');
   assert.ok(fs.existsSync(path.join(backupRoot(), dropped)));
+  const droppedSchedule = await app.inject({
+    method: 'PUT',
+    url: `/api/instances/${dropped}/backup-schedule`,
+    headers: authorization,
+    payload: { enabled: true, time: '04:00', keep: 7 },
+  });
+  assert.equal(droppedSchedule.statusCode, 200, droppedSchedule.body);
+  assert.equal(scheduleRows(dropped), 1);
   const deleteDropped = await app.inject({ method: 'DELETE', url: `/api/instances/${dropped}`, headers: authorization });
   assert.equal(deleteDropped.statusCode, 200, deleteDropped.body);
   assert.equal(fs.existsSync(path.join(backupRoot(), dropped)), false);
+  assert.equal(scheduleRows(dropped), 0, 'the schedule goes with its instance');
+  assert.equal(scheduleRows(id), 1);
 
   const kept = await instanceWithBackup('keep-backups');
   const deleteKept = await app.inject({ method: 'DELETE', url: `/api/instances/${kept}?keepBackups=1`, headers: authorization });

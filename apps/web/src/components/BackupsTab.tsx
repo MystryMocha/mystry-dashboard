@@ -6,6 +6,7 @@ import { errorMessage, isAbortError } from '../errors';
 import { useI18n, type MessageKey } from '../i18n';
 import { isLifecycleBusy, isProcessAlive } from '../instance-status';
 import { ActionMenu, type ActionMenuItem } from './ActionMenu';
+import { BackupScheduleSection } from './BackupScheduleSection';
 import { ConfirmDialog } from './ConfirmDialog';
 import { TaskProgress } from './TaskProgress';
 
@@ -13,14 +14,17 @@ const SOURCE_LABEL: Record<BackupInfo['source'], MessageKey> = {
   manual: 'backups.source.manual',
   'pre-restore': 'backups.source.preRestore',
   upload: 'backups.source.upload',
+  scheduled: 'backups.source.scheduled',
 };
 
-/** Instance backups: one-click backup, upload, download, restore and delete. Remounted by the parent when the instance changes. */
+/** Instance backups: one-click backup, upload, download, restore and delete, and the daily automatic backup. Remounted by the parent when the instance changes. */
 export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; onRestored: () => void }) {
   const { t, fmt } = useI18n();
   const instanceId = instance.id;
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // Counts successful reads of the list; the automatic backup section reads its latest run again with each one.
+  const [listVersion, setListVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   // Kept apart from action errors: the list reload that follows a failed backup or restore would otherwise wipe its reason.
@@ -47,6 +51,7 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
     try {
       setBackups(await listBackups(instanceId));
       setLoaded(true);
+      setListVersion((version) => version + 1);
       setListError('');
     } catch (err) {
       setListError(errorMessage(err));
@@ -249,6 +254,15 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
       {listError && <p className="callout callout-danger" role="alert">{listError}</p>}
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
       {notice && <p className="callout callout-success" role="status">{notice}</p>}
+
+      {/* Shown once the list has loaded: an instance that cannot be backed up fails there, with one message rather than two. */}
+      {loaded && (
+        <BackupScheduleSection
+          instanceId={instanceId}
+          scheduledCount={backups.filter((backup) => backup.source === 'scheduled').length}
+          reloadSignal={listVersion}
+        />
+      )}
 
       {!loaded ? (
         loading ? (

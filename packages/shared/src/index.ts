@@ -447,8 +447,8 @@ export function recommendedJavaMajor(mcVersion: string | null | undefined): numb
   return 8;
 }
 
-/** Backup origin: created manually, created automatically before a restore, or uploaded from a file. */
-export type BackupSource = 'manual' | 'pre-restore' | 'upload';
+/** Backup origin: created manually, created automatically before a restore, uploaded from a file, or created by the daily schedule. */
+export type BackupSource = 'manual' | 'pre-restore' | 'upload' | 'scheduled';
 
 /** One instance backup (DATA_DIR/backups/<instance ID>/<backup ID>.tar.gz and its metadata). */
 export interface BackupInfo {
@@ -483,6 +483,34 @@ export interface BackupListResult {
 export interface RestoreBackupInput {
   /** Back up the current files before restoring; defaults to true. */
   backupCurrent?: boolean;
+}
+
+/** The daily automatic backup of one instance; PUT /api/instances/:id/backup-schedule request body. */
+export interface BackupScheduleInput {
+  enabled: boolean;
+  /** Time of day as HH:MM (24-hour), read on the clock of the computer the panel runs on. */
+  time: string;
+  /** How many scheduled backups to keep. Older ones are deleted after each scheduled backup that succeeds; backups from other sources are never deleted. */
+  keep: number;
+}
+
+/** A scheduled backup that failed. */
+export interface BackupScheduleFailure {
+  at: string;
+  /** English failure reason. */
+  error: string;
+  /** Message key and params for the failure reason; raw errors that cannot be classified do not have this field. */
+  errorI18n?: PanelMessage;
+}
+
+/** GET /api/instances/:id/backup-schedule response, also returned by PUT. Without a saved schedule it holds the defaults, disabled. */
+export interface BackupScheduleInfo extends BackupScheduleInput {
+  /** Offset of the panel computer's clock from UTC right now, in minutes (east is positive): a browser in another time zone uses it to say which clock `time` is read on. */
+  utcOffsetMinutes: number;
+  /** When the latest scheduled backup that succeeded was taken; null when there has been none. */
+  lastBackupAt: string | null;
+  /** Set while the latest scheduled run is a failed one; the next one that succeeds clears it. */
+  lastFailure: BackupScheduleFailure | null;
 }
 
 export interface TaskInfo {
@@ -602,6 +630,9 @@ export {
   fileDownloadQuerySchema,
   restoreBackupBodySchema,
   backupDownloadQuerySchema,
+  BACKUP_SCHEDULE_MAX_KEEP,
+  BACKUP_SCHEDULE_TIME_PATTERN,
+  updateBackupScheduleBodySchema,
   createFrpEndpointBodySchema,
   updateFrpEndpointBodySchema,
   updateInstanceTunnelBodySchema,

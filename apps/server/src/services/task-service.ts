@@ -414,6 +414,11 @@ export function cancelTask(id: string): boolean {
   return true;
 }
 
+/** Whether one more task would be accepted right now, running or waiting. */
+export function hasTaskCapacity(): boolean {
+  return !shuttingDown && runningTasks + taskQueue.length < config.maxConcurrentTasks + config.maxQueuedTasks;
+}
+
 export function getTaskActivity(): { running: number; queued: number } {
   return { running: runningTasks, queued: taskQueue.length };
 }
