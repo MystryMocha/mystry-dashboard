@@ -173,14 +173,59 @@ export function assertTextFileWithinLimit(instanceId: string, relativePath: stri
   }
 }
 
-export function deletePath(instanceId: string, relativePath: string): void {
+const pathSeparator = Buffer.from(path.sep);
+
+/**
+ * Removes a file or a directory tree one entry at a time, with the choices Node's own recursive removal makes: a link is removed,
+ * never followed, and a directory is entered only after removing it as it stands has failed because it is not empty.
+ * fs.promises.rm is not used because it removes all entries of a directory at once. When one of them cannot be removed it rejects
+ * while the others are still being removed, so the caller would release the instance lock before the tree is quiet; it also keeps
+ * the thread pool busy enough to hold up every other file read and write. One at a time, nothing is still running once this has
+ * thrown, and other file work carries on, at the cost of a removal that takes about two and a half times as long.
+ */
+async function removeEntry(target: string | Buffer, listed?: fs.Dirent<Buffer>): Promise<void> {
+  try {
+    // A directory listing on Windows reports every reparse point as a link, including directories that are not links (cloud
+    // placeholders, mounted volumes), so only a plain file or a plain directory is taken at its word.
+    const isDirectory = listed?.isDirectory()
+      || (!listed?.isFile() && (await fs.promises.lstat(target)).isDirectory());
+    if (!isDirectory) {
+      await fs.promises.unlink(target);
+      return;
+    }
+    try {
+      await fs.promises.rmdir(target);
+      return;
+    } catch (error) {
+      if (!hasErrorCode(error, 'ENOTEMPTY') && !hasErrorCode(error, 'EEXIST')) throw error;
+    }
+    // Names are handled as raw bytes: on Linux a name need not be valid UTF-8 (files unpacked from an archive made elsewhere),
+    // and one that has been read as a string no longer matches the entry it came from.
+    const prefix = Buffer.concat([typeof target === 'string' ? Buffer.from(target) : target, pathSeparator]);
+    for (const child of await fs.promises.readdir(target, { withFileTypes: true, encoding: 'buffer' })) {
+      await removeEntry(Buffer.concat([prefix, child.name]), child);
+    }
+    await fs.promises.rmdir(target);
+  } catch (error) {
+    // Already gone, for example removed by the running server in the meantime.
+    if (!hasErrorCode(error, 'ENOENT')) throw error;
+  }
+}
+
+/**
+ * A directory here may hold tens of thousands of files, so the removal is awaited rather than done with rmSync, which would hold
+ * every request and all console output until it finished. Other requests therefore run while entries are still being removed:
+ * the caller must hold the instance lock (processManager.runExclusive), otherwise a restore could swap the instance directory
+ * midway and the remaining removals would land in the restored one.
+ */
+export async function deletePath(instanceId: string, relativePath: string): Promise<void> {
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
   assertMutableTarget(root, target);
   if (!fs.existsSync(target)) {
     throw new PanelError('server.files.pathNotFound');
   }
-  fs.rmSync(target, { recursive: true, force: true });
+  await removeEntry(target);
 }
 
 export function renamePath(instanceId: string, from: string, to: string): void {
