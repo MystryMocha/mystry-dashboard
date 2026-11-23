@@ -173,6 +173,8 @@ export function assertTextFileWithinLimit(instanceId: string, relativePath: stri
   }
 }
 
+const pathSeparator = Buffer.from(path.sep);
+
 /**
  * Removes a file or a directory tree one entry at a time, with the choices Node's own recursive removal makes: a link is removed,
  * never followed, and a directory is entered only after removing it as it stands has failed because it is not empty.
@@ -181,7 +183,7 @@ export function assertTextFileWithinLimit(instanceId: string, relativePath: stri
  * the thread pool busy enough to hold up every other file read and write. One at a time, nothing is still running once this has
  * thrown, and other file work carries on, at the cost of a removal that takes about two and a half times as long.
  */
-async function removeEntry(target: string, listed?: fs.Dirent): Promise<void> {
+async function removeEntry(target: string | Buffer, listed?: fs.Dirent<Buffer>): Promise<void> {
   try {
     // A directory listing on Windows reports every reparse point as a link, including directories that are not links (cloud
     // placeholders, mounted volumes), so only a plain file or a plain directory is taken at its word.
@@ -197,8 +199,11 @@ async function removeEntry(target: string, listed?: fs.Dirent): Promise<void> {
     } catch (error) {
       if (!hasErrorCode(error, 'ENOTEMPTY') && !hasErrorCode(error, 'EEXIST')) throw error;
     }
-    for (const child of await fs.promises.readdir(target, { withFileTypes: true })) {
-      await removeEntry(path.join(target, child.name), child);
+    // Names are handled as raw bytes: on Linux a name need not be valid UTF-8 (files unpacked from an archive made elsewhere),
+    // and one that has been read as a string no longer matches the entry it came from.
+    const prefix = Buffer.concat([typeof target === 'string' ? Buffer.from(target) : target, pathSeparator]);
+    for (const child of await fs.promises.readdir(target, { withFileTypes: true, encoding: 'buffer' })) {
+      await removeEntry(Buffer.concat([prefix, child.name]), child);
     }
     await fs.promises.rmdir(target);
   } catch (error) {

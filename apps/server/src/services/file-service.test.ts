@@ -195,6 +195,28 @@ test('deleting a directory removes a symlink or directory junction inside it wit
   assert.equal(fs.readFileSync(path.join(outside, 'keep.txt'), 'utf8'), 'keep');
 });
 
+// Windows cannot create such names, so this runs on Linux only.
+test('deleting a directory removes entries whose names are not valid UTF-8', { skip: process.platform !== 'linux' }, async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'delete-byte-names' });
+  const plugins = path.join(defaultInstanceDir(inst.id), 'plugins');
+  fs.mkdirSync(plugins);
+  // "d\xFC" and "f\xE4.txt": Latin-1 bytes, as left by an archive that was packed on a system using another encoding.
+  const dir = Buffer.concat([Buffer.from(`${plugins}/`), Buffer.from([0x64, 0xfc])]);
+  fs.mkdirSync(dir);
+  fs.writeFileSync(Buffer.concat([dir, Buffer.from('/'), Buffer.from([0x66, 0xe4, 0x2e, 0x74, 0x78, 0x74])]), 'x');
+
+  await deletePath(inst.id, 'plugins');
+
+  assert.equal(fs.existsSync(plugins), false);
+});
+
 test('a delete stops at the first entry it cannot remove, and nothing more is removed once it has failed', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
