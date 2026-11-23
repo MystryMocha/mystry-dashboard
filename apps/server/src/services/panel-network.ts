@@ -114,6 +114,7 @@ let installer: () => Promise<void> = ensureLanInstalled;
 let installedCheck: () => boolean = lanInstalled;
 let platformCheck: () => boolean = lanPlatformSupported;
 let probeTiming = DEFAULT_PROBE_TIMING;
+let listenPortAllocator: (exclude: readonly number[]) => Promise<number> = allocateListenPort;
 
 export interface PanelNetworkTestHooks {
   spawner?: (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess;
@@ -122,9 +123,10 @@ export interface PanelNetworkTestHooks {
   installed?: () => boolean;
   platformSupported?: () => boolean;
   probeTiming?: ProbeTiming;
+  listenPortAllocator?: (exclude: readonly number[]) => Promise<number>;
 }
 
-/** For tests: replaces process spawning, CLI reads and installation; pass null to restore the defaults and clear the runtime state. */
+/** For tests: replaces process spawning, CLI reads, installation and listen port choice; pass null to restore the defaults and clear the runtime state. */
 export function setPanelNetworkForTests(hooks: PanelNetworkTestHooks | null): void {
   spawner = hooks?.spawner ?? spawn;
   cliRunner = hooks?.cliRunner ?? null;
@@ -132,6 +134,7 @@ export function setPanelNetworkForTests(hooks: PanelNetworkTestHooks | null): vo
   installedCheck = hooks?.installed ?? lanInstalled;
   platformCheck = hooks?.platformSupported ?? lanPlatformSupported;
   probeTiming = hooks?.probeTiming ?? DEFAULT_PROBE_TIMING;
+  listenPortAllocator = hooks?.listenPortAllocator ?? allocateListenPort;
   if (hooks === null) {
     runtime = null;
     shuttingDown = false;
@@ -580,7 +583,7 @@ async function sync(): Promise<void> {
     }
     current.configKey = renderPanelNetworkToml({ ...settings, accessPort, peers, listenPort: null });
     current.rpcPort = await allocateLoopbackPort();
-    const listenPort = await allocateListenPort([current.rpcPort, panelPort, accessPort]);
+    const listenPort = await listenPortAllocator([current.rpcPort, panelPort, accessPort]);
     const workDir = panelNetworkWorkDir();
     ensureSecureDirectory(workDir);
     const tomlPath = path.join(workDir, 'core.toml');

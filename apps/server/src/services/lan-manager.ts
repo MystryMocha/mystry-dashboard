@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
+import { randomInt } from 'node:crypto';
 import dgram from 'node:dgram';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -544,18 +545,65 @@ function readBind(instanceId: string): { port: number; serverIpBlocked: boolean;
   return { port, serverIpBlocked: serverIpBlocksLan(properties['server-ip']), error: null };
 }
 
+/** Loopback trial binds behind allocateListenPort; tests pass their own so the outcome does not depend on which ports the machine refuses. */
+export interface ListenPortProbes {
+  /** pickTcp and pickUdp: a port the OS assigns for that protocol, so never one the OS keeps back for it. */
+  pickTcp: () => Promise<number>;
+  pickUdp: () => Promise<number>;
+  tcpFree: (port: number) => Promise<boolean>;
+  udpFree: (port: number) => Promise<boolean>;
+  /** A candidate from the dynamic range, tried only after the OS-assigned candidates. */
+  randomPort: () => number;
+}
+
+export const loopbackListenPortProbes: ListenPortProbes = {
+  pickTcp: allocateLoopbackPort,
+  pickUdp: allocateLoopbackUdpPort,
+  tcpFree: tcpPortFree,
+  udpFree: udpPortFree,
+  randomPort: () => randomInt(49152, 65536),
+};
+
+const OS_ASSIGNED_ATTEMPTS = 20;
+const RANDOM_ATTEMPTS = 20;
+
 /**
  * Picks a port free on both TCP and UDP for EasyTier to listen on. Trial binds happen only on the loopback address,
  * never on 0.0.0.0, so Windows does not show a firewall prompt for the panel's own node.exe.
+ * TCP and UDP have separate ephemeral counters and Windows hands ports out in sequence, so taking only TCP ports and checking them
+ * for UDP covers just the numbers right after the TCP counter: when a run of those cannot be bound for UDP, every attempt fails although
+ * most ports are free. Candidates therefore alternate between the two counters, and random ports come last for when both sit in such a run.
  * Conflicts this misses are recognized from EasyTier's output when it fails to start (listenPortUnavailable).
  */
-export async function allocateListenPort(exclude: readonly number[]): Promise<number> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const port = await allocateLoopbackPort();
-    if (exclude.includes(port)) continue;
-    if (await udpPortFree(port)) return port;
+export async function allocateListenPort(
+  exclude: readonly number[],
+  probes: ListenPortProbes = loopbackListenPortProbes,
+): Promise<number> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < OS_ASSIGNED_ATTEMPTS + RANDOM_ATTEMPTS; attempt += 1) {
+    try {
+      let port: number;
+      if (attempt >= OS_ASSIGNED_ATTEMPTS) port = probes.randomPort();
+      else if (attempt % 2 === 0) port = await probes.pickUdp();
+      else port = await probes.pickTcp();
+      if (exclude.includes(port)) continue;
+      if (await probes.tcpFree(port) && await probes.udpFree(port)) return port;
+    } catch (error) {
+      // A refused bind(0) (no ports or handles left) counts as a failed attempt; the user gets the same message.
+      lastError = error;
+    }
   }
-  throw new PanelError('server.lan.listenPortUnavailable');
+  throw new PanelError('server.lan.listenPortUnavailable', undefined, { cause: lastError });
+}
+
+function tcpPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', () => resolve(false));
+    server.listen({ port, host: '127.0.0.1', exclusive: true }, () => {
+      server.close(() => resolve(true));
+    });
+  });
 }
 
 function udpPortFree(port: number): Promise<boolean> {
@@ -583,6 +631,24 @@ export function allocateLoopbackPort(): Promise<number> {
       const address = server.address();
       const port = typeof address === 'object' && address ? address.port : 0;
       server.close(() => resolve(port));
+    });
+  });
+}
+
+function allocateLoopbackUdpPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const socket = dgram.createSocket('udp4');
+    socket.once('error', (error) => {
+      try {
+        socket.close();
+      } catch {
+        // A socket that failed to bind may no longer be running; ignore
+      }
+      reject(error);
+    });
+    socket.bind({ port: 0, address: '127.0.0.1', exclusive: true }, () => {
+      const { port } = socket.address();
+      socket.close(() => resolve(port));
     });
   });
 }
