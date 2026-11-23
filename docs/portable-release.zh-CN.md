@@ -126,7 +126,7 @@ mystry-dashboard/
 5. 从新目录运行 `mdash start`，检查登录、实例列表与存档。
 6. 确认无误后，自行归档旧应用目录；切勿删除唯一的数据副本。
 
-回滚时，先停止新版本，将 `config/`、`data/`、`logs/` 移回旧应用目录后再启动。新版本若升级过数据库结构，升级前已在 `data/db-backups/` 留存旧库副本；旧版本可能拒绝打开升级后的数据库，并列出两个结构版本号。此时将 `panel.db` 及可能存在的 `panel.db-wal`、`panel.db-shm` 移出 `data/`，再将 `data/db-backups/` 中最新的文件复制为 `data/panel.db`。升级之后的改动不在该副本中。副本仅涵盖数据库，因此升级前仍须另行备份这三个目录，不可仅依赖旧应用目录。
+回滚时，先停止新版本，将 `config/`、`data/`、`logs/` 移回旧应用目录后再启动。新版本若升级过数据库结构，升级前已在 `data/db-backups/` 留存旧库副本；旧版本可能拒绝打开升级后的数据库，并列出两个结构版本号。此时将 `panel.db` 及可能存在的 `panel.db-wal`、`panel.db-shm` 移出 `data/`，再从 `data/db-backups/` 中选一份复制为 `data/panel.db`：文件名后缀 `-v<N>` 不得高于旧版本报错中所写的支持版本，满足条件的取最新一份。升级之后的改动不在该副本中。副本仅涵盖数据库，因此升级前仍须另行备份这三个目录，不可仅依赖旧应用目录。
 
 若环境中已设置 `MYSTRY_HOME`，Windows `.cmd` 与 Unix `.sh` 包装脚本将保留该值，并仅对未设置的 `MYSTRY_CONFIG_PATH`、`MYSTRY_DATA_DIR` 使用便携包默认值；相对路径均相对于 `MYSTRY_HOME`。日常使用便携版无需手动设置这些变量。
 
