@@ -156,6 +156,8 @@ SQLite tables:
 
 The database uses `DatabaseSync` from `node:sqlite` in WAL mode. Instance files are not stored in the database; they all live in `DATA_DIR/instances/<id>`.
 
+The schema version lives in `PRAGMA user_version`. After the data directory lock is taken and before task recovery, `initDb()` passes `PANEL_DB_MIGRATIONS` to the runner in `db-migrations.ts`. Version 1 is the baseline: it brings a database of any earlier shape to the schema as it stood when versioning began, so fresh and old databases take the same path. Each later entry is one step. When steps are pending and the database already has tables, the runner first writes a copy to `DATA_DIR/db-backups/` with `VACUUM INTO`, which includes pages still in the WAL, and keeps the newest five. Each step then runs in one transaction that also sets the version; a failed step rolls back and stops startup. A database newer than the program is refused without being touched.
+
 ## Instance Directories and Security Boundary
 
 Default data layout:
@@ -163,6 +165,7 @@ Default data layout:
 ```text
 DATA_DIR/
 ├── panel.db
+├── db-backups/
 ├── instances/
 │   └── <id>/
 ├── imports/
