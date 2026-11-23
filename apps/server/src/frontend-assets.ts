@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -8,6 +9,77 @@ import { panelErrorBody } from './utils/errors.js';
 const HASHED_ASSET_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 /** Entry files such as index.html must be revalidated with the server every time, so new asset references are picked up right after an upgrade. */
 const ENTRY_CACHE_CONTROL = 'no-cache';
+
+/** An inline classic script: no src attribute, so its text is what the browser executes and what a CSP hash has to match. */
+const INLINE_SCRIPT = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi;
+const HAS_SRC_ATTRIBUTE = /\ssrc\s*=/i;
+
+/**
+ * SHA-256 source expressions for every inline script in an HTML document.
+ * The browser hashes the script text after the HTML parser has normalised CRLF and lone CR to LF, so the same is done here;
+ * otherwise a checkout with CRLF line endings would produce hashes that never match and the script would be blocked.
+ */
+export function inlineScriptHashes(html: string): string[] {
+  const hashes = new Set<string>();
+  for (const match of html.matchAll(INLINE_SCRIPT)) {
+    if (HAS_SRC_ATTRIBUTE.test(match[1] ?? '')) continue;
+    const text = (match[2] ?? '').replace(/\r\n?/g, '\n');
+    if (text.trim() === '') continue;
+    hashes.add(`'sha256-${createHash('sha256').update(text, 'utf8').digest('base64')}'`);
+  }
+  return [...hashes];
+}
+
+/**
+ * Host name or IPv4 address with an optional port, as sent in the Host header. The value ends up inside a response header, so anything else
+ * (wildcards, spaces, semicolons, IPv6 literals, which the CSP source grammar cannot express reliably) is rejected rather than escaped.
+ */
+const WEB_SOCKET_HOST = /^[a-z0-9_](?:[a-z0-9_.-]*[a-z0-9_])?(?::\d{1,5})?$/i;
+
+export function buildContentSecurityPolicy(options: {
+  /** `'sha256-…'` expressions of the inline scripts the page needs. */
+  scriptHashes: readonly string[];
+  /** Host (and port) the page was loaded from; when valid, WebSockets to it are allowed by explicit origin. */
+  host?: string | null;
+}): string {
+  const host = options.host && WEB_SOCKET_HOST.test(options.host) ? options.host : null;
+  const directives = [
+    "default-src 'self'",
+    // Only the hashed inline scripts and same-origin files run. 'unsafe-inline' is deliberately absent here: it would make the policy useless against injected markup.
+    `script-src ${["'self'", ...options.scriptHashes].join(' ')}`,
+    // xterm.js appends <style> elements to the document at runtime and the interface uses style attributes, neither of which can carry a hash.
+    "style-src 'self' 'unsafe-inline'",
+    // data: is for the SVG chevron and checkmark that styles.css embeds as url(data:...) custom properties.
+    "img-src 'self' data:",
+    // 'self' covers a same-origin ws:/wss: console connection only in browsers that implement CSP 3 (older Safari does not), so the page's own host is also listed for both schemes.
+    host ? `connect-src 'self' ws://${host} wss://${host}` : null,
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+  ];
+  return directives.filter((directive) => directive !== null).join('; ');
+}
+
+/**
+ * Hashes of the inline scripts in index.html. The file is re-read when it changes on disk, so rebuilding the frontend under a running panel
+ * does not leave the policy blocking the new inline script until the next restart. Returns null when the file cannot be read.
+ */
+function createInlineScriptHashSource(indexPath: string): () => Promise<string[] | null> {
+  let cached: { stamp: string; hashes: string[] } | null = null;
+  return async () => {
+    try {
+      const stat = await fs.promises.stat(indexPath);
+      const stamp = `${stat.mtimeMs}:${stat.size}`;
+      if (cached?.stamp !== stamp) {
+        cached = { stamp, hashes: inlineScriptHashes(await fs.promises.readFile(indexPath, 'utf8')) };
+      }
+      return cached.hashes;
+    } catch {
+      return null;
+    }
+  };
+}
 
 export async function registerFrontendAssets(
   app: FastifyInstance,
@@ -32,6 +104,22 @@ export async function registerFrontendAssets(
       );
     },
   });
+
+  // Only HTML documents get the policy: browsers apply it to the document and everything it loads, while the JSON API and file downloads are never rendered.
+  // It is built from the index.html that is actually served, so without a build output (the page then comes from the Vite dev server) no policy is sent.
+  const readScriptHashes = createInlineScriptHashSource(path.join(distRoot, 'index.html'));
+  await readScriptHashes();
+  app.addHook('onSend', async (req, reply, payload) => {
+    const contentType = reply.getHeader('content-type');
+    if (typeof contentType === 'string' && /^text\/html\b/i.test(contentType)) {
+      const scriptHashes = await readScriptHashes();
+      if (scriptHashes) {
+        reply.header('content-security-policy', buildContentSecurityPolicy({ scriptHashes, host: req.headers.host }));
+      }
+    }
+    return payload;
+  });
+
   app.setNotFoundHandler((req, reply) => {
     if (req.url.startsWith('/api') || req.url.startsWith('/ws')) {
       return reply.code(404).send(panelErrorBody('server.common.notFound'));

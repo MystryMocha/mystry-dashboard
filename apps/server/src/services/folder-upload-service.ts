@@ -78,19 +78,42 @@ function snapshot(session: FolderUploadSession): FolderUploadInfo {
 }
 
 /** Deletes only directories under uploads that carry this module's prefix, so nothing else is deleted by mistake. */
-function removeSessionDir(dir: string): void {
+function assertSessionDir(dir: string): string {
   const uploadRoot = path.resolve(config.uploadDir);
   const resolved = path.resolve(dir);
   if (path.dirname(resolved) !== uploadRoot || !path.basename(resolved).startsWith(FOLDER_UPLOAD_DIR_PREFIX)) {
     throw new PanelError('server.files.upload.invalidTempPath');
   }
-  fs.rmSync(resolved, { recursive: true, force: true });
+  return resolved;
 }
 
-function dropSession(session: FolderUploadSession): void {
+/**
+ * An uploaded folder can hold as many files as a whole server, so while the panel is serving requests the removal is awaited
+ * rather than done with rmSync, which would hold every request and all console output until it finished.
+ */
+async function removeSessionDir(dir: string): Promise<void> {
+  await fs.promises.rm(assertSessionDir(dir), { recursive: true, force: true });
+}
+
+/** Startup and shutdown only: the panel is not serving requests, and the caller needs the directory gone before it goes on. */
+function removeSessionDirSync(dir: string): void {
+  fs.rmSync(assertSessionDir(dir), { recursive: true, force: true });
+}
+
+/** The session leaves the map before the first await, so no other request can find it while its directory is being removed. */
+async function dropSession(session: FolderUploadSession): Promise<void> {
   sessions.delete(session.info.id);
   try {
-    removeSessionDir(session.dir);
+    await removeSessionDir(session.dir);
+  } catch {
+    /* Leftovers that cannot be deleted are cleaned up by prefix at the next start. */
+  }
+}
+
+function dropSessionSync(session: FolderUploadSession): void {
+  sessions.delete(session.info.id);
+  try {
+    removeSessionDirSync(session.dir);
   } catch {
     /* Leftovers that cannot be deleted are cleaned up by prefix at the next start. */
   }
@@ -108,7 +131,8 @@ function findOwnedSession(id: string, userId: string, now = Date.now()): FolderU
   }
   const idle = session.state === 'uploading' || session.state === 'ready';
   if (idle && Date.parse(session.info.expiresAt) <= now) {
-    dropSession(session);
+    // Not awaited: the session is already out of the map and nothing else uses its directory, so the 410 need not wait for the removal.
+    void dropSession(session);
     throw httpError('server.imports.folder.expired', 410);
   }
   return session;
@@ -182,15 +206,16 @@ async function writeUploadedFile(
   session.info.receivedBytes += fileBytes;
 }
 
-export function cleanupExpiredFolderUploads(now = Date.now()): number {
-  let removed = 0;
+/** Every expired session leaves the map before the first await; the promise settles once their directories are gone. */
+export async function cleanupExpiredFolderUploads(now = Date.now()): Promise<number> {
+  const removals: Promise<void>[] = [];
   for (const session of [...sessions.values()]) {
     const idle = session.state === 'uploading' || session.state === 'ready';
     if (!idle || Date.parse(session.info.expiresAt) > now) continue;
-    dropSession(session);
-    removed += 1;
+    removals.push(dropSession(session));
   }
-  return removed;
+  await Promise.all(removals);
+  return removals.length;
 }
 
 function purgeOrphanFolderUploads(): number {
@@ -199,7 +224,7 @@ function purgeOrphanFolderUploads(): number {
   let removed = 0;
   for (const entry of fs.readdirSync(config.uploadDir, { withFileTypes: true })) {
     if (!entry.isDirectory() || !entry.name.startsWith(FOLDER_UPLOAD_DIR_PREFIX) || live.has(entry.name)) continue;
-    removeSessionDir(path.join(config.uploadDir, entry.name));
+    removeSessionDirSync(path.join(config.uploadDir, entry.name));
     removed += 1;
   }
   return removed;
@@ -208,9 +233,9 @@ function purgeOrphanFolderUploads(): number {
 /** Called at panel startup: cleans up upload temp directories left by the previous process, and periodically cleans up expired sessions. */
 export function initializeFolderUploads(): { purged: number } {
   if (cleanupTimer) clearInterval(cleanupTimer);
-  for (const session of [...sessions.values()]) dropSession(session);
+  for (const session of [...sessions.values()]) dropSessionSync(session);
   const purged = purgeOrphanFolderUploads();
-  cleanupTimer = setInterval(() => cleanupExpiredFolderUploads(), 60_000);
+  cleanupTimer = setInterval(() => void cleanupExpiredFolderUploads(), 60_000);
   cleanupTimer.unref();
   return { purged };
 }
@@ -220,12 +245,18 @@ export function shutdownFolderUploads(): void {
     clearInterval(cleanupTimer);
     cleanupTimer = null;
   }
-  for (const session of [...sessions.values()]) dropSession(session);
+  for (const session of [...sessions.values()]) dropSessionSync(session);
 }
 
 /** Starts a folder upload. Only one session is kept per user: a newly started one replaces an old session that has not been confirmed. */
-export function createFolderUpload(userId: string, input: CreateFolderUploadInput, now = Date.now()): FolderUploadInfo {
-  cleanupExpiredFolderUploads(now);
+export async function createFolderUpload(
+  userId: string,
+  input: CreateFolderUploadInput,
+  now = Date.now(),
+): Promise<FolderUploadInfo> {
+  // Waited for so the space of expired uploads is free again before the disk space check below. Nothing may be awaited
+  // between here and the registration of the new session, see the comment further down.
+  await cleanupExpiredFolderUploads(now);
   const folderName = input.folderName.trim();
   if (!folderName || /[\u0000-\u001f\u007f/\\]/.test(folderName)) {
     throw httpError('server.imports.folder.invalidParams', 400);
@@ -252,7 +283,9 @@ export function createFolderUpload(userId: string, input: CreateFolderUploadInpu
     throw httpError('server.imports.folder.diskSpace', 507);
   }
 
-  if (previous) dropSession(previous);
+  // The old session leaves the map here and the new one is registered below before anything is awaited, so two requests from
+  // the same user cannot both end up holding a session. Only the removal of the old directory is waited for, at the end.
+  const previousRemoved = previous ? dropSession(previous) : undefined;
   const id = nanoid(32);
   const dir = path.join(config.uploadDir, `${FOLDER_UPLOAD_DIR_PREFIX}${id}`);
   fs.mkdirSync(dir, { mode: 0o700 });
@@ -272,7 +305,9 @@ export function createFolderUpload(userId: string, input: CreateFolderUploadInpu
     state: 'uploading',
   };
   sessions.set(id, session);
-  return snapshot(session);
+  const created = snapshot(session);
+  await previousRemoved;
+  return created;
 }
 
 /**
@@ -315,7 +350,7 @@ export async function receiveFolderUploadBatch(
     received = true;
   } finally {
     if (!received || wasCancelled(session)) {
-      dropSession(session);
+      await dropSession(session);
     } else {
       session.state = 'uploading';
       session.info.expiresAt = expiresAt(Date.now());
@@ -343,7 +378,7 @@ export async function completeFolderUpload(id: string, userId: string, now = Dat
     check = failedServerFolderCheck(error);
   }
   if (wasCancelled(session)) {
-    dropSession(session);
+    await dropSession(session);
     throw httpError('server.imports.folder.notFound', 404);
   }
   session.state = 'ready';
@@ -355,7 +390,7 @@ export function getFolderUpload(id: string, userId: string, now = Date.now()): F
   return snapshot(findOwnedSession(id, userId, now));
 }
 
-export function cancelFolderUpload(id: string, userId: string, now = Date.now()): void {
+export async function cancelFolderUpload(id: string, userId: string, now = Date.now()): Promise<void> {
   const session = findOwnedSession(id, userId, now);
   if (session.state === 'confirming') throw httpError('server.imports.folder.cancelWhileConfirming', 409);
   if (session.state === 'receiving') {
@@ -364,7 +399,7 @@ export function cancelFolderUpload(id: string, userId: string, now = Date.now())
     sessions.delete(id);
     return;
   }
-  dropSession(session);
+  await dropSession(session);
 }
 
 /** Confirms the import: queues a background task that moves the whole temp directory into staging. When the task queue is full the session is kept and can be confirmed again later. */
@@ -394,7 +429,7 @@ export async function confirmFolderUpload(
       } finally {
         // After being moved into staging it no longer exists here; delete the uploaded temp directory when the check fails, or the task is aborted and the move did not happen.
         try {
-          removeSessionDir(dir);
+          await removeSessionDir(dir);
         } catch {
           /* Leftovers are cleaned up by prefix at the next start. */
         }
