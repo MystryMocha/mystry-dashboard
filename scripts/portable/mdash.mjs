@@ -385,9 +385,9 @@ function isProcessAlive(pid) {
 }
 
 /**
- * Whether the PID in the manager lock is still a running manager. Unlike isProcessAlive, EPERM counts as gone: the lock lasts one
- * command, so one left behind usually outlived a power cut, and after a reboot Windows may hand its PID to a system process that
- * a launcher may not signal. Counting that as alive would refuse every command until the file is deleted by hand.
+ * Whether the PID in the manager lock still blocks taking it. Unlike isProcessAlive, EPERM counts as gone: the lock lasts one command,
+ * so one left behind usually outlived a power cut, and after a reboot Windows may hand its PID to a system process that a launcher may
+ * not signal. Counting that as alive would refuse every command until the file is deleted by hand.
  */
 function isManagerProcessAlive(pid) {
   if (!pid || !Number.isSafeInteger(pid) || pid <= 0) return false;
@@ -430,11 +430,15 @@ async function panelStillShuttingDown(values) {
   return panelDataLockHolder();
 }
 
-/** The PID of another live process holding the manager lock, such as a restart or stop running in another window, or null. */
+/**
+ * The PID of another live process holding the manager lock, such as a restart or stop running in another window, or null.
+ * EPERM counts as alive here, unlike when taking the lock: this only decides how long to wait, and a restart from a window opened
+ * as administrator answers EPERM. By the time anyone waits, a start has already replaced a lock left over from before a reboot.
+ */
 function managerLockHolder() {
   try {
     const owner = Number(fs.readFileSync(lockPath, 'utf8').trim());
-    return owner !== process.pid && isManagerProcessAlive(owner) ? owner : null;
+    return owner !== process.pid && isProcessAlive(owner) ? owner : null;
   } catch {
     return null;
   }
