@@ -484,7 +484,12 @@ async function createBackup(
   }
 }
 
-/** Checks the state and enters maintenance inside the instance lock; no maintenance flag is left behind on failure. */
+/**
+ * Checks the state and enters maintenance inside the instance lock; no maintenance flag is left behind on failure.
+ * The task that follows ends maintenance through its `onSettled`, not at the end of its worker: a task can be over
+ * without its worker having been called, and the instance would then refuse to start, back up or be deleted until the
+ * panel restarts.
+ */
 async function enterMaintenance(
   instanceId: string,
   key: 'server.backups.busyBackingUp' | 'server.backups.busyRestoring',
@@ -517,13 +522,9 @@ export async function startBackupTask(instanceId: string): Promise<TaskInfo> {
   const release = await enterMaintenance(instanceId, 'server.backups.busyBackingUp');
   try {
     return await runBackgroundTask('backup', { key: 'server.backups.task.backupQueued' }, async (_taskId, signal, report) => {
-      try {
-        const info = await createBackup(instanceId, 'manual', signal, report, { from: 0, to: 99 });
-        return { instanceId, backupId: info.id };
-      } finally {
-        release();
-      }
-    }, { timeoutMs: config.backupTaskTimeoutMs });
+      const info = await createBackup(instanceId, 'manual', signal, report, { from: 0, to: 99 });
+      return { instanceId, backupId: info.id };
+    }, { timeoutMs: config.backupTaskTimeoutMs, onSettled: release });
   } catch (error) {
     release();
     throw error;
@@ -651,22 +652,18 @@ export async function startScheduledBackupTask(instanceId: string, options: Sche
   const release = await enterMaintenance(instanceId, 'server.backups.busyBackingUp');
   try {
     return await runBackgroundTask('backup', { key: 'server.backups.task.scheduledQueued', params: { name } }, async (_taskId, signal, report) => {
+      let info: BackupInfo;
       try {
-        let info: BackupInfo;
-        try {
-          makeRoomForScheduledBackup(instanceId, options);
-          info = await createBackup(instanceId, 'scheduled', signal, report, { from: 0, to: 99 });
-        } catch (error) {
-          options.onFailed(error);
-          throw new PanelError('server.backups.schedule.runFailed', { name, reason: errorParam(error) }, { cause: error });
-        }
-        options.onCreated(info);
-        applyScheduledRetention(instanceId, options, info.id);
-        return { instanceId, backupId: info.id };
-      } finally {
-        release();
+        makeRoomForScheduledBackup(instanceId, options);
+        info = await createBackup(instanceId, 'scheduled', signal, report, { from: 0, to: 99 });
+      } catch (error) {
+        options.onFailed(error);
+        throw new PanelError('server.backups.schedule.runFailed', { name, reason: errorParam(error) }, { cause: error });
       }
-    }, { timeoutMs: config.backupTaskTimeoutMs, onlyWhenIdle: true });
+      options.onCreated(info);
+      applyScheduledRetention(instanceId, options, info.id);
+      return { instanceId, backupId: info.id };
+    }, { timeoutMs: config.backupTaskTimeoutMs, onlyWhenIdle: true, onSettled: release });
   } catch (error) {
     release();
     throw error;
@@ -830,13 +827,9 @@ export async function startRestoreTask(
   };
   try {
     return await runBackgroundTask('restore', { key: 'server.backups.task.restoreQueued' }, async (taskId, signal, report) => {
-      try {
-        const restored = await restoreBackup(taskId, instanceId, backupId, options.backupCurrent ?? true, signal, report);
-        return { instanceId, backupId, ...restored };
-      } finally {
-        finish();
-      }
-    }, { timeoutMs: config.backupTaskTimeoutMs });
+      const restored = await restoreBackup(taskId, instanceId, backupId, options.backupCurrent ?? true, signal, report);
+      return { instanceId, backupId, ...restored };
+    }, { timeoutMs: config.backupTaskTimeoutMs, onSettled: finish });
   } catch (error) {
     finish();
     throw error;
