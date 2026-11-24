@@ -6,6 +6,8 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.2.0-preview.7] - 2026-11-24
+
 ### Added
 
 - The sign-in page says how to reset a forgotten password on the computer running the panel: double-click `mdash.cmd` and choose **Reset the administrator password**, or run the `reset-password` command. The source launcher's menu gains that item (`[7]`) while the panel is running; only the portable launcher had it before.
