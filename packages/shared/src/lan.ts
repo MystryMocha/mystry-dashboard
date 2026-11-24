@@ -25,22 +25,6 @@ export interface LanRuntimeInfo {
    * False on other systems and when it cannot be determined.
    */
   runsAsAdmin: boolean;
-  /**
-   * The page may offer to restart the panel as administrator in one click: Windows, a browser on this computer, a panel started by
-   * mdash.cmd whose launcher finds the same config and data directory by itself, and an account in Administrators.
-   */
-  adminRestart: boolean;
-  /** Windows only: the launcher asks for administrator rights every time it starts the panel. */
-  startAsAdmin: boolean;
-}
-
-export interface LanAdminRestartInput {
-  /** Also ask for administrator rights on every later start. */
-  startAsAdmin: boolean;
-}
-
-export interface LanAdminStartInput {
-  enabled: boolean;
 }
 
 export interface InstanceLanInput {

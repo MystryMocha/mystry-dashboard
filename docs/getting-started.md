@@ -66,8 +66,6 @@ Start, stop, status and logs share one implementation with `mdash.sh` on Linux a
 
 A background stop or restart first cancels deploy/import tasks, then stops each running Minecraft instance safely, one at a time. Do not force-kill the Node process in Task Manager. A server that has not exited within the grace period is sent `stop` once more. If it still has not exited, the old panel process keeps the data directory until it does, and the launcher does not start another panel: `status` shows which process is still waiting, and the message says what to do.
 
-After you choose on the Multiplayer page to start the panel as administrator (for the virtual LAN), `start`, `restart` and `foreground` first ask Windows for administrator rights and continue in an administrator window. When the prompt is declined, the panel starts without them. The choice is kept in `launcher/admin.json` under the data directory, and **Stop Asking** on the same page turns it off. This needs the default `.env` and data directory: with `MYSTRY_CONFIG_PATH`, `MYSTRY_DATA_DIR` or `DATA_DIR` set in the environment, the administrator window would not find them, so the launcher starts without asking.
-
 If a secret in your existing `.env` is not a 64-character hexadecimal string, the source launcher first backs up the original file to `launcher/config-backups/` under the data directory, then generates new valid secrets. Changing `JWT_SECRET` invalidates old sign-in tokens but does not delete the administrator, instances or Minecraft worlds.
 
 ## One-Click Source Management on Linux / WSL

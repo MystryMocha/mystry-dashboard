@@ -1348,18 +1348,11 @@ test('the virtual LAN switch saves immediately with only the relay peers saved o
   expect(JSON.parse(bodies[2])).toEqual({ enabled: true, peers: ['tcp://relay.example.com:11010', 'tcp://draft.example.com:11010'], useSharedPeers: true });
 });
 
-function mountLanTab(
-  runtime: Record<string, unknown>,
-  lan: Record<string, unknown>,
-  writes?: (url: string, options: RequestInit) => Response | null,
-) {
+function mountLanTab(runtime: Record<string, unknown>, lan: Record<string, unknown>) {
   const baseFetch = globalThis.fetch;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
-    const written = options?.method && writes ? writes(url, options) : null;
-    if (written) return written;
-    if (url === '/api/health') return new Response(JSON.stringify({ ok: true, service: 'mystry-dashboard', processFingerprint: 'old-panel' }));
     const data = url === '/api/instances/test/local-network' ? { port: 25565, addresses: ['192.168.1.23'], publicIpv4: [], publicIpv6: [], publicHost: null, serverIpBlocked: false, serverIpIsUnboundPublicHost: false, panelPort: 3000, platform: 'win32' }
-      : url === '/api/lan/runtime' ? { version: '2.6.4', installed: true, platformSupported: true, archive: null, needsAdmin: false, runsAsAdmin: false, adminRestart: false, startAsAdmin: false, ...runtime }
+      : url === '/api/lan/runtime' ? { version: '2.6.4', installed: true, platformSupported: true, archive: null, needsAdmin: false, runsAsAdmin: false, ...runtime }
       : url === '/api/instances/test/lan' ? { instanceId: 'test', enabled: true, status: 'stopped', localPort: 25565, virtualIp: null, joinAddress: null, serverIpBlocked: false, runtimeInstalled: true, peers: [], useSharedPeers: true, sharedPeers: [], listenPort: null, detail: null, warning: null, ...lan }
       : null;
     return data ? new Response(JSON.stringify(data)) : baseFetch(url, options);
@@ -1373,9 +1366,8 @@ test('virtual LAN without administrator rights: the restart steps come first, an
   await user.click(await screen.findByRole('button', { name: '虚拟局域网' }));
   // Said before the client is downloaded, not after the switch fails.
   expect(await screen.findByText(/面板没有以管理员身份运行/)).toBeTruthy();
-  // Opened from another device, or by a panel the launcher cannot reopen: only the manual steps.
+  // The page names the manual steps.
   expect(screen.getByText(/右键 mdash\.cmd，选「以管理员身份运行」，再在菜单里选「重启面板」/)).toBeTruthy();
-  expect(screen.queryByRole('button', { name: '以管理员身份重启' })).toBeNull();
   // No confirmation comes before the manual steps, so the guide says what running as administrator means.
   expect(screen.getByRole('heading', { name: '以管理员身份运行时' })).toBeTruthy();
   expect(screen.getByText('服务器和其中的插件、模组也会有管理员权限，只装信任的。')).toBeTruthy();
@@ -1408,72 +1400,6 @@ test('virtual LAN that failed: the reason is an alert, the join instructions are
   expect(screen.queryByText(/面板没有以管理员身份运行/)).toBeNull();
   expect(screen.queryByRole('heading', { name: '让玩家加入' })).toBeNull();
   expect(screen.queryByRole('button', { name: '复制加入说明' })).toBeNull();
-});
-
-test('restart as administrator: a row above the switch with one sentence and a button, the confirmation holds the consequences and the choice for later starts, and a declined prompt changes nothing', async () => {
-  const user = userEvent.setup();
-  const bodies: unknown[] = [];
-  let decline = true;
-  mountLanTab({ needsAdmin: true, adminRestart: true }, { enabled: false, status: 'disabled' }, (url, options) => {
-    if (url !== '/api/lan/admin-restart') return null;
-    bodies.push(JSON.parse(String(options.body)));
-    if (decline) {
-      decline = false;
-      return new Response(JSON.stringify({ error: 'x', code: 'server.lan.adminRestartCancelled' }), { status: 409 });
-    }
-    return new Response(JSON.stringify({ restarting: true }), { status: 202 });
-  });
-  await user.click(await screen.findByRole('button', { name: '虚拟局域网' }));
-  const restart = await screen.findByRole('button', { name: '以管理员身份重启' });
-  // A row above the switch, in the same group: what is missing, one sentence, and the button in the switch's column.
-  const row = restart.closest('.list-row') as HTMLElement;
-  expect(within(row).getByText('未获得')).toBeTruthy();
-  expect(within(row).getByText('面板没有以管理员身份运行，建不起虚拟网卡。')).toBeTruthy();
-  expect(within(row).queryByRole('checkbox')).toBeNull();
-  expect(row.parentElement).toBe(screen.getByRole('switch', { name: '对玩家开放这个实例' }).closest('.list-group'));
-  expect(screen.getByText('玩家那边也要以管理员身份运行。')).toBeTruthy();
-  expect(screen.queryByText(/右键 mdash\.cmd/)).toBeNull();
-  expect(screen.queryByRole('heading', { name: '以管理员身份运行时' })).toBeNull();
-
-  await user.click(restart);
-  let dialog = screen.getByRole('dialog', { name: '以管理员身份重启面板？' });
-  expect(within(dialog).getByText('正在运行的服务器会停止，面板回来后要再启动它们。')).toBeTruthy();
-  expect(within(dialog).getByText('服务器和其中的插件、模组也会有管理员权限，只装信任的。')).toBeTruthy();
-  const remember = within(dialog).getByRole('checkbox', { name: '以后启动面板时也以管理员身份运行' }) as HTMLInputElement;
-  expect(remember.checked).toBe(true);
-  await user.click(within(dialog).getByRole('button', { name: '重启面板' }));
-  expect((await screen.findByRole('alert')).textContent).toContain('没有获得管理员授权，面板没有重启');
-  expect(screen.queryByRole('dialog')).toBeNull();
-
-  // Cancelling sends nothing.
-  await user.click(screen.getByRole('button', { name: '以管理员身份重启' }));
-  await user.click(within(screen.getByRole('dialog', { name: '以管理员身份重启面板？' })).getByRole('button', { name: '取消' }));
-  expect(screen.queryByRole('dialog')).toBeNull();
-
-  await user.click(screen.getByRole('button', { name: '以管理员身份重启' }));
-  dialog = screen.getByRole('dialog', { name: '以管理员身份重启面板？' });
-  await user.click(within(dialog).getByRole('checkbox', { name: '以后启动面板时也以管理员身份运行' }));
-  await user.click(within(dialog).getByRole('button', { name: '重启面板' }));
-  expect(await screen.findByText('面板正在以管理员身份重启，好了以后页面会自动刷新。')).toBeTruthy();
-  expect(screen.getByText('正在重启')).toBeTruthy();
-  expect(screen.queryByRole('button', { name: '以管理员身份重启' })).toBeNull();
-  expect(bodies).toEqual([{ startAsAdmin: true }, { startAsAdmin: false }]);
-});
-
-test('restart as administrator: a remembered choice can be turned off from the page', async () => {
-  const user = userEvent.setup();
-  const bodies: unknown[] = [];
-  mountLanTab({ startAsAdmin: true }, { enabled: false, status: 'disabled' }, (url, options) => {
-    if (url !== '/api/lan/admin-start') return null;
-    bodies.push(JSON.parse(String(options.body)));
-    return new Response(JSON.stringify({ version: '2.6.4', installed: true, platformSupported: true, archive: null, needsAdmin: false, runsAsAdmin: false, adminRestart: false, startAsAdmin: false }));
-  });
-  await user.click(await screen.findByRole('button', { name: '虚拟局域网' }));
-  expect(await screen.findByText(/面板每次启动都会申请管理员权限/)).toBeTruthy();
-  await user.click(screen.getByRole('button', { name: '不再申请' }));
-  expect(await screen.findByText('以后启动面板时不再申请管理员权限。')).toBeTruthy();
-  expect(screen.queryByText(/面板每次启动都会申请管理员权限/)).toBeNull();
-  expect(bodies).toEqual([{ enabled: false }]);
 });
 
 test('panel running as administrator: the row stays above the switch as granted and says the servers have the same rights', async () => {

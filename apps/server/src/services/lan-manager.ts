@@ -31,6 +31,7 @@ import {
 import { closeLanFirewall, lanFirewallApplies, openLanFirewall } from './lan-firewall.js';
 import { lanCliPath, lanCorePath, lanInstalled, lanPlatformSupported } from './lan-runtime.js';
 import { processManager } from './process-manager.js';
+import { recheckWindowsElevationSoon } from './windows-elevation.js';
 
 interface LanRuntime {
   status: Exclude<LanStatus, 'disabled' | 'stopped'>;
@@ -298,6 +299,7 @@ export async function syncInstanceLan(instanceId: string): Promise<InstanceLan> 
     if (runtimes.get(instanceId)?.generation !== generation) return;
     const detail = lanFailureDetail(chunk.toString('utf8'), row.networkSecret);
     if (!detail) return;
+    if (detail.key === 'server.lan.needsAdminWindows') recheckWindowsElevationSoon();
     runtime.status = 'error';
     runtime.detail = detail;
   };

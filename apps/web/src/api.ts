@@ -459,30 +459,6 @@ export async function installLanRuntime() {
   return api<LanRuntimeInfo>('/api/lan/runtime', { method: 'POST' });
 }
 
-/** Answers once Windows has opened the administrator window on the computer running the panel; the panel then stops and comes back elevated. */
-export async function restartLanAsAdmin(startAsAdmin: boolean) {
-  return api<{ restarting: true }>('/api/lan/admin-restart', { method: 'POST', json: { startAsAdmin } });
-}
-
-export async function setLanStartAsAdmin(enabled: boolean) {
-  return api<LanRuntimeInfo>('/api/lan/admin-start', { method: 'PUT', json: { enabled } });
-}
-
-/**
- * The fingerprint of the panel process answering right now, or null while no panel answers. It is only given to a browser on the
- * computer running the panel, which is the only one offered the restart; a different value means a new process has taken over.
- */
-export async function panelProcessFingerprint(): Promise<string | null> {
-  try {
-    const res = await fetch('/api/health', { cache: 'no-store' });
-    if (!res.ok) return null;
-    const body = await res.json() as { processFingerprint?: unknown };
-    return typeof body.processFingerprint === 'string' ? body.processFingerprint : null;
-  } catch {
-    return null;
-  }
-}
-
 /** Uploads an official EasyTier archive you downloaded yourself when GitHub is unreachable; the server accepts it only by the pinned SHA-256. */
 export async function uploadLanRuntime(file: File) {
   const form = new FormData();

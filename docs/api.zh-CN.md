@@ -484,9 +484,7 @@ X-Launcher-Token: <LAUNCHER_TOKEN>
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/lan/runtime` | `{ version, installed, platformSupported, archive, needsAdmin, runsAsAdmin, adminRestart, startAsAdmin }`，`archive` 同上。`needsAdmin` 仅在 Windows 上、面板本身未以管理员身份运行时为 `true`（每个进程依 `whoami /groups` 的完整性级别判断一次），此时 EasyTier 无法创建虚拟网卡。`runsAsAdmin` 仅在 Windows 上、面板以管理员身份运行时为 `true`，此时面板启动的服务器同样以管理员身份运行。其他系统或无法判断时，两者均为 `false`。`adminRestart` 按请求计算：仅当系统为 Windows、请求来自本机、面板由 `mdash.cmd` 启动且启动器无需额外设置即可找到同一份配置与数据目录、账号属于 Administrators 且尚未提权时为 `true`。`startAsAdmin` 为 `true` 表示启动器每次启动面板都会申请管理员权限 |
-| POST | `/api/lan/admin-restart` | 请求体 `{ startAsAdmin }`。请 Windows 在本机以管理员身份打开窗口运行 `mdash.cmd restart`，与以管理员身份运行后手动重启所执行的命令相同。窗口打开后返回 202 `{ restarting: true }`，随后由该窗口停止当前面板，再启动以管理员身份运行的面板。`startAsAdmin: true` 同时保留这一选择，供以后启动时使用。`adminRestart` 为 `false` 时返回 403 `server.lan.adminRestartUnavailable`；已有确认框在等待时返回 409 `server.lan.adminRestartBusy`；用户拒绝时返回 409 `server.lan.adminRestartCancelled`，一切照旧；窗口无法打开时返回 500 `server.lan.adminRestartFailed` |
-| PUT | `/api/lan/admin-start` | 请求体 `{ enabled }`。开启或关闭启动器的「以管理员身份启动」，不重启任何进程；仅限 Windows，否则返回 403。返回值同 `GET /api/lan/runtime` |
+| GET | `/api/lan/runtime` | `{ version, installed, platformSupported, archive, needsAdmin, runsAsAdmin }`，`archive` 同上。`needsAdmin` 仅在 Windows 上、面板本身未以管理员身份运行时为 `true`（依 `whoami /groups` 的完整性级别判断，结果在进程存续期间保留，查询失败时会再试），此时 EasyTier 无法创建虚拟网卡。`runsAsAdmin` 仅在 Windows 上、面板以管理员身份运行时为 `true`，此时面板启动的服务器同样以管理员身份运行。其他系统或无法判断时，两者均为 `false`。 |
 | POST | `/api/lan/runtime` | 从 GitHub 下载并校验固定版本的官方客户端；已安装时直接返回 |
 | POST | `/api/lan/runtime/upload` | multipart 字段 `file`：上传用户自行下载的官方压缩包。仅在 SHA-256 一致时安装，否则返回 400 `server.lan.uploadMismatch` |
 | GET | `/api/instances/:id/lan` | 该实例的虚拟局域网状态 `InstanceLan`。不含网络密钥；含 `peers`、`useSharedPeers`、`sharedPeers`、`listenPort` 和非阻断提示 `warning` |

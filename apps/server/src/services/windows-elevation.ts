@@ -5,66 +5,81 @@ import { getMinecraftChildEnv } from '../utils/child-env.js';
 /**
  * Whether the panel process runs elevated on Windows. EasyTier can create its virtual adapter only from an elevated process, and the panel
  * starts easytier-core as its own child, so it is the panel that has to be started as administrator.
- * The answer comes from `whoami /groups`, whose SIDs are not localized (the group names are). Under UAC an administrator's unelevated
- * token is Medium (S-1-16-8192); elevated is High (S-1-16-12288) and the SYSTEM account is System (S-1-16-16384).
- * A process keeps its token for its whole life, so the first answer is cached.
+ * The answer comes from the integrity label in `whoami /groups`, whose SIDs are not localized (the group names are). Under UAC an
+ * administrator's unelevated token is Medium (S-1-16-8192); elevated is High (S-1-16-12288) and the SYSTEM account is System (S-1-16-16384).
+ * A process keeps its token for its whole life, so the first answer is kept. A lookup that fails is not: one slow whoami at startup
+ * would otherwise hide the missing rights for as long as the panel runs.
  */
 
 const WHOAMI_TIMEOUT_MS = 10_000;
+/** After a failed lookup, how long until a request tries again; the runtime endpoint is polled every few seconds. */
+const RETRY_AFTER_FAILURE_MS = 30_000;
 const HIGH_INTEGRITY_RID = 12288;
-/** BUILTIN\Administrators. An unelevated administrator still lists it, as a deny-only group; a standard account does not list it at all. */
-const ADMINISTRATORS_SID = 'S-1-5-32-544';
-
-export interface WindowsToken {
-  elevated: boolean;
-  /**
-   * The account belongs to Administrators, so accepting the UAC prompt elevates this same account.
-   * For a standard account the prompt asks for another account's password, and a panel restarted that way would run as that other user.
-   */
-  administrator: boolean;
-}
 
 export type WhoamiGroupsRunner = () => Promise<string>;
 
 let runner: WhoamiGroupsRunner = runWhoamiGroups;
 let platform: NodeJS.Platform = process.platform;
-let cached: Promise<WindowsToken | null> | null = null;
+let known: boolean | null = null;
+let pending: Promise<boolean | null> | null = null;
+let failedAt: number | null = null;
+let warned = false;
 
-/** For tests: replaces the whoami runner and the platform check and clears the cached answer; pass null to restore the defaults. */
+/** For tests: replaces the whoami runner and the platform check and forgets every earlier answer; pass null to restore the defaults. */
 export function setWindowsElevationForTests(next: { runner: WhoamiGroupsRunner; platform: NodeJS.Platform } | null): void {
   runner = next?.runner ?? runWhoamiGroups;
   platform = next?.platform ?? process.platform;
-  cached = null;
-}
-
-/** null when the output carries no integrity label. */
-export function parseWindowsToken(whoamiGroups: string): WindowsToken | null {
-  const label = /S-1-16-(\d+)/.exec(whoamiGroups);
-  if (!label) return null;
-  return {
-    elevated: Number(label[1]) >= HIGH_INTEGRITY_RID,
-    administrator: whoamiGroups.includes(`"${ADMINISTRATORS_SID}"`),
-  };
+  known = null;
+  pending = null;
+  failedAt = null;
+  warned = false;
 }
 
 /** true when elevated, false when not, null when the output carries no integrity label. */
 export function parseWindowsElevation(whoamiGroups: string): boolean | null {
-  return parseWindowsToken(whoamiGroups)?.elevated ?? null;
-}
-
-/** Windows only. null on other systems, and when whoami cannot run or its output cannot be read. */
-export function windowsPanelToken(): Promise<WindowsToken | null> {
-  if (platform !== 'win32') return Promise.resolve(null);
-  cached ??= runner().then(parseWindowsToken, () => null);
-  return cached;
+  const label = /S-1-16-(\d+)/.exec(whoamiGroups);
+  return label ? Number(label[1]) >= HIGH_INTEGRITY_RID : null;
 }
 
 /**
  * Windows only. null on other systems, and when whoami cannot run or its output cannot be read: an unknown answer must not
  * warn someone who already started the panel as administrator.
  */
-export async function windowsPanelElevated(): Promise<boolean | null> {
-  return (await windowsPanelToken())?.elevated ?? null;
+export function windowsPanelElevated(): Promise<boolean | null> {
+  if (platform !== 'win32') return Promise.resolve(null);
+  if (known !== null) return Promise.resolve(known);
+  if (pending) return pending;
+  if (failedAt !== null && Date.now() - failedAt < RETRY_AFTER_FAILURE_MS) return Promise.resolve(null);
+  pending = runner()
+    .then((output) => parseWindowsElevation(output) ?? Promise.reject(new Error('whoami /groups printed no integrity label')))
+    .then(
+      (elevated) => {
+        known = elevated;
+        failedAt = null;
+        return elevated;
+      },
+      (error: unknown) => {
+        failedAt = Date.now();
+        // Once per panel process: the lookup is retried every half minute while the page is open.
+        if (!warned) {
+          warned = true;
+          console.warn(`Could not tell whether the panel runs as administrator; trying again later: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        return null;
+      },
+    )
+    .finally(() => {
+      pending = null;
+    });
+  return pending;
+}
+
+/**
+ * EasyTier failed in a way that points at missing administrator rights. While the lookup has no answer, the next request runs it
+ * again without waiting out the retry delay, so the page can show the steps instead of only the failure.
+ */
+export function recheckWindowsElevationSoon(): void {
+  if (known === null) failedAt = null;
 }
 
 /** Uses the whoami in the system directory, without a PATH lookup. */

@@ -338,8 +338,6 @@ function childEnvironment(fingerprint) {
     MYSTRY_CONFIG_PATH: configPath,
     MYSTRY_DATA_DIR: dataDir,
     MYSTRY_PROCESS_FINGERPRINT: fingerprint,
-    // Empty unless the panel's one-click restart as administrator can reopen this same launcher (see bareLauncherPath).
-    MYSTRY_LAUNCHER: bareLauncherPath() ?? '',
   };
 }
 
@@ -446,147 +444,6 @@ async function acquireManagerLock() {
     }
   }
   throw new Error(text('无法获取 mdash 运行锁。', 'Could not acquire the mdash lock.'));
-}
-
-// ---- Starting as administrator (Windows) ----
-// The virtual LAN's adapter needs an elevated panel. When the user chose so on the Multiplayer page (launcher/admin.json), the launcher
-// asks for administrator rights before it starts the panel, by opening itself again in an elevated window with the same command.
-// An elevated process starts from a fresh environment, not this one's, so only a launcher that finds this same config and data directory
-// by itself is reopened that way (bareLauncherPath). The panel gets the same answer through MYSTRY_LAUNCHER for its one-click restart.
-
-const adminPrefsPath = path.join(launcherDir, 'admin.json');
-const ELEVATING_COMMANDS = new Set(['start', 'restart', 'foreground', 'watch']);
-/** A restart the page asked for longer ago than this is not treated as one: the page that asked has long given up waiting. */
-const PANEL_RESTART_WINDOW_MS = 10 * 60_000;
-/**
- * Exit codes: 0 opened, 2 the prompt was declined (ERROR_CANCELLED, 1223), 1 anything else. Same script as the panel's admin-restart.ts,
- * which says why it is Process.Start and not Start-Process.
- */
-const ELEVATE_SCRIPT = [
-  '$start = New-Object System.Diagnostics.ProcessStartInfo $env:ComSpec, $env:MYSTRY_ELEVATE_ARGS;',
-  "$start.Verb = 'runas'; $start.UseShellExecute = $true;",
-  'try { [Diagnostics.Process]::Start($start) | Out-Null; exit 0 }',
-  'catch { $e = $_.Exception; while ($e) { if ($e -is [ComponentModel.Win32Exception] -and $e.NativeErrorCode -eq 1223) { exit 2 }; $e = $e.InnerException }; exit 1 }',
-].join(' ');
-/** Set for a restart the page asked for: the page reloads itself, so no second browser tab is opened. */
-let panelRestartFromPage = false;
-
-function readAdminPrefs() {
-  try {
-    const value = JSON.parse(fs.readFileSync(adminPrefsPath, 'utf8'));
-    return value && typeof value === 'object' ? value : {};
-  } catch {
-    return {};
-  }
-}
-
-/** Same rule as the panel: with nothing left to keep, the file goes away. */
-function writeAdminPrefs(prefs) {
-  if (prefs.startAsAdmin !== true && typeof prefs.panelRestartRequestedAt !== 'string') {
-    fs.rmSync(adminPrefsPath, { force: true });
-    return;
-  }
-  const temp = `${adminPrefsPath}.${process.pid}.tmp`;
-  fs.writeFileSync(temp, `${JSON.stringify({ ...prefs, version: 1 }, null, 2)}\n`, { mode: 0o600 });
-  fs.renameSync(temp, adminPrefsPath);
-}
-
-/** The mdash.cmd a user would run, when running it bare finds this same config and data directory; otherwise null. */
-function bareLauncherPath() {
-  if (process.platform !== 'win32') return null;
-  const launcher = path.join(homeDir, 'mdash.cmd');
-  // The path ends up on a cmd.exe command line; any character cmd could treat as syntax rules this out.
-  if (/["%^&|<>!\u0000-\u001f]/.test(launcher) || !fs.existsSync(launcher)) return null;
-  // The defaults of the two mdash.cmd files: the portable one uses config\panel.env and data under its folder; the source one reads .env
-  // in the repository root and takes the data directory from it. Environment variables set only in this window do not reach the
-  // elevated one, so a config or data directory chosen that way rules the reopening out.
-  const same = (a, b) => path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
-  const bareConfig = portableMode ? path.join(homeDir, 'config', 'panel.env') : path.join(homeDir, '.env');
-  if (!same(configPath, bareConfig)) return null;
-  const bareData = portableMode
-    ? path.join(homeDir, 'data')
-    : resolveFromHome(fileValues.get('MYSTRY_DATA_DIR') || fileValues.get('DATA_DIR') || 'data', homeDir);
-  return same(dataDir, bareData) ? launcher : null;
-}
-
-/** Windows only: true or false from the integrity label in whoami /groups (its SIDs are not localized), null when it cannot be read. */
-function windowsElevated() {
-  if (process.platform !== 'win32') return null;
-  const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? 'C:\\Windows';
-  const result = spawnSync(path.join(systemRoot, 'System32', 'whoami.exe'), ['/groups', '/fo', 'csv', '/nh'], {
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: 10_000,
-  });
-  const label = result.status === 0 ? /S-1-16-(\d+)/.exec(result.stdout ?? '') : null;
-  return label ? Number(label[1]) >= 12288 : null;
-}
-
-/**
- * Opens `mdash.cmd <command>` in an elevated window: 'started', 'cancelled' (the prompt was declined) or 'failed'.
- * cmd /c strips the outer quotes and runs `"<launcher>" <command> || pause`, so the window stays open only when the command fails.
- */
-function openElevatedLauncher(launcher, command) {
-  const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT ?? 'C:\\Windows';
-  // Cleared for Windows PowerShell 5.1 for the same reason mdash.cmd clears it.
-  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toLowerCase() !== 'psmodulepath'));
-  const result = spawnSync(
-    path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
-    ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ELEVATE_SCRIPT],
-    { env: { ...env, MYSTRY_ELEVATE_ARGS: `/c ""${launcher}" ${command} || pause"` }, windowsHide: true, stdio: 'ignore' },
-  );
-  if (result.status === 0) return 'started';
-  return result.status === 2 ? 'cancelled' : 'failed';
-}
-
-/**
- * Before a command that starts the panel: when starting as administrator was chosen and this launcher is definitely not elevated,
- * reopen it elevated with the same command. Returns true when the elevated window took over.
- * An unknown answer runs as is, so a probe that fails cannot reopen windows in a loop. A declined prompt starts the panel without
- * administrator rights, as before the choice was made; only the page's own restart treats a decline as "do nothing".
- */
-async function continueElevatedIfChosen(command) {
-  if (process.platform !== 'win32' || !ELEVATING_COMMANDS.has(command)) return false;
-  if (readAdminPrefs().startAsAdmin !== true || windowsElevated() !== false) return false;
-  // Nothing would start: start and watch leave a running panel as it is.
-  if ((command === 'start' || command === 'watch') && await isManagedPanelRunning(await loadConfiguration(), await readState())) {
-    return false;
-  }
-  const launcher = bareLauncherPath();
-  if (!launcher) {
-    console.warn(text(
-      '面板设为以管理员身份启动，但这个启动方式没法自动申请管理员权限，这次以普通身份启动。需要时请右键 mdash.cmd，选「以管理员身份运行」。',
-      'The panel is set to start as administrator, but this way of starting it cannot ask for administrator rights, so it starts without them. When you need them, right-click mdash.cmd and choose Run as administrator.',
-    ));
-    return false;
-  }
-  console.log(text(
-    '面板设为以管理员身份启动，请在 Windows 弹出的确认框中点「是」。',
-    'The panel is set to start as administrator. Choose Yes in the Windows prompt.',
-  ));
-  if (openElevatedLauncher(launcher, command) === 'started') {
-    console.log(text('已在管理员窗口中继续。', 'Continuing in the administrator window.'));
-    return true;
-  }
-  console.warn(text(
-    '没有获得管理员权限，这次以普通身份启动，虚拟局域网用不了。不想再被询问，可以在「联机」页的虚拟局域网里关掉。',
-    'Administrator rights were not granted, so the panel starts without them this time and the virtual LAN will not work. To stop being asked, turn it off under Virtual LAN on the Multiplayer page.',
-  ));
-  return false;
-}
-
-/** Clears the page's restart request and tells whether this restart is the one it asked for. */
-function consumePanelRestartRequest() {
-  const prefs = readAdminPrefs();
-  if (typeof prefs.panelRestartRequestedAt !== 'string') return false;
-  const { panelRestartRequestedAt, ...rest } = prefs;
-  try {
-    writeAdminPrefs(rest);
-  } catch {
-    // Only the browser tab depends on it; failing to clear it must not stop the restart.
-  }
-  const age = Date.now() - Date.parse(panelRestartRequestedAt);
-  return age >= 0 && age < PANEL_RESTART_WINDOW_MS;
 }
 
 async function releaseCurrentManagerLock() {
@@ -811,7 +668,7 @@ async function announceStarted({ configuration, connection }) {
   const credentials = configuration.needsSetup
     ? await createInitialAdmin(configuration, connection)
     : null;
-  if (!panelRestartFromPage) await openBrowser(configuration.values, { announce: false });
+  await openBrowser(configuration.values, { announce: false });
   if (credentials) {
     // When output is redirected it may end up in a log file, so the password is not written; the user can reset it at any time.
     if (process.stdout.isTTY) {
@@ -1276,7 +1133,7 @@ async function stopWithLock() {
 /**
  * After the watched panel exits: the panel that a restart from another window started in its place, or null when it was stopped.
  * A restart holds the manager lock from before it stops the old panel until the new one answers, so waiting for the lock leaves no gap
- * that could be misread as a stop. The one-click restart as administrator is such a restart.
+ * that could be misread as a stop. A restart run from a window opened as administrator is such a restart.
  */
 async function panelRestartedElsewhere(previous) {
   while (managerLockHolder() !== null) await new Promise((resolve) => setTimeout(resolve, WATCH_POLL_MS));
@@ -1595,12 +1452,6 @@ async function runCommand(command, args = []) {
     await remoteCommand(args);
     return;
   }
-  // Before the lock and before anything is stopped: the elevated window runs the same command and needs both to itself.
-  if (await continueElevatedIfChosen(command)) {
-    // The administrator window carries on with the same command; this one has nothing left to show.
-    windowCanClose = true;
-    return;
-  }
   if (command === 'watch') {
     await startAndWatch();
     return;
@@ -1622,7 +1473,6 @@ async function runCommand(command, args = []) {
       return;
     }
     if (command === 'restart') {
-      panelRestartFromPage = consumePanelRestartRequest();
       await stopPanel();
       await startBackground();
       showDaemonReminder();

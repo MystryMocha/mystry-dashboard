@@ -801,8 +801,9 @@ test('a failed virtual adapter is reported as needing an administrator on a non-
 });
 
 test('the panel is reported as needing an administrator only when whoami shows an unelevated token on Windows', async (t) => {
-  const { parseWindowsElevation, setWindowsElevationForTests, windowsPanelElevated } = await import('./windows-elevation.js');
+  const { parseWindowsElevation, recheckWindowsElevationSoon, setWindowsElevationForTests, windowsPanelElevated } = await import('./windows-elevation.js');
   t.after(() => setWindowsElevationForTests(null));
+  t.mock.method(console, 'warn', () => {});
 
   // whoami /groups /fo csv /nh prints one integrity label; the group names are localized, the SIDs are not.
   const label = (level: string, sid: string) => `"Mandatory Label\\${level} Mandatory Level","Label","${sid}",""\r\n`;
@@ -826,6 +827,30 @@ test('the panel is reported as needing an administrator only when whoami shows a
 
   // whoami that cannot run is unknown, not "needs an administrator".
   setWindowsElevationForTests({ platform: 'win32', runner: async () => { throw new Error('spawn failed'); } });
+  assert.equal(await windowsPanelElevated(), null);
+
+  // A failed lookup is not kept for the life of the panel. Polls right after it do not run whoami again; a failure from EasyTier
+  // that points at missing rights lets the next request try at once, and a successful answer is then kept.
+  let attempts = 0;
+  let whoamiWorks = false;
+  setWindowsElevationForTests({
+    platform: 'win32',
+    runner: async () => {
+      attempts += 1;
+      if (!whoamiWorks) throw new Error('timed out');
+      return label('Medium', 'S-1-16-8192');
+    },
+  });
+  assert.equal(await windowsPanelElevated(), null);
+  assert.equal(await windowsPanelElevated(), null);
+  assert.equal(attempts, 1);
+  whoamiWorks = true;
+  recheckWindowsElevationSoon();
+  assert.equal(await windowsPanelElevated(), false);
+  assert.equal(await windowsPanelElevated(), false);
+  assert.equal(attempts, 2);
+  // Output without an integrity label is a failed lookup too, not an answer to keep.
+  setWindowsElevationForTests({ platform: 'win32', runner: async () => '"Everyone","Well-known group","S-1-1-0",""\r\n' });
   assert.equal(await windowsPanelElevated(), null);
 
   setWindowsElevationForTests({ platform: 'linux', runner: async () => { throw new Error('must not run'); } });
