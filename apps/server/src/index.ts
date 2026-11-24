@@ -302,24 +302,7 @@ async function main() {
       // Stop the extra listeners and drop connections from other devices first, then wait for connections on the main listener to close.
       await shutdownRemoteAccess();
       if (app) await closeAppWithGrace(app);
-      if (instanceResult.stillStopping.length > 0) {
-        // A server this process started is still running. Handing the data directory to a new panel would show that server as stopped
-        // and let a second one start on the same world, so the lock stays until the last of them exits. The launcher reads the lock to
-        // tell "still shutting down" from "stopped". It is released on that exit rather than on this process's own, which a leftover
-        // handle could delay; the exit hook covers a process that ends first.
-        const releaseOnceAllStopped = () => {
-          if (processManager.getRunningCount() > 0) return;
-          processManager.off('status', releaseOnceAllStopped);
-          releasePanelDataLock();
-        };
-        processManager.on('status', releaseOnceAllStopped);
-        process.once('exit', releasePanelDataLock);
-        // stillStopping was taken before the tunnels, the LAN and the listeners were shut down; a server that exited meanwhile
-        // emitted its last status before the listener was there.
-        releaseOnceAllStopped();
-      } else {
-        releasePanelDataLock();
-      }
+      releasePanelDataLock();
       getDb().close();
     })().catch((error) => {
       process.exitCode = 1;

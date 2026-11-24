@@ -782,14 +782,6 @@ const server = http.createServer((req, res) => {
   } else if (req.url === '/__log') {
     process.stdout.write(process.env.FAKE_PANEL_WATCH_LINES);
     res.end('{}');
-  } else if (req.url === '/api/launcher/shutdown' && req.method === 'POST' && process.env.FAKE_PANEL_STUCK) {
-    // Like a panel whose Minecraft server ignored stop: it stops answering but stays alive and keeps the data directory lock.
-    res.end(JSON.stringify({ runningInstances: 1, runningTasks: 0, queuedTasks: 0 }), () => {
-      // The real panel drops kept-alive connections as well; without this the launcher's pooled one would still be answered.
-      server.close();
-      server.closeAllConnections();
-      setInterval(() => {}, 1000);
-    });
   } else if (req.url === '/api/launcher/shutdown' && req.method === 'POST') {
     res.end('{}', () => setTimeout(() => process.exit(0), 300));
   } else if (req.url === '/api/auth/setup' && process.env.FAKE_PANEL_SETUP_LOG) {
@@ -831,12 +823,6 @@ const server = http.createServer((req, res) => {
   }
 });
 server.listen(Number(process.env.PORT), '127.0.0.1');
-if (process.env.FAKE_PANEL_DATA_LOCK) {
-  const lockDir = process.env.MYSTRY_DATA_DIR + '/.mystry-panel-lock';
-  fs.mkdirSync(lockDir, { recursive: true });
-  fs.writeFileSync(lockDir + '/owner.json', JSON.stringify({ pid: process.pid, fingerprint, version: 'test', createdAt: new Date().toISOString() }));
-  process.on('exit', () => fs.rmSync(lockDir, { recursive: true, force: true }));
-}
 // What the launcher told the panel about reopening it for the one-click restart as administrator.
 if (process.env.FAKE_PANEL_ENV_LOG) fs.writeFileSync(process.env.FAKE_PANEL_ENV_LOG, JSON.stringify({ launcher: process.env.MYSTRY_LAUNCHER ?? null }));
 if (process.env.FAKE_PANEL_LOG_LINES) process.stdout.write(process.env.FAKE_PANEL_LOG_LINES);
@@ -1199,42 +1185,6 @@ async function fakePanelHome(t, prefix, extraEnv = {}) {
   };
   return { home, env, health, statePid };
 }
-
-test('a restart starts no second panel while the old one still waits for a Minecraft server, and start and status say why', { timeout: 60_000 }, async (t) => {
-  const { env, statePid } = await fakePanelHome(t, 'mystry-ctl-stuck-', {
-    FAKE_PANEL_DATA_LOCK: '1',
-    FAKE_PANEL_STUCK: '1',
-    // Long enough to outlast the panel's moment of holding the lock after a stop, with Windows taking about 2 seconds to refuse each health check.
-    MYSTRY_TEST_STOP_TIMEOUT_MS: '10000',
-  });
-  const started = await runController('start', env);
-  assert.equal(started.code, 0, started.output);
-  const oldPid = statePid();
-
-  const restart = await runController('restart', env);
-  assert.equal(restart.code, 1, restart.output);
-  assert.match(restart.output, /正在等它启动的 Minecraft 服务器退出/);
-  assert.match(restart.output, new RegExp(`面板进程（PID ${oldPid}）已经不再响应.*不会再启动一个面板`));
-  assert.doesNotMatch(restart.output, /面板已启动/);
-  assert.equal(statePid(), oldPid);
-
-  // Refused at once, not after the panel's 60-second wait for a data directory it cannot take.
-  const startedAt = Date.now();
-  const start = await runController('start', env);
-  assert.equal(start.code, 1, start.output);
-  assert.match(start.output, new RegExp(`面板进程（PID ${oldPid}）已经不再响应`));
-  assert.ok(Date.now() - startedAt < 15_000, start.output);
-
-  const status = await runController('status', env);
-  assert.match(status.output, new RegExp(`状态：正在关闭（PID ${oldPid}）`));
-
-  process.kill(oldPid);
-  const deadline = Date.now() + 10_000;
-  while ((await runController('status', env)).output.includes('正在关闭')) {
-    if (Date.now() > deadline) assert.fail('the lock of an ended panel process still counts');
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-});
 
 test('the window from a double-click keeps showing the panel after a restart from another window, and Ctrl+C still stops it', { timeout: 60_000 }, async (t) => {
   const time = Date.now();

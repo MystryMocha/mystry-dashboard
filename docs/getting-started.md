@@ -64,7 +64,7 @@ Double-clicking opens a menu in your system language (Chinese on a Chinese syste
 
 Start, stop, status and logs share one implementation with `mdash.sh` on Linux and `mdash` in the portable build. The only differences: the configuration defaults to `.env` in the repository root (or the file named by `MYSTRY_CONFIG_PATH`, if set), and the data directory follows that file's `DATA_DIR`. Logs go to `logs/` in the repository root.
 
-A background stop or restart first cancels deploy/import tasks, then stops each running Minecraft instance safely, one at a time. Do not force-kill the Node process in Task Manager. A server that has not exited within the grace period is sent `stop` once more. If it still has not exited, the old panel process keeps the data directory until it does, and the launcher does not start another panel: `status` shows which process is still waiting, and the message says what to do.
+A background stop or restart first cancels deploy/import tasks, then stops each running Minecraft instance safely, one at a time. Do not force-kill the Node process in Task Manager.
 
 After you choose on the Multiplayer page to start the panel as administrator (for the virtual LAN), `start`, `restart` and `foreground` first ask Windows for administrator rights and continue in an administrator window. When the prompt is declined, the panel starts without them. The choice is kept in `launcher/admin.json` under the data directory, and **Stop Asking** on the same page turns it off. This needs the default `.env` and data directory: with `MYSTRY_CONFIG_PATH`, `MYSTRY_DATA_DIR` or `DATA_DIR` set in the environment, the administrator window would not find them, so the launcher starts without asking.
 
