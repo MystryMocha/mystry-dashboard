@@ -65,6 +65,9 @@ const launcherDir = path.join(dataDir, 'launcher');
 const statePath = path.join(launcherDir, 'state.json');
 // Keeps the name from before the controller became mdash, so an older mystryctl and mdash on the same data directory still exclude each other.
 const lockPath = path.join(launcherDir, 'mystryctl.lock');
+// The panel's own data directory lock. The panel keeps it after it stops answering for as long as a Minecraft server it started is still
+// running, which is how "still shutting down" is told apart from "stopped".
+const panelDataLockOwnerPath = path.join(dataDir, '.mystry-panel-lock', 'owner.json');
 const stdoutLog = path.join(logDir, 'panel.stdout.log');
 const stderrLog = path.join(logDir, 'panel.stderr.log');
 const portableServerEntry = path.join(homeDir, 'app', 'server', 'dist', 'index.js');
@@ -379,6 +382,37 @@ function isProcessAlive(pid) {
   }
 }
 
+/** The PID of a live panel process holding the data directory, or null. */
+function panelDataLockHolder() {
+  try {
+    const owner = JSON.parse(fs.readFileSync(panelDataLockOwnerPath, 'utf8'));
+    return Number.isSafeInteger(owner?.pid) && owner.pid !== process.pid && isProcessAlive(owner.pid) ? owner.pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function serversStillStoppingMessage(pid) {
+  const howToEnd = process.platform === 'win32'
+    ? text('在任务管理器里结束它启动的 java.exe', 'end the java.exe it started in Task Manager')
+    : text('用 kill 结束它启动的 java 进程', 'end the java process it started with kill');
+  const lockDir = path.dirname(panelDataLockOwnerPath);
+  // The last sentence is for a lock left by a panel that did not shut down (a crash or a power cut) whose PID now belongs to another program.
+  return text(
+    `面板进程（PID ${pid}）已经不再响应，但还占着数据目录，通常是在等它启动的 Minecraft 服务器退出。为保护存档，${managerCommand} 不会强制结束它，也不会再启动一个面板。请等它退出后再启动面板；如果一直不退出，可以${howToEnd}，上次自动保存之后的进度会丢失。如果电脑重启过、这个 PID 已经不是面板，确认后删除 ${lockDir} 即可。`,
+    `The panel process (PID ${pid}) no longer responds but still holds the data directory, usually because a Minecraft server it started has not exited yet. To protect your worlds, ${managerCommand} neither forces it to end nor starts another panel. Start the panel once it has exited. If it never does, ${howToEnd}; progress since the last autosave is lost. If the computer has restarted since and this PID is no longer the panel, delete ${lockDir} once you have checked.`,
+  );
+}
+
+/**
+ * The PID of a panel that is shutting down but still waiting for its servers: it has closed its port yet still holds the data directory.
+ * A panel that is only slow to answer still has its port open, and must not be reported this way: the advice is to end its servers.
+ */
+async function panelStillShuttingDown(values) {
+  if (!values || await getHealth(values) || await isPortOpen(getConnection(values).port)) return null;
+  return panelDataLockHolder();
+}
+
 async function acquireManagerLock() {
   await fsp.mkdir(launcherDir, { recursive: true, mode: 0o700 });
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -602,6 +636,9 @@ async function prepareStart() {
   if (await isPortOpen(connection.port)) {
     throw new Error(text(`端口 ${connection.port} 已被其他程序占用。`, `Port ${connection.port} is already in use by another program.`));
   }
+  // Otherwise the new panel would only fail to take the data directory, and say so after the full 60-second wait.
+  const holder = panelDataLockHolder();
+  if (holder !== null) throw new Error(serversStillStoppingMessage(holder));
   checkJava();
   return { configuration, connection };
 }
@@ -1140,6 +1177,8 @@ async function stopPanel() {
         'A panel is responding, but its PID or process fingerprint does not match; refusing to stop an unknown process.',
       ));
     }
+    const holder = await panelStillShuttingDown(values);
+    if (holder !== null) throw new Error(serversStillStoppingMessage(holder));
     if (!isProcessAlive(state?.pid)) await clearState();
     console.log(text('面板未运行。', 'The panel is not running.'));
     return;
@@ -1171,21 +1210,39 @@ async function stopPanel() {
     `Stopping: ${instances} instance(s), ${running} running task(s), ${queued} queued task(s).`,
   ));
 
-  const timeoutMs = Math.min(
+  // Per server: the panel's two stop attempts of 15 seconds each, and time for the server to save after the second one.
+  const timeoutMs = Number(process.env.MYSTRY_TEST_STOP_TIMEOUT_MS) || Math.min(
     30 * 60_000,
     60_000
-      + 20_000 * Number(summary.runningInstances ?? 0)
+      + 45_000 * Number(summary.runningInstances ?? 0)
       + 60_000 * Number(summary.runningTasks ?? 0),
   );
   const deadline = Date.now() + timeoutMs;
+  let waitingForServers = false;
+  let heldSince = null;
   while (Date.now() < deadline) {
     if (!(await getHealth(values, state.fingerprint))) {
-      await clearState();
-      console.log(text('面板已停止。', 'The panel has stopped.'));
-      return;
+      // The panel stops answering before its servers are sure to be gone; while one is still running it keeps the data directory.
+      if (panelDataLockHolder() === null) {
+        await clearState();
+        console.log(text('面板已停止。', 'The panel has stopped.'));
+        return;
+      }
+      heldSince ??= Date.now();
+      // A panel with nothing left running also holds it for a moment after it stops answering; that is not worth a message.
+      if (!waitingForServers && Date.now() - heldSince >= 3000) {
+        waitingForServers = true;
+        console.log(text(
+          '面板已不再接收请求，正在等它启动的 Minecraft 服务器退出…',
+          'The panel no longer takes requests and is waiting for the Minecraft servers it started to exit…',
+        ));
+      }
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
+  const holder = panelDataLockHolder();
+  // State is kept: the process is still there, and a restart must not go on to start a second panel.
+  if (heldSince !== null && holder !== null) throw new Error(serversStillStoppingMessage(holder));
   throw new Error(text(
     `面板安全停止超时；为保护游戏数据，${managerCommand} 不会按 PID 强制结束进程。`,
     `Timed out waiting for the panel to stop. To protect game data, ${managerCommand} will not force-kill it by PID.`,
@@ -1199,6 +1256,12 @@ async function showStatus() {
     const connection = getConnection(values);
     console.log(text(`状态：运行中  ${connection.url}`, `Status: running  ${connection.url}`));
     if (state?.pid) console.log(text(`PID：${state.pid}`, `PID: ${state.pid}`));
+    return;
+  }
+  const holder = await panelStillShuttingDown(values);
+  if (holder !== null) {
+    console.log(text(`状态：正在关闭（PID ${holder}）`, `Status: shutting down (PID ${holder})`));
+    console.warn(serversStillStoppingMessage(holder));
     return;
   }
   console.log(text('状态：未运行', 'Status: stopped'));
@@ -1292,10 +1355,14 @@ const STOPPED_MENU = [
 ];
 
 async function interactiveMenu() {
-  const running = await isManagedPanelRunning(await loadConfiguration(), await readState());
+  const values = await loadConfiguration();
+  const running = await isManagedPanelRunning(values, await readState());
   const menu = running ? RUNNING_MENU : STOPPED_MENU;
   console.log(text(`Mystry Dashboard ${managerLabel}`, `Mystry Dashboard (${managerLabel})`));
-  console.log(running ? text('状态：运行中', 'Status: running') : text('状态：未运行', 'Status: stopped'));
+  const holder = running ? null : await panelStillShuttingDown(values);
+  if (running) console.log(text('状态：运行中', 'Status: running'));
+  else if (holder !== null) console.log(text(`状态：正在关闭（PID ${holder} 在等 Minecraft 服务器退出）`, `Status: shutting down (PID ${holder} is waiting for Minecraft servers to exit)`));
+  else console.log(text('状态：未运行', 'Status: stopped'));
   console.log('');
   for (const [key, , label] of menu) console.log(`[${key}] ${label}`);
   console.log(text('[0] 退出', '[0] Exit'));

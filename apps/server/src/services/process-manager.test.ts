@@ -255,6 +255,57 @@ test('a normal stop timing out must not implicitly SIGKILL', async (t) => {
   assert.equal(manager.getStatus(row.id), 'stopping');
 });
 
+test('on shutdown a server that missed the first stop gets it once more, and one that ignores both is reported as still running', async (t) => {
+  prepareTempDataRoot(t);
+  process.env.MYSTRY_TEST_STOP_GRACE_MS = '40';
+  t.after(() => {
+    delete process.env.MYSTRY_TEST_STOP_GRACE_MS;
+  });
+
+  const { ProcessManager } = await import('./process-manager.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const late = createInstance({ name: 'stops-on-second-stop' });
+  const stuck = createInstance({ name: 'never-stops' });
+  for (const info of [late, stuck]) fs.writeFileSync(path.join(defaultInstanceDir(info.id), 'server.jar'), 'stub-jar');
+
+  const stops = new Map<string, number>();
+  const killSignals: Array<string | undefined> = [];
+  const manager = new ProcessManager(
+    (_command, _args, options) => {
+      const id = String(options.cwd).includes(late.id) ? late.id : stuck.id;
+      const child = fakeChild({ onKill: (signal) => killSignals.push(signal) });
+      child.stdin.on('data', (chunk: Buffer) => {
+        if (!chunk.toString('utf8').includes('stop')) return;
+        const count = (stops.get(id) ?? 0) + 1;
+        stops.set(id, count);
+        // Like a server that dropped the stop it received while still loading.
+        if (id === late.id && count === 2) {
+          Object.assign(child, { exitCode: 0 });
+          child.emit('exit', 0, null);
+        }
+      });
+      return child;
+    },
+    async () => 'java',
+  );
+
+  await manager.start(getInstanceRow(late.id) as InstanceRow);
+  await manager.start(getInstanceRow(stuck.id) as InstanceRow);
+  const result = await manager.stopAll();
+
+  assert.equal(stops.get(late.id), 2);
+  assert.equal(stops.get(stuck.id), 2);
+  assert.deepEqual(result.stillStopping, [stuck.id]);
+  assert.deepEqual(result.errors, []);
+  assert.equal(manager.getStatus(late.id), 'stopped');
+  // Still no forced kill: the server keeps its chance to save.
+  assert.deepEqual(killSignals, []);
+});
+
 test('a Forge start rewrites user_jvm_args.txt with the normalized arguments', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
