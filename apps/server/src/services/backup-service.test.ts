@@ -477,8 +477,10 @@ async function scheduling(timeZone = 'UTC') {
   // Schedules left enabled by earlier cases would come due on this case's clock as well.
   getDb().exec('DELETE FROM instance_backup_schedules');
   service.attachBackupScheduleLifecycle();
-  const state = { now: new Date(0), free: null as number | null };
-  const create = () => service.createBackupScheduler({ now: () => state.now, timeZone, readFreeBytes: () => state.free });
+  // `free` is a function when the free space depends on what the run has deleted by the time it is read.
+  const state = { now: new Date(0), free: null as number | null | (() => number | null) };
+  const readFreeBytes = () => (typeof state.free === 'function' ? state.free() : state.free);
+  const create = () => service.createBackupScheduler({ now: () => state.now, timeZone, readFreeBytes });
   let scheduler = create();
   return {
     state,
@@ -695,6 +697,92 @@ test('retention leaves a scheduled backup that a restore is using', async () => 
   assert.deepEqual(listBackups(id).map((backup) => backup.id), [newest.id]);
   assert.deepEqual(pruneScheduledBackups(id, 0), { deleted: [], kept: [] }, '无效的保留数量不删除任何备份');
   assert.equal(listBackups(id).length, 1);
+});
+
+test('a scheduled backup short of disk space first deletes the scheduled backups beyond the number to keep, and none within it', async () => {
+  const { id } = await setup();
+  const s = await scheduling();
+  s.enable(id, '04:00', '2026-06-01T10:00:00Z', 3);
+  for (const day of ['02', '03', '04']) {
+    await s.checkAt(`2026-06-${day}T04:00:00Z`);
+    s.serverRan(id);
+  }
+  const [newest, middle, oldest] = s.scheduled(id);
+  assert.ok(newest && middle && oldest);
+  const needed = newest.sizeBytes + s.margin;
+  const ids = () => s.scheduled(id).map((backup) => backup.id);
+
+  s.state.free = needed - 1;
+  await s.checkAt('2026-06-05T04:00:00Z');
+  assert.deepEqual(ids(), [newest.id, middle.id, oldest.id], '份数未超出时不为腾出空间而删除备份');
+  assert.equal(s.info(id).lastFailure?.errorI18n?.key, 'server.backups.schedule.diskSpace');
+
+  // Lowered to two, on a disk that is still too full once the third is gone: the run fails, and the third stays deleted.
+  s.enable(id, '04:00', '2026-06-05T12:00:00Z', 2);
+  await s.checkAt('2026-06-06T04:00:00Z');
+  assert.deepEqual(ids(), [newest.id, middle.id], '空间不足时先删除超出保留份数的定时备份');
+  assert.equal(s.info(id).lastFailure?.at, '2026-06-06T04:00:00.000Z');
+  assert.equal(s.info(id).lastFailure?.errorI18n?.key, 'server.backups.schedule.diskSpace');
+
+  // Lowered to one, and this time deleting the backup beyond the count frees enough.
+  s.enable(id, '04:00', '2026-06-06T12:00:00Z', 1);
+  s.state.free = () => (s.scheduled(id).length > 1 ? needed - 1 : needed);
+  await s.checkAt('2026-06-07T04:00:00Z');
+  const [made, ...others] = s.scheduled(id);
+  assert.ok(made, '腾出空间后应生成新的定时备份');
+  assert.deepEqual(others, []);
+  assert.ok(![newest.id, middle.id, oldest.id].includes(made.id));
+  assert.equal(s.info(id).lastFailure, null);
+  assert.equal(s.info(id).lastBackupAt, made.createdAt);
+});
+
+test('a scheduled backup dated earlier than the ones already there, as after the clock is set back, is kept as the newest', async () => {
+  const { id } = await setup();
+  const { backupRoot, getBackup } = await import('./backup-service.js');
+  const s = await scheduling();
+  s.enable(id, '04:00', '2026-06-01T10:00:00Z', 2);
+  for (const day of ['02', '03']) {
+    await s.checkAt(`2026-06-${day}T04:00:00Z`);
+    s.serverRan(id);
+  }
+  const [later, earlier] = s.scheduled(id);
+  assert.ok(later && earlier);
+  // A backup is dated by the real clock, which a case cannot set back; dating the two already there ahead of it
+  // leaves the same order.
+  const redate = (backupId: string, createdAt: string) => {
+    const file = path.join(backupRoot(), id, `${backupId}.json`);
+    fs.writeFileSync(file, `${JSON.stringify({ ...JSON.parse(fs.readFileSync(file, 'utf8')), createdAt })}\n`);
+  };
+  redate(later.id, '2099-01-02T00:00:00.000Z');
+  redate(earlier.id, '2099-01-01T00:00:00.000Z');
+
+  await s.checkAt('2026-06-04T04:00:00Z');
+  const kept = s.scheduled(id);
+  assert.equal(kept.length, 2);
+  assert.equal(kept[0]!.id, later.id);
+  const made = kept[1]!;
+  assert.notEqual(made.id, earlier.id, '刚生成的备份不因日期较早而被删除，被删除的是其余备份中最旧的一份');
+  assert.equal(s.info(id).lastBackupAt, made.createdAt);
+  assert.equal(getBackup(id, made.id).source, 'scheduled');
+});
+
+test('older scheduled backups are deleted by the number to keep saved at that moment, not the one in force when the run was queued', async () => {
+  const { id } = await setup();
+  const { getTaskActivity } = await import('./task-service.js');
+  const s = await scheduling();
+  s.enable(id, '04:00', '2026-06-01T10:00:00Z', 1);
+  await s.checkAt('2026-06-02T04:00:00Z');
+  s.serverRan(id);
+  const [first] = s.scheduled(id);
+  assert.ok(first);
+
+  await s.check('2026-06-03T04:00:00Z');
+  assert.deepEqual(getTaskActivity(), { running: 1, queued: 0 });
+  // Saved while the files are being packed.
+  s.enable(id, '04:00', '2026-06-03T04:00:00Z', 5);
+  await waitForIdleQueue();
+  assert.equal(s.scheduled(id).length, 2);
+  assert.ok(s.scheduled(id).some((backup) => backup.id === first.id), '备份进行中调高保留份数后，原有的备份应保留');
 });
 
 test('a scheduled backup that fails is a failed task naming the instance, and its reason is kept until the next one succeeds', async () => {

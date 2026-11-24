@@ -270,7 +270,7 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
     const instanceId = row.instance_id;
     try {
       await startScheduledBackupTask(instanceId, {
-        keep: row.keep_count,
+        keep: () => readRow(instanceId)?.keep_count ?? null,
         freeSpaceMarginBytes: BACKUP_SCHEDULE_DEFAULTS.freeSpaceMarginBytes,
         readFreeBytes: options.readFreeBytes,
         onCreated: (info) => {

@@ -531,8 +531,12 @@ export async function startBackupTask(instanceId: string): Promise<TaskInfo> {
 }
 
 export type ScheduledBackupOptions = {
-  /** How many scheduled backups to keep once this one has succeeded. */
-  keep: number;
+  /**
+   * How many scheduled backups to keep, or null when that is no longer known, in which case none is deleted.
+   * It is read when older backups are about to be deleted, not when the run is queued: packing a large world takes long
+   * enough for the number to be changed meanwhile, and a backup the user has just asked to keep must not be deleted.
+   */
+  keep: () => number | null;
   /** Free space required on top of the size of the instance's previous backup. */
   freeSpaceMarginBytes: number;
   /** Free bytes on the disk that holds a directory, or null when the platform cannot tell. Replaced in tests. */
@@ -573,13 +577,24 @@ function assertEnoughSpaceForScheduledBackup(instanceId: string, options: Schedu
  * Deletes this instance's scheduled backups beyond the newest `keep`, oldest first; backups from every other source are
  * never touched. Each one goes through deleteBackup, so a backup in use by a restore is refused and stays.
  * Whatever could not be deleted is still beyond the count after the next scheduled backup, and is tried again then.
+ * `newestId` names the backup a run has just made; it counts as the newest whatever its date says.
  */
-export function pruneScheduledBackups(instanceId: string, keep: number): { deleted: string[]; kept: string[] } {
+export function pruneScheduledBackups(
+  instanceId: string,
+  keep: number,
+  newestId?: string,
+): { deleted: string[]; kept: string[] } {
   const result: { deleted: string[]; kept: string[] } = { deleted: [], kept: [] };
   // Anything but a positive whole number would make slice() below start from the newest backup.
   if (!Number.isSafeInteger(keep) || keep < 1) return result;
   const scheduled = listBackups(instanceId).filter((backup) => backup.source === 'scheduled');
-  for (const backup of scheduled.slice(keep).reverse()) {
+  // The list is ordered by creation date. After the computer's clock is set back, the backup just made carries an
+  // earlier date than the ones already there, and going by date alone it would be the first one deleted.
+  const ranked = [
+    ...scheduled.filter((backup) => backup.id === newestId),
+    ...scheduled.filter((backup) => backup.id !== newestId),
+  ];
+  for (const backup of ranked.slice(keep).reverse()) {
     try {
       deleteBackup(instanceId, backup.id);
       result.deleted.push(backup.id);
@@ -594,7 +609,40 @@ export function pruneScheduledBackups(instanceId: string, keep: number): { delet
 }
 
 /**
- * Queues a scheduled backup, then deletes scheduled backups beyond `keep`. Throws only when the backup cannot be queued
+ * Deletes the scheduled backups beyond the number to keep as it stands now, and returns how many went. Never throws:
+ * failing to delete older backups must not turn a backup that exists into a failed task, nor replace the reason a run
+ * gives for having made none.
+ */
+function applyScheduledRetention(instanceId: string, options: ScheduledBackupOptions, newestId?: string): number {
+  try {
+    const keep = options.keep();
+    return keep === null ? 0 : pruneScheduledBackups(instanceId, keep, newestId).deleted.length;
+  } catch (error) {
+    console.warn(`未能清理实例 ${instanceId} 超出保留数量的定时备份`, error);
+    return 0;
+  }
+}
+
+/**
+ * Retention runs after a backup succeeds, which a full disk never lets happen: lowering the number to keep would then
+ * free nothing, and every later run would fail the same way. So when space is short, the scheduled backups already
+ * beyond that number are deleted first and the space is read again. Backups within the number stay, because no newer
+ * one exists yet to take their place.
+ */
+function makeRoomForScheduledBackup(instanceId: string, options: ScheduledBackupOptions): void {
+  try {
+    assertEnoughSpaceForScheduledBackup(instanceId, options);
+    return;
+  } catch (error) {
+    const outOfSpace = error instanceof PanelError && error.messageKey === 'server.backups.schedule.diskSpace';
+    if (!outOfSpace || applyScheduledRetention(instanceId, options) === 0) throw error;
+  }
+  assertEnoughSpaceForScheduledBackup(instanceId, options);
+}
+
+/**
+ * Queues a scheduled backup, then deletes scheduled backups beyond `keep`; when the disk is short of space, those are
+ * deleted before packing as well. Throws only when the backup cannot be queued
  * now (the instance is busy, another task is running or waiting, or the task queue is shutting down); every later
  * failure is a failed task whose reason names the instance, since nobody had its page open when it ran.
  */
@@ -606,19 +654,14 @@ export async function startScheduledBackupTask(instanceId: string, options: Sche
       try {
         let info: BackupInfo;
         try {
-          assertEnoughSpaceForScheduledBackup(instanceId, options);
+          makeRoomForScheduledBackup(instanceId, options);
           info = await createBackup(instanceId, 'scheduled', signal, report, { from: 0, to: 99 });
         } catch (error) {
           options.onFailed(error);
           throw new PanelError('server.backups.schedule.runFailed', { name, reason: errorParam(error) }, { cause: error });
         }
         options.onCreated(info);
-        // The backup exists whatever happens to the older ones, so failing to delete them does not turn the task into a failure.
-        try {
-          pruneScheduledBackups(instanceId, options.keep);
-        } catch (error) {
-          console.warn(`未能清理实例 ${instanceId} 超出保留数量的定时备份`, error);
-        }
+        applyScheduledRetention(instanceId, options, info.id);
         return { instanceId, backupId: info.id };
       } finally {
         release();
