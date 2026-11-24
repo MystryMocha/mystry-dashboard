@@ -2,12 +2,12 @@
 
 [English](portable-release.md) · **简体中文**
 
-仓库当前版本为 `v0.2.0-preview.6`。发布流程为其配置了两个便携目标，均内置 Node.js 22、生产依赖与已构建的前后端：
+仓库当前版本为 `v0.2.0-preview.7`。发布流程为其配置了两个便携目标，均内置 Node.js 22、生产依赖与已构建的前后端：
 
 | 系统 | 文件 |
 |------|------|
-| Windows x64 | `mystry-v0.2.0-preview.6-windows-x64.zip` |
-| Linux x64 | `mystry-v0.2.0-preview.6-linux-x64.tar.gz` |
+| Windows x64 | `mystry-v0.2.0-preview.7-windows-x64.zip` |
+| Linux x64 | `mystry-v0.2.0-preview.7-linux-x64.tar.gz` |
 
 Linux ARM64 与 macOS（Intel / Apple Silicon）的打包脚本仍可在本地使用，但未纳入本 Preview 的公开发布矩阵，留待后续版本。
 
@@ -44,7 +44,7 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 在 Windows PowerShell 中，先计算压缩包哈希，再与 `SHA256SUMS` 中的对应行比对：
 
 ```powershell
-Get-FileHash .\mystry-v0.2.0-preview.6-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\mystry-v0.2.0-preview.7-windows-x64.zip -Algorithm SHA256
 ```
 
 也可在 WSL 或 Gpg4win 中执行与 Linux 相同的 `gpg --verify`。
@@ -72,7 +72,7 @@ Windows：
 Linux：
 
 ```bash
-tar -xzf mystry-v0.2.0-preview.6-linux-x64.tar.gz
+tar -xzf mystry-v0.2.0-preview.7-linux-x64.tar.gz
 cd mystry-dashboard
 chmod +x mdash
 ./mdash start
@@ -140,7 +140,7 @@ mystry-dashboard/
 - Java 8/17/21/25 不随包提供；可使用系统 `PATH` 中的运行时、选择面板扫描到的其他已安装版本，或在缺少推荐版本时由面板安装 Eclipse Temurin。
 - 登录仍使用浏览器本地存储的 JWT；Cookie 会话、CSRF 防护、TOTP 与公网部署向导尚未实现。
 - 面板默认仅监听 `127.0.0.1`。切勿将面板端口直接暴露于不可信的公网。
-- 2026-11-22 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系公告（GHSA-wrjc-x8rr-h8h6 反斜杠开放重定向、GHSA-337j-9hxr-rhxg SSR hydration 构造注入），仅 7.18 及更高版本修复。当前 SPA 不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；但这些公告仍作为 Preview 残余风险记录，每次发布须重新审计。此前的公告已通过以下升级消除：`react-router-dom` / `react-router` 升至 6.30.6（GHSA-jjmj-jmhj-qwj2），`@fastify/static` 升至 10.1.10 并带动 `glob` 14.0.3 / `minimatch` 11.0.4（GHSA-3g3m-2fjr-6pw4、GHSA-g3hv-75wg-m249），以及传递依赖（`fastify` 5.12.7、`fast-jwt` 6.3.5、`@fastify/busboy` 3.2.3、`fast-uri` 3.1.9 / 4.2.3、`brace-expansion` 5.0.12）。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入便携包；修复需跨大版本升级，暂未处理。
+- 2026-11-24 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系公告（GHSA-wrjc-x8rr-h8h6 反斜杠开放重定向、GHSA-337j-9hxr-rhxg SSR hydration 构造注入），仅 7.18 及更高版本修复。当前 SPA 不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；但这些公告仍作为 Preview 残余风险记录，每次发布须重新审计。此前的公告已通过以下升级消除：`react-router-dom` / `react-router` 升至 6.30.6（GHSA-jjmj-jmhj-qwj2），`@fastify/static` 升至 10.1.10 并带动 `glob` 14.0.3 / `minimatch` 11.0.4（GHSA-3g3m-2fjr-6pw4、GHSA-g3hv-75wg-m249），以及传递依赖（`fastify` 5.12.7、`fast-jwt` 6.3.5、`@fastify/busboy` 3.2.3、`fast-uri` 3.1.9 / 4.2.3、`brace-expansion` 5.0.12）。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入便携包；修复需跨大版本升级，暂未处理。
 
 ## 发布维护
 
@@ -152,7 +152,7 @@ npm run verify
 npm run audit:production
 npm run build
 node scripts/portable/package-portable.mjs --platform win32 --arch x64 --output-dir release
-node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.6-windows-x64.zip
+node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.7-windows-x64.zip
 ```
 
 以上流程可由一条命令完成（在目标平台原生运行，自动采用当前平台与架构，并生成压缩包、SHA256SUMS 与 SBOM）：

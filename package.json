@@ -1,7 +1,7 @@
 {
   "name": "mystry-dashboard",
   "private": true,
-  "version": "0.2.0-preview.6",
+  "version": "0.2.0-preview.7",
   "description": "A self-hosted game server panel, now supporting Minecraft: Java Edition.",
   "license": "MIT",
   "homepage": "https://github.com/MystryMocha/mystry-dashboard#readme",
