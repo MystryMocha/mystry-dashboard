@@ -2,6 +2,15 @@
 
 ## English
 
+### New in 0.2.0-preview.7
+
+- **Virtual LAN join commands work again**: EasyTier 2.6.4 refused the join instructions and the "Computer" command the panel handed out, so nobody could join. Instructions sent with an earlier version still fail: download or copy them again, or delete the `=true` after `--no-listener`.
+- **Virtual LAN on Windows**: The Multiplayer page says when the panel lacks administrator rights before anything is downloaded, and gives the steps. **Let Players Join** is hidden while the virtual LAN cannot work, and it no longer fails to find a direct-connection port while thousands are free.
+- **Paper 26.3**: Backups of a running server no longer fail after a 60-second wait. When the whitelist is on and empty, which Paper 26.3 does at its first start, the console and the Multiplayer page say so and name the two ways out.
+- **Safer restarts and upgrades**: Restarting the panel while a server is still loading can no longer end with a second copy of the same world running. Before an upgrade changes `panel.db`, the panel keeps a copy in `data/db-backups/`.
+- **Content Security Policy**: The panel's pages allow only the panel's own scripts.
+- **Smaller fixes**: The sign-in page says how to reset a forgotten password, the source launcher stays in Chinese on a Chinese Windows, and large deletes no longer freeze the panel.
+
 ### New in 0.2.0-preview.6
 
 - **Launcher renamed to `mdash`**: The portable `mystryctl.cmd` / `mystryctl` are now `mdash.cmd` / `mdash`, and the source launchers `PanelManager.cmd` / `PanelManager.sh` are now `mdash.cmd` / `mdash.sh`. The commands are unchanged, and the old names have no aliases, so update shortcuts and scripts.
@@ -39,11 +48,20 @@ First run `mdash stop` in the old folder (`mystryctl stop` in 0.2.0-preview.5 an
 - **Platform scope**: This preview ships for Windows x64 and Linux x64 only. Linux ARM64 and macOS builds, a system installer, service registration, start at boot, native auto-update and Windows code signing are not available yet.
 - **Network boundary**: By default the panel listens only on `127.0.0.1`. Access from other devices stays off until an administrator turns it on in the panel. Once it is on, the sign-in page is reachable from the networks you chose, so keep HTTPS on and do not expose the panel to the untrusted public internet.
 - **Signature & checksum verification**: After downloading, check the files against `SHA256SUMS`. Import `mystry-release-signing-key.asc`, confirm its fingerprint is `89776870C5B4C56BE7D0E32BA3AA7D21DB154796` (the same value as `.github/release-signing-key.fingerprint` in the repository; `gpg --fingerprint` prints it in groups of four, so ignore spaces and case when comparing), then verify `SHA256SUMS.asc` with that public key.
-- **Dependency audit**: The production dependency audit against the official registry on 2026-11-22 found 0 critical, 0 high and 2 moderate advisories. Both moderate advisories concern React Router 6 (GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg) and are fixed only in 7.18 and later. The frontend uses no SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs. The advisories remain a residual preview risk, and the audit is rerun for every release.
+- **Dependency audit**: The production dependency audit against the official registry on 2026-11-24 found 0 critical, 0 high and 2 moderate advisories. Both moderate advisories concern React Router 6 (GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg) and are fixed only in 7.18 and later. The frontend uses no SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs. The advisories remain a residual preview risk, and the audit is rerun for every release.
 
 Full details are in `docs/portable-release.md` in the repository; the Chinese version is `docs/portable-release.zh-CN.md`.
 
 ## 简体中文
+
+### 0.2.0-preview.7 新增
+
+- **虚拟局域网加入命令恢复可用**：面板给出的加入说明与「电脑」命令此前会被 EasyTier 2.6.4 拒绝，无法加入。旧版本发出的说明仍会失败，请重新下载或复制，也可删去 `--no-listener` 后面的 `=true`。
+- **Windows 上的虚拟局域网**：面板缺少管理员身份时，联机页在下载之前即给出提示与步骤；虚拟局域网无法工作时隐藏「让玩家加入」；空闲端口充足时不再报告找不到直连端口。
+- **Paper 26.3**：运行中服务端的备份不再于等待 60 秒后失败。白名单开启且为空时（Paper 26.3 首次启动即如此），控制台与联机页会给出提示，并写明两种解决办法。
+- **重启与升级更稳妥**：服务端仍在加载时重启面板，不再可能导致同一存档同时运行两份。升级改动 `panel.db` 之前，面板会在 `data/db-backups/` 中保留一份副本。
+- **内容安全策略**：面板页面只允许运行面板自身的脚本。
+- **其他修复**：登录页写明忘记密码时的重置方法；中文 Windows 上源码启动器不再显示英文；删除大量文件时面板不再停止响应。
 
 ### 0.2.0-preview.6 新增
 
@@ -82,6 +100,6 @@ Full details are in `docs/portable-release.md` in the repository; the Chinese ve
 - **平台范围**：本 Preview 仅发布 Windows x64 与 Linux x64 版本；暂不提供 Linux ARM64 与 macOS 版本、系统安装器、服务注册、开机启动、原生自动更新或 Windows 代码签名。
 - **监听边界**：面板默认仅监听 `127.0.0.1`；从其他设备访问默认关闭，须由管理员在面板中开启。开启后，所选网络均可访问登录页，因此请保持 HTTPS 开启，切勿将面板暴露于不可信的公网。
 - **哈希与签名校验**：下载后先以 `SHA256SUMS` 校验文件；导入 `mystry-release-signing-key.asc`，核对指纹为 `89776870C5B4C56BE7D0E32BA3AA7D21DB154796`（与仓库 `.github/release-signing-key.fingerprint` 相同；`gpg --fingerprint` 每 4 位分组显示，比对时忽略空格与大小写），再以该公钥验证 `SHA256SUMS.asc`。
-- **依赖安全审计**：2026-11-22 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系依赖公告（GHSA-wrjc-x8rr-h8h6、GHSA-337j-9hxr-rhxg），仅 7.18 及更高版本修复。当前前端不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；这两项仍作为 Preview 残余风险保留，每次发布均重新审计。
+- **依赖安全审计**：2026-11-24 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系依赖公告（GHSA-wrjc-x8rr-h8h6、GHSA-337j-9hxr-rhxg），仅 7.18 及更高版本修复。当前前端不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；这两项仍作为 Preview 残余风险保留，每次发布均重新审计。
 
 完整说明见仓库中的 `docs/portable-release.zh-CN.md`，英文版为 `docs/portable-release.md`。
