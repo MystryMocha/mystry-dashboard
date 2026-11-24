@@ -59,7 +59,7 @@ Windows:
 Extract → double-click mdash.cmd → the panel runs in the background and opens your browser → sign in with the account shown in the window → press Ctrl+C in the window to stop it
 ```
 
-After a double-click, the panel and your servers run in the background as a daemon, with no window of their own. The window you see shows only the account and important logs; the full log is in `logs/panel.stdout.log`. Closing the window does not affect the panel or your servers. To see the logs again or stop the panel, double-click `mdash.cmd` again. Ctrl+C safely stops the panel and all servers; do this before you shut down or restart as well. If startup fails, the window stays on the error until you press Enter.
+After a double-click, the panel and your servers run in the background as a daemon, with no window of their own. The window you see shows only the account and important logs; the full log is in `logs/panel.stdout.log`. Closing the window does not affect the panel or your servers. To see the logs again or stop the panel, double-click `mdash.cmd` again. Ctrl+C safely stops the panel and all servers; do this before you shut down or restart as well. When the panel is restarted from another window, this window keeps showing the new panel's logs. If startup fails, the window stays on the error until you press Enter.
 
 To use the menu, run `.\mdash.cmd menu`. Command-line calls with arguments do not pause, so they are safe in scripts.
 

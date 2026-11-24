@@ -78,7 +78,7 @@ export function LoginPage() {
 }
 
 function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: React.ReactNode }) {
-  const { t } = useI18n();
+  const { t, rich } = useI18n();
   const { needsSetup, login, setup } = useAuth();
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
@@ -255,6 +255,13 @@ function CredentialForm({ revealAll, footer }: { revealAll: () => void; footer: 
         <button className="btn btn-primary btn-lg btn-block" type="submit" disabled={!canSubmit}>
           {busy ? t('login.submit.busy') : needsSetup ? t('login.submit.setup') : t('login.submit.signin')}
         </button>
+        {/* The first password is shown once, in the launcher window; once that window is closed, this is the only pointer to a reset.
+            The page can be opened from other devices, so it names the computer running the panel rather than guessing this one's system. */}
+        {!needsSetup && (
+          <div className="login-notes">
+            <p>{rich('login.forgot', { cmd: (chunk) => <code>{chunk}</code> })}</p>
+          </div>
+        )}
       </form>
       {footer}
     </div>

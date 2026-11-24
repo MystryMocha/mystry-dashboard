@@ -19,6 +19,7 @@ export default {
   'login.form.setupTokenCount': '{count} / {max}',
   'login.form.setupTokenLength': '令牌是 {max} 个字符，现在有 {count} 个。',
   'login.form.passwordHelp': '密码至少 12 个字符。',
+  'login.forgot': '忘记密码时，在运行面板的电脑上重置：Windows 上双击 mdash.cmd，选「重置管理员密码」；Linux 上执行 <cmd>./mdash reset-password</cmd>，源码版为 <cmd>./mdash.sh reset-password</cmd>。',
 
   'login.submit.busy': '处理中…',
   'login.submit.setup': '创建并进入',

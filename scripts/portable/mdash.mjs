@@ -377,6 +377,23 @@ function isProcessAlive(pid) {
   try {
     process.kill(pid, 0);
     return true;
+  } catch (error) {
+    // EPERM means the process exists but may not be signalled: on Windows, a launcher without administrator rights gets it for a panel
+    // started as administrator, and treating that as gone would show a running panel as stopped.
+    return isErrorCode(error, 'EPERM');
+  }
+}
+
+/**
+ * Whether the PID in the manager lock still blocks taking it. Unlike isProcessAlive, EPERM counts as gone: the lock lasts one command,
+ * so one left behind usually outlived a power cut, and after a reboot Windows may hand its PID to a system process that a launcher may
+ * not signal. Counting that as alive would refuse every command until the file is deleted by hand.
+ */
+function isManagerProcessAlive(pid) {
+  if (!pid || !Number.isSafeInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
   } catch {
     return false;
   }
@@ -413,6 +430,20 @@ async function panelStillShuttingDown(values) {
   return panelDataLockHolder();
 }
 
+/**
+ * The PID of another live process holding the manager lock, such as a restart or stop running in another window, or null.
+ * EPERM counts as alive here, unlike when taking the lock: this only decides how long to wait, and a restart from a window opened
+ * as administrator answers EPERM. By the time anyone waits, a start has already replaced a lock left over from before a reboot.
+ */
+function managerLockHolder() {
+  try {
+    const owner = Number(fs.readFileSync(lockPath, 'utf8').trim());
+    return owner !== process.pid && isProcessAlive(owner) ? owner : null;
+  } catch {
+    return null;
+  }
+}
+
 async function acquireManagerLock() {
   await fsp.mkdir(launcherDir, { recursive: true, mode: 0o700 });
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -425,7 +456,7 @@ async function acquireManagerLock() {
       if (!isErrorCode(error, 'EEXIST')) throw error;
       const ownerText = await fsp.readFile(lockPath, 'utf8').catch(() => '');
       const owner = Number(ownerText.trim());
-      if (isProcessAlive(owner)) {
+      if (isManagerProcessAlive(owner)) {
         throw new Error(text(`另一个 ${managerCommand} 正在运行，请稍后再试。`, `Another ${managerCommand} is running. Try again later.`));
       }
       await fsp.unlink(lockPath).catch(() => {});
@@ -1054,7 +1085,11 @@ async function startForeground() {
 
 const WATCH_POLL_MS = 500;
 
-/** Reads the complete lines newly added to the log file. When the file gets shorter after rotation it is read from the start, and an unfinished last line is left for the next round. */
+/**
+ * Reads the complete lines newly added to the log file, leaving an unfinished last line for the next round. A new file after rotation is
+ * read from the start. It is recognised by its file ID, not by being shorter: the new file can already be longer than the old one, and its
+ * creation time is no help because NTFS gives a file recreated under the same name within seconds the old one's.
+ */
 async function readNewLogLines(cursor) {
   let handle;
   try {
@@ -1064,11 +1099,13 @@ async function readNewLogLines(cursor) {
     throw error;
   }
   try {
-    const { size } = await handle.stat();
-    if (size < cursor.offset) {
+    const stat = await handle.stat({ bigint: true });
+    const size = Number(stat.size);
+    if ((cursor.ino !== undefined && stat.ino !== cursor.ino) || size < cursor.offset) {
       cursor.offset = 0;
       cursor.partial = Buffer.alloc(0);
     }
+    cursor.ino = stat.ino;
     if (size === cursor.offset) return [];
     const chunk = Buffer.alloc(size - cursor.offset);
     const { bytesRead } = await handle.read(chunk, 0, chunk.length, cursor.offset);
@@ -1112,15 +1149,28 @@ async function stopWithLock() {
   }
 }
 
+/**
+ * After the watched panel exits: the panel that a restart from another window started in its place, or null when it was stopped.
+ * A restart holds the manager lock from before it stops the old panel until the new one answers, so waiting for the lock leaves no gap
+ * that could be misread as a stop. A restart run from a window opened as administrator is such a restart.
+ */
+async function panelRestartedElsewhere(previous) {
+  while (managerLockHolder() !== null) await new Promise((resolve) => setTimeout(resolve, WATCH_POLL_MS));
+  const state = await readState();
+  if (!state?.fingerprint || state.fingerprint === previous?.fingerprint) return null;
+  return await isManagedPanelRunning(await loadConfiguration(), state) ? state : null;
+}
+
 /** The viewer window only reads the log file and has no process relationship with the panel, so closing it does not affect the panel or the servers. */
 async function watchPanel() {
-  const state = await readState();
+  let state = await readState();
   console.log(text(
     `提醒：面板和服务端作为 daemon 在后台运行，没有单独的窗口。\n关闭这个窗口后它们会继续运行，不会自动停止。\n要停止时：重新打开 ${managerCommand}，按 Ctrl+C 安全停止。关机或重启前也请先停止。\n这里只显示重要日志，完整日志在：${stdoutLog}\n`,
     `Reminder: the panel and your servers run in the background as a daemon, with no window of their own.\nThey keep running after you close this window, and they do not stop on their own.\nTo stop them, open ${managerCommand} again and press Ctrl+C to stop safely. Do this before you shut down or restart too.\nThis window shows important logs only. Full log: ${stdoutLog}\n`,
   ));
   const cursor = {
     offset: fs.existsSync(stdoutLog) ? fs.statSync(stdoutLog).size : 0,
+    ino: fs.existsSync(stdoutLog) ? fs.statSync(stdoutLog, { bigint: true }).ino : undefined,
     partial: Buffer.alloc(0),
   };
   const printNewLogs = async () => {
@@ -1141,11 +1191,21 @@ async function watchPanel() {
     stopping.catch(() => {});
   });
   try {
-    while (isProcessAlive(state?.pid) && !stopSettled) {
+    for (;;) {
+      while (isProcessAlive(state?.pid) && !stopSettled) {
+        await printNewLogs();
+        await new Promise((resolve) => setTimeout(resolve, WATCH_POLL_MS));
+      }
       await printNewLogs();
-      await new Promise((resolve) => setTimeout(resolve, WATCH_POLL_MS));
+      if (stopping) break;
+      const next = await panelRestartedElsewhere(state);
+      if (!next || stopping) break;
+      state = next;
+      console.log(text(
+        '\n面板已在另一个窗口中重启，这里接着显示它的日志。\n',
+        '\nThe panel was restarted from another window. This window keeps showing its logs.\n',
+      ));
     }
-    await printNewLogs();
     if (stopping) {
       await stopping;
       windowCanClose = true;
