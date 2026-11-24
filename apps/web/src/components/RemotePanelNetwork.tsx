@@ -56,12 +56,14 @@ function groupSecret(secret: string): string {
 
 /** The equivalent command line for another computer. The whitelist keeps only one unused port, so that computer cannot be accessed by devices on the same network. */
 function joinCommand(join: PanelNetworkJoinInfo): string {
+  // EasyTier 2.6.4 takes no value for --no-listener and exits with code 2 on "--no-listener=true",
+  // while --private-mode requires one, so the two forms differ on purpose.
   return [
     'easytier-core',
     '--dhcp',
     `--network-name "${join.networkName}"`,
     `--network-secret "${join.networkSecret}"`,
-    '--no-listener=true',
+    '--no-listener',
     '--private-mode=true',
     '--tcp-whitelist 1',
     '--udp-whitelist 1',
