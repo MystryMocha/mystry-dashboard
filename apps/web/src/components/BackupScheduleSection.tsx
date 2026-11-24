@@ -62,6 +62,10 @@ export function BackupScheduleSection({
   const [error, setError] = useState('');
   const [confirmKeep, setConfirmKeep] = useState<number | null>(null);
   const [saved, showSaved] = useFlash();
+  // Goes up when a save begins and again when it ends. A read answers with the schedule as it was at some moment while
+  // the read was under way, so one that overlapped a save may arrive after it with what the save replaced. Such an
+  // answer is dropped, and the schedule is read again once the save is over.
+  const saveMarks = useRef(0);
 
   const apply = useCallback((next: BackupScheduleInfo) => {
     setSchedule(next);
@@ -73,13 +77,15 @@ export function BackupScheduleSection({
 
   useEffect(() => {
     const controller = new AbortController();
+    const sentAt = saveMarks.current;
+    const current = () => !controller.signal.aborted && saveMarks.current === sentAt;
     setLoadError('');
     getBackupSchedule(instanceId, controller.signal)
       .then((next) => {
-        if (!controller.signal.aborted && isSchedule(next)) apply(next);
+        if (current() && isSchedule(next)) apply(next);
       })
       .catch((err: unknown) => {
-        if (!controller.signal.aborted && !isAbortError(err)) setLoadError(errorMessage(err));
+        if (current() && !isAbortError(err)) setLoadError(errorMessage(err));
       });
     return () => controller.abort();
   }, [apply, instanceId, reloadSignal, attempt]);
@@ -92,6 +98,7 @@ export function BackupScheduleSection({
   async function commit(input: BackupScheduleInput): Promise<boolean> {
     setBusy(true);
     setError('');
+    saveMarks.current += 1;
     try {
       const next = await saveBackupSchedule(instanceId, input);
       if (isSchedule(next)) apply(next);
@@ -100,7 +107,10 @@ export function BackupScheduleSection({
       setError(errorMessage(err));
       return false;
     } finally {
+      saveMarks.current += 1;
       setBusy(false);
+      // Also after a save that failed: a read dropped meanwhile carried how the latest run went.
+      setAttempt((count) => count + 1);
     }
   }
 
