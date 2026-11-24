@@ -148,18 +148,23 @@ export function saveBackupSchedule(
 }
 
 /**
- * Records that the server has run since its last scheduled backup. It is called from a process status event, which is
- * also emitted from inside the child's exit handler, so it must never throw.
+ * Records that the instance's files may no longer match its latest scheduled backup: they were changed through the
+ * panel, or the server ran. The column keeps the name of the reason it was first made for. Never throws: it is called
+ * after a change that has already been made, which must not be reported as failed, and from a process status event,
+ * which is also emitted from inside the child's exit handler.
  */
-export function noteInstanceStatus(instanceId: string, status: InstanceStatus): void {
-  if (status !== 'running') return;
+export function noteInstanceFilesChanged(instanceId: string): void {
   try {
     getDb()
       .prepare('UPDATE instance_backup_schedules SET server_ran = 1 WHERE instance_id = ? AND server_ran = 0')
       .run(instanceId);
   } catch (error) {
-    console.warn(`未能记录实例 ${instanceId} 在上次定时备份后运行过`, error);
+    console.warn(`未能记录实例 ${instanceId} 在上次定时备份后有过改动`, error);
   }
+}
+
+export function noteInstanceStatus(instanceId: string, status: InstanceStatus): void {
+  if (status === 'running') noteInstanceFilesChanged(instanceId);
 }
 
 let lifecycleAttached = false;
@@ -209,8 +214,8 @@ function recordFailure(instanceId: string, slot: string, error: unknown, at: Dat
 }
 
 /**
- * Whether another scheduled backup would only repeat the latest one: that backup is still there, and the server has not
- * run since it was taken.
+ * Whether another scheduled backup would only repeat the latest one: that backup is still there, and since it was taken
+ * the server has not run and no file was changed through the panel. A change made to the folder by other means is not seen.
  */
 function isUnchangedSinceLastBackup(row: BackupScheduleRow): boolean {
   if (row.last_backup_id === null || row.server_ran === 1) return false;

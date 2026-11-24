@@ -39,7 +39,7 @@ export default {
   'backups.auto.summary_other': '每天 {time} 備份，保留最新的 {count} 份定時備份。',
   'backups.auto.summaryOtherClock_one': '每天 {time} 備份（依面板所在電腦的時間，{zone}），只保留最新的 {count} 份定時備份。',
   'backups.auto.summaryOtherClock_other': '每天 {time} 備份（依面板所在電腦的時間，{zone}），保留最新的 {count} 份定時備份。',
-  'backups.auto.skip': '上次定時備份之後伺服器沒有執行過的話，當天不備份。',
+  'backups.auto.skip': '上次定時備份之後伺服器沒有執行過、也沒有在面板裡改過檔案的話，當天不備份。',
   'backups.auto.zone.utc': 'UTC',
   'backups.auto.zone.hours': 'UTC{hours}',
   'backups.auto.zone.hoursMinutes': 'UTC{hours}:{minutes}',

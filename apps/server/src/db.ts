@@ -97,7 +97,7 @@ export type BackupScheduleRow = {
   /** The latest scheduled backup that succeeded: when it was taken, and its ID */
   last_backup_at: string | null;
   last_backup_id: string | null;
-  /** Whether the server has run since last_backup_at */
+  /** Whether the server has run, or files were changed through the panel, since last_backup_at */
   server_ran: number;
   /** Set while the latest scheduled run is a failed one, with its reason as text and as a message key with params (JSON) */
   last_failure_at: string | null;

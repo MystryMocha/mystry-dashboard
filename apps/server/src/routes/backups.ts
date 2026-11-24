@@ -16,7 +16,7 @@ import {
   startBackupTask,
   startRestoreTask,
 } from '../services/backup-service.js';
-import { getBackupSchedule, saveBackupSchedule } from '../services/backup-schedule-service.js';
+import { getBackupSchedule, noteInstanceFilesChanged, saveBackupSchedule } from '../services/backup-schedule-service.js';
 import {
   beginDownloadStream,
   failDownloadStream,
@@ -89,9 +89,13 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
       if (req.validationError) return reply.code(400).send(panelErrorBody('server.backups.invalidParams'));
       if (!requireInstance(reply, req.params.id)) return reply;
       try {
-        return await startRestoreTask(req.params.id, req.params.backupId, {
+        const task = await startRestoreTask(req.params.id, req.params.backupId, {
           backupCurrent: req.body?.backupCurrent ?? true,
         });
+        // A restore replaces the files without the server running. It is noted now rather than when the task ends:
+        // the instance stays in maintenance until then, so no scheduled backup can clear the note in between.
+        noteInstanceFilesChanged(req.params.id);
+        return task;
       } catch (err) {
         return sendRouteError(reply, err);
       }
