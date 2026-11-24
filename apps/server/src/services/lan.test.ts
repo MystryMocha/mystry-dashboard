@@ -201,7 +201,10 @@ test('the virtual LAN opens only the game port, and the secret does not go on th
   assert.match(friend, /10\.126\.12\.1:25565/);
   assert.match(friend, /--tcp-whitelist 1/);
   assert.match(friend, /--udp-whitelist 1/);
-  assert.match(friend, /--no-listener=true/);
+  // EasyTier 2.6.4 rejects "--no-listener=true" (exit code 2) but requires a value for --private-mode (checked on Windows on 2026-11-24).
+  assert.match(friend, /--no-listener(?=\s)/);
+  assert.doesNotMatch(friend, /--no-listener=/);
+  assert.match(friend, /--private-mode=true/);
   assert.match(friend, /--dhcp/);
   assert.doesNotMatch(friend, /--socks5|0\.0\.0\.0:11010/);
 

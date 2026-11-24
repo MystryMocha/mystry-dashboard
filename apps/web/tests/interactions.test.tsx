@@ -1712,7 +1712,11 @@ test('open on other devices: after the built-in panel network is enabled the joi
   await user.click(screen.getByRole('button', { name: 'iPhone' }));
   expect(screen.getByText(/官方下载页没有 iPhone 客户端/)).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '电脑' }));
-  expect(screen.getByText(/easytier-core --dhcp --network-name "mystry-panel-abc"/)).toBeTruthy();
+  const command = screen.getByText(/easytier-core --dhcp --network-name "mystry-panel-abc"/).textContent ?? '';
+  // EasyTier 2.6.4 rejects "--no-listener=true" (exit code 2) but requires a value for --private-mode.
+  expect(command).toMatch(/--no-listener(?=\s)/);
+  expect(command).not.toMatch(/--no-listener=/);
+  expect(command).toMatch(/--private-mode=true/);
 });
 
 test('QR code matrix size, the three finder corners and the result are stable; Chinese content is not truncated', () => {
