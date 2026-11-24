@@ -4,12 +4,12 @@
 
 ### New in 0.2.0-preview.7
 
-- **Virtual LAN join commands work again**: EasyTier 2.6.4 refused the join instructions and the "Computer" command the panel handed out, so nobody could join. Instructions sent with an earlier version still fail: download or copy them again, or delete the `=true` after `--no-listener`.
-- **Virtual LAN on Windows**: The Multiplayer page says when the panel lacks administrator rights before anything is downloaded, and gives the steps. **Let Players Join** is hidden while the virtual LAN cannot work, and it no longer fails to find a direct-connection port while thousands are free.
-- **Paper 26.3**: Backups of a running server no longer fail after a 60-second wait. When the whitelist is on and empty, which Paper 26.3 does at its first start, the console and the Multiplayer page say so and name the two ways out.
-- **Safer restarts and upgrades**: Restarting the panel while a server is still loading can no longer end with a second copy of the same world running. Before an upgrade changes `panel.db`, the panel keeps a copy in `data/db-backups/`.
-- **Content Security Policy**: The panel's pages allow only the panel's own scripts.
-- **Smaller fixes**: The sign-in page says how to reset a forgotten password, the source launcher stays in Chinese on a Chinese Windows, and large deletes no longer freeze the panel.
+- **Virtual LAN joining restored**: EasyTier 2.6.4 rejected the join command in the instructions the panel issued, and the "Computer" command of the built-in network. Instructions issued by an earlier version still fail; issue them again, or remove the `=true` after `--no-listener`.
+- **Virtual LAN on Windows**: Missing administrator rights are reported before the download, together with the steps to take. **Let Players Join** stays hidden while the network cannot work, and a direct-connection port is found even when the next ports in line refuse UDP.
+- **Paper 26.3**: Backups of a running server complete instead of failing after 60 seconds. An empty whitelist, which Paper 26.3 turns on at first start, is flagged above the console and on the Multiplayer page.
+- **Restarts and upgrades**: Restarting the panel while a server loads can no longer start the same world twice. Before an upgrade alters `panel.db`, a copy is kept in `data/db-backups/`.
+- **Content Security Policy**: Panel pages run only the panel's own scripts.
+- **Also fixed**: The sign-in page explains how to reset a forgotten password, the source launcher shows Chinese on a Chinese Windows, and deleting a large folder no longer stalls the panel.
 
 ### New in 0.2.0-preview.6
 
@@ -56,12 +56,12 @@ Full details are in `docs/portable-release.md` in the repository; the Chinese ve
 
 ### 0.2.0-preview.7 新增
 
-- **虚拟局域网加入命令恢复可用**：面板给出的加入说明与「电脑」命令此前会被 EasyTier 2.6.4 拒绝，无法加入。旧版本发出的说明仍会失败，请重新下载或复制，也可删去 `--no-listener` 后面的 `=true`。
-- **Windows 上的虚拟局域网**：面板缺少管理员身份时，联机页在下载之前即给出提示与步骤；虚拟局域网无法工作时隐藏「让玩家加入」；空闲端口充足时不再报告找不到直连端口。
-- **Paper 26.3**：运行中服务端的备份不再于等待 60 秒后失败。白名单开启且为空时（Paper 26.3 首次启动即如此），控制台与联机页会给出提示，并写明两种解决办法。
-- **重启与升级更稳妥**：服务端仍在加载时重启面板，不再可能导致同一存档同时运行两份。升级改动 `panel.db` 之前，面板会在 `data/db-backups/` 中保留一份副本。
-- **内容安全策略**：面板页面只允许运行面板自身的脚本。
-- **其他修复**：登录页写明忘记密码时的重置方法；中文 Windows 上源码启动器不再显示英文；删除大量文件时面板不再停止响应。
+- **虚拟局域网恢复可用**：面板发出的加入说明，以及自带网络给「电脑」的命令，此前均被 EasyTier 2.6.4 拒绝。旧版本发出的说明依然无效，请重新发出，或删去 `--no-listener` 后的 `=true`。
+- **Windows 上的虚拟局域网**：缺少管理员身份时，于下载之前提示并附上步骤；网络无法工作时不再显示「让玩家加入」；后续端口拒绝 UDP 时，亦能找到可用的直连端口。
+- **Paper 26.3**：运行中备份不再于 60 秒后失败。白名单开启而名单为空时（Paper 26.3 首次启动即如此），控制台上方与联机页均有提示。
+- **重启与升级**：服务端加载期间重启面板，同一存档不会再被重复启动。升级改动 `panel.db` 之前，先将副本存入 `data/db-backups/`。
+- **内容安全策略**：面板页面仅运行面板自身的脚本。
+- **其他修复**：登录页给出重置密码的方法；中文 Windows 上源码启动器正确显示中文；删除大文件夹时面板不再停顿。
 
 ### 0.2.0-preview.6 新增
 
