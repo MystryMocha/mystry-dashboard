@@ -128,7 +128,7 @@ npm run portable:test
 npm run audit:production
 npm run build
 node scripts/portable/package-portable.mjs --platform win32 --arch x64 --output-dir release
-node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.6-windows-x64.zip
+node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.7-windows-x64.zip
 ```
 
 `package-portable.mjs` downloads the pinned runtime from the official Node.js release site and verifies it against `SHASUMS256.txt`, creates a separate production dependency tree with `npm ci --omit=dev`, physically copies `@mystry/shared`, and rejects symlinks inside the package. Do not package directly from `node_modules` in the current repository.

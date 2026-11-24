@@ -2,12 +2,12 @@
 
 **English** · [简体中文](portable-release.zh-CN.md)
 
-The repository is currently at version `v0.2.0-preview.6`. The release workflow is configured to build two portable targets for it, each bundling Node.js 22, the production dependencies and the built frontend and backend:
+The repository is currently at version `v0.2.0-preview.7`. The release workflow is configured to build two portable targets for it, each bundling Node.js 22, the production dependencies and the built frontend and backend:
 
 | System | File |
 |------|------|
-| Windows x64 | `mystry-v0.2.0-preview.6-windows-x64.zip` |
-| Linux x64 | `mystry-v0.2.0-preview.6-linux-x64.tar.gz` |
+| Windows x64 | `mystry-v0.2.0-preview.7-windows-x64.zip` |
+| Linux x64 | `mystry-v0.2.0-preview.7-linux-x64.tar.gz` |
 
 The packaging scripts for Linux ARM64 and macOS (Intel / Apple Silicon) still work locally, but these targets are not in this preview's public release matrix; they are left for a later version.
 
@@ -44,7 +44,7 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 In Windows PowerShell, first calculate the archive hash, then compare it with the matching line in `SHA256SUMS`:
 
 ```powershell
-Get-FileHash .\mystry-v0.2.0-preview.6-windows-x64.zip -Algorithm SHA256
+Get-FileHash .\mystry-v0.2.0-preview.7-windows-x64.zip -Algorithm SHA256
 ```
 
 In WSL or Gpg4win, you can also run the same `gpg --verify` as on Linux.
@@ -72,7 +72,7 @@ You can also run this in a terminal:
 Linux:
 
 ```bash
-tar -xzf mystry-v0.2.0-preview.6-linux-x64.tar.gz
+tar -xzf mystry-v0.2.0-preview.7-linux-x64.tar.gz
 cd mystry-dashboard
 chmod +x mdash
 ./mdash start
@@ -140,7 +140,7 @@ If `MYSTRY_HOME` is already set in your environment, the Windows `.cmd` and Unix
 - Java 8/17/21/25 is not bundled. Use the runtime on your system `PATH`, select another installed version the panel scans, or install Eclipse Temurin from the panel when the recommended version is missing.
 - Sign-in still uses a JWT stored locally in the browser. Cookie sessions, CSRF protection, TOTP and a public deployment wizard are not implemented yet.
 - By default the panel listens only on `127.0.0.1`. Do not expose the panel port directly to the untrusted public internet.
-- The production dependency audit against the official registry on 2026-11-22 found 0 critical, 0 high and 2 moderate advisories. Both moderate advisories concern React Router 6 (GHSA-wrjc-x8rr-h8h6 backslash open redirect, GHSA-337j-9hxr-rhxg SSR hydration injection) and are fixed only in 7.18 and later. The current SPA does not use SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs; even so, these advisories are recorded as a residual preview risk and must be re-audited for every release. Earlier advisories were resolved by upgrading `react-router-dom` / `react-router` to 6.30.6 (GHSA-jjmj-jmhj-qwj2), `@fastify/static` to 10.1.10 with `glob` 14.0.3 / `minimatch` 11.0.4 (GHSA-3g3m-2fjr-6pw4, GHSA-g3hv-75wg-m249), and transitive dependencies (`fastify` 5.12.7, `fast-jwt` 6.3.5, `@fastify/busboy` 3.2.3, `fast-uri` 3.1.9 / 4.2.3, `brace-expansion` 5.0.12). The critical `tinypool` advisory in the `vitest` 3 development dependency does not reach the portable package; fixing it requires a major version upgrade, so it has not been addressed yet.
+- The production dependency audit against the official registry on 2026-11-24 found 0 critical, 0 high and 2 moderate advisories. Both moderate advisories concern React Router 6 (GHSA-wrjc-x8rr-h8h6 backslash open redirect, GHSA-337j-9hxr-rhxg SSR hydration injection) and are fixed only in 7.18 and later. The current SPA does not use SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs; even so, these advisories are recorded as a residual preview risk and must be re-audited for every release. Earlier advisories were resolved by upgrading `react-router-dom` / `react-router` to 6.30.6 (GHSA-jjmj-jmhj-qwj2), `@fastify/static` to 10.1.10 with `glob` 14.0.3 / `minimatch` 11.0.4 (GHSA-3g3m-2fjr-6pw4, GHSA-g3hv-75wg-m249), and transitive dependencies (`fastify` 5.12.7, `fast-jwt` 6.3.5, `@fastify/busboy` 3.2.3, `fast-uri` 3.1.9 / 4.2.3, `brace-expansion` 5.0.12). The critical `tinypool` advisory in the `vitest` 3 development dependency does not reach the portable package; fixing it requires a major version upgrade, so it has not been addressed yet.
 
 ## Release Maintenance
 
