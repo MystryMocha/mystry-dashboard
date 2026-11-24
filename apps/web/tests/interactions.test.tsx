@@ -15,6 +15,7 @@ import { MultiplayerPage } from '../src/pages/MultiplayerPage';
 import { TaskCenter } from '../src/components/TaskCenter';
 import { ConsolePanel } from '../src/components/ConsolePanel';
 import { BackupsTab } from '../src/components/BackupsTab';
+import { BackupScheduleSection } from '../src/components/BackupScheduleSection';
 import { ConfigTab } from '../src/components/ConfigTab';
 import { WhitelistNotice } from '../src/components/WhitelistNotice';
 import { ChangePasswordDialog } from '../src/components/ChangePasswordDialog';
@@ -2156,7 +2157,7 @@ test('task center: the entry shows no number when no task is running; a cancelle
 
 test('backups page: the automatic backup row says why the last one failed, and the switch saves with the time and count already saved', async () => {
   const backup = { id: '20261026-010203-abcdef', instanceId: 'test', instanceName: '测试', source: 'scheduled', createdAt: '2026-10-26T01:02:03.000Z', sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' };
-  const schedule = {
+  let schedule = {
     enabled: false,
     time: '04:00',
     keep: 7,
@@ -2169,10 +2170,13 @@ test('backups page: the automatic backup row says why the last one failed, and t
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     if (url === '/api/instances/test/backups' && !options?.method) return new Response(JSON.stringify({ backups: [backup] }));
     if (url === '/api/instances/test/backup-schedule') {
-      if (options?.method !== 'PUT') return new Response(JSON.stringify(schedule));
-      const body = JSON.parse(String(options.body));
-      saved.push(body);
-      return new Response(JSON.stringify({ ...schedule, ...body }));
+      if (options?.method === 'PUT') {
+        const body = JSON.parse(String(options.body));
+        saved.push(body);
+        // The schedule is read again after a save, so what was saved has to be what a read then returns.
+        schedule = { ...schedule, ...body };
+      }
+      return new Response(JSON.stringify(schedule));
     }
     return baseFetch(url, options);
   }));
@@ -2192,6 +2196,44 @@ test('backups page: the automatic backup row says why the last one failed, and t
   await user.click(toggle);
   await waitFor(() => expect(saved).toEqual([{ enabled: true, time: '04:00', keep: 7 }]));
   await waitFor(() => expect(toggle.checked).toBe(true));
+});
+
+test('backups page: a read of the automatic backup that was under way when the switch was saved does not put the old state back', async () => {
+  const schedule = { enabled: true, time: '04:00', keep: 7, utcOffsetMinutes: 0, lastBackupAt: null, lastFailure: null };
+  let enabled = true;
+  let reads = 0;
+  let answerHeldRead!: (response: Response) => void;
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url !== '/api/instances/test/backup-schedule') return baseFetch(url, options);
+    if (options?.method === 'PUT') {
+      enabled = JSON.parse(String(options.body)).enabled;
+      return new Response(JSON.stringify({ ...schedule, enabled }));
+    }
+    reads += 1;
+    // The second read is the one still under way when the switch is turned off; it answers only at the end.
+    if (reads === 2) return new Promise<Response>((resolve) => { answerHeldRead = resolve; });
+    return new Response(JSON.stringify({ ...schedule, enabled }));
+  }));
+  const user = userEvent.setup();
+  const view = mount(<BackupScheduleSection instanceId="test" scheduledCount={0} reloadSignal={0} />);
+  const toggle = await screen.findByRole('switch', { name: '每天定时备份' }) as HTMLInputElement;
+  await waitFor(() => expect(toggle.checked).toBe(true));
+
+  // The backup list was read again, as after a backup ends, and the schedule with it.
+  view.rerender(<MemoryRouter><BackupScheduleSection instanceId="test" scheduledCount={0} reloadSignal={1} /><Location /></MemoryRouter>);
+  await waitFor(() => expect(reads).toBe(2));
+  await user.click(toggle);
+  await waitFor(() => expect(toggle.checked).toBe(false));
+  // The read made after the save is the one that counts from here on.
+  await waitFor(() => expect(reads).toBe(3));
+
+  await act(async () => {
+    answerHeldRead(new Response(JSON.stringify({ ...schedule, enabled: true })));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+  expect(toggle.checked).toBe(false);
+  expect(toggle.disabled).toBe(false);
 });
 
 test('backups page: keeping fewer automatic backups than there are asks first, and saves only after confirming', async () => {
