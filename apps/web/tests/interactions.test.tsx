@@ -2236,6 +2236,24 @@ test('backups page: a read of the automatic backup that was under way when the s
   expect(toggle.disabled).toBe(false);
 });
 
+test('backups page: the clock of the panel computer is named by its offset from UTC, to the minute', async () => {
+  const schedule = { enabled: true, time: '04:00', keep: 7, lastBackupAt: null, lastFailure: null };
+  let utcOffsetMinutes = 0;
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
+    url === '/api/instances/test/backup-schedule'
+      ? new Response(JSON.stringify({ ...schedule, utcOffsetMinutes }))
+      : baseFetch(url, options)
+  )));
+  const cases: Array<[number, string]> = [[0, 'UTC'], [480, 'UTC+8'], [-300, 'UTC-5'], [345, 'UTC+5:45'], [-210, 'UTC-3:30']];
+  for (const [offset, label] of cases) {
+    utcOffsetMinutes = offset;
+    const view = mount(<BackupScheduleSection instanceId="test" scheduledCount={0} reloadSignal={0} />);
+    expect(await screen.findByText(`按面板所在电脑的时间（${label}）。`)).toBeTruthy();
+    view.unmount();
+  }
+});
+
 test('backups page: keeping fewer automatic backups than there are asks first, and saves only after confirming', async () => {
   const backups = ['20261024-040000-aaaaaa', '20261025-040000-bbbbbb', '20261026-040000-cccccc'].map((id, index) => (
     { id, instanceId: 'test', instanceName: '测试', source: 'scheduled', createdAt: `2026-10-2${4 + index}T04:00:00.000Z`, sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' }

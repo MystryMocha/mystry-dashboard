@@ -27,13 +27,6 @@ function isSchedule(value: unknown): value is BackupScheduleInfo {
     && typeof schedule.utcOffsetMinutes === 'number';
 }
 
-function utcOffsetLabel(minutes: number): string {
-  if (minutes === 0) return 'UTC';
-  const total = Math.abs(minutes);
-  const rest = total % 60;
-  return `UTC${minutes < 0 ? '-' : '+'}${Math.floor(total / 60)}${rest ? `:${String(rest).padStart(2, '0')}` : ''}`;
-}
-
 /**
  * The daily automatic backup of one instance: a switch that applies at once, how the latest run went, and the time and
  * count behind a disclosure. `scheduledCount` is how many automatic backups the list holds now; `reloadSignal` changes
@@ -134,6 +127,16 @@ export function BackupScheduleSection({
     // Keeping fewer than there are now deletes the rest after the next run, which cannot be taken back.
     if (nextKeep < schedule.keep && scheduledCount > nextKeep) setConfirmKeep(nextKeep);
     else void saveSettings(nextKeep);
+  }
+
+  function utcOffsetLabel(offset: number): string {
+    if (offset === 0) return t('backups.auto.zone.utc');
+    const total = Math.abs(offset);
+    const signedHours = fmt.number(Math.sign(offset) * Math.floor(total / 60), { signDisplay: 'always' });
+    const rest = total % 60;
+    return rest
+      ? t('backups.auto.zone.hoursMinutes', { hours: signedHours, minutes: fmt.number(rest, { minimumIntegerDigits: 2 }) })
+      : t('backups.auto.zone.hours', { hours: signedHours });
   }
 
   const [hours, minutes] = (schedule?.time ?? '').split(':').map(Number);
