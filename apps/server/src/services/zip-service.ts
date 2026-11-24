@@ -7,6 +7,7 @@ import { inspectJvmArgFile, renderPanelMessage, type DetectedJvmConfig, type Pan
 import { config } from '../config.js';
 import { assertSafeInstanceRoot, resolveSafePath } from '../utils/path.js';
 import { MAX_DETECTED_JVM_ARGS_BYTES } from './jvm-detection-service.js';
+import { isEulaAcceptedText, MAX_EULA_FILE_BYTES } from './eula-detection.js';
 import { createByteCounter } from '../utils/byte-counter.js';
 import { abortError, errorMessage, PanelError, throwIfAborted, toPanelMessage } from '../utils/errors.js';
 
@@ -311,6 +312,29 @@ export async function inspectZipJvmConfig(
   }
 }
 
+/**
+ * Whether the package's own eula.txt records acceptance, at the root or in its single top-level folder (the import flattens that folder).
+ * Names are compared exactly, as the server reads `eula.txt`; a missing, duplicated or unreadable file counts as not accepted.
+ */
+export async function inspectZipEulaAccepted(
+  zipPath: string,
+  signal: AbortSignal = new AbortController().signal,
+): Promise<boolean> {
+  const files = readZipEntries(zipPath, signal).filter((entry) => !entry.directory);
+  const topLevels = new Set(files.map((entry) => entry.normalizedName.split('/')[0]!));
+  const singleRoot = topLevels.size === 1 && files.every((entry) => entry.normalizedName.includes('/'))
+    ? [...topLevels][0]
+    : null;
+  const candidates = files.filter((entry) => entry.normalizedName === 'eula.txt'
+    || (singleRoot !== null && entry.normalizedName === `${singleRoot}/eula.txt`));
+  if (candidates.length !== 1 || candidates[0]!.uncompressedSize > MAX_EULA_FILE_BYTES) return false;
+  try {
+    return isEulaAcceptedText(await readZipEntryText(zipPath, candidates[0]!, signal));
+  } catch {
+    return false;
+  }
+}
+
 /** Stream-extracts a ZIP; only the central directory is kept in memory, and the whole upload is never read into memory. */
 export async function safeExtract(
   zipPath: string,
@@ -328,7 +352,9 @@ export async function safeExtract(
       await extractZipEntry(zipPath, destDir, entry, totalWritten, signal);
     }
   } catch (err) {
-    fs.rmSync(destDir, { recursive: true, force: true });
+    // A failed extraction may already have written most of a large archive: awaited rather than rmSync, which would hold
+    // every request and all console output until the half-extracted tree was gone.
+    await fs.promises.rm(destDir, { recursive: true, force: true });
     if (signal.aborted) throw abortError(signal);
     throw err;
   }

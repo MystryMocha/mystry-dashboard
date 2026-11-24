@@ -180,7 +180,7 @@ High resource use, an unverified Java version and too little memory for Paper ar
 
 The page offers three methods. Each copies the server into a new managed instance; none lets the instance run directly in the original folder.
 
-Until a source is ready, the page shows only the source column. Once the upload is checked (or a usable folder in imports is selected), **Import Settings** appears on the right (below on narrow screens): the instance name, the server the panel recognized (core and version), the Java and maximum memory it will use, and the EULA checkbox. The core type, Minecraft version, Java runtime and JVM settings are in **Change Settings**, which you don't need to open when the recognized values are right. **Change Settings** opens automatically when the Java version doesn't match, no usable Java is found, the JVM arguments have an error or warning, or `user_jvm_args.txt` can't be used, and closes again when you switch to another source. When the Minecraft version isn't known yet (for example with a ZIP, whose version is detected only during the import), the summary says the panel can't tell whether the Java fits; you can enter the version in **Change Settings**.
+Until a source is ready, the page shows only the source column. Once the upload is checked (or a usable folder in imports is selected), **Import Settings** appears on the right (below on narrow screens): the instance name, the server the panel recognized (core and version), the Java and maximum memory it will use, and the EULA checkbox (not shown when the server's own `eula.txt` already records acceptance; the summary says so instead). The core type, Minecraft version, Java runtime and JVM settings are in **Change Settings**, which you don't need to open when the recognized values are right. **Change Settings** opens automatically when the Java version doesn't match, no usable Java is found, the JVM arguments have an error or warning, or `user_jvm_args.txt` can't be used, and closes again when you switch to another source. When the Minecraft version isn't known yet (for example with a ZIP, whose version is detected only during the import), the summary says the panel can't tell whether the Java fits; you can enter the version in **Change Settings**.
 
 ### Upload a Folder
 
@@ -231,7 +231,7 @@ The panel never changes or deletes the original folder or the copy in `imports`.
 | Core Type / Minecraft Version | In **Change Settings**. Optional; used for how the instance is shown and for the Java version hint. The panel still detects the launch file |
 | JVM Settings | In **Change Settings**. Uses the shared configurator. If the ZIP has a `user_jvm_args.txt`, it's applied automatically, and you can click **Cancel** |
 | Java Runtime | In **Change Settings**. Defaults to the system default Java; you can also choose another Java that the panel has found |
-| Minecraft EULA | Unchecked by default. If the original server's `eula.txt` is already accepted, you can leave it unchecked. When checked, `eula=true` is written at startup |
+| Minecraft EULA | When the original server's `eula.txt` already records acceptance, the checkbox is not shown and the summary says "Accepted"; the server reads that file itself, and the panel leaves it alone. Otherwise it is unchecked by default, and when checked, `eula=true` is written at startup |
 
 Importing takes two steps:
 
@@ -427,6 +427,7 @@ If there's no notice:
 - Does **server-port** in `server.properties` match the port entered in the game?
 - For a test on this computer, use `127.0.0.1`. On a LAN, use the host's LAN IP. On a cloud server, use the public IP and allow the game port in the security group.
 - Does the firewall allow Java or that port?
+- The game says you are not whitelisted: the server has its whitelist on (`white-list=true`). Run `whitelist add PlayerName` in the console to add the player, or turn off "Enable Whitelist" on the Properties page and restart. While the whitelist is on and empty, the panel says so above the console and on the Multiplayer page.
 
 ### You See "Your session has expired"
 

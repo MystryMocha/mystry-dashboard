@@ -271,7 +271,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send(panelErrorBody('server.imports.folder.invalidParams'));
       }
       try {
-        return createFolderUpload(req.user.id, req.body);
+        return await createFolderUpload(req.user.id, req.body);
       } catch (error) {
         return sendRouteError(reply, error);
       }
@@ -335,7 +335,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
 
   app.delete<{ Params: { id: string } }>('/api/import/folder-uploads/:id', async (req, reply) => {
     try {
-      cancelFolderUpload(req.params.id, req.user.id);
+      await cancelFolderUpload(req.params.id, req.user.id);
       return { ok: true };
     } catch (error) {
       return sendRouteError(reply, error);

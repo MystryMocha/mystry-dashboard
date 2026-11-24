@@ -160,6 +160,38 @@ test('ZIP import preview enforces the owner, capacity, expiry, restart and confi
     assert.equal(completed?.status, 'completed', completed?.error);
   });
 
+  await t.test('a package that agreed in its own eula.txt keeps that agreement without being asked again', async () => {
+    const plain = await previewService.createImportPreview({
+      userId: 'eula',
+      fileName: 'plain.zip',
+      zipPath: writePreviewZip('plain.zip'),
+    });
+    assert.equal(plain.eulaAccepted, undefined);
+
+    const eulaText = '#By changing the setting below to TRUE you are indicating your agreement to our EULA.\n#Sun Nov 22 18:59:15 GMT+08:00 2026\neula=true\n';
+    const zipPath = path.join(dataRoot, 'uploads', '.tmp-import-preview-eula.zip');
+    fs.writeFileSync(zipPath, createStoredZip([
+      { name: 'My Server/server.jar', contents: 'server-jar' },
+      { name: 'My Server/eula.txt', contents: eulaText },
+    ]));
+    const preview = await previewService.createImportPreview({ userId: 'eula', fileName: 'eula.zip', zipPath });
+    assert.equal(preview.eulaAccepted, true);
+
+    const task = await previewService.confirmImportPreview(preview.id, 'eula', { name: '自带 EULA', coreType: 'custom' });
+    let completed = taskService.getTask(task.id);
+    for (let attempt = 0; attempt < 200 && !['completed', 'failed'].includes(completed?.status ?? ''); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      completed = taskService.getTask(task.id);
+    }
+    assert.equal(completed?.status, 'completed', completed?.error);
+    const instanceId = completed?.result?.instanceId as string;
+    const { getInstance } = await import('./instance-service.js');
+    const { defaultInstanceDir } = await import('../utils/path.js');
+    // The panel does not take the agreement over: the server's own file stays as it was and stays in charge.
+    assert.equal(getInstance(instanceId)?.acceptEula, false);
+    assert.equal(fs.readFileSync(path.join(defaultInstanceDir(instanceId), 'eula.txt'), 'utf8'), eulaText);
+  });
+
   await t.test('the preview is not consumed when the task queue is full', async () => {
     const preview = await previewService.createImportPreview({
       userId: 'queue-full',

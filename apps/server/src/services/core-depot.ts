@@ -219,7 +219,7 @@ export async function deployCore(input: DeployCoreInput) {
       } finally {
         if (!completed && instanceId) {
           try {
-            removeTaskStagingTree(taskId, instanceId);
+            await removeTaskStagingTree(taskId, instanceId);
           } catch {
             /* A cleanup failure does not override the original error */
           }

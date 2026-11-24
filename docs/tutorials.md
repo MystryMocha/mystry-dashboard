@@ -62,6 +62,7 @@ Don't send the password, the config file, or screenshots that contain them to an
 1. Open Minecraft. The version must match the **Game Version** (for a Paper server, join with the matching vanilla version).
 2. Multiplayer → Add Server → enter `127.0.0.1` or `localhost` as the address.
 3. If you can't connect, check `server-port` on the **Properties** page (default 25565), and make sure no other program on this computer is using that port.
+4. If the game says you are not whitelisted, the server has its whitelist on (Paper 26.3 turns it on at first start). Run `whitelist add PlayerName` in the console to add yourself, or, if you don't want a whitelist, turn off "Enable Whitelist" on the **Properties** page and restart. While the whitelist is on and empty, the panel says so above the console and on the Multiplayer page.
 
 ### 6. Let Friends Join (Same LAN)
 

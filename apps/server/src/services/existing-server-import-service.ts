@@ -18,6 +18,7 @@ import {
 import { registerPromotedInstance } from './instance-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { detectJvmConfigFile, jvmConfigFileFingerprint } from './jvm-detection-service.js';
+import { eulaFileFingerprint, hasAcceptedEula } from './eula-detection.js';
 import {
   describeJarLaunchTarget,
   detectJarFile,
@@ -46,6 +47,7 @@ type SourceScan = {
 type PrecheckCacheEntry = {
   mtimeMs: number;
   jvmFingerprint: string;
+  eulaFingerprint: string;
   info: ExistingServerSourceInfo;
 };
 
@@ -106,7 +108,11 @@ export function resolveExistingServerSource(sourceId: string): string {
 export async function precheckServerFolder(sourceDir: string): Promise<ServerFolderCheck> {
   const withJvmConfig = (check: ServerFolderCheck): ServerFolderCheck => {
     const detectedJvmConfig = detectJvmConfigFile(sourceDir, check.coreType);
-    return detectedJvmConfig ? { ...check, detectedJvmConfig } : check;
+    return {
+      ...check,
+      ...(detectedJvmConfig ? { detectedJvmConfig } : {}),
+      ...(hasAcceptedEula(sourceDir) ? { eulaAccepted: true } : {}),
+    };
   };
 
   if (fs.existsSync(resolveSafePath(sourceDir, OWNERSHIP_MARKER_FILE))) {
@@ -171,13 +177,19 @@ async function inspectSource(sourceId: string): Promise<ExistingServerSourceInfo
     const sourceDir = resolveExistingServerSource(sourceId);
     const stat = fs.statSync(sourceDir);
     const jvmFingerprint = jvmConfigFileFingerprint(sourceDir);
+    const eulaFingerprint = eulaFileFingerprint(sourceDir);
     const cached = sourcePrecheckCache.get(sourceId);
-    if (cached && cached.mtimeMs === stat.mtimeMs && cached.jvmFingerprint === jvmFingerprint) {
+    if (
+      cached
+      && cached.mtimeMs === stat.mtimeMs
+      && cached.jvmFingerprint === jvmFingerprint
+      && cached.eulaFingerprint === eulaFingerprint
+    ) {
       return cached.info;
     }
     const check = await precheckServerFolder(sourceDir);
     const info: ExistingServerSourceInfo = { id: sourceId, ...check, modifiedAt: stat.mtime.toISOString() };
-    sourcePrecheckCache.set(sourceId, { mtimeMs: stat.mtimeMs, jvmFingerprint, info });
+    sourcePrecheckCache.set(sourceId, { mtimeMs: stat.mtimeMs, jvmFingerprint, eulaFingerprint, info });
     return info;
   } catch (error) {
     return { id: sourceId, ...failedServerFolderCheck(error), modifiedAt: new Date(0).toISOString() };
@@ -481,7 +493,7 @@ export async function runServerFolderImport(
   } finally {
     if (!completed && instanceId) {
       try {
-        removeTaskStagingTree(taskId, instanceId);
+        await removeTaskStagingTree(taskId, instanceId);
       } catch {
         /* A cleanup failure does not override the original error */
       }

@@ -6,7 +6,7 @@ import { getDb, type TaskRow } from '../db.js';
 import { nowIso } from '../utils/path.js';
 import { getInstanceRow } from './instance-service.js';
 import {
-  removeTaskStagingTree,
+  removeTaskStagingTreeSync,
   stagingMarkerMatches,
   taskStagingDir,
 } from './task-staging-service.js';
@@ -240,7 +240,7 @@ function tryCleanInterruptedStaging(row: TaskRow): { cleaned: boolean; cleanupEr
     return { cleaned: false, cleanupError: { key: 'server.tasks.stagingMarkerMismatch' } };
   }
   try {
-    removeTaskStagingTree(row.id, result.instanceId, config.dataDir);
+    removeTaskStagingTreeSync(row.id, result.instanceId, config.dataDir);
     return { cleaned: true, cleanupError: null };
   } catch (error) {
     return {

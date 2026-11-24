@@ -95,6 +95,23 @@ async function waitFor(check: () => boolean, timeoutMs = 3000): Promise<void> {
   }
 }
 
+/**
+ * Stands in for the EasyTier listen port choice: nothing listens on these numbers (the process is stubbed), and trial binds
+ * would make the test depend on which ports this machine refuses. Records every exclusion list it is given.
+ */
+function fakeListenPorts(start: number): { allocate: (exclude: readonly number[]) => Promise<number>; excludes: number[][] } {
+  const excludes: number[][] = [];
+  let next = start;
+  return {
+    excludes,
+    allocate: async (exclude) => {
+      excludes.push([...exclude]);
+      while (exclude.includes(next)) next += 1;
+      return next++;
+    },
+  };
+}
+
 test('interface classification looks at the interface name before the address, and URLs are ordered LAN, public, overlay', async () => {
   const { classifyNetworkInterface, listNetworkInterfaces, networkKindRank } = await import('./local-network-service.js');
   assert.equal(classifyNetworkInterface('FlClash', '198.18.0.1'), 'proxy');
@@ -609,7 +626,6 @@ test('built-in panel network: the config allows only the dedicated virtual-netwo
   const { initDb, closeDb } = await import('../db.js');
   const network = await import('./panel-network.js');
   const { setPanelFirewallForTests } = await import('./panel-firewall.js');
-  const { setLanListenPortAllocatorForTests } = await import('./lan-manager.js');
   const { LAN_SHARED_PEERS } = await import('./lan-config.js');
   const { PanelError } = await import('../utils/errors.js');
   initDb();
@@ -666,7 +682,10 @@ test('built-in panel network: the config allows only the dedicated virtual-netwo
   let ready = false;
   const logs: string[] = [];
   const log = { info: (obj: object, msg: string) => { logs.push(JSON.stringify(obj) + msg); }, warn: (obj: object, msg: string) => { logs.push(JSON.stringify(obj) + msg); } };
+  // Outside the range the dedicated port is searched in (3211-3230), so the two can be told apart below.
+  const listenPorts = fakeListenPorts(47100);
   network.setPanelNetworkForTests({
+    listenPortAllocator: listenPorts.allocate,
     platformSupported: () => true,
     installed: () => installed,
     installer: async () => { installs += 1; installed = true; },
@@ -695,7 +714,6 @@ test('built-in panel network: the config allows only the dedicated virtual-netwo
       return JSON.stringify([{ ipv4: '10.127.0.2', hostname: 'Pixel-8', cost: 'p2p' }]);
     },
   });
-  setLanListenPortAllocatorForTests(null);
   t.after(async () => {
     await network.shutdownPanelNetwork();
     network.setPanelNetworkForTests(null);
@@ -760,6 +778,9 @@ test('built-in panel network: the config allows only the dedicated virtual-netwo
   const listenPort = /listeners = \["tcp:\/\/0\.0\.0\.0:(\d+)"/.exec(written)![1]!;
   assert.ok(firewallCalls.some((args) => args[2] === 'add' && args.includes(`localport=${listenPort}`) && args.includes('name=MystryDashboard-PanelNet-3210')));
   assert.notEqual(Number(listenPort), accessPort);
+  // The listen port is chosen around the management port, the panel port and the dedicated port.
+  const rpcPort = Number(/^127\.0\.0\.1:(\d+)$/.exec(String(spawns[0]!.args[3]))?.[1]);
+  for (const taken of [rpcPort, 3210, accessPort]) assert.ok(listenPorts.excludes[0]!.includes(taken), String(taken));
 
   // No restart when the settings are unchanged.
   network.updatePanelNetwork({ enabled: true }, '127.0.0.1');
@@ -835,12 +856,11 @@ test('built-in panel network: requests arriving on the dedicated port are treate
   const remote = await import('./remote-access-service.js');
   const network = await import('./panel-network.js');
   const { setPanelFirewallForTests } = await import('./panel-firewall.js');
-  const { setLanListenPortAllocatorForTests } = await import('./lan-manager.js');
 
   setPanelFirewallForTests({ platform: 'linux', runner: async () => 0 });
-  setLanListenPortAllocatorForTests(null);
   const children: Array<EventEmitter & { exitCode: number | null }> = [];
   network.setPanelNetworkForTests({
+    listenPortAllocator: fakeListenPorts(47100).allocate,
     platformSupported: () => true,
     installed: () => true,
     probeTiming: { fastMs: 5, slowMs: 5, fastAttempts: 3 },

@@ -2,6 +2,7 @@
  * File rename and path safety regression.
  */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -135,6 +136,153 @@ test('the directory listing denies access on a symlink or directory junction', a
     () => listFiles(inst.id, 'plugins'),
     (err: unknown) => (err as { messageKey?: string }).messageKey === 'server.files.dirContainsLink',
   );
+});
+
+const hasKey = (key: string) => (err: unknown) => (err as { messageKey?: string }).messageKey === key;
+
+test('delete removes a file or a whole directory tree, and refuses the instance root, the ownership marker, missing paths and paths outside the instance', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath } = await import('./file-service.js');
+  const { defaultInstanceDir, OWNERSHIP_MARKER_FILE } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'delete-semantics' });
+  const root = defaultInstanceDir(inst.id);
+  fs.mkdirSync(path.join(root, 'world', 'region'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'world', 'level.dat'), 'level');
+  fs.writeFileSync(path.join(root, 'world', 'region', 'r.0.0.mca'), 'region');
+  fs.writeFileSync(path.join(root, 'notes.txt'), 'notes');
+  fs.writeFileSync(path.join(root, 'server.jar'), 'jar');
+  // Read-only entries and empty directories go like any other.
+  fs.mkdirSync(path.join(root, 'world', 'datapacks'));
+  fs.chmodSync(path.join(root, 'world', 'level.dat'), 0o444);
+  if (process.platform === 'win32') execFileSync('attrib', ['+R', path.join(root, 'world', 'region')]);
+
+  await deletePath(inst.id, 'notes.txt');
+  assert.equal(fs.existsSync(path.join(root, 'notes.txt')), false);
+  await deletePath(inst.id, 'world');
+  assert.equal(fs.existsSync(path.join(root, 'world')), false);
+
+  await assert.rejects(deletePath(inst.id, ''), hasKey('server.files.rootImmutable'));
+  await assert.rejects(deletePath(inst.id, 'plugins/..'), hasKey('server.files.rootImmutable'));
+  await assert.rejects(deletePath(inst.id, OWNERSHIP_MARKER_FILE), hasKey('server.files.markerImmutable'));
+  await assert.rejects(deletePath(inst.id, 'missing.txt'), hasKey('server.files.pathNotFound'));
+  await assert.rejects(deletePath(inst.id, '../outside.txt'), hasKey('server.files.path.outside'));
+  assert.deepEqual(fs.readdirSync(root).sort(), [OWNERSHIP_MARKER_FILE, 'server.jar'].sort());
+});
+
+test('deleting a directory removes a symlink or directory junction inside it without touching what it points at', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'delete-links' });
+  const root = defaultInstanceDir(inst.id);
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-delete-outside-'));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(outside, 'keep.txt'), 'keep');
+  fs.mkdirSync(path.join(root, 'plugins'));
+  fs.symlinkSync(outside, path.join(root, 'plugins', 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+
+  await deletePath(inst.id, 'plugins');
+
+  assert.equal(fs.existsSync(path.join(root, 'plugins')), false);
+  assert.equal(fs.readFileSync(path.join(outside, 'keep.txt'), 'utf8'), 'keep');
+});
+
+// Windows cannot create such names, so this runs on Linux only.
+test('deleting a directory removes entries whose names are not valid UTF-8', { skip: process.platform !== 'linux' }, async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'delete-byte-names' });
+  const plugins = path.join(defaultInstanceDir(inst.id), 'plugins');
+  fs.mkdirSync(plugins);
+  // "d\xFC" and "f\xE4.txt": Latin-1 bytes, as left by an archive that was packed on a system using another encoding.
+  const dir = Buffer.concat([Buffer.from(`${plugins}/`), Buffer.from([0x64, 0xfc])]);
+  fs.mkdirSync(dir);
+  fs.writeFileSync(Buffer.concat([dir, Buffer.from('/'), Buffer.from([0x66, 0xe4, 0x2e, 0x74, 0x78, 0x74])]), 'x');
+
+  await deletePath(inst.id, 'plugins');
+
+  assert.equal(fs.existsSync(plugins), false);
+});
+
+test('a delete stops at the first entry it cannot remove, and nothing more is removed once it has failed', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'delete-stops' });
+  const world = path.join(defaultInstanceDir(inst.id), 'world');
+  for (const dir of ['region', 'entities', 'poi']) {
+    fs.mkdirSync(path.join(world, dir), { recursive: true });
+    for (let index = 0; index < 5; index += 1) fs.writeFileSync(path.join(world, dir, `r.${index}.mca`), 'x');
+  }
+  const left = () => (fs.readdirSync(world, { recursive: true }) as string[]).sort();
+  const filesLeft = () => left().filter((entry) => entry.endsWith('.mca')).length;
+
+  // The seventh file is refused, as one held open by the running server would be. By then one directory is gone and the
+  // removal is inside the next, with a third not yet reached; which is which depends on the order the file system lists them in.
+  const originalUnlink = fs.promises.unlink.bind(fs.promises);
+  let attempts = 0;
+  t.mock.method(fs.promises, 'unlink', async (target: fs.PathLike) => {
+    attempts += 1;
+    if (attempts === 7) throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' });
+    return originalUnlink(target);
+  });
+
+  await assert.rejects(deletePath(inst.id, 'world'), (err: unknown) => (err as { code?: string }).code === 'EBUSY');
+  const atFailure = left();
+  assert.equal(filesLeft(), 9, '失败前只应删掉 6 个文件');
+  assert.equal(atFailure.length, 11, '应剩 2 个目录和 9 个文件');
+
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(attempts, 7, '失败之后不应再发起任何删除');
+  assert.deepEqual(left(), atFailure);
+});
+
+test('the event loop keeps turning while a directory tree is being deleted', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'delete-nonblocking' });
+  const region = path.join(defaultInstanceDir(inst.id), 'world', 'region');
+  fs.mkdirSync(region, { recursive: true });
+  for (let index = 0; index < 200; index += 1) fs.writeFileSync(path.join(region, `r.${index}.mca`), 'x');
+
+  // setImmediate runs once per turn of the event loop: a removal done synchronously inside deletePath would leave this at zero.
+  let turns = 0;
+  let watching = true;
+  const spin = () => {
+    turns += 1;
+    if (watching) setImmediate(spin);
+  };
+  setImmediate(spin);
+  try {
+    await deletePath(inst.id, 'world');
+  } finally {
+    watching = false;
+  }
+
+  assert.equal(fs.existsSync(path.join(defaultInstanceDir(inst.id), 'world')), false);
+  assert.ok(turns > 0, '删除期间事件循环应继续运转');
 });
 
 test('a failed rename on upload overwrite should restore the old file and clean up the temp file', async (t) => {

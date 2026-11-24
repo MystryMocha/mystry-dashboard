@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
+import dgram from 'node:dgram';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { deflateRawSync } from 'node:zlib';
 import type { ChildProcess } from 'node:child_process';
+import type { AddressInfo } from 'node:net';
+import type { ListenPortProbes } from './lan-manager.js';
 
 type ZipTestEntry = {
   name: string;
@@ -63,6 +67,23 @@ async function waitFor(check: () => boolean, timeoutMs = 5000): Promise<void> {
   }
 }
 
+/**
+ * Stands in for the EasyTier listen port choice: nothing listens on these numbers (the process is stubbed), and trial binds
+ * would make the test depend on which ports this machine refuses. Records every exclusion list it is given.
+ */
+function fakeListenPorts(start: number): { allocate: (exclude: readonly number[]) => Promise<number>; excludes: number[][] } {
+  const excludes: number[][] = [];
+  let next = start;
+  return {
+    excludes,
+    allocate: async (exclude) => {
+      excludes.push([...exclude]);
+      while (exclude.includes(next)) next += 1;
+      return next++;
+    },
+  };
+}
+
 function fakeChild(): EventEmitter & {
   stdout: EventEmitter;
   stderr: EventEmitter;
@@ -115,6 +136,7 @@ test('the virtual LAN opens only the game port, and the secret does not go on th
     resetLanRuntimeForTests,
     setLanCliRunnerForTests,
     setLanGameStatusForTests,
+    setLanListenPortAllocatorForTests,
     setLanProbeIntervalsForTests,
     setLanSpawnerForTests,
     shutdownLan,
@@ -127,6 +149,9 @@ test('the virtual LAN opens only the game port, and the secret does not go on th
   const { writeServerProperties } = await import('./config-service.js');
 
   initDb();
+  // resetLanRuntimeForTests puts the real allocator back, so every reset below installs this one again.
+  const listenPorts = fakeListenPorts(41000);
+  setLanListenPortAllocatorForTests(listenPorts.allocate);
   // Do not actually change the firewall on the test machine: record the netsh arguments as Windows would behave.
   const firewallCalls: string[][] = [];
   setLanFirewallForTests({
@@ -244,6 +269,9 @@ test('the virtual LAN opens only the game port, and the secret does not go on th
   assert.deepEqual(running.sharedPeers, [...LAN_SHARED_PEERS]);
   assert.equal(running.useSharedPeers, true);
   assert.ok(running.listenPort && running.listenPort !== 25565 && running.listenPort !== config.port);
+  // The listen port is chosen around the management port, the game port and the panel port.
+  const rpcPort = Number(/^127\.0\.0\.1:(\d+)$/.exec(capturedArgs[3] ?? '')?.[1]);
+  for (const taken of [rpcPort, 25565, config.port]) assert.ok(listenPorts.excludes.at(-1)?.includes(taken), String(taken));
   // Delete the old rules by name first, then add three: the game port restricted to the virtual IP; listen port TCP and UDP restricted to the easytier-core actually started.
   const ruleName = `name=MystryDashboard-LAN-${first.id}`;
   assert.deepEqual(firewallCalls[0], ['advfirewall', 'firewall', 'delete', 'rule', ruleName]);
@@ -422,6 +450,7 @@ test('the virtual LAN opens only the game port, and the secret does not go on th
   /** Simulates a restart after a panel crash: all in-memory runtime state is lost, while the firewall rules in the system remain. */
   const simulateRestart = () => {
     resetLanRuntimeForTests();
+    setLanListenPortAllocatorForTests(listenPorts.allocate);
     setLanSpawnerForTests(() => fakeChild() as unknown as ChildProcess);
     setLanCliRunnerForTests(async () => JSON.stringify({ ipv4_addr: `${describeReadyIp()}/24` }));
     setLanGameStatusForTests(() => 'running');
@@ -801,4 +830,160 @@ test('the panel is reported as needing an administrator only when whoami shows a
 
   setWindowsElevationForTests({ platform: 'linux', runner: async () => { throw new Error('must not run'); } });
   assert.equal(await windowsPanelElevated(), null);
+});
+
+/**
+ * Probes that behave like Windows: each protocol hands out ports in sequence from its own counter, and a port is refused when the
+ * given check says so. Records every port checked for being free, and the random candidates handed out.
+ */
+function sequentialProbes(options: {
+  tcpFrom: number;
+  udpFrom: number;
+  tcpRefuses?: (port: number) => boolean;
+  udpRefuses?: (port: number) => boolean;
+  random?: readonly number[];
+  pickUdp?: () => Promise<number>;
+}): { probes: ListenPortProbes; checked: number[]; randomUsed: () => number } {
+  let tcp = options.tcpFrom;
+  let udp = options.udpFrom;
+  const random = [...(options.random ?? [])];
+  let randomUsed = 0;
+  const checked: number[] = [];
+  const probes: ListenPortProbes = {
+    pickTcp: async () => tcp++,
+    pickUdp: options.pickUdp ?? (async () => udp++),
+    tcpFree: async (port) => {
+      checked.push(port);
+      return !options.tcpRefuses?.(port);
+    },
+    udpFree: async (port) => !options.udpRefuses?.(port),
+    randomPort: () => {
+      randomUsed += 1;
+      // Past the given list: port 1, which only the case where every port is refused reaches.
+      return random.shift() ?? 1;
+    },
+  };
+  return { probes, checked, randomUsed: () => randomUsed };
+}
+
+test('the listen port is still found when a long run of ports after one counter cannot be bound for the other protocol', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-lan-port-'));
+  // When this test runs alone the config is not loaded yet, so it is filled in here; when the whole group runs, the module is already cached and unaffected.
+  process.env.MYSTRY_DATA_DIR ??= dir;
+  process.env.JWT_SECRET ??= 'a'.repeat(64);
+  process.env.SETUP_TOKEN ??= 'b'.repeat(64);
+  process.env.LAUNCHER_TOKEN ??= 'c'.repeat(64);
+  try {
+    const { allocateListenPort } = await import('./lan-manager.js');
+    const { PanelError } = await import('../utils/errors.js');
+    const between = (from: number, to: number) => (port: number) => port >= from && port <= to;
+    const unavailable = (error: unknown) => error instanceof PanelError && error.messageKey === 'server.lan.listenPortUnavailable';
+
+    // The TCP counter sits in a run of 40 ports UDP refuses (taking only TCP ports gave up after 20); the UDP counter is clear after 4.
+    const tcpSide = sequentialProbes({ tcpFrom: 54500, udpFrom: 56000, udpRefuses: between(54500, 54539), tcpRefuses: between(56000, 56003) });
+    assert.equal(await allocateListenPort([], tcpSide.probes), 56004);
+    assert.deepEqual(tcpSide.checked, [56000, 54500, 56001, 54501, 56002, 54502, 56003, 54503, 56004]);
+
+    // The mirror case: the UDP counter sits in a run TCP refuses, and the TCP counter is clear after 3.
+    const udpSide = sequentialProbes({ tcpFrom: 54500, udpFrom: 56000, tcpRefuses: between(56000, 56039), udpRefuses: between(54500, 54502) });
+    assert.equal(await allocateListenPort([], udpSide.probes), 54503);
+
+    // Excluded ports are skipped without a trial bind, even when they are free.
+    const excluded = sequentialProbes({ tcpFrom: 54500, udpFrom: 56000 });
+    assert.equal(await allocateListenPort([56000, 54500], excluded.probes), 56001);
+    assert.deepEqual(excluded.checked, [56001]);
+
+    // Both counters sit in long runs: random candidates come after them, and refused or excluded ones are skipped too.
+    const bothStuck = sequentialProbes({
+      tcpFrom: 54500,
+      udpFrom: 56000,
+      tcpRefuses: between(56000, 56099),
+      udpRefuses: between(54500, 54599),
+      random: [56050, 54550, 61000, 61001],
+    });
+    assert.equal(await allocateListenPort([61000], bothStuck.probes), 61001);
+    assert.equal(bothStuck.randomUsed(), 4);
+
+    // A bind(0) that throws counts as a failed attempt and does not end the search.
+    const throwing = sequentialProbes({
+      tcpFrom: 54500,
+      udpFrom: 0,
+      pickUdp: async () => { throw Object.assign(new Error('too many open files'), { code: 'EMFILE' }); },
+      udpRefuses: between(54500, 54501),
+    });
+    assert.equal(await allocateListenPort([], throwing.probes), 54502);
+
+    // Nothing usable: the search is bounded and ends with the panel error users see.
+    const refused = () => true;
+    const none = sequentialProbes({ tcpFrom: 54500, udpFrom: 56000, tcpRefuses: refused, udpRefuses: refused });
+    await assert.rejects(allocateListenPort([], none.probes), unavailable);
+    assert.equal(none.checked.length, 40);
+    assert.equal(none.randomUsed(), 20);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the real loopback probes refuse ports this test holds, and the real allocator moves past them', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-lan-port-real-'));
+  process.env.MYSTRY_DATA_DIR ??= dir;
+  process.env.JWT_SECRET ??= 'a'.repeat(64);
+  process.env.SETUP_TOKEN ??= 'b'.repeat(64);
+  process.env.LAUNCHER_TOKEN ??= 'c'.repeat(64);
+  const { allocateListenPort, loopbackListenPortProbes: real } = await import('./lan-manager.js');
+  const { PanelError } = await import('../utils/errors.js');
+  // Loopback only, like the probes themselves.
+  const tcpHolder = net.createServer();
+  await new Promise<void>((resolve) => tcpHolder.listen({ port: 0, host: '127.0.0.1', exclusive: true }, resolve));
+  const udpHolder = dgram.createSocket('udp4');
+  await new Promise<void>((resolve) => udpHolder.bind({ port: 0, address: '127.0.0.1', exclusive: true }, resolve));
+  t.after(async () => {
+    await new Promise<void>((resolve) => tcpHolder.close(() => resolve()));
+    await new Promise<void>((resolve) => udpHolder.close(() => resolve()));
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const heldTcp = (tcpHolder.address() as AddressInfo).port;
+  const heldUdp = udpHolder.address().port;
+  assert.equal(await real.tcpFree(heldTcp), false);
+  assert.equal(await real.udpFree(heldUdp), false);
+
+  // Each counter's first candidate is a port the other protocol is held on, so the first two candidates are refused for real;
+  // after that the machine's own ports decide.
+  const first = <T>(value: T, then: () => Promise<T>) => {
+    let used = false;
+    return async () => {
+      if (used) return then();
+      used = true;
+      return value;
+    };
+  };
+  const refusedHeld: number[] = [];
+  const probes: ListenPortProbes = {
+    ...real,
+    pickUdp: first(heldTcp, real.pickUdp),
+    pickTcp: first(heldUdp, real.pickTcp),
+    udpFree: async (port) => {
+      const free = await real.udpFree(port);
+      if (!free && port === heldUdp) refusedHeld.push(port);
+      return free;
+    },
+    tcpFree: async (port) => {
+      const free = await real.tcpFree(port);
+      if (!free && port === heldTcp) refusedHeld.push(port);
+      return free;
+    },
+  };
+  let port: number | null = null;
+  try {
+    port = await allocateListenPort([], probes);
+  } catch (error) {
+    // Whether any port is free for both protocols depends on this machine, so running out is accepted, but only as the panel error.
+    assert.ok(error instanceof PanelError && error.messageKey === 'server.lan.listenPortUnavailable', String(error));
+  }
+  assert.ok(refusedHeld.includes(heldTcp));
+  if (port !== null) {
+    assert.ok(Number.isInteger(port) && port > 0 && port < 65536, String(port));
+    assert.notEqual(port, heldTcp);
+    assert.notEqual(port, heldUdp);
+  }
 });

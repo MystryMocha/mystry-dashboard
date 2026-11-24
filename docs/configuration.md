@@ -150,6 +150,7 @@ The runtime layout under `DATA_DIR` is:
 | Path | Description |
 |------|------|
 | `panel.db` | SQLite database (users, instances, tasks) |
+| `db-backups/` | Copies of `panel.db` taken before each schema upgrade, named `panel-<UTC time>-v<previous schema version>.db`. Only the newest five are kept |
 | `instances/` | The only managed root directory for instances |
 | `instances/<id>/` | All files, the jar and the working directory of that instance |
 | `imports/<folder name>/` | Handoff area for existing servers on the same machine. It is only a copy source, not an instance working directory |
@@ -161,7 +162,9 @@ Whether the final data directory comes from `MYSTRY_DATA_DIR` or `DATA_DIR`, an 
 
 **Symbolic links**: if a folder above the data directory or the backup directory is a symbolic link or junction (for example, on a Linux distribution where `/home` is itself a link), the panel resolves it to its real location when reading the configuration. The data directory itself and everything inside it must not be links; otherwise the panel refuses to work with instances.
 
-**Permissions**: on Linux/macOS, the panel creates the data root and directories such as `instances`, `imports`, `uploads`, `.mystry-staging` and `.mystry-panel-lock` at startup and verifies that they are `0700`, and that `panel.db` and its WAL/SHM files are `0600`. If an existing directory is accessible to group/other, the panel refuses to start by default; set `MYSTRY_REPAIR_DATA_PERMISSIONS=1` to tighten the permissions automatically at startup. On Windows, Node cannot reliably verify ACLs, so the first start prints a blocking-level warning: make sure only the user who runs the panel can read and write `DATA_DIR` (in the portable build, `mdash` creates a user-only directory).
+**Permissions**: on Linux/macOS, the panel creates the data root and directories such as `instances`, `imports`, `uploads`, `.mystry-staging` and `.mystry-panel-lock` at startup and verifies that they are `0700`, and that `panel.db` and its WAL/SHM files are `0600`. If an existing directory is accessible to group/other, the panel refuses to start by default; set `MYSTRY_REPAIR_DATA_PERMISSIONS=1` to tighten the permissions automatically at startup. On Windows, Node cannot reliably verify ACLs, so the first start prints a blocking-level warning: make sure only the user who runs the panel can read and write `DATA_DIR` (in the portable build, `mdash` creates a user-only directory). `db-backups`, created when the first copy is taken, is held to the same rule, and each copy is `0600`.
+
+**Schema upgrades**: `panel.db` records its own schema version. When a newer panel needs to upgrade it, the panel first copies the database into `db-backups/`, then applies each step in its own transaction; a step that fails is rolled back and the panel refuses to start, naming that step. A panel also refuses a database that a newer version has already upgraded, and states both versions. To return to a copy, stop the panel, move `panel.db` and any `panel.db-wal` and `panel.db-shm` out of the data directory, then copy the chosen file from `db-backups/` to `panel.db`. Changes made after the copy was taken are not in it. A copy holds the same accounts and secrets as the database.
 
 `MYSTRY_HOME` and `MYSTRY_CONFIG_PATH` determine where the config file is, so the config file cannot change where it is loaded from. Set them before startup through `mdash`, the shell or the process environment. Portable users usually do not need to set these variables by hand.
 

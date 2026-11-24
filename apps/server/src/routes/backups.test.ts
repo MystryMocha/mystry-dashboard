@@ -139,11 +139,26 @@ test('backup endpoints end to end', async (t) => {
       payload: { path: 'server.properties', content: 'motd=changed\n' },
     });
     assert.equal(write.statusCode, 409);
+    const removeDuringRestore = await app.inject({
+      method: 'DELETE',
+      url: `/api/instances/${id}/files?path=server.properties`,
+      headers: authorization,
+    });
+    assert.equal(removeDuringRestore.statusCode, 409);
+    assert.equal(removeDuringRestore.json<{ code: string }>().code, 'server.backups.busyRestoring');
     const start = await app.inject({ method: 'POST', url: `/api/instances/${id}/start`, headers: authorization });
     assert.equal(start.statusCode, 409);
   } finally {
     release();
   }
+  assert.equal(fs.readFileSync(path.join(defaultInstanceDir(id), 'server.properties'), 'utf8'), 'motd=routes\n');
+  const removeFile = await app.inject({
+    method: 'DELETE',
+    url: `/api/instances/${id}/files?path=server.properties`,
+    headers: authorization,
+  });
+  assert.equal(removeFile.statusCode, 200, removeFile.body);
+  assert.equal(fs.existsSync(path.join(defaultInstanceDir(id), 'server.properties')), false);
 
   const removed = await app.inject({ method: 'DELETE', url: `/api/instances/${id}/backups/${backup.id}`, headers: authorization });
   assert.equal(removed.statusCode, 204);

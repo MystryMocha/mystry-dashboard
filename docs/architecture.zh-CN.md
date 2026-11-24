@@ -156,6 +156,8 @@ SQLite 表：
 
 使用 `node:sqlite` 的 `DatabaseSync`，启用 WAL 模式。实例文件不存入数据库，统一存放于 `DATA_DIR/instances/<id>`。
 
+结构版本记录在 `PRAGMA user_version`。取得数据目录锁之后、恢复任务之前，`initDb()` 将 `PANEL_DB_MIGRATIONS` 交给 `db-migrations.ts` 中的执行器。版本 1 为基线：将此前任何形态的数据库补齐至引入版本号时的结构，因此新库与旧库走同一条路径；其后每一项为一步变更。有待执行的步骤且库中已有表时，执行器先以 `VACUUM INTO` 将副本写入 `DATA_DIR/db-backups/`（包含尚在 WAL 中的页），仅保留最近 5 份；随后每一步在一个事务中完成，并在同一事务内更新版本号，失败即回滚并中止启动。数据库版本高于程序所知时，原样拒绝启动。
+
 ## 实例目录与安全边界
 
 默认数据结构：
@@ -163,6 +165,7 @@ SQLite 表：
 ```text
 DATA_DIR/
 ├── panel.db
+├── db-backups/
 ├── instances/
 │   └── <id>/
 ├── imports/

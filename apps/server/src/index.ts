@@ -166,7 +166,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
     }
   });
   app.addHook('onSend', async (_req, reply, payload) => {
-    // No aggressive CSP, so the frontend assets served in production are not broken; other responses still use the basic security headers.
+    // Basic headers for every response. The Content-Security-Policy is not here: it depends on the inline scripts of the built index.html and
+    // belongs to HTML documents only, so registerFrontendAssets sets it. X-Frame-Options stays for browsers that ignore the policy's frame-ancestors.
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('X-Frame-Options', 'DENY');
     reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
