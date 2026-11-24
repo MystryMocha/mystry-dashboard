@@ -1234,6 +1234,30 @@ test('a restart starts no second panel while the old one still waits for a Minec
   }
 });
 
+test('a manager lock left behind whose PID now belongs to a process mdash may not signal does not block the next command', async (t) => {
+  // System (4) on Windows and init (1) elsewhere refuse signals from an ordinary user, like a system process that got the PID after a reboot.
+  const foreignPid = process.platform === 'win32' ? 4 : 1;
+  try {
+    process.kill(foreignPid, 0);
+    t.skip(`PID ${foreignPid} can be signalled from this account`);
+    return;
+  } catch (error) {
+    if (error?.code !== 'EPERM') {
+      t.skip(`PID ${foreignPid} gives ${error?.code}, not EPERM`);
+      return;
+    }
+  }
+  const { home, env } = await fakePanelHome(t, 'mystry-ctl-stale-lock-');
+  const lock = path.join(home, 'data', 'launcher', 'mystryctl.lock');
+  await fsp.mkdir(path.dirname(lock), { recursive: true });
+  await fsp.writeFile(lock, `${foreignPid}\n`, 'utf8');
+
+  const stop = await runController('stop', env);
+  assert.doesNotMatch(stop.output, /另一个 .* 正在运行/);
+  assert.equal(stop.code, 0, stop.output);
+  assert.equal(fs.existsSync(lock), false);
+});
+
 test('the window from a double-click keeps showing the panel after a restart from another window, and Ctrl+C still stops it', { timeout: 60_000 }, async (t) => {
   const time = Date.now();
   const { home, env, health } = await fakePanelHome(t, 'mystry-ctl-watch-restart-', {

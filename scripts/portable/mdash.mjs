@@ -384,6 +384,21 @@ function isProcessAlive(pid) {
   }
 }
 
+/**
+ * Whether the PID in the manager lock is still a running manager. Unlike isProcessAlive, EPERM counts as gone: the lock lasts one
+ * command, so one left behind usually outlived a power cut, and after a reboot Windows may hand its PID to a system process that
+ * a launcher may not signal. Counting that as alive would refuse every command until the file is deleted by hand.
+ */
+function isManagerProcessAlive(pid) {
+  if (!pid || !Number.isSafeInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The PID of a live panel process holding the data directory, or null. */
 function panelDataLockHolder() {
   try {
@@ -419,7 +434,7 @@ async function panelStillShuttingDown(values) {
 function managerLockHolder() {
   try {
     const owner = Number(fs.readFileSync(lockPath, 'utf8').trim());
-    return owner !== process.pid && isProcessAlive(owner) ? owner : null;
+    return owner !== process.pid && isManagerProcessAlive(owner) ? owner : null;
   } catch {
     return null;
   }
@@ -437,7 +452,7 @@ async function acquireManagerLock() {
       if (!isErrorCode(error, 'EEXIST')) throw error;
       const ownerText = await fsp.readFile(lockPath, 'utf8').catch(() => '');
       const owner = Number(ownerText.trim());
-      if (isProcessAlive(owner)) {
+      if (isManagerProcessAlive(owner)) {
         throw new Error(text(`另一个 ${managerCommand} 正在运行，请稍后再试。`, `Another ${managerCommand} is running. Try again later.`));
       }
       await fsp.unlink(lockPath).catch(() => {});
