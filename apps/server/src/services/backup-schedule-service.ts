@@ -335,6 +335,10 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
         interruptedAttempts.delete(instanceId);
         continue;
       }
+      // An instance in the middle of something is asked again at the next check, and before it is judged unchanged:
+      // a server on its way up does not count as having run yet, and a restore has not replaced the files yet.
+      const status = processManager.getStatus(instanceId);
+      if (status === 'starting' || status === 'stopping' || processManager.getMaintenance(instanceId) !== null) continue;
       // Another copy of files that have not changed would only push an older, different one out of the kept set.
       if (isUnchangedSinceLastBackup(row)) {
         settleSlot(instanceId, slot);
@@ -343,8 +347,6 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
       // A scheduled backup starts only while no other task is running or waiting, so it never takes a place in the
       // queue from work the user asked for. Its own task then keeps the others that are due waiting for a later check.
       if (!isTaskQueueIdle()) continue;
-      const status = processManager.getStatus(instanceId);
-      if (status === 'starting' || status === 'stopping' || processManager.getMaintenance(instanceId) !== null) continue;
       await queueBackup(row, slot);
     }
   }

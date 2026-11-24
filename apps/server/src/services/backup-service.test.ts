@@ -951,6 +951,28 @@ test('a scheduled backup that fails for a reason of its own after the scheduler 
   assert.equal(s.info(id).lastFailure?.errorI18n?.key, 'server.backups.schedule.diskSpace');
 });
 
+test('a due backup waits for a server that is starting instead of being skipped as unchanged', async (t) => {
+  const { id } = await setup();
+  const { processManager } = await import('./process-manager.js');
+  const s = await scheduling();
+  s.enable(id, '04:00', '2026-06-01T10:00:00Z');
+  await s.checkAt('2026-06-02T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 1);
+
+  // Start was clicked a moment before the time of day: the server does not count as having run yet.
+  const status = t.mock.method(processManager, 'getStatus', () => 'starting');
+  try {
+    await s.checkAt('2026-06-03T04:00:00Z');
+  } finally {
+    status.mock.restore();
+  }
+  assert.equal(s.scheduled(id).length, 1);
+
+  s.serverRan(id);
+  await s.checkAt('2026-06-03T04:01:00Z');
+  assert.equal(s.scheduled(id).length, 2, '服务器启动完成后，当天照常备份');
+});
+
 test('a settled date ahead of the clock does not hold back the schedule once the clock is corrected', async () => {
   const { id } = await setup();
   const s = await scheduling();
