@@ -125,6 +125,41 @@ test('start, instance deletion and another backup or restore are refused while a
   assert.equal(processManager.getMaintenance(id), null);
 });
 
+test('a backup or restore task that fails before its worker is called does not leave the instance in maintenance or the backup in use', async () => {
+  const { id } = await setup();
+  const { getDb } = await import('../db.js');
+  const { processManager } = await import('./process-manager.js');
+  const { deleteBackup, listBackups, startBackupTask, startRestoreTask } = await import('./backup-service.js');
+  const made = await waitForTask(await startBackupTask(id));
+  assert.equal(made.status, 'completed', made.error);
+  const backupId = made.result!.backupId as string;
+
+  // Stands in for a write error at the moment a task is marked as running, which ends it before its worker is called.
+  const failBeforeWorker = async (start: () => Promise<TaskInfo>): Promise<TaskInfo> => {
+    getDb().exec(`CREATE TRIGGER refuse_running BEFORE UPDATE ON tasks WHEN NEW.status = 'running'
+      BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END`);
+    try {
+      return await waitForTask(await start());
+    } finally {
+      getDb().exec('DROP TRIGGER refuse_running');
+    }
+  };
+
+  const backup = await failBeforeWorker(() => startBackupTask(id));
+  assert.equal(backup.status, 'failed');
+  assert.equal(listBackups(id).length, 1, '前置：这次备份没有运行');
+  assert.equal(processManager.getMaintenance(id), null);
+
+  const restore = await failBeforeWorker(() => startRestoreTask(id, backupId, { backupCurrent: false }));
+  assert.equal(restore.status, 'failed');
+  assert.equal(processManager.getMaintenance(id), null);
+
+  const again = await waitForTask(await startBackupTask(id));
+  assert.equal(again.status, 'completed', again.error);
+  deleteBackup(id, backupId);
+  assert.deepEqual(listBackups(id).map((item) => item.id), [again.result!.backupId]);
+});
+
 test('a file delete is refused for the whole of a restore, and is not blocked by a backup', async () => {
   const { id, dir } = await setup();
   const { processManager } = await import('./process-manager.js');
