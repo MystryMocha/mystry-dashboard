@@ -64,7 +64,7 @@ Double-clicking opens a menu in your system language (Chinese on a Chinese syste
 
 Start, stop, status and logs share one implementation with `mdash.sh` on Linux and `mdash` in the portable build. The only differences: the configuration defaults to `.env` in the repository root (or the file named by `MYSTRY_CONFIG_PATH`, if set), and the data directory follows that file's `DATA_DIR`. Logs go to `logs/` in the repository root.
 
-A background stop or restart first cancels deploy/import tasks, then stops each running Minecraft instance safely, one at a time. Do not force-kill the Node process in Task Manager.
+A background stop or restart first cancels deploy/import tasks, then stops each running Minecraft instance safely, one at a time. Do not force-kill the Node process in Task Manager. A server that has not exited within the grace period is sent `stop` once more. If it still has not exited, the old panel process keeps the data directory until it does, and the launcher does not start another panel: `status` shows which process is still waiting, and the message says what to do.
 
 If a secret in your existing `.env` is not a 64-character hexadecimal string, the source launcher first backs up the original file to `launcher/config-backups/` under the data directory, then generates new valid secrets. Changing `JWT_SECRET` invalidates old sign-in tokens but does not delete the administrator, instances or Minecraft worlds.
 
