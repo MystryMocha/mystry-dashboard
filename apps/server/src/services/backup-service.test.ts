@@ -909,7 +909,7 @@ test('a scheduled backup cut short by the server starting, stopping or crashing 
 
 test('a scheduled backup cut short after the scheduler stopped is not recorded as failed and is made up after the next start', async () => {
   const { id } = await setup();
-  const { cancelTask, getTaskActivity, listTasks } = await import('./task-service.js');
+  const { getTaskActivity, resetTaskRuntimeForTests, shutdownTasks } = await import('./task-service.js');
   const s = await scheduling();
   s.enable(id, '04:00', '2026-06-01T10:00:00Z');
 
@@ -917,8 +917,12 @@ test('a scheduled backup cut short after the scheduler stopped is not recorded a
   assert.deepEqual(getTaskActivity(), { running: 1, queued: 0 });
   // The panel begins to shut down: the scheduler stops first, and the task queue then aborts the run.
   s.stop();
-  assert.equal(cancelTask(listTasks(1)[0]!.id), true);
-  await waitForIdleQueue();
+  try {
+    await shutdownTasks();
+  } finally {
+    // The queue would otherwise refuse the tasks of every later case.
+    resetTaskRuntimeForTests();
+  }
   assert.equal(s.scheduled(id).length, 0);
   assert.equal(s.info(id).lastFailure, null);
   await s.checkAt('2026-06-02T04:01:00Z');
@@ -927,6 +931,24 @@ test('a scheduled backup cut short after the scheduler stopped is not recorded a
   s.restartPanel();
   await s.checkAt('2026-06-02T09:00:00Z');
   assert.equal(s.scheduled(id).length, 1);
+});
+
+test('a scheduled backup that fails for a reason of its own after the scheduler stopped is still recorded as failed', async () => {
+  const { id } = await setup();
+  const s = await scheduling();
+  s.enable(id, '04:00', '2026-06-01T10:00:00Z');
+  await s.checkAt('2026-06-02T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 1);
+  s.serverRan(id);
+
+  // The panel begins to shut down just as the next run reads the free space, and the disk turns out to be full.
+  s.state.free = () => {
+    s.stop();
+    return 0;
+  };
+  await s.checkAt('2026-06-03T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 1);
+  assert.equal(s.info(id).lastFailure?.errorI18n?.key, 'server.backups.schedule.diskSpace');
 });
 
 test('a settled date ahead of the clock does not hold back the schedule once the clock is corrected', async () => {

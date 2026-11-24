@@ -233,6 +233,11 @@ function isInterruptedByServerState(error: unknown): boolean {
       || error.messageKey === 'server.backups.lifecycleBusy');
 }
 
+/** The reason the task queue gives the tasks it aborts when the panel shuts down. */
+function isAbortedByShutdown(error: unknown): boolean {
+  return error instanceof PanelError && error.messageKey === 'server.tasks.aborted';
+}
+
 /** Not being able to queue now is no failure: nothing is recorded and the slot stays due for the next check. */
 function isDeferral(error: unknown): boolean {
   return isTaskCapacityError(error)
@@ -282,8 +287,9 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
           }
         },
         onFailed: (error) => {
-          // A run cut short by the panel shutting down stays due, and is made up after the next start.
-          if (stopped) return;
+          // A run cut short by the panel shutting down stays due, and is made up after the next start. One that failed
+          // for a reason of its own while the panel was closing is recorded like any other.
+          if (stopped && isAbortedByShutdown(error)) return;
           // Nothing is recorded for a run that will be tried again, so the slot stays due for the next check.
           if (isInterruptedByServerState(error)) {
             const previous = interruptedAttempts.get(instanceId);
