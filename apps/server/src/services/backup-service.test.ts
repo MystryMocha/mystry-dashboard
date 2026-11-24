@@ -1,6 +1,6 @@
 /**
  * Instance backup and restore regression: backup while stopped, backup while running (save-off/flush/save-on), restore overwrite and automatic backup,
- * mutual exclusion during maintenance, upload verification, directory swap recovery after a crash, and scheduled backups: when one is due, deferred, skipped or
+ * mutual exclusion during maintenance, upload verification, directory swap recovery after a crash, and scheduled backups: when one is due, deferred, skipped, retried or
  * made up, what retention deletes, how a failure is recorded, and daylight-saving changes.
  */
 import assert from 'node:assert/strict';
@@ -569,7 +569,7 @@ test('a scheduled backup is skipped while the server has not run since the last 
   assert.equal(listBackups(id).length, 2);
 });
 
-test('a due backup waits while the queue is full or the instance is busy, and scheduled backups are queued one at a time', async (t) => {
+test('a due backup waits while another task is running or the instance is busy, and scheduled backups are queued one at a time', async (t) => {
   const a = await setup();
   const b = await setup();
   const { processManager } = await import('./process-manager.js');
@@ -579,9 +579,9 @@ test('a due backup waits while the queue is full or the instance is busy, and sc
   s.enable(b.id, '04:00', '2026-06-01T10:00:00Z');
   const total = () => s.scheduled(a.id).length + s.scheduled(b.id).length;
 
-  let release = await holdQueue(3);
+  const release = await holdQueue(1);
   await s.check('2026-06-02T04:00:00Z');
-  assert.deepEqual(getTaskActivity(), { running: 1, queued: 2 }, '队列已满时不排入');
+  assert.deepEqual(getTaskActivity(), { running: 1, queued: 0 }, '有其他任务在运行时不排入，即使队列还有空位');
   await release();
   assert.equal(total(), 0);
 
@@ -597,12 +597,11 @@ test('a due backup waits while the queue is full or the instance is busy, and sc
   assert.equal(s.info(a.id).lastFailure, null, '推迟不算失败');
   assert.equal(s.info(b.id).lastFailure, null);
 
-  release = await holdQueue(1);
   await s.check('2026-06-02T04:02:00Z');
-  assert.deepEqual(getTaskActivity(), { running: 1, queued: 1 });
+  assert.deepEqual(getTaskActivity(), { running: 1, queued: 0 });
   await s.check('2026-06-02T04:03:00Z');
-  assert.deepEqual(getTaskActivity(), { running: 1, queued: 1 }, '已有一个自动备份在队列中时，另一个留给下次检查');
-  await release();
+  assert.deepEqual(getTaskActivity(), { running: 1, queued: 0 }, '已有一个定时备份在运行时，另一个留给下次检查');
+  await waitForIdleQueue();
   assert.equal(total(), 1);
 
   await s.checkAt('2026-06-02T04:04:00Z');
@@ -740,29 +739,69 @@ test('a scheduled backup that fails is a failed task naming the instance, and it
   assert.equal(s.info(id).lastBackupAt, s.scheduled(id)[0]!.createdAt);
 });
 
+test('a scheduled backup cut short by the server starting, stopping or crashing is tried again at the next check, three times a day at most', async () => {
+  const { id } = await setup();
+  const { getInstanceRow } = await import('./instance-service.js');
+  const { listTasks } = await import('./task-service.js');
+  const name = getInstanceRow(id)!.name;
+  const s = await scheduling();
+  s.enable(id, '04:00', '2026-06-01T10:00:00Z');
+  const failedRuns = () => listTasks(200).filter((task) => (
+    task.errorI18n?.key === 'server.backups.schedule.runFailed' && task.errorI18n.params?.name === name
+  )).length;
+  /** One check whose backup is cut short: the server starts while its files are being packed. */
+  const interruptedCheck = async (at: string) => {
+    await s.check(at);
+    s.serverRan(id);
+    await waitForIdleQueue();
+  };
+
+  await interruptedCheck('2026-06-02T04:00:00Z');
+  await interruptedCheck('2026-06-02T04:01:00Z');
+  assert.equal(failedRuns(), 2, '每次被打断都在任务中心留下一条失败任务');
+  assert.equal(s.info(id).lastFailure, null, '被打断的前两次不记为失败');
+  await s.checkAt('2026-06-02T04:02:00Z');
+  assert.equal(s.scheduled(id).length, 1, '下次检查时重试');
+  assert.equal(s.info(id).lastFailure, null);
+
+  // A new day starts counting again: two interruptions still leave a third attempt.
+  s.serverRan(id);
+  await interruptedCheck('2026-06-03T04:00:00Z');
+  await interruptedCheck('2026-06-03T04:01:00Z');
+  assert.equal(s.info(id).lastFailure, null);
+  await interruptedCheck('2026-06-03T04:02:00Z');
+  const failure = s.info(id).lastFailure;
+  assert.equal(failure?.at, '2026-06-03T04:02:00.000Z');
+  assert.equal(failure?.errorI18n?.key, 'server.backups.serverStateChanged');
+  assert.equal(failedRuns(), 5);
+
+  await s.checkAt('2026-06-03T04:03:00Z');
+  assert.equal(failedRuns(), 5, '第三次被打断后当天不再重试');
+  assert.equal(s.scheduled(id).length, 1);
+
+  await s.checkAt('2026-06-04T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 2);
+  assert.equal(s.info(id).lastFailure, null);
+});
+
 test('a scheduled backup cut short after the scheduler stopped is not recorded as failed and is made up after the next start', async () => {
   const { id } = await setup();
-  const { listBackups, startBackupTask } = await import('./backup-service.js');
-  const { getTaskActivity } = await import('./task-service.js');
+  const { cancelTask, getTaskActivity, listTasks } = await import('./task-service.js');
   const s = await scheduling();
-  const manual = await waitForTask(await startBackupTask(id));
-  assert.equal(manual.status, 'completed', manual.error);
   s.enable(id, '04:00', '2026-06-01T10:00:00Z');
 
-  const release = await holdQueue(1);
   await s.check('2026-06-02T04:00:00Z');
-  assert.deepEqual(getTaskActivity(), { running: 1, queued: 1 });
-  // The panel begins to shut down: the scheduler stops first, and the run then ends without a backup.
+  assert.deepEqual(getTaskActivity(), { running: 1, queued: 0 });
+  // The panel begins to shut down: the scheduler stops first, and the task queue then aborts the run.
   s.stop();
-  s.state.free = 0;
-  await release();
+  assert.equal(cancelTask(listTasks(1)[0]!.id), true);
+  await waitForIdleQueue();
   assert.equal(s.scheduled(id).length, 0);
   assert.equal(s.info(id).lastFailure, null);
   await s.checkAt('2026-06-02T04:01:00Z');
-  assert.equal(listBackups(id).length, 1, '停止后的调度器不再排入备份');
+  assert.equal(s.scheduled(id).length, 0, '停止后的调度器不再排入备份');
 
   s.restartPanel();
-  s.state.free = null;
   await s.checkAt('2026-06-02T09:00:00Z');
   assert.equal(s.scheduled(id).length, 1);
 });

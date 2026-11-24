@@ -55,6 +55,8 @@ type QueuedTask = {
 export type BackgroundTaskOptions = {
   /** Time limit for a single task (counted from when it starts running, excluding queue time), TASK_TIMEOUT_MS by default. */
   timeoutMs?: number;
+  /** Accepts the task only while no other task is running or queued; throws TaskCapacityError otherwise. */
+  onlyWhenIdle?: boolean;
 };
 
 const taskQueue: QueuedTask[] = [];
@@ -378,7 +380,9 @@ export async function runBackgroundTask(
   if (shuttingDown) {
     throw new TaskShuttingDownError();
   }
-  if (runningTasks + taskQueue.length >= config.maxConcurrentTasks + config.maxQueuedTasks) {
+  if (options.onlyWhenIdle
+    ? runningTasks > 0 || taskQueue.length > 0
+    : runningTasks + taskQueue.length >= config.maxConcurrentTasks + config.maxQueuedTasks) {
     throw new TaskCapacityError();
   }
 
@@ -414,9 +418,9 @@ export function cancelTask(id: string): boolean {
   return true;
 }
 
-/** Whether one more task would be accepted right now, running or waiting. */
-export function hasTaskCapacity(): boolean {
-  return !shuttingDown && runningTasks + taskQueue.length < config.maxConcurrentTasks + config.maxQueuedTasks;
+/** Whether no task is running or waiting, and the queue is still accepting work. */
+export function isTaskQueueIdle(): boolean {
+  return !shuttingDown && runningTasks === 0 && taskQueue.length === 0;
 }
 
 export function getTaskActivity(): { running: number; queued: number } {
