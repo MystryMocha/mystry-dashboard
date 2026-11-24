@@ -168,12 +168,14 @@ export function renderFriendInstructions(input: LanRenderInput): string {
   const address = `${lanVirtualIp(identity.octet)}:${port}`;
   const peers = assertPeers(input.peers).map((uri) => `--peers ${uri}`).join(' ');
   const windows = resolveLanAsset('win32', 'x64');
+  // EasyTier 2.6.4 takes no value for --no-listener and exits with code 2 on "--no-listener=true",
+  // while --private-mode requires one, so the two forms differ on purpose.
   const command = [
     'easytier-core',
     '--dhcp',
     `--network-name "${identity.networkName}"`,
     `--network-secret "${identity.networkSecret}"`,
-    '--no-listener=true',
+    '--no-listener',
     '--private-mode=true',
     '--tcp-whitelist 1',
     '--udp-whitelist 1',
