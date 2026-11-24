@@ -595,8 +595,8 @@ export function pruneScheduledBackups(instanceId: string, keep: number): { delet
 
 /**
  * Queues a scheduled backup, then deletes scheduled backups beyond `keep`. Throws only when the backup cannot be queued
- * now (the instance is busy, or the task queue is full or shutting down); every later failure is a failed task whose
- * reason names the instance, since nobody had its page open when it ran.
+ * now (the instance is busy, another task is running or waiting, or the task queue is shutting down); every later
+ * failure is a failed task whose reason names the instance, since nobody had its page open when it ran.
  */
 export async function startScheduledBackupTask(instanceId: string, options: ScheduledBackupOptions): Promise<TaskInfo> {
   const name = getInstanceRow(instanceId)?.name ?? instanceId;
@@ -623,7 +623,7 @@ export async function startScheduledBackupTask(instanceId: string, options: Sche
       } finally {
         release();
       }
-    }, { timeoutMs: config.backupTaskTimeoutMs });
+    }, { timeoutMs: config.backupTaskTimeoutMs, onlyWhenIdle: true });
   } catch (error) {
     release();
     throw error;

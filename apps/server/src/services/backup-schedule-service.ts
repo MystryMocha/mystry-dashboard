@@ -12,9 +12,9 @@ import { getDb, type BackupScheduleRow } from '../db.js';
 import { errorMessage, PanelError, toPanelMessage } from '../utils/errors.js';
 import { getBackup, requireManagedInstance, startScheduledBackupTask } from './backup-service.js';
 import { processManager } from './process-manager.js';
-import { getTask, hasTaskCapacity, isTaskCapacityError, isTaskShuttingDownError } from './task-service.js';
+import { isTaskCapacityError, isTaskQueueIdle, isTaskShuttingDownError } from './task-service.js';
 
-/** Product choices for automatic backups, kept in one place because they may change. */
+/** Product choices for scheduled backups, kept in one place because they may change. */
 export const BACKUP_SCHEDULE_DEFAULTS = {
   /** Time of day of the daily backup, on the clock of the computer the panel runs on. */
   time: '04:00',
@@ -24,6 +24,8 @@ export const BACKUP_SCHEDULE_DEFAULTS = {
   freeSpaceMarginBytes: 256 * 1024 * 1024,
   /** How often the scheduler looks for a backup that is due. */
   checkIntervalMs: 60_000,
+  /** How many times one day's backup is tried when the server starting, stopping or crashing cuts it short. */
+  maxInterruptedAttempts: 3,
 } as const;
 
 const TIME_OF_DAY = new RegExp(BACKUP_SCHEDULE_TIME_PATTERN);
@@ -221,6 +223,16 @@ function isUnchangedSinceLastBackup(row: BackupScheduleRow): boolean {
   }
 }
 
+/**
+ * The server started, stopped or crashed under the run. Unlike a full disk or a file that cannot be read, that says
+ * nothing about the next attempt, so the day is not given up at once.
+ */
+function isInterruptedByServerState(error: unknown): boolean {
+  return error instanceof PanelError
+    && (error.messageKey === 'server.backups.serverStateChanged'
+      || error.messageKey === 'server.backups.lifecycleBusy');
+}
+
 /** Not being able to queue now is no failure: nothing is recorded and the slot stays due for the next check. */
 function isDeferral(error: unknown): boolean {
   return isTaskCapacityError(error)
@@ -251,26 +263,18 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
   let timer: NodeJS.Timeout | null = null;
   let stopped = false;
   let checking = false;
-  /** The scheduled backup queued by this scheduler that may not have ended yet. */
-  let activeTaskId: string | null = null;
+  /** Per instance, the runs of its current slot that the server cut short. An entry left from an earlier slot counts for nothing. */
+  const interruptedAttempts = new Map<string, { slot: string; count: number }>();
 
-  // Read from the task record rather than from the worker's callbacks: a task cancelled while it waited never ran its worker.
-  function hasActiveTask(): boolean {
-    if (activeTaskId === null) return false;
-    const task = getTask(activeTaskId);
-    if (task && (task.status === 'pending' || task.status === 'running')) return true;
-    activeTaskId = null;
-    return false;
-  }
-
-  async function queueBackup(row: BackupScheduleRow, slot: string): Promise<boolean> {
+  async function queueBackup(row: BackupScheduleRow, slot: string): Promise<void> {
     const instanceId = row.instance_id;
     try {
-      const task = await startScheduledBackupTask(instanceId, {
+      await startScheduledBackupTask(instanceId, {
         keep: row.keep_count,
         freeSpaceMarginBytes: BACKUP_SCHEDULE_DEFAULTS.freeSpaceMarginBytes,
         readFreeBytes: options.readFreeBytes,
         onCreated: (info) => {
+          interruptedAttempts.delete(instanceId);
           try {
             recordSuccess(instanceId, slot, info);
           } catch (error) {
@@ -280,6 +284,16 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
         onFailed: (error) => {
           // A run cut short by the panel shutting down stays due, and is made up after the next start.
           if (stopped) return;
+          // Nothing is recorded for a run that will be tried again, so the slot stays due for the next check.
+          if (isInterruptedByServerState(error)) {
+            const previous = interruptedAttempts.get(instanceId);
+            const count = (previous?.slot === slot ? previous.count : 0) + 1;
+            if (count < BACKUP_SCHEDULE_DEFAULTS.maxInterruptedAttempts) {
+              interruptedAttempts.set(instanceId, { slot, count });
+              return;
+            }
+          }
+          interruptedAttempts.delete(instanceId);
           try {
             recordFailure(instanceId, slot, error, now());
           } catch (recordError) {
@@ -287,19 +301,13 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
           }
         },
       });
-      activeTaskId = task.id;
-      return true;
     } catch (error) {
       if (!isDeferral(error)) console.warn(`未能为实例 ${instanceId} 排入定时备份`, error);
-      return false;
     }
   }
 
   async function runCheck(): Promise<void> {
     const clock = wallClockAt(now(), options.timeZone);
-    // The task queue has one running slot and two waiting ones for everything the panel does, so at most one of them
-    // goes to scheduled backups; the others that are due wait for a later check.
-    let mayQueue = !hasActiveTask();
     // Oldest settled slot first, so an instance that keeps being busy does not hold back the ones behind it for good.
     const rows = getDb()
       .prepare('SELECT * FROM instance_backup_schedules WHERE enabled = 1 ORDER BY last_slot, instance_id')
@@ -321,14 +329,12 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
         settleSlot(instanceId, slot);
         continue;
       }
-      if (!mayQueue) continue;
-      if (!hasTaskCapacity()) {
-        mayQueue = false;
-        continue;
-      }
+      // A scheduled backup starts only while no other task is running or waiting, so it never takes a place in the
+      // queue from work the user asked for. Its own task then keeps the others that are due waiting for a later check.
+      if (!isTaskQueueIdle()) continue;
       const status = processManager.getStatus(instanceId);
       if (status === 'starting' || status === 'stopping' || processManager.getMaintenance(instanceId) !== null) continue;
-      if (await queueBackup(row, slot)) mayQueue = false;
+      await queueBackup(row, slot);
     }
   }
 

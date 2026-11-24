@@ -138,6 +138,39 @@ test('timeoutMs of runBackgroundTask overrides the global TASK_TIMEOUT_MS', asyn
   assert.equal(current?.errorI18n?.key, 'server.tasks.timeout');
 });
 
+test('onlyWhenIdle refuses a task while another is running or waiting, although the queue has room', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { config } = await import('../config.js');
+  const { runBackgroundTask, getTask, getTaskActivity, isTaskCapacityError, isTaskQueueIdle, resetTaskRuntimeForTests } = await import('./task-service.js');
+  t.after(() => {
+    resetTaskRuntimeForTests();
+  });
+  initDb();
+  assert.ok(config.maxConcurrentTasks + config.maxQueuedTasks > 1, '前置：队列在一个任务之外还有空位');
+
+  let finish!: () => void;
+  const held = await runBackgroundTask('download', { key: 'server.tasks.queued' }, () => new Promise<void>((resolve) => {
+    finish = resolve;
+  }), { onlyWhenIdle: true });
+  assert.equal(getTask(held.id)?.status, 'running', '空闲时照常接受');
+  assert.equal(isTaskQueueIdle(), false);
+
+  await assert.rejects(
+    runBackgroundTask('backup', { key: 'server.tasks.queued' }, async () => {}, { onlyWhenIdle: true }),
+    isTaskCapacityError,
+  );
+  assert.deepEqual(getTaskActivity(), { running: 1, queued: 0 }, '被拒绝的任务不留记录在队列里');
+  const ordinary = await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {});
+  assert.equal(getTask(ordinary.id)?.status, 'pending', '没有这个选项的任务仍可排队');
+
+  finish();
+  for (let attempt = 0; attempt < 200 && !isTaskQueueIdle(); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(isTaskQueueIdle(), true);
+});
+
 test('cancelTask: a queued one is cancelled directly, a running one is recorded as cancelled by the user after the worker finishes up, and a finished one is not accepted', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
