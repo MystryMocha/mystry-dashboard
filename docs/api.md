@@ -260,7 +260,7 @@ A backup file is a gzip-compressed tar whose last entry, `.mystry-backup/manifes
 
 `BackupInfo` fields: `id`, `instanceId`, `instanceName`, `source` (`manual` / `pre-restore` / `upload` / `scheduled`), `createdAt`, `sizeBytes` (archive size), `fileCount`, `contentBytes` (size after extraction), `coreType`, `mcVersion`, `wasRunning`, `sha256` (SHA-256 of the archive).
 
-### Automatic Backups `/api/instances/:id/backup-schedule`
+### Scheduled Backups `/api/instances/:id/backup-schedule`
 
 | Method | Path | Description |
 |------|------|------|

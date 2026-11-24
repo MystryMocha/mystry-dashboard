@@ -52,7 +52,7 @@ For players hosting servers for themselves and their friends, at home or in the 
 | **Files & Properties** | Browse, upload and download files of any size, edit text files, rename, and edit `server.properties` in a grouped form that keeps your comments. |
 | **Quick Deploy** | Deploy **Paper**, **Fabric**, **Forge**, **NeoForge** or **Vanilla**, from legacy versions up to Minecraft 26.x. Paper and the latest stable release are preselected. |
 | **Import Server** | See what's inside a ZIP before importing it, or copy in an existing server folder. Your original folder is never changed. |
-| **Backups** | Back up a whole server folder, even while it's running, by hand or automatically every day with the newest few kept. Download, upload and delete backups, and restore after every file is checked. |
+| **Backups** | Back up a whole server folder, even while it's running, by hand or on a daily schedule with the newest few kept. Download, upload and delete backups, and restore after every file is checked. |
 | **Multiplayer** | Choose **Direct Connection** (LAN IPv4, public IPv6 or a public server address), **Virtual LAN** (EasyTier, no public IP needed) or **frp Tunnel**. Only the game port is shared. |
 | **Java & JVM** | Find the Java already installed, pick the right version for each new server, install Eclipse Temurin in one click when it's missing, and set memory with JVM presets. |
 | **Download sources** | **Official** (default) or **China Mirrors** (BMCLAPI and GitHub mirrors, falling back to official). frp, EasyTier and Java downloads are checked against pinned SHA-256 hashes. |

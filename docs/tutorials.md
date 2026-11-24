@@ -184,7 +184,7 @@ The Files page works only inside the current instance's root directory; it isn't
 
 ### Backup
 
-To back up only one server's world and files, use the **Backups** tab on the instance page: backup and restore take one click, even while the server is running, and **Back Up Automatically** makes a backup every day and keeps the newest few. See [User Guide - Backups](user-guide.md#backups). To back up the whole panel, including accounts and instance settings, follow the rest of this section.
+To back up only one server's world and files, use the **Backups** tab on the instance page: backup and restore take one click, even while the server is running, and **Scheduled Backups** makes a backup every day and keeps the newest few. See [User Guide - Backups](user-guide.md#backups). To back up the whole panel, including accounts and instance settings, follow the rest of this section.
 
 First stop all Minecraft instances normally, then stop the panel through the manager you use and confirm it has exited. Only then copy the data: copying world files or the SQLite database while they're in use can give you an inconsistent backup.
 
