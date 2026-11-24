@@ -21,6 +21,10 @@ export const LAN_MESSAGES = {
   'server.lan.exited': 'The virtual LAN client stopped.',
   'server.lan.needsAdmin': 'The virtual adapter needs an administrator. Start the panel as administrator and try again.',
   'server.lan.needsAdminWindows': 'The virtual adapter needs administrator rights. On the computer running the panel, right-click mdash.cmd, choose Run as administrator, choose Restart the panel, then start the server again.',
+  'server.lan.adminRestartUnavailable': 'The panel can be restarted as administrator in one click only from a browser on the computer running it, with the panel started by mdash.cmd under an administrator account.',
+  'server.lan.adminRestartBusy': 'A restart as administrator is already waiting for confirmation on the computer running the panel.',
+  'server.lan.adminRestartCancelled': 'Administrator rights were not granted, so the panel was not restarted.',
+  'server.lan.adminRestartFailed': 'The administrator window could not be opened. Right-click mdash.cmd, choose Run as administrator, then choose Restart the panel.',
   'server.lan.waitingForAddress': 'The virtual LAN is waiting for its address. Players cannot join until this finishes.',
   'server.lan.addressMismatch': 'The virtual LAN came up on an unexpected address and was left closed.',
 } as const;

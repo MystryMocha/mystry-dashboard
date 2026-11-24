@@ -233,18 +233,32 @@ export class ProcessManager extends EventEmitter {
     await Promise.allSettled([...this.operationTails.values()]);
     const instanceIds = [...this.processes.keys()];
     const errors: string[] = [];
-    const stillStopping: string[] = [];
+    const pending: string[] = [];
     for (const instanceId of instanceIds) {
       try {
         await this.stop(instanceId);
       } catch (error) {
         if (isInstanceStopPendingError(error)) {
-          stillStopping.push(instanceId);
+          pending.push(instanceId);
           continue;
         }
         errors.push(`${instanceId}: ${errorMessage(error)}`);
       }
     }
+    // A stop that reaches a server while it is still loading can be lost (Paper has failed the command right as it finished starting),
+    // so the servers still running get it once more before the panel gives up on them.
+    for (const instanceId of pending) {
+      if (!this.processes.has(instanceId)) continue;
+      try {
+        await this.stop(instanceId);
+      } catch (error) {
+        if (!isInstanceStopPendingError(error) && this.processes.has(instanceId)) {
+          errors.push(`${instanceId}: ${errorMessage(error)}`);
+        }
+      }
+    }
+    // Whatever still has a process, for whatever reason, is still running: the caller must not hand the data directory to another panel.
+    const stillStopping = instanceIds.filter((instanceId) => this.processes.has(instanceId));
     return { attempted: instanceIds.length, errors, stillStopping };
   }
 

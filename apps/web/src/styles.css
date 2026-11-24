@@ -2532,8 +2532,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 /* The master switch is the starting point of this page: the heading goes up one size, the status follows the heading, and the switch stays on the right without wrapping. */
 .multiplayer-open-row { align-items: center; flex-wrap: nowrap; cursor: pointer; }
 .multiplayer-open-row .list-row-text { flex: 1 1 0; }
+/* A requirement row above it (administrator rights) has the same shape, with its button in the switch's column. A button label is far wider than a switch
+   (the English and Traditional Chinese ones especially), so on a phone it drops under the text instead of squeezing the text into a narrow column. */
+.multiplayer-admin-row .list-row-text { flex: 1 1 13em; }
 .multiplayer-open-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-.multiplayer-open .list-row-title { font-size: var(--text-headline); font-weight: 600; }
+.multiplayer-open .list-row-title,
+.multiplayer-admin .list-row-title { font-size: var(--text-headline); font-weight: 600; }
 /* The heading line of "let players join" follows right below, so the switch's own bottom border is not repeated. */
 .page .multiplayer-open:not(dialog *) { border-bottom: 0; }
 /* Let players join: the numbering is the real order, one sentence per step, with buttons and addresses under that step. */

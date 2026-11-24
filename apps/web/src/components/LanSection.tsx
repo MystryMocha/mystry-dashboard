@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { TriangleAlert } from 'lucide-react';
 import { LAN_CUSTOM_PEER_LIMIT, type InstanceLan, type LanRuntimeInfo, type LanStatus } from '@mystry/shared';
+import { ConfirmDialog } from './ConfirmDialog';
 import { StatusPill, type StatusTone } from './StatusPill';
 import { RuntimeInstallCallout } from './RuntimeArchiveUpload';
 import { FlashNote, JoinAddressStep, JoinSteps, MultiplayerLayout, OpenSwitch, useFlash, type GuideControl } from './MultiplayerLayout';
@@ -9,7 +10,10 @@ import {
   getInstanceLan,
   getLanRuntime,
   installLanRuntime,
+  panelProcessFingerprint,
+  restartLanAsAdmin,
   saveInstanceLan,
+  setLanStartAsAdmin,
   uploadLanRuntime,
 } from '../api';
 import { copyText } from '../clipboard';
@@ -25,6 +29,11 @@ const STATUS_KEY: Record<LanStatus, MessageKey> = {
   running: 'multiplayer.status.running',
   error: 'multiplayer.status.error',
 };
+
+/** How long a restart as administrator may take before the page points at the administrator window (a source build may rebuild first). */
+const ADMIN_RESTART_SLOW_MS = 3 * 60_000;
+
+type AdminRestartPhase = 'idle' | 'waiting' | 'restarting';
 
 function statusTone(status: LanStatus): StatusTone {
   if (status === 'running') return 'running';
@@ -60,6 +69,15 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
   // Relay peers the user has edited are not overwritten by polling results, and follow the server again only after saving.
   const peersTouched = useRef(false);
   const relayInitialized = useRef(false);
+  const [startAsAdmin, setStartAsAdmin] = useState(true);
+  const [adminConfirmOpen, setAdminConfirmOpen] = useState(false);
+  const [adminPhase, setAdminPhase] = useState<AdminRestartPhase>('idle');
+  const [adminSlow, setAdminSlow] = useState(false);
+  // Read by the polling callback, which must stay quiet while the panel is down for its restart.
+  const adminPhaseRef = useRef<AdminRestartPhase>('idle');
+  adminPhaseRef.current = adminPhase;
+  // The process answering before the restart; null when it could not be read, in which case a gap with no panel is waited for instead.
+  const restartFrom = useRef<string | null>(null);
 
   const apply = useCallback((next: InstanceLan) => {
     setLan(next);
@@ -86,8 +104,31 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
   }, [apply, instanceId]);
 
   const refresh = useCallback(() => {
+    if (adminPhaseRef.current === 'restarting') return;
     void load().catch((err: unknown) => setError(errorMessage(err)));
   }, [load]);
+
+  // The old panel stops and a new, elevated one starts in its place. A new process fingerprint means it is back, and reloading picks up
+  // the new process everywhere on the page, not just here.
+  useEffect(() => {
+    if (adminPhase !== 'restarting') return;
+    let stopped = false;
+    let sawDown = false;
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      void panelProcessFingerprint().then((current) => {
+        if (stopped) return;
+        if (current === null) sawDown = true;
+        const back = current !== null && (restartFrom.current !== null ? current !== restartFrom.current : sawDown);
+        if (back) window.location.reload();
+        else if (Date.now() - started > ADMIN_RESTART_SLOW_MS) setAdminSlow(true);
+      });
+    }, 2000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [adminPhase]);
 
   usePolling(refresh, lan?.status === 'starting' ? 2000 : 5000);
 
@@ -156,6 +197,36 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
     }
   }
 
+  async function restartAsAdmin() {
+    setBusy(true);
+    setNotice('');
+    setAdminPhase('waiting');
+    try {
+      restartFrom.current = await panelProcessFingerprint();
+      // Resolves only once the prompt on the computer running the panel has been answered.
+      await restartLanAsAdmin(startAsAdmin);
+      setError('');
+      setAdminPhase('restarting');
+    } catch (err) {
+      setError(errorMessage(err));
+      setAdminPhase('idle');
+      setBusy(false);
+    }
+  }
+
+  async function stopStartAsAdmin() {
+    setBusy(true);
+    try {
+      setRuntime(await setLanStartAsAdmin(false));
+      setNotice(t('multiplayer.lan.admin.stopped'));
+      setError('');
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function friendText(): Promise<string> {
     return fetchFriendLanInstructions(instanceId);
   }
@@ -206,19 +277,84 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
         <li>{t('multiplayer.lan.firewall')}</li>
         <li>{t('multiplayer.guide.lan.relay')}</li>
       </ul>
+      {/* With the one-click restart this is said in its confirmation; the manual steps have none, so it is said here. */}
+      {needsAdmin && !runtime?.adminRestart && (
+        <>
+          <h3>{t('multiplayer.guide.lan.admin')}</h3>
+          <ul>
+            <li>{t('multiplayer.lan.admin.risk')}</li>
+          </ul>
+        </>
+      )}
     </>
   );
+
+  // A requirement that stays until it is met, so it is a row like the switch it unlocks rather than a warning above the page.
+  // With it showing, the switch's own description says only what players need, not the same thing again.
+  const adminRestarting = adminPhase === 'restarting';
+  // Once granted the row stays: a restart confirmed days ago is forgotten, while the servers keep running with the panel's rights.
+  // The pill is the neutral one, since nothing is left to do and running elevated is not a healthy state to show in green.
+  const adminRow = runtime?.runsAsAdmin ? (
+    <div className="list-row multiplayer-admin-row">
+      <span className="list-row-text">
+        <span className="multiplayer-open-title">
+          <span className="list-row-title">{t('multiplayer.lan.admin.title')}</span>
+          <StatusPill tone="stopped">{t('multiplayer.lan.admin.statusGranted')}</StatusPill>
+        </span>
+        <span className="list-row-desc">{t('multiplayer.lan.admin.granted')}</span>
+      </span>
+    </div>
+  ) : needsAdmin ? (
+    <div className="list-row multiplayer-admin-row">
+      <span className="list-row-text">
+        <span className="multiplayer-open-title">
+          <span className="list-row-title">{t('multiplayer.lan.admin.title')}</span>
+          <StatusPill tone={adminRestarting ? 'starting' : 'warning'}>
+            {t(adminRestarting ? 'multiplayer.lan.admin.statusRestarting' : 'multiplayer.lan.admin.statusMissing')}
+          </StatusPill>
+        </span>
+        <span className="list-row-desc" role="status">
+          {t(!adminRestarting ? 'multiplayer.lan.admin.needed' : adminSlow ? 'multiplayer.lan.admin.slow' : 'multiplayer.lan.admin.restarting')}
+        </span>
+        {!runtime?.adminRestart && <span className="list-row-desc">{t('multiplayer.lan.admin.manual')}</span>}
+      </span>
+      {/* Offered only to a browser on the computer running the panel: the Windows prompt appears on that screen. */}
+      {runtime?.adminRestart && !adminRestarting && (
+        <button className="btn btn-sm btn-tinted" type="button" disabled={busy} onClick={() => setAdminConfirmOpen(true)}>
+          {adminPhase === 'waiting' ? t('multiplayer.lan.admin.waiting') : t('multiplayer.lan.admin.restart')}
+        </button>
+      )}
+    </div>
+  ) : null;
 
   return (
     <MultiplayerLayout guide={guideContent} control={guide}>
       <p className="section-lead">{t('multiplayer.lan.intro')}</p>
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
       {notice && <p className="callout" role="status">{notice}</p>}
-      {needsAdmin && (
-        <div className="callout callout-warning" role="status">
-          <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
-          <p>{t('multiplayer.lan.adminRequired')}</p>
-        </div>
+      {/* Until EasyTier is installed there is no switch to sit above, so the row stands on its own, ahead of the download. */}
+      {adminRow && !(lan && ready) && <div className="list-group multiplayer-admin">{adminRow}</div>}
+      {runtime?.adminRestart && (
+        <ConfirmDialog
+          open={adminConfirmOpen}
+          title={t('multiplayer.lan.admin.confirmTitle')}
+          confirmLabel={t('multiplayer.lan.admin.confirm')}
+          description={(
+            <>
+              <p>{t('multiplayer.lan.admin.stops')}</p>
+              <p>{t('multiplayer.lan.admin.risk')}</p>
+              <label className="checkbox-field">
+                <input type="checkbox" checked={startAsAdmin} onChange={(event) => setStartAsAdmin(event.target.checked)} />
+                <span>{t('multiplayer.lan.admin.remember')}</span>
+              </label>
+            </>
+          )}
+          onConfirm={() => {
+            setAdminConfirmOpen(false);
+            void restartAsAdmin();
+          }}
+          onCancel={() => setAdminConfirmOpen(false)}
+        />
       )}
       {runtime && !runtime.platformSupported && (
         <p className="callout callout-danger" role="alert">{t('multiplayer.lan.runtime.unsupported')}</p>
@@ -241,7 +377,8 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
           checked={lan.enabled}
           disabled={busy}
           status={lan.status !== 'disabled' && <StatusPill tone={statusTone(lan.status)}>{t(STATUS_KEY[lan.status])}</StatusPill>}
-          description={t('multiplayer.lan.admin')}
+          description={t(adminRow ? 'multiplayer.lan.admin.players' : 'multiplayer.lan.admin')}
+          before={adminRow}
           onChange={(next) => void toggle(next)}
         />
       )}
@@ -330,6 +467,12 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
         </details>
       )}
 
+      {runtime?.startAsAdmin && (
+        <p className="field-help">
+          {t('multiplayer.lan.admin.startsAsAdmin')}{' '}
+          <button className="link-button" type="button" disabled={busy} onClick={() => void stopStartAsAdmin()}>{t('multiplayer.lan.admin.stopAuto')}</button>
+        </p>
+      )}
       {lan && (installed || (lan.listenPort && lan.status === 'running')) && (
         <div className="instance-meta multiplayer-meta">
           {lan.listenPort && lan.status === 'running' && <span>{t('multiplayer.lan.direct', { port: lan.listenPort })}</span>}

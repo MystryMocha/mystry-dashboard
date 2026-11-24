@@ -298,6 +298,22 @@ export const updateInstanceTunnelBodySchema = {
   },
 } as const;
 
+/** POST /api/lan/admin-restart */
+export const lanAdminRestartBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['startAsAdmin'],
+  properties: { startAsAdmin: { type: 'boolean' } },
+} as const;
+
+/** PUT /api/lan/admin-start */
+export const lanAdminStartBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['enabled'],
+  properties: { enabled: { type: 'boolean' } },
+} as const;
+
 /** PUT /api/instances/:id/lan */
 export const updateInstanceLanBodySchema = {
   type: 'object',

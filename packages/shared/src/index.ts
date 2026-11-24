@@ -16,6 +16,8 @@ export type {
 export type {
   InstanceLan,
   InstanceLanInput,
+  LanAdminRestartInput,
+  LanAdminStartInput,
   LanRuntimeInfo,
   LanStatus,
 } from './lan.js';
@@ -602,6 +604,8 @@ export {
   updateFrpEndpointBodySchema,
   updateInstanceTunnelBodySchema,
   updateInstanceLanBodySchema,
+  lanAdminRestartBodySchema,
+  lanAdminStartBodySchema,
   updateAccessModeBodySchema,
   updatePanelNetworkBodySchema,
   updatePublicHostBodySchema,

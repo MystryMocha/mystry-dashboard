@@ -782,6 +782,14 @@ const server = http.createServer((req, res) => {
   } else if (req.url === '/__log') {
     process.stdout.write(process.env.FAKE_PANEL_WATCH_LINES);
     res.end('{}');
+  } else if (req.url === '/api/launcher/shutdown' && req.method === 'POST' && process.env.FAKE_PANEL_STUCK) {
+    // Like a panel whose Minecraft server ignored stop: it stops answering but stays alive and keeps the data directory lock.
+    res.end(JSON.stringify({ runningInstances: 1, runningTasks: 0, queuedTasks: 0 }), () => {
+      // The real panel drops kept-alive connections as well; without this the launcher's pooled one would still be answered.
+      server.close();
+      server.closeAllConnections();
+      setInterval(() => {}, 1000);
+    });
   } else if (req.url === '/api/launcher/shutdown' && req.method === 'POST') {
     res.end('{}', () => setTimeout(() => process.exit(0), 300));
   } else if (req.url === '/api/auth/setup' && process.env.FAKE_PANEL_SETUP_LOG) {
@@ -823,6 +831,14 @@ const server = http.createServer((req, res) => {
   }
 });
 server.listen(Number(process.env.PORT), '127.0.0.1');
+if (process.env.FAKE_PANEL_DATA_LOCK) {
+  const lockDir = process.env.MYSTRY_DATA_DIR + '/.mystry-panel-lock';
+  fs.mkdirSync(lockDir, { recursive: true });
+  fs.writeFileSync(lockDir + '/owner.json', JSON.stringify({ pid: process.pid, fingerprint, version: 'test', createdAt: new Date().toISOString() }));
+  process.on('exit', () => fs.rmSync(lockDir, { recursive: true, force: true }));
+}
+// What the launcher told the panel about reopening it for the one-click restart as administrator.
+if (process.env.FAKE_PANEL_ENV_LOG) fs.writeFileSync(process.env.FAKE_PANEL_ENV_LOG, JSON.stringify({ launcher: process.env.MYSTRY_LAUNCHER ?? null }));
 if (process.env.FAKE_PANEL_LOG_LINES) process.stdout.write(process.env.FAKE_PANEL_LOG_LINES);
 let closing = false;
 process.on('SIGINT', () => {
@@ -1136,6 +1152,369 @@ test('closing the window after a double-click start does not affect the backgrou
   assert.match(second.output, /面板已停止/);
   assert.equal(await health(), false);
   assert.equal(fs.existsSync(path.join(home, 'data', 'launcher', 'state.json')), false);
+});
+
+/** A portable-style home whose server entry is the fake panel, and the environment to run the controller in it. */
+async function fakePanelHome(t, prefix, extraEnv = {}) {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), prefix));
+  // One hook, in this order even when the test failed halfway: the fake panel runs in the home directory, so Windows cannot remove it
+  // while the panel is alive, and a failed removal would skip any hook after it.
+  t.after(async () => {
+    const pid = statePid();
+    if (pid) {
+      try {
+        process.kill(pid);
+      } catch {
+        // Already gone.
+      }
+    }
+    await fsp.rm(home, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  });
+  const fakeBin = path.join(home, 'bin');
+  await fsp.mkdir(path.join(home, 'apps', 'server', 'dist'), { recursive: true });
+  await fsp.writeFile(path.join(home, 'apps', 'server', 'dist', 'index.js'), FAKE_PANEL_SOURCE, 'utf8');
+  await fsp.mkdir(fakeBin);
+  await fsp.writeFile(path.join(fakeBin, 'java'), '#!/bin/sh\necho \'openjdk version "21"\' >&2\n', { mode: 0o755 });
+  const port = await reservePort();
+  const env = {
+    ...(process.platform === 'win32' ? process.env : { PATH: fakeBin }),
+    MYSTRY_HOME: home,
+    MYSTRY_CONFIG_PATH: path.join(home, 'config', 'panel.env'),
+    MYSTRY_DATA_DIR: path.join(home, 'data'),
+    MYSTRY_LANG: 'zh-CN',
+    MYSTRY_NO_BROWSER: '1',
+    PORT: String(port),
+    FAKE_PANEL_MARKER: path.join(home, 'panel-signals.log'),
+    ...extraEnv,
+  };
+  for (const name of ['SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY', 'HOST', 'DATA_DIR']) delete env[name];
+  const health = async () => (await fetch(`http://127.0.0.1:${port}/api/health`).catch(() => null))?.ok === true;
+  t.after(async () => { if (await health()) await fetch(`http://127.0.0.1:${port}/__exit`).catch(() => {}); });
+  const statePid = () => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(home, 'data', 'launcher', 'state.json'), 'utf8')).pid;
+    } catch {
+      return null;
+    }
+  };
+  return { home, env, health, statePid };
+}
+
+test('a restart starts no second panel while the old one still waits for a Minecraft server, and start and status say why', { timeout: 60_000 }, async (t) => {
+  const { env, statePid } = await fakePanelHome(t, 'mystry-ctl-stuck-', {
+    FAKE_PANEL_DATA_LOCK: '1',
+    FAKE_PANEL_STUCK: '1',
+    // Long enough to outlast the panel's moment of holding the lock after a stop, with Windows taking about 2 seconds to refuse each health check.
+    MYSTRY_TEST_STOP_TIMEOUT_MS: '10000',
+  });
+  const started = await runController('start', env);
+  assert.equal(started.code, 0, started.output);
+  const oldPid = statePid();
+
+  const restart = await runController('restart', env);
+  assert.equal(restart.code, 1, restart.output);
+  assert.match(restart.output, /正在等它启动的 Minecraft 服务器退出/);
+  assert.match(restart.output, new RegExp(`面板进程（PID ${oldPid}）已经不再响应.*不会再启动一个面板`));
+  assert.doesNotMatch(restart.output, /面板已启动/);
+  assert.equal(statePid(), oldPid);
+
+  // Refused at once, not after the panel's 60-second wait for a data directory it cannot take.
+  const startedAt = Date.now();
+  const start = await runController('start', env);
+  assert.equal(start.code, 1, start.output);
+  assert.match(start.output, new RegExp(`面板进程（PID ${oldPid}）已经不再响应`));
+  assert.ok(Date.now() - startedAt < 15_000, start.output);
+
+  const status = await runController('status', env);
+  assert.match(status.output, new RegExp(`状态：正在关闭（PID ${oldPid}）`));
+
+  process.kill(oldPid);
+  const deadline = Date.now() + 10_000;
+  while ((await runController('status', env)).output.includes('正在关闭')) {
+    if (Date.now() > deadline) assert.fail('the lock of an ended panel process still counts');
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+});
+
+test('the window from a double-click keeps showing the panel after a restart from another window, and Ctrl+C still stops it', { timeout: 60_000 }, async (t) => {
+  const time = Date.now();
+  const { home, env, health } = await fakePanelHome(t, 'mystry-ctl-watch-restart-', {
+    FAKE_PANEL_LOG_LINES: `${JSON.stringify({ level: 30, time, msg: 'fake panel up' })}\n`,
+  });
+  const preload = path.join(home, 'force-raw-tty.mjs');
+  await fsp.writeFile(preload, `
+    Object.defineProperty(process.stdin, 'isTTY', { value: true });
+    process.stdin.setRawMode = () => process.stdin;
+  `, 'utf8');
+  const child = spawn(process.execPath, ['--import', pathToFileURL(preload).href, path.join(scriptDir, 'mdash.mjs')], {
+    env,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => { output += chunk; });
+  child.stderr.on('data', (chunk) => { output += chunk; });
+  const exited = new Promise((resolve) => child.on('close', resolve));
+  t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
+  const waitFor = async (expected) => {
+    const deadline = Date.now() + 20_000;
+    while (!output.includes(expected)) {
+      if (Date.now() > deadline) assert.fail(`等待输出「${expected}」超时：\n${output}`);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  };
+  await waitFor('按 Ctrl+C 安全停止');
+
+  const restart = await runController('restart', env);
+  assert.equal(restart.code, 0, restart.output);
+  await waitFor('面板已在另一个窗口中重启');
+  // Read from the new log file from its first line, although it replaced the old one under the same name.
+  await waitFor('INFO  fake panel up');
+  assert.doesNotMatch(output, /面板已经停止/);
+  assert.equal(output.split('fake panel up').length - 1, 1, output);
+
+  child.stdin.write('\u0003');
+  assert.equal(await exited, 0, output);
+  assert.match(output, /面板已停止/);
+  assert.equal(await health(), false);
+});
+
+const WINDOWS_ONLY = process.platform === 'win32' ? false : 'starting the panel as administrator exists only on Windows';
+
+/**
+ * Stands in for whoami.exe and for the PowerShell that would open the administrator window, so no test reads the real token or opens a
+ * real Windows prompt; the browser the launcher would open is recorded instead too. Loaded with --import ahead of mdash.mjs:
+ * syncBuiltinESMExports carries the replacements over to the launcher's named imports from node:child_process.
+ */
+const FAKE_ELEVATION_PRELOAD = String.raw`
+import fs from 'node:fs';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
+const require = createRequire(import.meta.url);
+const childProcess = require('node:child_process');
+const { spawn, spawnSync } = childProcess;
+const record = (entry) => fs.appendFileSync(process.env.FAKE_ELEVATION_LOG, JSON.stringify(entry) + '\n');
+const program = (command) => String(command).split(/[\\/]/).pop().toLowerCase();
+const LABELS = {
+  medium: '"Mandatory Label\\Medium Mandatory Level","Label","S-1-16-8192",""\r\n',
+  high: '"Mandatory Label\\High Mandatory Level","Label","S-1-16-12288",""\r\n',
+};
+childProcess.spawnSync = (command, args, options) => {
+  if (program(command) === 'whoami.exe') {
+    record({ call: 'whoami' });
+    const label = LABELS[process.env.FAKE_WHOAMI];
+    return label ? { status: 0, stdout: label, stderr: '' } : { status: 1, stdout: '', stderr: 'whoami failed' };
+  }
+  if (program(command) === 'powershell.exe') {
+    record({ call: 'elevate', args: options?.env?.MYSTRY_ELEVATE_ARGS });
+    return { status: Number(process.env.FAKE_ELEVATE_EXIT), stdout: '', stderr: '' };
+  }
+  return spawnSync(command, args, options);
+};
+childProcess.spawn = (command, args, options) => {
+  if (program(command) !== 'explorer.exe') return spawn(command, args, options);
+  record({ call: 'browser', url: args[0] });
+  return { unref() {} };
+};
+syncBuiltinESMExports();
+`;
+
+/**
+ * A source-layout home set up the way a bare mdash.cmd finds it (the default .env and data directory), with the fake elevation loaded.
+ * Its mdash.cmd only records the arguments it gets. whoami answers medium (an unelevated administrator) and the prompt opens unless told otherwise.
+ */
+async function elevationHome(t, prefix, { startAsAdmin = true } = {}) {
+  const panel = await fakePanelHome(t, prefix);
+  const { home, env } = panel;
+  const launcher = path.join(home, 'mdash.cmd');
+  await fsp.writeFile(launcher, '@echo off\r\n>"%~dp0launcher-args.txt" echo %*\r\n', 'utf8');
+  const preload = path.join(home, 'fake-elevation.mjs');
+  await fsp.writeFile(preload, FAKE_ELEVATION_PRELOAD, 'utf8');
+  const log = path.join(home, 'elevation.log');
+  const panelEnvLog = path.join(home, 'panel-env.json');
+  Object.assign(env, {
+    MYSTRY_CONFIG_PATH: path.join(home, '.env'),
+    FAKE_ELEVATION_LOG: log,
+    FAKE_PANEL_ENV_LOG: panelEnvLog,
+    FAKE_WHOAMI: 'medium',
+    FAKE_ELEVATE_EXIT: '0',
+  });
+  const adminPrefs = path.join(home, 'data', 'launcher', 'admin.json');
+  const writePrefs = async (prefs, file = adminPrefs) => {
+    await fsp.mkdir(path.dirname(file), { recursive: true });
+    await fsp.writeFile(file, JSON.stringify({ version: 1, ...prefs }));
+  };
+  if (startAsAdmin) await writePrefs({ startAsAdmin: true });
+  return {
+    ...panel,
+    launcher,
+    adminPrefs,
+    writePrefs,
+    calls: (kind) => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : [])
+      .map((line) => JSON.parse(line))
+      .filter((entry) => entry.call === kind),
+    run: (command, overrides = {}) => runController(command, { ...env, ...overrides }, ['--import', pathToFileURL(preload).href]),
+    /** MYSTRY_LAUNCHER as the panel started last got it. */
+    panelLauncher: () => JSON.parse(fs.readFileSync(panelEnvLog, 'utf8')).launcher,
+  };
+}
+
+test('with starting as administrator chosen, an unelevated launcher hands the command to an administrator window and starts nothing itself', { skip: WINDOWS_ONLY, timeout: 120_000 }, async (t) => {
+  // Spaces and parentheses, as under C:\Program Files (x86): the path has to reach cmd.exe intact.
+  const panel = await elevationHome(t, 'mystry ctl (x86) elevate-');
+  // Every command that starts the panel is handed over whole, watch (what a portable double-click runs) included.
+  for (const command of ['start', 'watch', 'foreground']) {
+    const handed = await panel.run(command);
+    assert.equal(handed.code, 0, `${command}\n${handed.output}`);
+    assert.match(handed.output, /请在 Windows 弹出的确认框中点「是」/, command);
+    assert.match(handed.output, /已在管理员窗口中继续/, command);
+    assert.equal(panel.calls('elevate').at(-1).args, `/c ""${panel.launcher}" ${command} || pause"`);
+  }
+  assert.equal(await panel.health(), false);
+  assert.equal(panel.statePid(), null);
+  const [elevated] = panel.calls('elevate');
+
+  // The same arguments through a real cmd.exe, without elevation: the launcher gets exactly the command, and the window closes on success.
+  const cmd = spawnSync(process.env.ComSpec, [elevated.args], { windowsVerbatimArguments: true, stdio: 'ignore', timeout: 10_000 });
+  assert.equal(cmd.status, 0);
+  assert.equal(fs.readFileSync(path.join(panel.home, 'launcher-args.txt'), 'utf8').trim(), 'start');
+
+  // A declined prompt starts the panel without the rights, as before the choice was made, and tells it which launcher it can reopen.
+  const declined = await panel.run('start', { FAKE_ELEVATE_EXIT: '2' });
+  assert.equal(declined.code, 0, declined.output);
+  assert.match(declined.output, /没有获得管理员权限，这次以普通身份启动/);
+  assert.equal(await panel.health(), true);
+  assert.equal(panel.panelLauncher(), panel.launcher);
+  // A window Windows could not open is treated the same way.
+  assert.equal((await panel.run('stop')).code, 0);
+  const failed = await panel.run('start', { FAKE_ELEVATE_EXIT: '1' });
+  assert.equal(failed.code, 0, failed.output);
+  assert.match(failed.output, /没有获得管理员权限，这次以普通身份启动/);
+  assert.equal(await panel.health(), true);
+
+  // Nothing would start, so start asks nothing; status never asks.
+  const again = await panel.run('start');
+  assert.equal(again.code, 0, again.output);
+  assert.match(again.output, /面板已经在运行/);
+  assert.equal((await panel.run('status')).code, 0);
+  assert.equal(panel.calls('elevate').length, 5);
+
+  // restart asks before anything is stopped, so the running panel is left for the administrator window to restart.
+  const pid = panel.statePid();
+  const restart = await panel.run('restart');
+  assert.equal(restart.code, 0, restart.output);
+  assert.equal(panel.calls('elevate').at(-1).args, `/c ""${panel.launcher}" restart || pause"`);
+  assert.equal(panel.statePid(), pid);
+  assert.equal(await panel.health(), true);
+
+  const stop = await panel.run('stop');
+  assert.equal(stop.code, 0, stop.output);
+  assert.equal(panel.calls('elevate').length, 6);
+});
+
+test('the launcher asks for nothing when it is already elevated, cannot tell, or starting as administrator was not chosen', { skip: WINDOWS_ONLY, timeout: 120_000 }, async (t) => {
+  const panel = await elevationHome(t, 'mystry-ctl-no-elevation-', { startAsAdmin: false });
+  const cases = [
+    ['not chosen', {}, null],
+    ['already elevated', { FAKE_WHOAMI: 'high' }, { startAsAdmin: true }],
+    // An unknown answer must not reopen windows in a loop.
+    ['whoami failed', { FAKE_WHOAMI: 'fail' }, { startAsAdmin: true }],
+  ];
+  for (const [label, overrides, prefs] of cases) {
+    if (prefs) await panel.writePrefs(prefs);
+    const started = await panel.run('start', overrides);
+    assert.equal(started.code, 0, `${label}\n${started.output}`);
+    assert.doesNotMatch(started.output, /确认框|管理员窗口|没有获得管理员权限/, label);
+    assert.equal(await panel.health(), true, label);
+    const stopped = await panel.run('stop', overrides);
+    assert.equal(stopped.code, 0, `${label}\n${stopped.output}`);
+  }
+  assert.deepEqual(panel.calls('elevate'), []);
+});
+
+test('a launcher that an administrator window would not find the same way starts without asking, and tells the panel there is nothing to reopen', { skip: WINDOWS_ONLY, timeout: 120_000 }, async (t) => {
+  const panel = await elevationHome(t, 'mystry-ctl-no-reopen-');
+  const otherData = path.join(panel.home, 'other-data');
+  await panel.writePrefs({ startAsAdmin: true }, path.join(otherData, 'launcher', 'admin.json'));
+  // cmd.exe would read the & as the start of another command.
+  const ampersand = await elevationHome(t, 'mystry-ctl-a&b-');
+  const cases = [
+    // An elevated window starts from a fresh environment, so a config file or data directory chosen only in this one would be lost.
+    ['config file', panel, { MYSTRY_CONFIG_PATH: path.join(panel.home, 'config', 'panel.env') }],
+    ['data directory', panel, { MYSTRY_DATA_DIR: otherData }],
+    ['& in the path', ampersand, {}],
+  ];
+  for (const [label, home, overrides] of cases) {
+    const started = await home.run('start', overrides);
+    assert.equal(started.code, 0, `${label}\n${started.output}`);
+    assert.match(started.output, /这个启动方式没法自动申请管理员权限，这次以普通身份启动/, label);
+    assert.equal(home.panelLauncher(), '', label);
+    const stopped = await home.run('stop', overrides);
+    assert.equal(stopped.code, 0, `${label}\n${stopped.output}`);
+  }
+  assert.deepEqual([...panel.calls('elevate'), ...ampersand.calls('elevate')], []);
+});
+
+test('a restart the page asked for opens no second browser tab and uses the request up; an old request counts as none', { skip: WINDOWS_ONLY, timeout: 120_000 }, async (t) => {
+  // The page's restart runs in the elevated window, so whoami answers high there.
+  const panel = await elevationHome(t, 'mystry-ctl-page-restart-', { startAsAdmin: false });
+  const withBrowser = { FAKE_WHOAMI: 'high', MYSTRY_NO_BROWSER: '' };
+  await panel.writePrefs({ startAsAdmin: true, panelRestartRequestedAt: new Date().toISOString() });
+  const fromPage = await panel.run('restart', withBrowser);
+  assert.equal(fromPage.code, 0, fromPage.output);
+  assert.equal(await panel.health(), true);
+  // The page reloads itself.
+  assert.deepEqual(panel.calls('browser'), []);
+  // The choice for later starts stays.
+  assert.deepEqual(JSON.parse(fs.readFileSync(panel.adminPrefs, 'utf8')), { startAsAdmin: true, version: 1 });
+
+  // The page that asked this long ago has stopped waiting, so the browser opens as on any start; with nothing left to keep, the file goes.
+  await panel.writePrefs({ panelRestartRequestedAt: new Date(Date.now() - 11 * 60_000).toISOString() });
+  const later = await panel.run('restart', withBrowser);
+  assert.equal(later.code, 0, later.output);
+  assert.equal(panel.calls('browser').length, 1);
+  assert.equal(fs.existsSync(panel.adminPrefs), false);
+
+  const stop = await panel.run('stop');
+  assert.equal(stop.code, 0, stop.output);
+  assert.deepEqual(panel.calls('elevate'), []);
+});
+
+/** ELEVATE_SCRIPT as the given source file builds it. */
+async function elevateScript(file) {
+  const match = /const ELEVATE_SCRIPT = (\[[\s\S]*?\])\.join\(' '\);/.exec(await fsp.readFile(file, 'utf8'));
+  assert.ok(match, file);
+  return new Function(`return ${match[1]}.join(' ');`)();
+}
+
+test('the launcher and the panel open the administrator window with the same script', async () => {
+  assert.equal(
+    await elevateScript(path.join(scriptDir, 'mdash.mjs')),
+    await elevateScript(path.join(scriptDir, '..', '..', 'apps', 'server', 'src', 'services', 'admin-restart.ts')),
+  );
+});
+
+test('the script behind the administrator window exits 1 when Windows cannot open it and 2 when the prompt is declined', { skip: WINDOWS_ONLY, timeout: 60_000 }, async () => {
+  const script = await elevateScript(path.join(scriptDir, 'mdash.mjs'));
+  const powershell = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  // Without PSModulePath, as the launcher and the panel run it: Windows PowerShell 5.1 would otherwise try PowerShell 7's modules.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !['psmodulepath', 'comspec'].includes(name.toLowerCase())));
+  const run = (body, comSpec) => spawnSync(powershell, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', body], {
+    encoding: 'utf8',
+    env: { ...env, ComSpec: comSpec, MYSTRY_ELEVATE_ARGS: '/c exit' },
+    windowsHide: true,
+    timeout: 30_000,
+  });
+
+  // A program that does not exist is refused before Windows would ask anything, so this opens no prompt.
+  const missing = run(script, path.join(os.tmpdir(), 'mystry-no-such-dir', 'cmd.exe'));
+  assert.equal(missing.status, 1, missing.stderr);
+
+  // A declined prompt, the way PowerShell hands it over: the Win32Exception 1223 inside the exception of the method call.
+  // Exit code 2 can only come from the script running, so this also shows that the exit 1 above was not a script PowerShell could not parse.
+  const start = '[Diagnostics.Process]::Start($start) | Out-Null';
+  assert.ok(script.includes(start));
+  const decline = "throw (New-Object Management.Automation.MethodInvocationException 'Start', (New-Object ComponentModel.Win32Exception 1223))";
+  const declined = run(script.replace(start, decline), process.env.ComSpec);
+  assert.equal(declined.status, 2, declined.stderr);
 });
 
 // It must wait for the panel to finish closing on its own and then exit with the panel's exit code. Windows cannot simulate a console Ctrl+C with kill.
