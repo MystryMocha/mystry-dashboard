@@ -263,7 +263,7 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
   let timer: NodeJS.Timeout | null = null;
   let stopped = false;
   let checking = false;
-  /** Per instance, the runs of its current slot that the server cut short. An entry left from an earlier slot counts for nothing. */
+  /** Per instance, the runs of its current slot that the server cut short. An entry for an earlier slot counts for nothing. */
   const interruptedAttempts = new Map<string, { slot: string; count: number }>();
 
   async function queueBackup(row: BackupScheduleRow, slot: string): Promise<void> {
@@ -323,7 +323,12 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
         getDb().prepare('UPDATE instance_backup_schedules SET last_slot = ? WHERE instance_id = ?').run(slot, instanceId);
         continue;
       }
-      if (row.last_slot >= slot) continue;
+      if (row.last_slot >= slot) {
+        // A day can come due a second time, when the time of day is changed or the clock is set back. Its runs are then
+        // counted from the first again.
+        interruptedAttempts.delete(instanceId);
+        continue;
+      }
       // Another copy of files that have not changed would only push an older, different one out of the kept set.
       if (isUnchangedSinceLastBackup(row)) {
         settleSlot(instanceId, slot);
