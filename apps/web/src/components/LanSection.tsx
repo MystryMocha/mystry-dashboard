@@ -193,6 +193,12 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
 
   const installed = Boolean(runtime?.installed);
   const ready = installed || Boolean(lan?.enabled);
+  const needsAdmin = Boolean(runtime?.needsAdmin);
+  // Without administrator rights EasyTier never gets its adapter, and EasyTier only starts with the game, so a stopped server would still look fine.
+  // Until it actually runs, the join steps would only hand players instructions that cannot work.
+  const canInvite = Boolean(lan?.enabled) && lan?.status !== 'error' && !(needsAdmin && lan?.status !== 'running');
+  // The administrator row already says what to do, so the same failure from the client is not repeated below the switch.
+  const detail = lan?.detail && !(needsAdmin && lan.detail.key === 'server.lan.needsAdminWindows') ? lan.detail : null;
   const guideContent = (
     <>
       <h3>{t('multiplayer.guide.troubleshoot')}</h3>
@@ -200,14 +206,52 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
         <li>{t('multiplayer.lan.firewall')}</li>
         <li>{t('multiplayer.guide.lan.relay')}</li>
       </ul>
+      {/* Said before the user follows the restart steps, since nothing else on the page says what running as administrator means. */}
+      {needsAdmin && (
+        <>
+          <h3>{t('multiplayer.guide.lan.admin')}</h3>
+          <ul>
+            <li>{t('multiplayer.lan.admin.risk')}</li>
+          </ul>
+        </>
+      )}
     </>
   );
+
+  // A requirement that stays until it is met, so it is a row like the switch it unlocks rather than a warning above the page.
+  // With it showing, the switch's own description says only what players need, not the same thing again.
+  // Once granted the row stays: a restart done days ago is forgotten, while the servers keep running with the panel's rights.
+  // The pill is the neutral one, since nothing is left to do and running elevated is not a healthy state to show in green.
+  const adminRow = runtime?.runsAsAdmin ? (
+    <div className="list-row multiplayer-admin-row">
+      <span className="list-row-text">
+        <span className="multiplayer-open-title">
+          <span className="list-row-title">{t('multiplayer.lan.admin.title')}</span>
+          <StatusPill tone="stopped">{t('multiplayer.lan.admin.statusGranted')}</StatusPill>
+        </span>
+        <span className="list-row-desc">{t('multiplayer.lan.admin.granted')}</span>
+      </span>
+    </div>
+  ) : needsAdmin ? (
+    <div className="list-row multiplayer-admin-row">
+      <span className="list-row-text">
+        <span className="multiplayer-open-title">
+          <span className="list-row-title">{t('multiplayer.lan.admin.title')}</span>
+          <StatusPill tone="warning">{t('multiplayer.lan.admin.statusMissing')}</StatusPill>
+        </span>
+        <span className="list-row-desc" role="status">{t('multiplayer.lan.admin.needed')}</span>
+        <span className="list-row-desc">{t('multiplayer.lan.admin.manual')}</span>
+      </span>
+    </div>
+  ) : null;
 
   return (
     <MultiplayerLayout guide={guideContent} control={guide}>
       <p className="section-lead">{t('multiplayer.lan.intro')}</p>
       {error && <p className="callout callout-danger" role="alert">{error}</p>}
       {notice && <p className="callout" role="status">{notice}</p>}
+      {/* Until EasyTier is installed there is no switch to sit above, so the row stands on its own, ahead of the download. */}
+      {adminRow && !(lan && ready) && <div className="list-group multiplayer-admin">{adminRow}</div>}
       {runtime && !runtime.platformSupported && (
         <p className="callout callout-danger" role="alert">{t('multiplayer.lan.runtime.unsupported')}</p>
       )}
@@ -229,11 +273,14 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
           checked={lan.enabled}
           disabled={busy}
           status={lan.status !== 'disabled' && <StatusPill tone={statusTone(lan.status)}>{t(STATUS_KEY[lan.status])}</StatusPill>}
-          description={t('multiplayer.lan.admin')}
+          description={t(adminRow ? 'multiplayer.lan.admin.players' : 'multiplayer.lan.admin')}
+          before={adminRow}
           onChange={(next) => void toggle(next)}
         />
       )}
-      {lan?.detail && <p className="callout" role="status">{tm(lan.detail)}</p>}
+      {detail && (lan?.status === 'error'
+        ? <p className="callout callout-danger" role="alert">{tm(detail)}</p>
+        : <p className="callout" role="status">{tm(detail)}</p>)}
       {lan?.warning && (
         <div className="callout callout-warning" role="status">
           <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
@@ -241,7 +288,7 @@ export function LanSection({ instanceId, guide }: { instanceId: string; guide: G
         </div>
       )}
 
-      {lan?.enabled && (
+      {lan && canInvite && (
         <JoinSteps
           steps={[
             <>

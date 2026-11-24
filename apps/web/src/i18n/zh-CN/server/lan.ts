@@ -15,6 +15,7 @@ export default {
   'server.lan.startFailed': '虚拟局域网客户端启动失败',
   'server.lan.exited': '虚拟局域网客户端已停止',
   'server.lan.needsAdmin': '虚拟网卡需要管理员权限。请以管理员身份启动面板后再试',
+  'server.lan.needsAdminWindows': '建虚拟网卡需要管理员权限。在运行面板的电脑上右键 mdash.cmd，选「以管理员身份运行」，再在菜单里选「重启面板」，然后重新启动服务器',
   'server.lan.waitingForAddress': '虚拟局域网还在等待地址。完成之前玩家无法加入',
   'server.lan.addressMismatch': '虚拟局域网得到了意外的地址，已保持关闭',
   'server.lan.uploadMissing': '请选择要上传的 EasyTier 压缩包',
@@ -22,5 +23,5 @@ export default {
   'server.lan.peerInvalid': '中继节点 {peer} 无效。请用 tcp://、udp://、ws://、wss:// 或 quic:// 加主机和端口，例如 tcp://relay.example.com:11010',
   'server.lan.peersRequired': '至少填写一个中继节点，或者保留社区共享节点',
   'server.lan.listenPortUnavailable': '找不到可用于直连的空闲端口。请关闭占用大量端口的程序后再试',
-  'server.lan.firewallFailed': '无法添加虚拟局域网的 Windows 防火墙规则。玩家可能进得了虚拟网却连不上游戏。请以管理员身份启动面板',
+  'server.lan.firewallFailed': '无法添加虚拟局域网的 Windows 防火墙规则。玩家可能进得了虚拟网却连不上游戏。在运行面板的电脑上右键 mdash.cmd，选「以管理员身份运行」，再在菜单里选「重启面板」，然后重新启动服务器',
 } as const;

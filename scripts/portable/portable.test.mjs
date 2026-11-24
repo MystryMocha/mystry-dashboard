@@ -1234,6 +1234,72 @@ test('a restart starts no second panel while the old one still waits for a Minec
   }
 });
 
+test('a manager lock left behind whose PID now belongs to a process mdash may not signal does not block the next command', async (t) => {
+  // System (4) on Windows and init (1) elsewhere refuse signals from an ordinary user, like a system process that got the PID after a reboot.
+  const foreignPid = process.platform === 'win32' ? 4 : 1;
+  try {
+    process.kill(foreignPid, 0);
+    t.skip(`PID ${foreignPid} can be signalled from this account`);
+    return;
+  } catch (error) {
+    if (error?.code !== 'EPERM') {
+      t.skip(`PID ${foreignPid} gives ${error?.code}, not EPERM`);
+      return;
+    }
+  }
+  const { home, env } = await fakePanelHome(t, 'mystry-ctl-stale-lock-');
+  const lock = path.join(home, 'data', 'launcher', 'mystryctl.lock');
+  await fsp.mkdir(path.dirname(lock), { recursive: true });
+  await fsp.writeFile(lock, `${foreignPid}\n`, 'utf8');
+
+  const stop = await runController('stop', env);
+  assert.doesNotMatch(stop.output, /另一个 .* 正在运行/);
+  assert.equal(stop.code, 0, stop.output);
+  assert.equal(fs.existsSync(lock), false);
+});
+
+test('the window from a double-click keeps showing the panel after a restart from another window, and Ctrl+C still stops it', { timeout: 60_000 }, async (t) => {
+  const time = Date.now();
+  const { home, env, health } = await fakePanelHome(t, 'mystry-ctl-watch-restart-', {
+    FAKE_PANEL_LOG_LINES: `${JSON.stringify({ level: 30, time, msg: 'fake panel up' })}\n`,
+  });
+  const preload = path.join(home, 'force-raw-tty.mjs');
+  await fsp.writeFile(preload, `
+    Object.defineProperty(process.stdin, 'isTTY', { value: true });
+    process.stdin.setRawMode = () => process.stdin;
+  `, 'utf8');
+  const child = spawn(process.execPath, ['--import', pathToFileURL(preload).href, path.join(scriptDir, 'mdash.mjs')], {
+    env,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => { output += chunk; });
+  child.stderr.on('data', (chunk) => { output += chunk; });
+  const exited = new Promise((resolve) => child.on('close', resolve));
+  t.after(() => { if (child.exitCode === null) child.kill('SIGKILL'); });
+  const waitFor = async (expected) => {
+    const deadline = Date.now() + 20_000;
+    while (!output.includes(expected)) {
+      if (Date.now() > deadline) assert.fail(`等待输出「${expected}」超时：\n${output}`);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  };
+  await waitFor('按 Ctrl+C 安全停止');
+
+  const restart = await runController('restart', env);
+  assert.equal(restart.code, 0, restart.output);
+  await waitFor('面板已在另一个窗口中重启');
+  // Read from the new log file from its first line, although it replaced the old one under the same name.
+  await waitFor('INFO  fake panel up');
+  assert.doesNotMatch(output, /面板已经停止/);
+  assert.equal(output.split('fake panel up').length - 1, 1, output);
+
+  child.stdin.write('\u0003');
+  assert.equal(await exited, 0, output);
+  assert.match(output, /面板已停止/);
+  assert.equal(await health(), false);
+});
+
 // It must wait for the panel to finish closing on its own and then exit with the panel's exit code. Windows cannot simulate a console Ctrl+C with kill.
 test('pressing Ctrl+C twice in foreground mode still waits for the panel to shut down safely', {
   timeout: 60_000,

@@ -35,12 +35,15 @@ export function OpenSwitch({
   disabled,
   status,
   description,
+  before,
   onChange,
 }: {
   checked: boolean;
   disabled: boolean;
   status?: ReactNode;
   description?: string;
+  /** Rows for what has to be in place before the switch can work (administrator rights), listed above it in the same group. */
+  before?: ReactNode;
   onChange: (next: boolean) => void;
 }) {
   const { t } = useI18n();
@@ -48,6 +51,7 @@ export function OpenSwitch({
   const descId = useId();
   return (
     <div className="list-group multiplayer-open">
+      {before}
       <label className="list-row multiplayer-open-row">
         <span className="list-row-text">
           <span className="multiplayer-open-title">

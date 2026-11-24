@@ -24,13 +24,19 @@ import {
   lanInstalled,
   lanPlatformSupported,
 } from '../services/lan-runtime.js';
+import { windowsPanelElevated } from '../services/windows-elevation.js';
 
-function runtimeInfo(): LanRuntimeInfo {
+async function runtimeInfo(): Promise<LanRuntimeInfo> {
+  const elevated = await windowsPanelElevated();
   return {
     version: EASYTIER_VERSION,
     installed: lanInstalled(),
     platformSupported: lanPlatformSupported(),
     archive: lanArchiveInfo(),
+    // Reported before the client is downloaded or the switch is turned on, so the user restarts the panel first instead of finding out from a failure.
+    needsAdmin: elevated === false,
+    // Java is spawned with the panel's own token, so every server and its plugins and mods are elevated too; the page keeps saying so while it holds.
+    runsAsAdmin: elevated === true,
   };
 }
 
@@ -44,7 +50,7 @@ export async function lanRoutes(app: FastifyInstance): Promise<void> {
     try {
       await ensureLanInstalled();
       await syncEnabledLans();
-      return runtimeInfo();
+      return await runtimeInfo();
     } catch (err) {
       return sendRouteError(reply, err);
     }
@@ -60,7 +66,7 @@ export async function lanRoutes(app: FastifyInstance): Promise<void> {
       temp = await streamToUploadTemp(file.file, 'lan-runtime', { maxBytes: LAN_ARCHIVE_BYTE_LIMIT });
       await installLanFromArchive(temp);
       await syncEnabledLans();
-      return runtimeInfo();
+      return await runtimeInfo();
     } catch (err) {
       return sendRouteError(reply, err);
     } finally {

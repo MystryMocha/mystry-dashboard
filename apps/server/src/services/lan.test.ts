@@ -792,13 +792,72 @@ test('a failed virtual adapter is reported as needing an administrator on a non-
     // Output of easytier-core 2.6.4 without elevation on a Chinese Windows 11 (captured 2026-11-21).
     const fatal = 'ERROR CORE::INSTANCE: [6f8473b1] tun device error err=rust tun error Failed to create adapter';
     const firewallWarning = 'WARN CORE: Failed to add Easytier to firewall allowlist, Subnet proxy and KCP proxy may not work properly. error=拒绝访问。 (0x80070005)';
-    assert.deepEqual(lanFailureDetail(fatal, 'secret'), { key: 'server.lan.needsAdmin' });
+    // On Windows the message carries the steps through mdash.cmd; elsewhere it stays generic.
+    assert.deepEqual(lanFailureDetail(fatal, 'secret', 'win32'), { key: 'server.lan.needsAdminWindows' });
+    assert.deepEqual(lanFailureDetail('ERROR tun device error: Operation not permitted (os error 1)', 'secret', 'linux'), { key: 'server.lan.needsAdmin' });
     // The panel's own network runs without a virtual adapter and still prints this warning while working.
-    assert.equal(lanFailureDetail(firewallWarning, 'secret'), null);
-    assert.equal(lanFailureDetail(`${fatal} secret`, 'secret'), null);
+    assert.equal(lanFailureDetail(firewallWarning, 'secret', 'win32'), null);
+    assert.equal(lanFailureDetail(`${fatal} secret`, 'secret', 'win32'), null);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('the panel is reported as needing an administrator only when whoami shows an unelevated token on Windows', async (t) => {
+  const { parseWindowsElevation, recheckWindowsElevationSoon, setWindowsElevationForTests, windowsPanelElevated } = await import('./windows-elevation.js');
+  t.after(() => setWindowsElevationForTests(null));
+  t.mock.method(console, 'warn', () => {});
+
+  // whoami /groups /fo csv /nh prints one integrity label; the group names are localized, the SIDs are not.
+  const label = (level: string, sid: string) => `"Mandatory Label\\${level} Mandatory Level","Label","${sid}",""\r\n`;
+  assert.equal(parseWindowsElevation(label('Medium', 'S-1-16-8192')), false);
+  assert.equal(parseWindowsElevation(label('High', 'S-1-16-12288')), true);
+  assert.equal(parseWindowsElevation(label('System', 'S-1-16-16384')), true);
+  assert.equal(parseWindowsElevation('"BUILTIN\\Users","Alias","S-1-5-32-545","Mandatory group, Enabled by default, Enabled group"\r\n'), null);
+
+  let calls = 0;
+  setWindowsElevationForTests({
+    platform: 'win32',
+    runner: async () => {
+      calls += 1;
+      return label('Medium', 'S-1-16-8192');
+    },
+  });
+  assert.equal(await windowsPanelElevated(), false);
+  // The runtime endpoint is polled every few seconds, and a process keeps its token, so whoami runs once.
+  assert.equal(await windowsPanelElevated(), false);
+  assert.equal(calls, 1);
+
+  // whoami that cannot run is unknown, not "needs an administrator".
+  setWindowsElevationForTests({ platform: 'win32', runner: async () => { throw new Error('spawn failed'); } });
+  assert.equal(await windowsPanelElevated(), null);
+
+  // A failed lookup is not kept for the life of the panel. Polls right after it do not run whoami again; a failure from EasyTier
+  // that points at missing rights lets the next request try at once, and a successful answer is then kept.
+  let attempts = 0;
+  let whoamiWorks = false;
+  setWindowsElevationForTests({
+    platform: 'win32',
+    runner: async () => {
+      attempts += 1;
+      if (!whoamiWorks) throw new Error('timed out');
+      return label('Medium', 'S-1-16-8192');
+    },
+  });
+  assert.equal(await windowsPanelElevated(), null);
+  assert.equal(await windowsPanelElevated(), null);
+  assert.equal(attempts, 1);
+  whoamiWorks = true;
+  recheckWindowsElevationSoon();
+  assert.equal(await windowsPanelElevated(), false);
+  assert.equal(await windowsPanelElevated(), false);
+  assert.equal(attempts, 2);
+  // Output without an integrity label is a failed lookup too, not an answer to keep.
+  setWindowsElevationForTests({ platform: 'win32', runner: async () => '"Everyone","Well-known group","S-1-1-0",""\r\n' });
+  assert.equal(await windowsPanelElevated(), null);
+
+  setWindowsElevationForTests({ platform: 'linux', runner: async () => { throw new Error('must not run'); } });
+  assert.equal(await windowsPanelElevated(), null);
 });
 
 /**
