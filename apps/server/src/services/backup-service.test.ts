@@ -973,6 +973,33 @@ test('a due backup waits for a server that is starting instead of being skipped 
   assert.equal(s.scheduled(id).length, 2, '服务器启动完成后，当天照常备份');
 });
 
+test('a scheduled backup is not skipped after files were changed through the panel while the server stayed stopped', async () => {
+  const { id } = await setup();
+  const { noteInstanceFilesChanged } = await import('./backup-schedule-service.js');
+  const { deleteInstancePath } = await import('../routes/files.js');
+  const s = await scheduling();
+  s.enable(id, '04:00', '2026-06-01T10:00:00Z');
+  await s.checkAt('2026-06-02T04:00:00Z');
+  await s.checkAt('2026-06-03T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 1);
+
+  noteInstanceFilesChanged(id);
+  await s.checkAt('2026-06-04T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 2, '改过文件后照常备份');
+  await s.checkAt('2026-06-05T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 2, '备份之后没有新的改动，重新开始跳过');
+
+  await deleteInstancePath(id, 'world/level.dat');
+  await s.checkAt('2026-06-06T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 3);
+  assert.equal(s.scheduled(id)[0]!.fileCount, 2, '新备份里没有被删掉的文件');
+
+  // A delete that fails may have removed part of a folder, so it counts as a change too.
+  await assert.rejects(deleteInstancePath(id, 'world/missing.dat'));
+  await s.checkAt('2026-06-07T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 4);
+});
+
 test('a settled date ahead of the clock does not hold back the schedule once the clock is corrected', async () => {
   const { id } = await setup();
   const s = await scheduling();

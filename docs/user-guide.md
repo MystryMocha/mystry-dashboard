@@ -361,7 +361,7 @@ Stop the server before you **Restore**. Restoring replaces every file in the ins
 **Scheduled Backups**, above the list, backs the server up once a day; it is off until you turn it on. **Change Schedule** sets the **Time of Day** (04:00 by default, on the clock of the computer that runs the panel, which matters when you open the panel from another time zone) and the **Scheduled Backups to Keep** (7 by default).
 
 - A scheduled backup is made the same way as **Back Up Now** and is marked "Scheduled" in the list. It waits while the instance is starting, stopping, or being backed up or restored, and while the panel is busy with another task.
-- If the server hasn't run since the last scheduled backup, the day is skipped, so identical copies don't push older ones out.
+- If the server hasn't run and no files were changed in the panel since the last scheduled backup, the day is skipped, so identical copies don't push older ones out. Files changed in the server folder directly, outside the panel, go unnoticed.
 - If the panel wasn't running at the scheduled time, or the computer was asleep, one backup is made after the panel starts again, however many days were missed.
 - After each scheduled backup, the scheduled backups beyond the number to keep are deleted, oldest first. Manual, uploaded and "Before restore" backups are never deleted automatically. When you lower the number below how many there are, the panel asks first.
 - If the server starts, stops or crashes while a scheduled backup is being made, that backup is cancelled and made again shortly after, up to three attempts in a day. Each cancelled attempt is listed in the Task Center as failed; **Last Scheduled Backup** shows **Failed** only when the third is cancelled too.

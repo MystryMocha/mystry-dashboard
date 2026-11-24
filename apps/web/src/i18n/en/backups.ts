@@ -37,7 +37,7 @@ export default {
   'backups.auto.summary_other': 'Every day at {time}. The newest {count} scheduled backups are kept.',
   'backups.auto.summaryOtherClock_one': "Every day at {time} on the panel computer's clock ({zone}). Only the newest scheduled backup is kept.",
   'backups.auto.summaryOtherClock_other': "Every day at {time} on the panel computer's clock ({zone}). The newest {count} scheduled backups are kept.",
-  'backups.auto.skip': "A day is skipped if the server hasn't run since the last scheduled backup.",
+  'backups.auto.skip': "A day is skipped if the server hasn't run and no files were changed in the panel since the last scheduled backup.",
   'backups.auto.zone.utc': 'UTC',
   'backups.auto.zone.hours': 'UTC{hours}',
   'backups.auto.zone.hoursMinutes': 'UTC{hours}:{minutes}',

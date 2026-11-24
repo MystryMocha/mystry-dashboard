@@ -39,7 +39,7 @@ export default {
   'backups.auto.summary_other': '每天 {time} 备份，保留最新的 {count} 份定时备份。',
   'backups.auto.summaryOtherClock_one': '每天 {time} 备份（按面板所在电脑的时间，{zone}），只保留最新的 {count} 份定时备份。',
   'backups.auto.summaryOtherClock_other': '每天 {time} 备份（按面板所在电脑的时间，{zone}），保留最新的 {count} 份定时备份。',
-  'backups.auto.skip': '上次定时备份之后服务器没有运行过的话，当天不备份。',
+  'backups.auto.skip': '上次定时备份之后服务器没有运行过、也没有在面板里改过文件的话，当天不备份。',
   'backups.auto.zone.utc': 'UTC',
   'backups.auto.zone.hours': 'UTC{hours}',
   'backups.auto.zone.hoursMinutes': 'UTC{hours}:{minutes}',
