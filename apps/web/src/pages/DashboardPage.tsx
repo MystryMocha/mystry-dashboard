@@ -571,7 +571,6 @@ export function DashboardPage() {
         )}
       </section>
 
-      {/* Create empty instance dialog */}
       <ConfirmDialog
         open={emptyOpen}
         title={t('dashboard.action.createEmpty')}
@@ -620,7 +619,6 @@ export function DashboardPage() {
         }}
       />
 
-      {/* Restart confirmation */}
       <ConfirmDialog
         open={restartTarget !== null}
         title={t('dashboard.restart.title', { name: restartTarget?.name ?? '' })}
@@ -631,7 +629,6 @@ export function DashboardPage() {
         onCancel={() => setRestartTarget(null)}
       />
 
-      {/* Force stop confirmation */}
       <ConfirmDialog
         open={forceStopTarget !== null}
         title={t('dashboard.forceStop.title', { name: forceStopTarget?.name ?? '' })}

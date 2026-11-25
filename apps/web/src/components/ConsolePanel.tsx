@@ -436,7 +436,6 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
         </form>
       </div>
 
-      {/* Quick command button bar */}
       <div className="quick-cmd-bar" role="group" aria-label={t('console.quick.label')}>
         <span className="quick-cmd-label">{t('console.quick.label')}</span>
         {QUICK_COMMANDS.map((item) => (

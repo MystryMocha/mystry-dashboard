@@ -25,7 +25,7 @@ export function coreDisplayName(coreType: CoreType, t: I18n['t']): string {
   return coreType === 'custom' ? t('dashboard.row.core.custom') : CORE_NAMES[coreType] ?? coreType;
 }
 
-/** Core type icon: each core has one fixed gradient color, making them easy to tell apart in a list at a glance. */
+/** Core type icon: each core has one fixed color, making them easy to tell apart in a list at a glance. */
 export function CoreIcon({ coreType, size = 'md' }: { coreType: CoreType; size?: 'md' | 'lg' }) {
   const Glyph = CORE_GLYPHS[coreType] ?? Package;
   return (

@@ -437,7 +437,7 @@ export function InstancePage() {
   }, [id]);
   usePolling(load);
 
-  // After scrolling the top bar shows the instance name, which says more about which instance is being edited than "Instance Workspace".
+  // After scrolling the top bar shows the instance name, which says more about which instance is being edited than the page title.
   useToolbarTitle(instance?.name ?? null);
   const tabTitleKey = TAB_TITLE_KEYS.get(subPath.replace(/\/+$/, ''));
   useDocumentTitle(

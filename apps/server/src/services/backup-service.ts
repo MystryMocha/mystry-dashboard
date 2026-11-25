@@ -962,8 +962,3 @@ export function recoverInterruptedBackups(): BackupRecovery {
   }
   return result;
 }
-
-/** Tests only: clears the in-memory record of backups in use. */
-export function resetBackupRuntimeForTests(): void {
-  backupsInUse.clear();
-}

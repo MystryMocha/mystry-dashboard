@@ -42,7 +42,7 @@ interface Response {
   body: string;
 }
 
-/** Sends one request; localAddress sets the source address, and the certificate is not verified when ca is false. */
+/** Sends one request; localAddress sets the source address, and the certificate is never verified. */
 function request(
   url: string,
   options: { method?: string; headers?: Record<string, string>; body?: unknown; localAddress?: string; rawHost?: string } = {},
@@ -858,7 +858,6 @@ test('built-in panel network: requests arriving on the dedicated port are treate
   const { setPanelFirewallForTests } = await import('./panel-firewall.js');
 
   setPanelFirewallForTests({ platform: 'linux', runner: async () => 0 });
-  const children: Array<EventEmitter & { exitCode: number | null }> = [];
   network.setPanelNetworkForTests({
     listenPortAllocator: fakeListenPorts(47100).allocate,
     platformSupported: () => true,
@@ -876,7 +875,6 @@ test('built-in panel network: requests arriving on the dedicated port are treate
         }
         return true;
       };
-      children.push(child);
       return child as unknown as ChildProcess;
     },
     cliRunner: async (_rpcPort, command) => (command === 'node' ? JSON.stringify({ ipv4_addr: '10.127.0.1/24' }) : '[]'),

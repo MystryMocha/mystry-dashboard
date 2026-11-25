@@ -376,7 +376,6 @@ export async function getPanelInfo() {
   return api<PanelInfo>('/api/system/panel-info');
 }
 
-/** The panel's current download source setting. */
 export async function getDownloadSource() {
   return api<DownloadSourceSetting>('/api/system/download-source');
 }
