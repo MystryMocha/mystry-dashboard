@@ -403,7 +403,6 @@ export function ConfigTab({
           noValidate
           {...formSubmit}
         >
-          <p className="section-lead">{t('config.lead')}</p>
           {error && <p className="callout callout-danger" role="alert">{error}</p>}
           {!loaded && !error && (
             <div className="page-loading" role="status">

@@ -1,6 +1,5 @@
 /** Config editor (server.properties) strings (English primary table). */
 export default {
-  'config.lead': 'These settings are saved to server.properties and take effect after you restart the instance.',
   'config.loading': 'Loading properties…',
   'config.select.placeholder': 'Choose…',
   'config.advanced.summary_one': 'Advanced ({count} more property)',

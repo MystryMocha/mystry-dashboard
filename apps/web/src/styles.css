@@ -2,8 +2,8 @@
  * Mystry Dashboard UI styles: modeled on Apple's Human Interface Guidelines (HIG) and the Liquid Glass design language.
  * - Appearance: data-appearance = light | dark ("auto" is resolved to one of the two by script);
  * - Accent color: fixed to ink purple (taken from the end of the logo gradient), defined in one place below and no longer chosen by the user;
- * - Navigation layers (sidebar, toolbar, tab bar, menus, popovers) use the frosted-glass material; page content is not put in cards and is layered with headings, dividers and whitespace,
- *   while forms and lists inside dialogs keep a solid background (see the "Page content is not put in cards" section).
+ * - Three visual layers: flat page canvas (--bg), crisp inset surface panels (--surface + 1px --panel-border) for all grouped lists and forms,
+ *   and frosted-glass navigation/floating layers (sidebar, toolbar, tab bar, menus, popovers).
  */
 
 /* ========== Design tokens: common ========== */
@@ -22,7 +22,7 @@
   --radius-xs: 7px;
   --radius-pill: 999px;
 
-  /* Font sizes use only these steps, picked by purpose, with no half pixels or stray px values (see "Type" in docs/design-system.md). */
+  /* Font sizes use only these steps, picked by purpose, with no half pixels or stray px values (see docs/design-system.md). */
   --text-micro: 11px;     /* Phone tab bar text, badges */
   --text-footnote: 12px;  /* Metadata, code, paths, small badges */
   --text-small: 13px;     /* Descriptions, form labels, secondary text, small buttons */
@@ -60,9 +60,9 @@
 
 /* ========== Light appearance ========== */
 :root {
-  --bg: #f5f5f7;
+  --bg: #ececf1;
   --surface: #ffffff;
-  --surface-2: #f9f9fb;
+  --surface-2: #f7f7fa;
   --surface-raised: #ffffff;
   --material: rgba(255, 255, 255, 0.66);
   --material-thick: rgba(252, 252, 254, 0.82);
@@ -706,8 +706,8 @@ h1[tabindex="-1"]:focus { outline: none; }
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px 16px;
-  padding: 9px 9px 9px 20px;
-  border-radius: var(--radius-pill);
+  padding: 9px 9px 9px 18px;
+  border-radius: var(--radius-lg);
   background: var(--material-thick);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   backdrop-filter: blur(24px) saturate(180%);
@@ -732,9 +732,9 @@ h1[tabindex="-1"]:focus { outline: none; }
   justify-content: center;
   gap: 6px;
   height: 34px;
-  padding: 0 16px;
+  padding: 0 14px;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   background-color: var(--btn-bg);
   color: var(--btn-fg);
   font-size: var(--text-body);
@@ -761,9 +761,9 @@ h1[tabindex="-1"]:focus { outline: none; }
 .btn-icon.btn-plain { --btn-fg: var(--label-2); }
 .btn-icon.btn-plain:hover:not(:disabled) { --btn-fg: var(--label); }
 
-.btn-sm { height: 28px; padding: 0 12px; font-size: var(--text-small); }
+.btn-sm { height: 28px; padding: 0 10px; border-radius: var(--radius-xs); font-size: var(--text-small); }
 .btn-sm.btn-icon { width: 28px; padding: 0; }
-.btn-lg { height: 46px; padding: 0 24px; font-size: var(--text-headline); }
+.btn-lg { height: 46px; padding: 0 22px; font-size: var(--text-headline); }
 .btn-block { width: 100%; }
 
 .action-menu-trigger.is-open { background-image: linear-gradient(var(--active-overlay), var(--active-overlay)); }
@@ -774,9 +774,9 @@ h1[tabindex="-1"]:focus { outline: none; }
   gap: 6px;
   flex-shrink: 0;
   height: 30px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   background: var(--fill);
   color: var(--label);
   font-size: var(--text-small);
@@ -796,7 +796,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   gap: 2px;
   max-width: 100%;
   padding: 3px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   background: var(--fill);
   overflow-x: auto;
   scrollbar-width: none;
@@ -810,9 +810,9 @@ h1[tabindex="-1"]:focus { outline: none; }
   gap: 7px;
   flex: 1 0 auto;
   height: 32px;
-  padding: 0 16px;
+  padding: 0 14px;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--label);
   font-size: var(--text-small);
@@ -1115,14 +1115,16 @@ input[type='radio'] {
 .switch:checked { background-color: var(--accent); background-position: 18px center; }
 .switch:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* ========== Grouped lists (iOS Settings style) ========== */
+/* ========== Grouped lists (inset surface panels) ========== */
 .list-group {
   margin: 0;
   padding: 0;
   list-style: none;
   background: var(--surface);
+  border: 1px solid var(--panel-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--card-shadow);
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
 }
 
 .list-row {
@@ -1349,50 +1351,48 @@ input[type='radio'] {
 /* The text fills the left, with the percentage and the optional button (such as "Cancel install") on the right. */
 .task-progress-text > :first-child { flex: 1 1 auto; min-width: 0; }
 
-/* ========== Page content is not put in cards ==========
- * Form sections and grouped lists on a page sit directly on the page background, layered with dividers and headings, consistent with the overview's server list:
- * a section is "heading → one divider → content", and a grouped list has one divider at each end and hairlines between rows.
- * Components of the same name inside dialogs (native <dialog>) keep a solid background and are not affected here. */
-.page :is(.form-card, .list-group):not(dialog *) {
-  background: transparent;
-  box-shadow: none;
-  border-radius: 0;
-}
+/* ========== Content surface panels (macOS/iOS inset groups) ==========
+ * Form sections, grouped lists, resource lists and empty states sit on a crisp solid --surface panel with a 1px --panel-border hairline over the flat --bg canvas,
+ * separating page chrome from interactive data without heavy drop shadows. Section titles stay above the panel, aligned to its left edge.
+ * Nested lists inside a .form-card step down to --fill-2 to avoid card-inside-card borders. */
 .page .form-card:not(dialog *) {
-  padding: 16px 0 0;
-  border-top: 0.5px solid var(--separator-strong);
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--panel-shadow);
 }
-.page .form-section-title:not(dialog *) { margin-inline-start: 0; }
-.page .list-group:not(dialog *) {
-  border-block: 0.5px solid var(--separator-strong);
+.page .form-card:not(dialog *) > .list-group {
+  background: var(--fill-2);
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
 }
-.page .list-group:not(dialog *) > .list-row { padding-inline: 0; }
-.page .list-group:not(dialog *) > .list-row + .list-row::before { left: 0; }
-/* When there is already a divider under the section heading, the list's own top border is not repeated. */
-.page .form-card:not(dialog *) > .list-group:first-child { border-top: 0; }
-
-/* Empty states, local info, the deploy guide and the overview's "three ways to add" are likewise not put in cards:
-   an empty state sits between two dividers like an empty list; the deploy guide is separated from the form by a vertical line on its left. */
-.page :is(.empty-state.card, .about-card, .start-paths.card, .deploy-guide):not(dialog *) {
+.page .empty-state.card:not(dialog *) {
+  background: var(--surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--panel-shadow);
+}
+/* Local environment wrapper and overview start-paths wrapper stay flush on the page canvas while their inner lists carry the unified surface panel. */
+.page :is(.about-card, .start-paths.card, .deploy-guide):not(dialog *) {
   background: transparent;
   box-shadow: none;
   border-radius: 0;
 }
-.page .empty-state.card:not(dialog *) { border-block: 0.5px solid var(--separator-strong); }
 .page :is(.about-card, .start-paths.card):not(dialog *) { padding: 0; }
-/* With cards removed, the small "No instances yet" heading sits right under the large "Minecraft Instances" heading, so it drops one size to keep the two headings from being the same size. */
 .page .start-paths.card .start-paths-head h3 { font-size: var(--text-headline); font-weight: 600; letter-spacing: -0.01em; }
 .page .start-path-list:not(dialog *) {
-  background: transparent;
-  border-radius: 0;
-  border-block: 0.5px solid var(--separator-strong);
+  background: var(--surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
 }
 .page .deploy-guide:not(dialog *) {
   padding: 4px 0 4px 24px;
   border-inline-start: 0.5px solid var(--separator-strong);
 }
-/* The "Open on other devices" entry follows right below the local info list, and two dividers would be too close, so the entry draws no top border. */
-.page .about-card + .remote-entry-section .list-group { border-top: 0; }
 /* Becomes a top border when the guide moves below the form. */
 @media (max-width: 1180px) {
   .page .deploy-guide:not(dialog *) {
@@ -1496,21 +1496,15 @@ input[type='radio'] {
   grid-template-columns: auto minmax(150px, 0.8fr) minmax(0, 1.4fr) auto;
   column-gap: 18px;
   position: relative;
-  /* No card background: the list sits directly on the page background, with one divider at each end. It extends 12px outward on each side,
-     giving the row hover background some margin while the icons still left-align with the heading above. */
-  margin: 0 -12px;
+  margin: 0;
   padding: 0;
   list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
 }
-.server-list::before,
-.server-list::after {
-  content: '';
-  position: absolute;
-  inset-inline: 12px;
-  border-top: 0.5px solid var(--separator-strong);
-}
-.server-list::before { top: 0; }
-.server-list::after { bottom: 0; }
 .server-list-empty { margin: 0; padding: 28px 18px; color: var(--label-2); text-align: center; }
 
 .server-row {
@@ -1523,15 +1517,14 @@ input[type='radio'] {
   align-items: center;
   gap: 12px 18px;
   min-width: 0;
-  padding: 16px 12px;
-  border-radius: var(--radius-md);
+  padding: 16px 18px;
 }
-/* The divider between rows starts at the name column (12px padding + 42px icon + 18px gap) and ends 12px before the row end, lining up with the end dividers. */
+/* The divider between rows starts at the name column (18px padding + 42px icon + 18px gap). */
 .server-row + .server-row::before {
   content: '';
   position: absolute;
   top: 0;
-  inset-inline: 72px 12px;
+  inset-inline: 78px 0;
   border-top: 0.5px solid var(--separator);
 }
 /* No line is drawn between the hovered row and the row after it, so the background block looks like one whole piece. */
@@ -1605,7 +1598,7 @@ input[type='radio'] {
       'actions actions';
     gap: 12px 14px;
   }
-  .server-row + .server-row::before { inset-inline-start: 12px; }
+  .server-row + .server-row::before { inset-inline-start: 18px; }
   .server-actions { justify-content: flex-start; flex-wrap: wrap; }
   /* When stacked the arrow goes to the right side of the name row, not taking up the action button row. */
   .server-row { padding-inline-end: 44px; }
@@ -1635,9 +1628,8 @@ input[type='radio'] {
   align-items: center;
   gap: 14px;
   width: 100%;
-  padding: 14px 16px;
+  padding: 14px 18px;
   border: 0;
-  border-radius: var(--radius-md);
   background: transparent;
   color: var(--label);
   font: inherit;
@@ -1718,14 +1710,17 @@ input[type='radio'] {
 }
 .instance-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
-/* Instance tab bar: one full-width divider, with the current page's text in bold and a 2px accent line beneath it;
-   it scrolls horizontally when it does not fit, without wrapping. */
+/* Instance tab bar: compact recessed tray with a raised rounded-square active tab, matching the panel and button geometry.
+   Scrolls horizontally when it does not fit, without wrapping. */
 .hub-tabs {
-  display: flex;
-  gap: 4px;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 2px;
   max-width: 100%;
-  margin-top: -4px;
-  border-bottom: 0.5px solid var(--separator-strong);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--fill);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1734,30 +1729,27 @@ input[type='radio'] {
   position: relative;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   flex-shrink: 0;
-  height: 42px;
-  padding: 0 12px;
-  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-xs);
   color: var(--label-2);
   font-size: var(--text-body);
   font-weight: 500;
   white-space: nowrap;
-  transition: color 0.15s var(--ease), background-color 0.15s var(--ease);
+  transition: color 0.15s var(--ease), background-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
-.hub-tab:hover { color: var(--label); background: var(--hover-overlay); }
-.hub-tab.active { color: var(--label); font-weight: 600; }
+.hub-tab:hover:not(.active) { color: var(--label); background: var(--hover-overlay); }
+.hub-tab.active {
+  background: var(--surface-raised);
+  color: var(--label);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.09), 0 0 0 0.5px var(--panel-border);
+}
 .hub-tab.active svg { color: var(--accent-text); }
-.hub-tab.active::after {
-  content: '';
-  position: absolute;
-  inset-inline: 12px;
-  bottom: -0.5px;
-  height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: var(--accent);
-}
-.hub-tab:focus-visible { outline-offset: -3px; }
+.hub-tab:focus-visible { outline-offset: -2px; }
 .instance-body { min-width: 0; }
 
 .migration-panel {
@@ -1836,9 +1828,9 @@ input[type='radio'] {
   gap: 6px;
   min-width: 30px;
   height: 30px;
-  padding: 0 11px;
+  padding: 0 10px;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-xs);
   background: rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
   color: #e5e5ea;
@@ -1936,13 +1928,13 @@ input[type='radio'] {
   align-items: center;
   gap: 4px;
   min-height: 58px;
-  padding: 4px 10px 4px 4px;
+  padding: 5px 12px 5px 8px;
 }
 .file-row + .file-row::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 62px;
+  left: 66px;
   right: 0;
   border-top: 0.5px solid var(--separator);
 }
@@ -2736,8 +2728,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .multiplayer-open-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .multiplayer-open .list-row-title,
 .multiplayer-admin .list-row-title { font-size: var(--text-headline); font-weight: 600; }
-/* The heading line of "let players join" follows right below, so the switch's own bottom border is not repeated. */
-.page .multiplayer-open:not(dialog *) { border-bottom: 0; }
 /* Let players join: the numbering is the real order, one sentence per step, with buttons and addresses under that step. */
 .page .multiplayer-steps {
   display: flex;
@@ -2953,18 +2943,16 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .settings-path-row .settings-path { text-align: start; }
 
 @container page (min-width: 820px) {
-  /* Two columns: the group name on the left, setting rows on the right. One horizontal line runs across both columns to separate groups, and the list's own top and bottom borders are not drawn. */
+  /* Two columns: the group name on the left, inset surface panels on the right. */
   .page.settings-page .settings-section {
     display: grid;
     grid-template-columns: 200px minmax(0, 720px);
     align-items: start;
     column-gap: 40px;
-    border-top: 0.5px solid var(--separator-strong);
   }
-  /* The group name and the name in the first row on the right fall roughly on the same line (setting rows have 12px top padding, about 15px when single-line content is vertically centered). */
+  /* Aligns the group name with the first row inside the panel on the right. */
   .page.settings-page .settings-section-head { padding-top: 14px; }
   .page.settings-page .settings-section-head .section-lead { font-size: var(--text-small); line-height: 1.45; }
-  .page.settings-page .settings-section .list-group { border-block: 0; }
 }
 /* The source hint beside a download entry: the switch control expands in place, without leaving the current page */
 .download-source-hint { display: grid; gap: 10px; min-width: 0; }
@@ -2989,7 +2977,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 }
 .about-title { min-width: 0; }
 .about-title h2 { margin: 0 0 8px; font-size: var(--text-title); font-weight: 700; overflow-wrap: anywhere; }
-.about-specs { background: var(--fill-2); box-shadow: none; }
 .about-specs dt,
 .about-specs dd { margin: 0; }
 .node-row .list-row-control { flex-wrap: wrap; }
@@ -3213,8 +3200,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .instance-title-text { flex-basis: 180px; }
   .instance-meta { margin-top: 4px; }
   .segmented-item { padding: 0 12px; }
-  .hub-tab { padding: 0 10px; }
-  .hub-tab.active::after { inset-inline: 10px; }
+  .hub-tabs { align-self: stretch; }
+  .hub-tab { flex: 1 0 auto; padding: 0 10px; }
   .import-mode-switch,
   .multiplayer-mode-switch { align-self: stretch; }
   .multiplayer-instance,
@@ -3236,7 +3223,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 
   .files-actions { width: 100%; }
   .files-actions .btn-primary { margin-left: auto; }
-  .file-row + .file-row::before { left: 58px; }
+  .file-row + .file-row::before { left: 62px; }
   .backup-row { padding: 12px 16px; }
   .backup-row + .backup-row::before { inset-inline-start: 64px; }
   .backups-schedule { padding: 14px 16px; }
@@ -3294,10 +3281,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 
 @media (max-width: 480px) {
   /* On phones the instance tabs drop their icons and go down to the small font size, so the five English tabs also fit in one row at 375px wide; narrower than that, they scroll horizontally. */
-  .hub-tabs { gap: 0; }
-  .hub-tab { gap: 0; padding: 0 7px; font-size: var(--text-small); }
+  .hub-tabs { gap: 2px; padding: 3px; }
+  .hub-tab { gap: 0; padding: 0 8px; font-size: var(--text-small); }
   .hub-tab svg { display: none; }
-  .hub-tab.active::after { inset-inline: 7px; }
   /* English labels are longer, so on narrow screens the import and multiplayer mode switchers likewise drop their icons. */
   .import-mode-switch .segmented-item,
   .multiplayer-mode-switch .segmented-item { gap: 0; padding: 0 10px; }

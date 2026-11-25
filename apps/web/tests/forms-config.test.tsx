@@ -136,8 +136,8 @@ test('config editor save bar: appears only with changes and states how many, the
   const onlineMode = screen.getByRole('switch', { name: '正版验证（在线模式）' }) as HTMLInputElement;
   await user.click(onlineMode);
   expect(screen.getByRole('status').textContent).toBe('2 项修改未保存');
-  // The page header already said a restart is needed, so the bar does not repeat it.
-  expect(screen.getAllByText(/重启实例后生效/)).toHaveLength(1);
+  // Neither the page nor the dirty save bar repeats the restart note before saving.
+  expect(screen.queryByText(/重启生效|重启实例后生效/)).toBeNull();
   // The primary button is the submit button, and every other button explicitly has type="button".
   expect(saveButton()!.type).toBe('submit');
   expect(document.querySelectorAll('form button:not([type])')).toHaveLength(0);
