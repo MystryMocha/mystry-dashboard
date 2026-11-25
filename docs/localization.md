@@ -117,8 +117,6 @@ Keys are those of `i18n/en/common.ts`. These are drafts with consistent terminol
 | nav.import | Import Server | Importer un serveur | Импорт сервера | Importar servidor | استيراد خادم |
 | nav.multiplayer | Multiplayer | Multijoueur | Сетевая игра | Multijugador | اللعب الجماعي |
 | nav.machine | This Machine | Cette machine | Этот компьютер | Este equipo | هذا الجهاز |
-| nav.group.servers | Servers | Serveurs | Серверы | Servidores | الخوادم |
-| nav.group.maintain | Deploy & Maintain | Déploiement et maintenance | Развёртывание и обслуживание | Despliegue y mantenimiento | النشر والصيانة |
 | instance.tab.console | Console | Console | Консоль | Consola | وحدة التحكم |
 | instance.tab.files | Files | Fichiers | Файлы | Archivos | الملفات |
 | instance.tab.properties | Properties | Propriétés | Параметры | Propiedades | الخصائص |

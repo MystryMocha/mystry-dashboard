@@ -10,6 +10,11 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 - An instance's **Backups** tab gains **Scheduled Backups**, off until you turn it on. It backs the server up once a day at the **Time of Day** (04:00 by default, on the clock of the computer that runs the panel) and keeps the newest scheduled backups, as many as **Scheduled Backups to Keep** says (7 by default); manual, uploaded and "Before restore" backups are never deleted by it. A day is skipped when the server hasn't run and no files were changed in the panel since the last scheduled backup. A time the panel missed is made up once after it starts again, and a backup cut short by the server starting, stopping or crashing is made again shortly after, up to three times a day. A backup doesn't start when the disk holding the backups has less free space than the size of the newest backup plus 256 MiB. `GET` and `PUT /api/instances/:id/backup-schedule` read and save the schedule, and `BackupInfo.source` gains the value `scheduled`.
 
+### Changed
+
+- The interface takes a calmer look modeled on macOS. Lists and forms sit on solid panels, buttons have square corners while status pills and badges stay round, and the accent is now clay orange, used only for the main action, controls that are switched on, focus and progress. Warnings and in-between states such as **Starting** are amber, and the dark appearance is graphite rather than near black.
+- **Instances** lists the servers that need attention first, no longer adds "Players can join now" after **Running**, and on wide screens draws **Start**, **Stop** and **Invite Players** without a fill. The sidebar drops its group titles, and the **Properties** tab no longer opens with a note about `server.properties`.
+
 ## [0.2.0-preview.7] - 2026-11-24
 
 ### Added

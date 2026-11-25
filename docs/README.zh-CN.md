@@ -16,7 +16,7 @@ Mystry Dashboard 是自托管的游戏服务器面板，现已支持 Minecraft J
 | 修改监听地址、密钥或资源限制 | [配置说明](configuration.zh-CN.md) | [安全政策](../SECURITY.zh-CN.md) |
 | 修改代码或提交 PR | [开发指南](development.zh-CN.md) | [贡献指南](../CONTRIBUTING.zh-CN.md) |
 | 接入接口或理解实现 | [API 参考](api.zh-CN.md) | [架构设计](architecture.zh-CN.md) |
-| 设计界面或撰写界面文案 | [设计系统](design-system.md) | [多语言规范](localization.md) |
+| 设计界面或撰写界面文案 | [设计系统](design-system.zh-CN.md) | [多语言规范](localization.md) |
 
 首次使用，建议依次阅读：快速开始 → 分步教程 → 使用指南。
 

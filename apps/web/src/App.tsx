@@ -216,7 +216,6 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="nav-section" onClick={() => closeSidebar()}>
-          <div className="nav-header">{t('nav.group.servers')}</div>
           <NavLink ref={firstNavRef} to="/" end className={navClass}>
             <LayoutGrid size={17} aria-hidden="true" />
             <span>{t('nav.overview')}</span>
@@ -228,7 +227,6 @@ function Shell({ children }: { children: React.ReactNode }) {
             </NavLink>
           )}
 
-          <div className="nav-header">{t('nav.group.maintain')}</div>
           <NavLink to="/deploy" className={navClass}>
             <Rocket size={17} aria-hidden="true" />
             <span>{t('nav.deploy')}</span>

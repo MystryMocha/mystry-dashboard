@@ -49,8 +49,6 @@ export default {
   'nav.multiplayer': '多人連線',
   'nav.machine': '本機環境',
   'nav.settings': '面板設定',
-  'nav.group.servers': '伺服器',
-  'nav.group.maintain': '部署與維護',
 
   'instance.tab.console': '主控台',
   'instance.tab.files': '檔案管理',
