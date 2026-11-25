@@ -235,6 +235,17 @@ test('backup endpoints end to end', async (t) => {
   assert.equal(scheduleRows(dropped), 0, 'the schedule goes with its instance');
   assert.equal(scheduleRows(id), 1);
 
+  // Withdrawing EULA acceptance rewrites eula.txt, so the next scheduled backup must not be skipped as unchanged.
+  const settingsUrl = `/api/instances/${id}`;
+  const agreed = await app.inject({ method: 'PATCH', url: settingsUrl, headers: authorization, payload: { acceptEula: true } });
+  assert.equal(agreed.statusCode, 200, agreed.body);
+  getDb().prepare('UPDATE instance_backup_schedules SET server_ran = 0 WHERE instance_id = ?').run(id);
+  const withdrawn = await app.inject({ method: 'PATCH', url: settingsUrl, headers: authorization, payload: { acceptEula: false } });
+  assert.equal(withdrawn.statusCode, 200, withdrawn.body);
+  assert.equal(fs.readFileSync(path.join(defaultInstanceDir(id), 'eula.txt'), 'utf8'), 'eula=false\n');
+  const noted = getDb().prepare('SELECT server_ran FROM instance_backup_schedules WHERE instance_id = ?').get(id) as { server_ran: number };
+  assert.equal(noted.server_ran, 1);
+
   const kept = await instanceWithBackup('keep-backups');
   const deleteKept = await app.inject({ method: 'DELETE', url: `/api/instances/${kept}?keepBackups=1`, headers: authorization });
   assert.equal(deleteKept.statusCode, 200, deleteKept.body);
