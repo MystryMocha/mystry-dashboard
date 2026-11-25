@@ -862,7 +862,6 @@ function reservePort() {
   });
 }
 
-// Ctrl+C in a terminal sends SIGINT to the whole foreground process group, and when pressed twice the controller must not be killed first,
 test('foreground mode shows only readable logs, and the full log is written to a file', { timeout: 60_000 }, async (t) => {
   const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-foreground-log-'));
   // On Windows the directory handle may not be released yet right after the process exits, so cleanup has to retry.
@@ -1300,6 +1299,7 @@ test('the window from a double-click keeps showing the panel after a restart fro
   assert.equal(await health(), false);
 });
 
+// Ctrl+C in a terminal sends SIGINT to the whole foreground process group, and when pressed twice the controller must not be killed first.
 // It must wait for the panel to finish closing on its own and then exit with the panel's exit code. Windows cannot simulate a console Ctrl+C with kill.
 test('pressing Ctrl+C twice in foreground mode still waits for the panel to shut down safely', {
   timeout: 60_000,
@@ -1311,7 +1311,7 @@ test('pressing Ctrl+C twice in foreground mode still waits for the panel to shut
   await fsp.mkdir(path.join(home, 'apps', 'server', 'dist'), { recursive: true });
   await fsp.writeFile(path.join(home, 'apps', 'server', 'dist', 'index.js'), FAKE_PANEL_SOURCE, 'utf8');
   await fsp.mkdir(fakeBin);
-  // The pre-start check needs java; PATH holds only this fake java, which also keeps the token out of the dev machine's clipboard.
+  // The pre-start check needs java; PATH holds only this fake java.
   await fsp.writeFile(path.join(fakeBin, 'java'), '#!/bin/sh\necho \'openjdk version "21"\' >&2\n', { mode: 0o755 });
 
   const child = spawn(process.execPath, [path.join(scriptDir, 'mdash.mjs'), 'foreground'], {

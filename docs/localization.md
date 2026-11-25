@@ -139,7 +139,6 @@ Keys are those of `i18n/en/common.ts`. These are drafts with consistent terminol
 | action.reload | Reload | Recharger | Обновить | Recargar | إعادة التحميل |
 | action.cancel | Cancel | Annuler | Отмена | Cancelar | إلغاء |
 | action.send | Send | Envoyer | Отправить | Enviar | إرسال |
-| action.manage | Manage | Gérer | Управление | Administrar | إدارة |
 | action.upload | Upload | Téléverser | Загрузить | Subir | رفع |
 | empty.instances.title | No Minecraft instances yet | Aucune instance Minecraft pour l'instant | Пока нет экземпляров Minecraft | Todavía no hay instancias de Minecraft | لا توجد مثيلات Minecraft بعد |
 | empty.instances.body | Download an official core with Quick Deploy, or import an existing server from a folder or ZIP. | Téléchargez un noyau officiel avec Déploiement rapide, ou importez un serveur existant depuis un dossier ou un ZIP. | Скачайте официальное ядро через «Быстрое развёртывание» или импортируйте существующий сервер из папки или ZIP-архива. | Descarga un núcleo oficial con Despliegue rápido o importa un servidor existente desde una carpeta o un ZIP. | نزّل نواة رسمية باستخدام «نشر سريع»، أو استورد خادمًا موجودًا من مجلد أو ملف ZIP. |

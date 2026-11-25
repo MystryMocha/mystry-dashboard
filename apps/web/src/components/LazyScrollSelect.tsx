@@ -125,7 +125,6 @@ export function LazyScrollSelect<T extends string | number>({
     };
   }, [open, updatePanelLayout]);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     function onPointerDown(e: MouseEvent) {

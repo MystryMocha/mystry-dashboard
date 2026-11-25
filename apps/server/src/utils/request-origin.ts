@@ -20,7 +20,6 @@ export function isLoopbackAddress(address: string | undefined): boolean {
   return normalized === '127.0.0.1' || normalized === '::1' || normalized === '::ffff:127.0.0.1';
 }
 
-/** Whether the connection came in through the panel's built-in network. */
 export function viaPanelNetwork(req: FastifyRequest): boolean {
   return panelNetworkSockets.has(req.raw.socket);
 }

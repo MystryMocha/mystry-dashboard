@@ -336,7 +336,7 @@ export const updateInstanceLanBodySchema = {
 /** Interface names are limited in length only, not in characters: on Chinese Windows, interfaces are named "以太网" or "本地连接* 1". Whether one exists is decided by the server from the enumeration result. */
 const interfaceNameSchema = { type: ['string', 'null'], minLength: 1, maxLength: 255 } as const;
 
-/** PUT /api/system/remote-access/direct, PUT /api/system/remote-access/overlay and the launcher endpoints of the same name */
+/** PUT /api/system/remote-access/direct, PUT /api/system/remote-access/overlay and PUT /api/launcher/remote-access/direct */
 export const updateAccessModeBodySchema = {
   type: 'object',
   additionalProperties: false,

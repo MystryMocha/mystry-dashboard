@@ -107,7 +107,6 @@ function focusControl(control: HTMLElement | null): boolean {
   return true;
 }
 
-/** Jumps to the control with the given id. */
 export function focusField(id: string): boolean {
   return focusControl(document.getElementById(id));
 }
