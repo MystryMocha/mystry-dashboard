@@ -17,7 +17,7 @@ type Placement = 'topbar' | 'login';
 const POPOVER_WIDTH = 300;
 
 /**
- * Appearance picker: modeled on the macOS "Appearance" setting, choosing auto/light/dark; the accent color is fixed to ink purple and not selectable.
+ * Appearance picker: modeled on the macOS "Appearance" setting, choosing auto/light/dark; the accent color is fixed to clay orange and not selectable.
  * The options are native radios, with arrow-key switching provided by the browser; the panel is attached to body and fixed-positioned, so it is not clipped or misplaced.
  */
 export function ThemeToggle({ placement = 'topbar' }: { placement?: Placement }) {

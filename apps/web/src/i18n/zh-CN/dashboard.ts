@@ -43,7 +43,6 @@ export default {
   'dashboard.empty.createEmpty.desc': '已有自己的服务端 jar？先建一个空文件夹再上传。',
 
   'dashboard.row.core.custom': '自定义 Jar',
-  'dashboard.row.ready': '可以进服了',
   'dashboard.row.loading': '正在加载世界，还不能进服',
   'dashboard.row.stopping': '正在保存世界并关闭',
   'dashboard.row.crashed': '意外退出',

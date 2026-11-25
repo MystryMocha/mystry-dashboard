@@ -73,8 +73,9 @@ function hasIssue(inst: InstanceInfo): boolean {
 
 type RowState = {
   sentence: string | null;
-  tone: 'ok' | 'warn' | 'danger' | null;
-  fix: { to: string; label: string; icon: LucideIcon } | null;
+  tone: 'warn' | 'danger' | null;
+  /** `quiet` marks a next step that is not a fix, so it does not compete with the rows that need attention. */
+  fix: { to: string; label: string; icon: LucideIcon; quiet?: boolean } | null;
 };
 
 /** The sentence after the status, and the one step most worth taking for this row. */
@@ -123,9 +124,10 @@ function rowState(inst: InstanceInfo, t: I18n['t']): RowState {
     case 'running':
       return inst.ready
         ? {
-          sentence: t('dashboard.row.ready'),
-          tone: 'ok',
-          fix: { to: `/multiplayer?instance=${encodeURIComponent(inst.id)}`, label: t('instance.ready.action'), icon: Users },
+          // The Running pill already says the server is up; a second sentence would repeat it.
+          sentence: null,
+          tone: null,
+          fix: { to: `/multiplayer?instance=${encodeURIComponent(inst.id)}`, label: t('instance.ready.action'), icon: Users, quiet: true },
         }
         : { sentence: t('dashboard.row.loading'), tone: null, fix: null };
     case 'stopping':
@@ -199,7 +201,7 @@ function ServerRow({
                 )}
               </dd>
               {xmxBytes != null && (
-                <Meter ratio={memoryBytes != null ? (memoryBytes / xmxBytes) * 100 : null} tone="accent" />
+                <Meter ratio={memoryBytes != null ? (memoryBytes / xmxBytes) * 100 : null} />
               )}
             </div>
           </dl>
@@ -219,7 +221,7 @@ function ServerRow({
 
       <div className="server-actions">
         {state.fix && Fix && (
-          <Link to={state.fix.to} className="btn btn-tinted">
+          <Link to={state.fix.to} className={`btn btn-tinted${state.fix.quiet ? ' server-next-quiet' : ''}`}>
             <Fix size={14} aria-hidden="true" />
             {state.fix.label}
           </Link>
@@ -410,8 +412,10 @@ export function DashboardPage() {
   const runningCount = instances.filter((i) => i.status === 'running').length;
   const issueCount = instances.filter(hasIssue).length;
   const loaded = loadState === 'loaded';
-  const visibleInstances = instances.filter((inst) =>
-    filter === 'all' || (filter === 'running' ? inst.status === 'running' : hasIssue(inst)));
+  // Instances that need attention come first; the sort is stable, so the server's order holds within each group.
+  const visibleInstances = instances
+    .filter((inst) => filter === 'all' || (filter === 'running' ? inst.status === 'running' : hasIssue(inst)))
+    .sort((a, b) => Number(hasIssue(b)) - Number(hasIssue(a)));
   const filters: Array<{ key: ListFilter; label: string; count: number }> = [
     { key: 'all', label: t('dashboard.filter.all'), count: instances.length },
     { key: 'running', label: t('instance.status.running'), count: runningCount },
@@ -507,9 +511,10 @@ export function DashboardPage() {
       )}
 
       <section className="page-section server-section" aria-labelledby="instance-list-title">
-        <div className="section-header">
-          <h2 className="section-title" id="instance-list-title">{t('dashboard.list.title')}</h2>
-          {loaded && instances.length > 0 && (
+        {/* The page title and the status sentence already introduce the list; the heading stays for screen readers only. */}
+        <h2 className="visually-hidden" id="instance-list-title">{t('dashboard.list.title')}</h2>
+        {loaded && instances.length > 0 && (
+          <div className="section-header">
             <div className="segmented server-filter" role="group" aria-label={t('dashboard.filter.label')}>
               {filters.map((item) => (
                 <button
@@ -526,8 +531,8 @@ export function DashboardPage() {
                 </button>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {loadState === 'loading' ? (
           <div className="page-loading" role="status">
