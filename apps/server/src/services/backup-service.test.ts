@@ -1000,6 +1000,32 @@ test('a scheduled backup is not skipped after files were changed through the pan
   assert.equal(s.scheduled(id).length, 4);
 });
 
+test('a file changed through the panel while a stopped server is being backed up keeps the next day due', async () => {
+  const { id } = await setup();
+  const { noteInstanceFilesChanged } = await import('./backup-schedule-service.js');
+  const s = await scheduling();
+  s.enable(id, '04:00', '2026-06-01T10:00:00Z');
+  await s.checkAt('2026-06-02T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 1);
+
+  // The run reads the free space after it was queued and before it packs, once an earlier backup exists; a change
+  // noted there stands for one made while the files were being packed, which the archive may not hold.
+  noteInstanceFilesChanged(id);
+  s.state.free = () => {
+    noteInstanceFilesChanged(id);
+    return Number.MAX_SAFE_INTEGER;
+  };
+  await s.checkAt('2026-06-03T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 2);
+
+  s.state.free = null;
+  await s.checkAt('2026-06-04T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 3);
+  // Nothing changed during that run, so the day after is skipped again.
+  await s.checkAt('2026-06-05T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 3);
+});
+
 test('a settled date ahead of the clock does not hold back the schedule once the clock is corrected', async () => {
   const { id } = await setup();
   const s = await scheduling();

@@ -148,12 +148,25 @@ export function saveBackupSchedule(
 }
 
 /**
+ * Per instance, how many changes have been noted since the panel started. File operations are not blocked while a stopped
+ * server is backed up, so a run compares the count from when it was queued with the count when it ends: packing may have
+ * read a file before the change. Memory is enough, because a run never outlives the panel process.
+ */
+const noteCounts = new Map<string, number>();
+
+function noteCount(instanceId: string): number {
+  return noteCounts.get(instanceId) ?? 0;
+}
+
+/**
  * Records that the instance's files may no longer match its latest scheduled backup: they were changed through the
  * panel, or the server ran. The column keeps the name of the reason it was first made for. Never throws: it is called
  * after a change that has already been made, which must not be reported as failed, and from a process status event,
  * which is also emitted from inside the child's exit handler.
  */
 export function noteInstanceFilesChanged(instanceId: string): void {
+  // Counted even when the column is already set: a run under way would otherwise clear it when it ends.
+  noteCounts.set(instanceId, noteCount(instanceId) + 1);
   try {
     getDb()
       .prepare('UPDATE instance_backup_schedules SET server_ran = 1 WHERE instance_id = ? AND server_ran = 0')
@@ -182,7 +195,7 @@ function settleSlot(instanceId: string, slot: string): void {
     .run(slot, instanceId);
 }
 
-function recordSuccess(instanceId: string, slot: string, info: BackupInfo): void {
+function recordSuccess(instanceId: string, slot: string, info: BackupInfo, changedDuringRun: boolean): void {
   getDb()
     .prepare(
       `UPDATE instance_backup_schedules SET
@@ -196,7 +209,8 @@ function recordSuccess(instanceId: string, slot: string, info: BackupInfo): void
        WHERE instance_id = ?`,
     )
     // A server that was running when the backup was taken has gone on changing the world since, so it counts as having run.
-    .run(slot, info.createdAt, info.id, info.wasRunning ? 1 : 0, instanceId);
+    // A change noted during the run counts too: the file may have been packed before it was made.
+    .run(slot, info.createdAt, info.id, info.wasRunning || changedDuringRun ? 1 : 0, instanceId);
 }
 
 function recordFailure(instanceId: string, slot: string, error: unknown, at: Date): void {
@@ -278,6 +292,8 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
 
   async function queueBackup(row: BackupScheduleRow, slot: string): Promise<void> {
     const instanceId = row.instance_id;
+    // Read before the run is queued, so a change made before packing begins also counts; that only costs one more backup.
+    const notesAtQueue = noteCount(instanceId);
     try {
       await startScheduledBackupTask(instanceId, {
         keep: () => readRow(instanceId)?.keep_count ?? null,
@@ -286,7 +302,7 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
         onCreated: (info) => {
           interruptedAttempts.delete(instanceId);
           try {
-            recordSuccess(instanceId, slot, info);
+            recordSuccess(instanceId, slot, info, noteCount(instanceId) !== notesAtQueue);
           } catch (error) {
             console.warn(`未能记录实例 ${instanceId} 的定时备份结果`, error);
           }
