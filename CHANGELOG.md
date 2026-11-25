@@ -6,6 +6,10 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- An instance's **Backups** tab gains **Scheduled Backups**, off until you turn it on. It backs the server up once a day at the **Time of Day** (04:00 by default, on the clock of the computer that runs the panel) and keeps the newest scheduled backups, as many as **Scheduled Backups to Keep** says (7 by default); manual, uploaded and "Before restore" backups are never deleted by it. A day is skipped when the server hasn't run and no files were changed in the panel since the last scheduled backup. A time the panel missed is made up once after it starts again, and a backup cut short by the server starting, stopping or crashing is made again shortly after, up to three times a day. A backup doesn't start when the disk holding the backups has less free space than the size of the newest backup plus 256 MiB. `GET` and `PUT /api/instances/:id/backup-schedule` read and save the schedule, and `BackupInfo.source` gains the value `scheduled`.
+
 ## [0.2.0-preview.7] - 2026-11-24
 
 ### Added
