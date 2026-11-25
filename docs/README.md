@@ -16,7 +16,7 @@ Mystry Dashboard is a self-hosted game server panel, now supporting Minecraft: J
 | Change the listen address, secrets or resource limits | [Configuration](configuration.md) | [Security policy](../SECURITY.md) |
 | Change the code or open a PR | [Development guide](development.md) | [Contributing guide](../CONTRIBUTING.md) |
 | Integrate with the API or understand the implementation | [API reference](api.md) | [Architecture](architecture.md) |
-| Design the UI or write UI copy | [Design system](design-system.md) | [Localization guide](localization.md) |
+| Write UI copy or add a language | [Localization guide](localization.md) | [Development guide](development.md) |
 
 New users should read in this order: Getting Started → Step-by-Step Tutorials → User Guide.
 
