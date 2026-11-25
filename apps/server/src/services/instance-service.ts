@@ -317,7 +317,7 @@ export async function deleteInstance(id: string): Promise<void> {
     }
     const dir = defaultInstanceDir(row.id);
     const canRemoveDirectory = hasValidOwnershipMarker(row);
-    // Keep the order of deleting the directory before the DB row: security self-test R1 asserts "the database record must be kept when deleting the directory fails".
+    // Keep the order of deleting the directory before the DB row: the security self-test asserts "the database record must be kept when deleting the directory fails".
     if (canRemoveDirectory && fs.existsSync(dir)) {
       assertSafeInstanceRoot(dir);
       // Awaited rather than rmSync: a whole server directory can take seconds to remove, and rmSync would hold every request

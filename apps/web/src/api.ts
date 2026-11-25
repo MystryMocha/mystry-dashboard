@@ -197,7 +197,7 @@ export function openDownloadPopup(): Window {
 
 /**
  * Authenticated download: opens a blank download window synchronously, then requests a ticket and navigates to the streaming GET; status polling reports failures back to the SPA.
- * Buffering the whole file body with res.blob() / ArrayBuffer is forbidden (see KF-001 / KF-002).
+ * Buffering the whole file body with res.blob() / ArrayBuffer is forbidden.
  */
 export async function downloadAuthenticated(
   instanceId: string,
@@ -376,7 +376,6 @@ export async function getPanelInfo() {
   return api<PanelInfo>('/api/system/panel-info');
 }
 
-/** The panel's current download source setting. */
 export async function getDownloadSource() {
   return api<DownloadSourceSetting>('/api/system/download-source');
 }

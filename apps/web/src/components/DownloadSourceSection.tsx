@@ -44,7 +44,6 @@ function useSourcePicker(source: DownloadSource | null, onSaved: (source: Downlo
   return { source, saving, error, saved, choose };
 }
 
-/** Segmented buttons for the source. */
 function SourceButtons({ picker, labelledBy }: { picker: SourcePicker; labelledBy: string }) {
   const { t } = useI18n();
   return (

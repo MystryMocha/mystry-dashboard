@@ -656,7 +656,6 @@ export {
   JvmArgsParseError,
   automaticInitialMemoryMiB,
   buildJvmArgs,
-  firstJvmValidationError,
   firstJvmValidationIssue,
   inspectJvmArgFile,
   inspectJvmArgs,

@@ -585,10 +585,3 @@ export function firstJvmValidationIssue(
 ): JvmValidationIssue | null {
   return validateJvmArgs(value, context).find((item) => item.severity === 'error') ?? null;
 }
-
-export function firstJvmValidationError(
-  value: string,
-  context: JvmValidationContext = {},
-): string | null {
-  return firstJvmValidationIssue(value, context)?.message ?? null;
-}
