@@ -43,7 +43,6 @@ export default {
   'dashboard.empty.createEmpty.desc': '已經有自己的伺服器 jar 檔？先建立空白資料夾再上傳。',
 
   'dashboard.row.core.custom': '自訂 Jar',
-  'dashboard.row.ready': '可以進入伺服器了',
   'dashboard.row.loading': '正在載入世界，暫時還無法進入',
   'dashboard.row.stopping': '正在儲存世界並關閉',
   'dashboard.row.crashed': '意外結束',

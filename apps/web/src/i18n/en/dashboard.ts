@@ -41,7 +41,6 @@ export default {
   'dashboard.empty.createEmpty.desc': 'Have your own server jar? Start with an empty folder and upload it.',
 
   'dashboard.row.core.custom': 'Custom Jar',
-  'dashboard.row.ready': 'Players can join now',
   'dashboard.row.loading': "Loading the world, players can't join yet",
   'dashboard.row.stopping': 'Saving the world and shutting down',
   'dashboard.row.crashed': 'Exited unexpectedly',
