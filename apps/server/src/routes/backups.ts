@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   backupDownloadQuerySchema,
   restoreBackupBodySchema,
+  updateBackupScheduleBodySchema,
+  type BackupScheduleInput,
   type RestoreBackupInput,
 } from '@mystry/shared';
 import { config } from '../config.js';
@@ -14,6 +16,7 @@ import {
   startBackupTask,
   startRestoreTask,
 } from '../services/backup-service.js';
+import { getBackupSchedule, noteInstanceFilesChanged, saveBackupSchedule } from '../services/backup-schedule-service.js';
 import {
   beginDownloadStream,
   failDownloadStream,
@@ -86,9 +89,13 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
       if (req.validationError) return reply.code(400).send(panelErrorBody('server.backups.invalidParams'));
       if (!requireInstance(reply, req.params.id)) return reply;
       try {
-        return await startRestoreTask(req.params.id, req.params.backupId, {
+        const task = await startRestoreTask(req.params.id, req.params.backupId, {
           backupCurrent: req.body?.backupCurrent ?? true,
         });
+        // A restore replaces the files without the server running. It is noted now rather than when the task ends:
+        // the instance stays in maintenance until then, so no scheduled backup can clear the note in between.
+        noteInstanceFilesChanged(req.params.id);
+        return task;
       } catch (err) {
         return sendRouteError(reply, err);
       }
@@ -102,6 +109,29 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
       try {
         deleteBackup(req.params.id, req.params.backupId);
         return reply.code(204).send();
+      } catch (err) {
+        return sendRouteError(reply, err);
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string } }>('/api/instances/:id/backup-schedule', async (req, reply) => {
+    if (!requireInstance(reply, req.params.id)) return reply;
+    try {
+      return getBackupSchedule(req.params.id);
+    } catch (err) {
+      return sendRouteError(reply, err);
+    }
+  });
+
+  app.put<{ Params: { id: string }; Body: BackupScheduleInput }>(
+    '/api/instances/:id/backup-schedule',
+    { attachValidation: true, schema: { body: updateBackupScheduleBodySchema } },
+    async (req, reply) => {
+      if (req.validationError) return reply.code(400).send(panelErrorBody('server.backups.schedule.invalidParams'));
+      if (!requireInstance(reply, req.params.id)) return reply;
+      try {
+        return saveBackupSchedule(req.params.id, req.body);
       } catch (err) {
         return sendRouteError(reply, err);
       }

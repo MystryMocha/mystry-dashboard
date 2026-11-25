@@ -416,6 +416,82 @@ test('when the first pending step fails on an SQL error, the version is unchange
   assert.equal(backupsIn(s)?.length, 1);
 });
 
+test('the backup schedule table is added to a database at the version before it, and its rows go with their instance', async (t) => {
+  const s = scratch(t, 'backup-schedules');
+  useDataDir(s);
+  const { initDb, getDb, PANEL_DB_MIGRATIONS } = await import('./db.js');
+  // Found by name: the entry may get another number when it is merged after a migration from another branch.
+  const index = PANEL_DB_MIGRATIONS.findIndex((migration) => migration.name === 'instance backup schedules');
+  assert.ok(index > 0, 'the migration list has the backup schedule entry after the baseline');
+
+  const before = openWal(s);
+  migrateDatabase(before, PANEL_DB_MIGRATIONS.slice(0, index), runnerOptions(s));
+  assert.ok(!tableNames(before).includes('instance_backup_schedules'));
+  before.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').run('u1', 'admin', '$2a$04$hash', now);
+  const instance = before.prepare('INSERT INTO instances (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)');
+  instance.run('i1', 'Survival', now, now);
+  instance.run('i2', 'Creative', now, now);
+  before.close();
+
+  initDb();
+  const db = getDb();
+  assert.equal(pragmaNumber(db, 'user_version'), PANEL_DB_MIGRATIONS.length);
+  assert.deepEqual(
+    (db.prepare('SELECT id, name FROM instances ORDER BY id').all() as Array<{ id: string; name: string }>).map((row) => [row.id, row.name]),
+    [['i1', 'Survival'], ['i2', 'Creative']],
+  );
+  assert.equal(rowCount(db, 'users'), 1);
+  assert.equal(rowCount(db, 'instance_backup_schedules'), 0, 'no instance gets a schedule it did not ask for');
+  const copies = backupsIn(s);
+  assert.equal(copies?.length, 1);
+  assert.equal(BACKUP_NAME.exec(copies![0]!)?.[1], String(index), 'the copy holds the version before the upgrade');
+
+  const schedule = db.prepare(
+    `INSERT INTO instance_backup_schedules (instance_id, enabled, time_of_day, keep_count, created_at, updated_at)
+     VALUES (?, 1, '04:00', 7, ?, ?)`,
+  );
+  schedule.run('i1', now, now);
+  schedule.run('i2', now, now);
+  assert.throws(() => schedule.run('missing', now, now), /FOREIGN KEY/);
+  assert.throws(() => schedule.run('i1', now, now), /UNIQUE|PRIMARY/, 'one schedule per instance');
+  const row = db.prepare('SELECT * FROM instance_backup_schedules WHERE instance_id = ?').get('i1') as Record<string, unknown>;
+  assert.equal(row.last_slot, null);
+  assert.equal(row.last_backup_at, null);
+  assert.equal(Number(row.server_ran), 0);
+
+  db.prepare('DELETE FROM instances WHERE id = ?').run('i1');
+  assert.deepEqual(
+    (db.prepare('SELECT instance_id FROM instance_backup_schedules').all() as Array<{ instance_id: string }>).map((item) => item.instance_id),
+    ['i2'],
+  );
+});
+
+test('a database that already has the backup schedule table but reports version 0 runs the steps again and keeps its schedules', async (t) => {
+  const s = scratch(t, 'backup-schedules-rerun');
+  useDataDir(s);
+  const { initDb, getDb, closeDb, PANEL_DB_MIGRATIONS } = await import('./db.js');
+  initDb();
+  const schema = schemaDump(getDb());
+  getDb().prepare('INSERT INTO instances (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)').run('i1', 'Survival', now, now);
+  getDb().prepare(
+    `INSERT INTO instance_backup_schedules
+       (instance_id, enabled, time_of_day, keep_count, last_slot, last_backup_at, last_backup_id, server_ran,
+        last_failure_at, last_failure, last_failure_i18n, created_at, updated_at)
+     VALUES (?, 1, '23:30', 3, '2026-01-01', ?, '20260101-233000-abcdef', 1, ?, 'Not enough disk space.', ?, ?, ?)`,
+  ).run('i1', now, now, JSON.stringify({ key: 'server.backups.schedule.diskSpace', params: { needed: 2, available: 1 } }), now, now);
+  const schedules = JSON.stringify(getDb().prepare('SELECT * FROM instance_backup_schedules').all());
+  // What a database rebuilt from a dump looks like: every table is there, and the version reads 0.
+  getDb().exec('PRAGMA user_version = 0');
+  closeDb();
+
+  initDb();
+  const db = getDb();
+  assert.equal(pragmaNumber(db, 'user_version'), PANEL_DB_MIGRATIONS.length);
+  assert.equal(schemaDump(db), schema, 'running the steps again leaves the schema as it was');
+  assert.equal(JSON.stringify(db.prepare('SELECT * FROM instance_backup_schedules').all()), schedules);
+  assert.equal(backupsIn(s)?.length, 1, 'the copy is still taken before the steps run');
+});
+
 const tree: DbMigration = {
   version: 1,
   name: 'tree',

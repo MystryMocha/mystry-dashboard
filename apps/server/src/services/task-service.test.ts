@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { TaskInfo } from '@mystry/shared';
 
 function prepareTempDataRoot(t: test.TestContext): string {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-task-service-test-'));
@@ -138,6 +139,39 @@ test('timeoutMs of runBackgroundTask overrides the global TASK_TIMEOUT_MS', asyn
   assert.equal(current?.errorI18n?.key, 'server.tasks.timeout');
 });
 
+test('onlyWhenIdle refuses a task while another is running or waiting, although the queue has room', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { config } = await import('../config.js');
+  const { runBackgroundTask, getTask, getTaskActivity, isTaskCapacityError, isTaskQueueIdle, resetTaskRuntimeForTests } = await import('./task-service.js');
+  t.after(() => {
+    resetTaskRuntimeForTests();
+  });
+  initDb();
+  assert.ok(config.maxConcurrentTasks + config.maxQueuedTasks > 1, '前置：队列在一个任务之外还有空位');
+
+  let finish!: () => void;
+  const held = await runBackgroundTask('download', { key: 'server.tasks.queued' }, () => new Promise<void>((resolve) => {
+    finish = resolve;
+  }), { onlyWhenIdle: true });
+  assert.equal(getTask(held.id)?.status, 'running', '空闲时照常接受');
+  assert.equal(isTaskQueueIdle(), false);
+
+  await assert.rejects(
+    runBackgroundTask('backup', { key: 'server.tasks.queued' }, async () => {}, { onlyWhenIdle: true }),
+    isTaskCapacityError,
+  );
+  assert.deepEqual(getTaskActivity(), { running: 1, queued: 0 }, '被拒绝的任务不留记录在队列里');
+  const ordinary = await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {});
+  assert.equal(getTask(ordinary.id)?.status, 'pending', '没有这个选项的任务仍可排队');
+
+  finish();
+  for (let attempt = 0; attempt < 200 && !isTaskQueueIdle(); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(isTaskQueueIdle(), true);
+});
+
 test('cancelTask: a queued one is cancelled directly, a running one is recorded as cancelled by the user after the worker finishes up, and a finished one is not accepted', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
@@ -185,6 +219,82 @@ test('cancelTask: a queued one is cancelled directly, a running one is recorded 
 
   assert.equal(cancelTask(target.id), false);
   assert.equal(cancelTask('missing-task'), false);
+});
+
+test('onSettled is called once however the task ends: after its worker, when it fails before the worker is called, and when it is cancelled or shut down while waiting', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb, getDb } = await import('../db.js');
+  const { config } = await import('../config.js');
+  const { runBackgroundTask, getTask, cancelTask, shutdownTasks, resetTaskRuntimeForTests } = await import('./task-service.js');
+  t.after(() => {
+    resetTaskRuntimeForTests();
+  });
+  initDb();
+  assert.ok(config.maxQueuedTasks >= 2, '前置：队列能同时容纳两个等待中的任务');
+
+  const settled: string[] = [];
+  const mark = (name: string) => () => {
+    settled.push(name);
+  };
+  const untilSettled = async (count: number) => {
+    for (let attempt = 0; attempt < 200 && settled.length < count; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.equal(settled.length, count, `已收尾：${settled.join('、')}`);
+  };
+  const queued = { key: 'server.tasks.queued' } as const;
+
+  const returned = await runBackgroundTask('download', queued, async () => {}, { onSettled: mark('returned') });
+  await untilSettled(1);
+  assert.equal(getTask(returned.id)?.status, 'completed');
+
+  const threw = await runBackgroundTask('download', queued, async () => {
+    throw new Error('worker 出错');
+  }, { onSettled: mark('threw') });
+  await untilSettled(2);
+  assert.equal(getTask(threw.id)?.status, 'failed');
+
+  // Stands in for a write error at the moment the task is marked as running, which ends it before its worker is called.
+  let workerCalled = false;
+  getDb().exec(`CREATE TRIGGER refuse_running BEFORE UPDATE ON tasks WHEN NEW.status = 'running'
+    BEGIN SELECT RAISE(ABORT, 'simulated write failure'); END`);
+  let neverRan: TaskInfo;
+  try {
+    neverRan = await runBackgroundTask('download', queued, async () => {
+      workerCalled = true;
+    }, { onSettled: mark('failed before the worker') });
+  } finally {
+    getDb().exec('DROP TRIGGER refuse_running');
+  }
+  await untilSettled(3);
+  assert.equal(getTask(neverRan.id)?.status, 'failed');
+  assert.equal(workerCalled, false);
+
+  for (let index = 0; index < config.maxConcurrentTasks; index += 1) {
+    await runBackgroundTask('download', queued, (_taskId, signal) => new Promise<void>((_resolve, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }));
+  }
+  const waiting = async (name: string) => runBackgroundTask('download', queued, async () => {
+    workerCalled = true;
+  }, { onSettled: mark(name) });
+  const cancelled = await waiting('cancelled while waiting');
+  const shutDown = await waiting('shut down while waiting');
+  assert.equal(getTask(shutDown.id)?.status, 'pending');
+  assert.equal(settled.length, 3, '还在等待的任务不算结束');
+
+  assert.equal(cancelTask(cancelled.id), true);
+  assert.equal(settled.length, 4);
+  await shutdownTasks();
+  assert.equal(getTask(shutDown.id)?.status, 'failed');
+  assert.equal(workerCalled, false);
+  assert.deepEqual(settled, [
+    'returned',
+    'threw',
+    'failed before the worker',
+    'cancelled while waiting',
+    'shut down while waiting',
+  ]);
 });
 
 test('task messages are stored as key and params, old databases get the columns added, and old task text is still read as is', async (t) => {

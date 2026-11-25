@@ -37,6 +37,7 @@ import {
   type PanelDataLock,
 } from './services/data-lock-service.js';
 import { recoverInterruptedBackups } from './services/backup-service.js';
+import { attachBackupScheduleLifecycle, backupScheduler } from './services/backup-schedule-service.js';
 import {
   initializeImportPreviews,
   shutdownImportPreviews,
@@ -83,6 +84,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     const taskRecovery = recoverInterruptedTasks();
     attachFrpLifecycle();
     attachLanLifecycle();
+    attachBackupScheduleLifecycle();
     const previewRecovery = initializeImportPreviews();
     const folderUploadRecovery = initializeFolderUploads();
 
@@ -273,6 +275,8 @@ async function main() {
       alreadyShuttingDown,
     };
     shuttingDown = true;
+    // Stopped before the task queue is: a backup that comes due now would only be queued to be cancelled.
+    backupScheduler.stop();
     processManager.beginShutdown();
     return summary;
   };
@@ -364,6 +368,7 @@ async function main() {
   try {
     await app.listen({ host: config.host, port: config.port });
     app.log.info(`面板已启动 http://${config.host}:${config.port}`);
+    backupScheduler.start();
     // Restore "access from other devices" from the settings; on failure only the reason is recorded, and the panel keeps listening on this machine only as usual.
     await initRemoteAccess({ httpServer: app.server, log: app.log }).catch((error: unknown) => {
       app?.log.warn({ err: error }, '恢复从其他设备访问的设置失败');

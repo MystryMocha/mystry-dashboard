@@ -245,6 +245,24 @@ export const backupDownloadQuerySchema = {
   },
 } as const;
 
+/** Upper bound for how many scheduled backups one instance keeps. */
+export const BACKUP_SCHEDULE_MAX_KEEP = 365;
+
+/** A time of day as HH:MM, 24-hour. */
+export const BACKUP_SCHEDULE_TIME_PATTERN = '^([01][0-9]|2[0-3]):[0-5][0-9]$';
+
+/** PUT /api/instances/:id/backup-schedule request body */
+export const updateBackupScheduleBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['enabled', 'time', 'keep'],
+  properties: {
+    enabled: { type: 'boolean' },
+    time: { type: 'string', pattern: BACKUP_SCHEDULE_TIME_PATTERN },
+    keep: { type: 'integer', minimum: 1, maximum: BACKUP_SCHEDULE_MAX_KEEP },
+  },
+} as const;
+
 export const FRP_TRANSPORT_ENUM = ['tcp', 'kcp', 'quic', 'websocket', 'wss'] as const;
 export const TUNNEL_MODE_ENUM = ['public', 'stcp', 'xtcp'] as const;
 
