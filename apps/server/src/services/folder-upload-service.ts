@@ -442,8 +442,3 @@ export async function confirmFolderUpload(
     throw error;
   }
 }
-
-/** For tests: clears the in-memory sessions without touching the disk. */
-export function resetFolderUploadsForTests(): void {
-  sessions.clear();
-}

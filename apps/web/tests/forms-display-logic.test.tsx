@@ -12,7 +12,7 @@ import { ImportPage } from '../src/pages/ImportPage';
 import { InstancePage } from '../src/pages/InstancePage';
 import { setupFormTestEnv } from './form-test-env';
 
-// The medium-priority items in section 8 of the design doc, "display logic problems found later": what the form shows differs from what is actually submitted.
+// Display logic problems found later: what the form shows differs from what is actually submitted.
 
 beforeEach(() => {
   setupFormTestEnv();

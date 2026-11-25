@@ -75,7 +75,7 @@ function isGoneError(err: unknown): boolean {
 
 export function ImportPage() {
   const navigate = useNavigate();
-  const { t, tm, fmt } = useI18n();
+  const { t, fmt } = useI18n();
   // Browsers that cannot pick folders (mostly phones) do not show "Upload Folder", and the default remains the imports handoff area.
   const [folderPickSupported] = useState(canPickFolder);
   const [mode, setMode] = useState<ImportMode>(() => (folderPickSupported ? 'folder' : 'directory'));

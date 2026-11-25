@@ -22,7 +22,7 @@ const HAS_ANSI = /\x1b\[/;
 
 /**
  * Prefix of the panel's own notices: the forms in every UI language are collected, so after switching languages old logs and
- * the Chinese "[面板]" written by the server's process-manager are still colored.
+ * the Chinese "[面板]" written by older server versions are still colored.
  */
 function prefixesFor(key: MessageKey): string[] {
   return [...new Set(LOCALES.map((locale) => translate(locale, key)))];
