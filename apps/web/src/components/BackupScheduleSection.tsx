@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { AlertCircle, CalendarClock, ChevronDown } from 'lucide-react';
 import {
   BACKUP_SCHEDULE_MAX_KEEP,
   BACKUP_SCHEDULE_TIME_PATTERN,
@@ -44,11 +45,13 @@ export function BackupScheduleSection({
   const { t, tp, tm, fmt } = useI18n();
   const switchId = useId();
   const summaryId = useId();
+  const panelId = useId();
   const [schedule, setSchedule] = useState<BackupScheduleInfo | null>(null);
   const [loadError, setLoadError] = useState('');
   const [attempt, setAttempt] = useState(0);
   const [time, setTime] = useState('');
   const [keep, setKeep] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
   // A time or count the user is editing is not overwritten when the schedule is read again; it follows the server once saved.
   const edited = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -145,20 +148,39 @@ export function BackupScheduleSection({
   // The clock is named only when this browser reads another one; on the panel computer itself it would be noise.
   const sameClock = schedule !== null && schedule.utcOffsetMinutes === (-new Date().getTimezoneOffset() || 0);
   const lastFailure = schedule?.lastFailure ?? null;
+  const summaryText = schedule
+    ? tp(sameClock ? 'backups.auto.summary' : 'backups.auto.summaryOtherClock', schedule.keep, { time: displayTime, zone })
+    : '';
 
   return (
-    <section className="form-section" aria-labelledby={switchId}>
-      <div className="list-group">
-        <div className="list-row">
-          <div className="list-row-text">
-            <label className="list-row-title" id={switchId} htmlFor={`${switchId}-input`}>{t('backups.auto.switch')}</label>
+    <section
+      className={`backups-schedule${schedule?.enabled ? ' is-enabled' : ''}${lastFailure ? ' has-failure' : ''}`}
+      aria-labelledby={switchId}
+    >
+      <div className="backups-schedule-row">
+        <div className="backups-schedule-main">
+          <span className="backups-schedule-icon" aria-hidden="true">
+            <CalendarClock size={18} />
+          </span>
+          <div className="backups-schedule-text">
+            <div className="backups-schedule-title-row">
+              <label className="backups-schedule-title" id={switchId} htmlFor={`${switchId}-input`}>
+                {t('backups.auto.switch')}
+              </label>
+              {lastFailure && (
+                <StatusPill tone="crashed">{t('task.status.failed')}</StatusPill>
+              )}
+            </div>
             {schedule && (
-              <div id={summaryId}>
-                <p className="list-row-desc">
-                  {tp(sameClock ? 'backups.auto.summary' : 'backups.auto.summaryOtherClock', schedule.keep, { time: displayTime, zone })}
-                </p>
-                <p className="list-row-desc">{t('backups.auto.skip')}</p>
-              </div>
+              <p className="backups-schedule-summary" id={summaryId}>
+                {summaryText}
+                {!lastFailure && schedule.lastBackupAt && (
+                  <>
+                    {' · '}
+                    {t('backups.auto.lastRun', { date: fmt.dateTime(schedule.lastBackupAt) })}
+                  </>
+                )}
+              </p>
             )}
             {loadError && (
               <div className="settings-load-error">
@@ -170,49 +192,52 @@ export function BackupScheduleSection({
             )}
             {error && <p className="error" role="alert">{error}</p>}
           </div>
-          <div className="list-row-control">
-            <input
-              id={`${switchId}-input`}
-              type="checkbox"
-              role="switch"
-              className="switch"
-              checked={schedule?.enabled ?? false}
-              disabled={!schedule || busy}
-              aria-describedby={schedule ? summaryId : undefined}
-              onChange={(event) => toggle(event.target.checked)}
-            />
-          </div>
         </div>
-        {schedule && (lastFailure || schedule.lastBackupAt) && (
-          <div className="list-row">
-            <div className="list-row-text">
-              <span className="list-row-title">{t('backups.auto.last.title')}</span>
-              {lastFailure ? (
-                <>
-                  <p className="list-row-desc">{fmt.dateTime(lastFailure.at)}</p>
-                  <p className="list-row-desc">{tm(lastFailure.errorI18n, lastFailure.error)}</p>
-                  {schedule.lastBackupAt && (
-                    <p className="list-row-desc">
-                      {t('backups.auto.last.previous', { date: fmt.dateTime(schedule.lastBackupAt) })}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="list-row-desc">{fmt.dateTime(schedule.lastBackupAt!)}</p>
-              )}
-            </div>
-            <div className="list-row-control">
-              <StatusPill tone={lastFailure ? 'crashed' : 'running'}>
-                {t(lastFailure ? 'task.status.failed' : 'task.status.completed')}
-              </StatusPill>
-            </div>
-          </div>
-        )}
+        <div className="backups-schedule-controls">
+          {schedule && (
+            <button
+              type="button"
+              className={`btn btn-sm btn-plain backups-schedule-edit${settingsOpen ? ' is-open' : ''}`}
+              aria-expanded={settingsOpen}
+              aria-controls={panelId}
+              onClick={() => setSettingsOpen((open) => !open)}
+            >
+              {t('backups.auto.settings')}
+              <ChevronDown size={14} aria-hidden="true" className="backups-schedule-chevron" />
+            </button>
+          )}
+          <input
+            id={`${switchId}-input`}
+            type="checkbox"
+            role="switch"
+            className="switch"
+            checked={schedule?.enabled ?? false}
+            disabled={!schedule || busy}
+            aria-describedby={schedule ? summaryId : undefined}
+            onChange={(event) => toggle(event.target.checked)}
+          />
+        </div>
       </div>
 
-      {schedule && (
-        <details className="disclosure">
-          <summary>{t('backups.auto.settings')}</summary>
+      {schedule && lastFailure && (
+        <div className="callout callout-danger backups-schedule-failure" role="alert">
+          <AlertCircle size={17} aria-hidden="true" className="callout-icon" />
+          <div className="backups-schedule-failure-body">
+            <p>
+              <strong>{t('backups.auto.last.failed', { date: fmt.dateTime(lastFailure.at) })}</strong>
+            </p>
+            <p>{tm(lastFailure.errorI18n, lastFailure.error)}</p>
+            {schedule.lastBackupAt && (
+              <p className="backups-schedule-failure-prev">
+                {t('backups.auto.last.previous', { date: fmt.dateTime(schedule.lastBackupAt) })}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {schedule && settingsOpen && (
+        <div id={panelId} className="backups-schedule-panel">
           <div className="grid grid-2">
             <Field label={t('backups.auto.time.label')} help={t('backups.auto.time.help', { zone })} error={timeError}>
               {(control) => (
@@ -246,13 +271,14 @@ export function BackupScheduleSection({
               )}
             </Field>
           </div>
-          <div className="instance-actions">
-            <button className="btn" type="button" disabled={busy || !complete || !changed} onClick={submitSettings}>
+          <p className="field-help">{t('backups.auto.skip')}</p>
+          <div className="backups-schedule-panel-footer">
+            <button className="btn btn-tinted" type="button" disabled={busy || !complete || !changed} onClick={submitSettings}>
               {busy ? t('action.saving') : t('backups.auto.save')}
             </button>
+            <FlashNote text={saved} />
           </div>
-          <FlashNote text={saved} />
-        </details>
+        </div>
       )}
 
       <ConfirmDialog

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Archive, Download, History, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { Archive, CalendarClock, Download, History, RefreshCw, Trash2, Upload } from 'lucide-react';
 import type { BackupInfo, InstanceInfo, TaskInfo } from '@mystry/shared';
 import { createBackup, deleteBackup, downloadBackup, listBackups, pollTask, restoreBackup, uploadBackup } from '../api';
 import { errorMessage, isAbortError } from '../errors';
@@ -8,6 +8,7 @@ import { isLifecycleBusy, isProcessAlive } from '../instance-status';
 import { ActionMenu, type ActionMenuItem } from './ActionMenu';
 import { BackupScheduleSection } from './BackupScheduleSection';
 import { ConfirmDialog } from './ConfirmDialog';
+import { StatusPill } from './StatusPill';
 import { TaskProgress } from './TaskProgress';
 
 const SOURCE_LABEL: Record<BackupInfo['source'], MessageKey> = {
@@ -17,9 +18,35 @@ const SOURCE_LABEL: Record<BackupInfo['source'], MessageKey> = {
   scheduled: 'backups.source.scheduled',
 };
 
+const SOURCE_ICON: Record<BackupInfo['source'], typeof Archive> = {
+  manual: Archive,
+  'pre-restore': History,
+  upload: Upload,
+  scheduled: CalendarClock,
+};
+
+/** Mirrors the 768px CSS breakpoint so row actions collapse into the overflow menu on phones without duplicating items in the desktop menu. */
+function useNarrowViewport(): boolean {
+  const [narrow, setNarrow] = useState(() => (
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(max-width: 768px)').matches
+      : false
+  ));
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(max-width: 768px)');
+    const sync = () => setNarrow(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
+  return narrow;
+}
+
 /** Instance backups: one-click backup, upload, download, restore and delete, and the daily automatic backup. Remounted by the parent when the instance changes. */
 export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; onRestored: () => void }) {
-  const { t, fmt } = useI18n();
+  const { t, tp, fmt } = useI18n();
+  const narrow = useNarrowViewport();
   const instanceId = instance.id;
   const [backups, setBackups] = useState<BackupInfo[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -175,42 +202,46 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
   }
 
   function menuItems(backup: BackupInfo): ActionMenuItem[] {
-    return [
-      {
-        key: 'download',
-        label: downloadingId === backup.id ? t('backups.menu.downloading') : t('action.download'),
-        icon: <Download size={14} />,
-        disabled: downloadingId === backup.id,
-        onSelect: () => void download(backup),
-      },
-      {
-        key: 'restore',
-        label: t('backups.menu.restore'),
-        icon: <History size={14} />,
-        disabled: busy || running,
-        title: running ? t('backups.restore.stopFirst') : undefined,
-        onSelect: () => {
-          setBackupCurrent(true);
-          setRestoreTarget(backup);
+    const items: ActionMenuItem[] = [];
+    if (narrow) {
+      items.push(
+        {
+          key: 'download',
+          label: downloadingId === backup.id ? t('backups.menu.downloading') : t('action.download'),
+          icon: <Download size={14} />,
+          disabled: downloadingId === backup.id,
+          onSelect: () => void download(backup),
         },
-      },
-      {
-        key: 'delete',
-        label: t('action.delete'),
-        icon: <Trash2 size={14} />,
-        danger: true,
-        disabled: busy,
-        onSelect: () => setDeleteTarget(backup),
-      },
-    ];
+        {
+          key: 'restore',
+          label: t('backups.menu.restore'),
+          icon: <History size={14} />,
+          disabled: busy || running,
+          title: running ? t('backups.restore.stopFirst') : undefined,
+          onSelect: () => {
+            setBackupCurrent(true);
+            setRestoreTarget(backup);
+          },
+        },
+      );
+    }
+    items.push({
+      key: 'delete',
+      label: t('action.delete'),
+      icon: <Trash2 size={14} />,
+      danger: true,
+      disabled: busy,
+      onSelect: () => setDeleteTarget(backup),
+    });
+    return items;
   }
+
+  const totalBytes = backups.reduce((sum, backup) => sum + backup.sizeBytes, 0);
 
   return (
     <div className="files-workspace backups-workspace">
-      <div className="files-toolbar">
-        <p className="muted backups-hint">
-          {running ? t('backups.hint.running') : t('backups.hint.stopped')}
-        </p>
+      <div className={`files-toolbar backups-toolbar${running ? '' : ' is-actions-only'}`}>
+        {running && <StatusPill tone="warning">{t('backups.status.stopToRestore')}</StatusPill>}
         <div className="files-actions">
           <button
             className="btn btn-icon"
@@ -271,42 +302,86 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
             {t('backups.list.loading')}
           </div>
         ) : null
-      ) : backups.length === 0 ? (
-        <div className="empty-state card" role="status">
-          <span className="empty-icon" aria-hidden="true"><Archive size={28} /></span>
-          <h3>{t('backups.empty.title')}</h3>
-          <p>{t('backups.empty.body')}</p>
-        </div>
       ) : (
-        <ul className={`file-list list-group${loading ? ' is-refreshing' : ''}`} aria-busy={loading}>
-          {backups.map((backup) => (
-            <li key={backup.id} className="file-row">
-              <span className="file-main">
-                <span className="file-icon is-file" aria-hidden="true">
-                  <Archive size={18} />
-                </span>
-                <span className="file-text">
-                  <span className="file-name">{fmt.dateTime(backup.createdAt)}</span>
-                  <span className="file-meta">
-                    {downloadingId === backup.id
-                      ? t('backups.row.preparingDownload')
-                      : t('backups.row.meta', {
-                        source: t(SOURCE_LABEL[backup.source]),
-                        size: fmt.fileSize(backup.sizeBytes),
-                        files: String(backup.fileCount),
-                      })}
-                  </span>
-                </span>
+        <section className="backups-list-section" aria-label={t('backups.list.title')}>
+          <div className="backups-list-header">
+            <h2 className="form-section-title">
+              {t('backups.list.title')}
+              {backups.length > 0 && <span className="count-badge">{fmt.number(backups.length)}</span>}
+            </h2>
+            {backups.length > 0 && (
+              <span className="backups-list-total">
+                {t('backups.list.totalSize', { size: fmt.fileSize(totalBytes) })}
               </span>
-              <div className="file-actions">
-                <ActionMenu
-                  label={t('backups.row.actions', { date: fmt.dateTime(backup.createdAt) })}
-                  items={menuItems(backup)}
-                />
-              </div>
-            </li>
-          ))}
-        </ul>
+            )}
+          </div>
+          {backups.length === 0 ? (
+            <div className="empty-state card" role="status">
+              <span className="empty-icon" aria-hidden="true"><Archive size={28} /></span>
+              <h3>{t('backups.empty.title')}</h3>
+              <p>{t('backups.empty.body')}</p>
+            </div>
+          ) : (
+            <ul className={`backup-list list-group${loading ? ' is-refreshing' : ''}`} aria-busy={loading}>
+              {backups.map((backup) => {
+                const SourceIcon = SOURCE_ICON[backup.source];
+                const isDownloading = downloadingId === backup.id;
+                return (
+                  <li key={backup.id} className="backup-row">
+                    <span className="backup-main">
+                      <span className="file-icon is-file" aria-hidden="true">
+                        <SourceIcon size={18} />
+                      </span>
+                      <span className="backup-text">
+                        <span className="backup-title-row">
+                          <span className="backup-date">{fmt.dateTime(backup.createdAt)}</span>
+                          <span className="backup-source">{t(SOURCE_LABEL[backup.source])}</span>
+                        </span>
+                        <span className="backup-meta">
+                          {isDownloading
+                            ? t('backups.row.preparingDownload')
+                            : tp('backups.row.meta', backup.fileCount, { size: fmt.fileSize(backup.sizeBytes) })}
+                        </span>
+                      </span>
+                    </span>
+                    <div className="backup-actions">
+                      {!narrow && (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-sm backup-inline-btn"
+                            disabled={isDownloading}
+                            onClick={() => void download(backup)}
+                          >
+                            <Download size={14} aria-hidden="true" />
+                            {isDownloading ? t('backups.menu.downloading') : t('action.download')}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            disabled={busy || running}
+                            title={running ? t('backups.restore.stopFirst') : undefined}
+                            onClick={() => {
+                              setBackupCurrent(true);
+                              setRestoreTarget(backup);
+                            }}
+                          >
+                            <History size={14} aria-hidden="true" />
+                            {t('backups.menu.restore')}
+                          </button>
+                        </>
+                      )}
+                      <ActionMenu
+                        label={t('backups.row.actions', { date: fmt.dateTime(backup.createdAt) })}
+                        items={menuItems(backup)}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       )}
 
       <ConfirmDialog

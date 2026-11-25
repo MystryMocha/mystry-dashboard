@@ -603,21 +603,18 @@ test('backups page: restore is disabled while running; the restore dialog backs 
   }));
   const user = userEvent.setup();
   const view = mount(<BackupsTab instance={{ ...instance, status: 'running' } as never} onRestored={() => {}} />);
-  await user.click(await screen.findByRole('button', { name: /的备份操作$/ }));
-  expect((screen.getByRole('menuitem', { name: '还原' }) as HTMLButtonElement).disabled).toBe(true);
-  await user.keyboard('{Escape}');
+  expect((await screen.findByRole('button', { name: '还原' }) as HTMLButtonElement).disabled).toBe(true);
   view.unmount();
 
   mount(<BackupsTab instance={instance as never} onRestored={() => {}} />);
-  await user.click(await screen.findByRole('button', { name: /的备份操作$/ }));
-  await user.click(screen.getByRole('menuitem', { name: '还原' }));
+  await user.click(await screen.findByRole('button', { name: '还原' }));
   const dialog = screen.getByRole('dialog', { name: '还原这个备份？' });
   const checkbox = screen.getByRole('checkbox', { name: '先备份当前文件' }) as HTMLInputElement;
   expect(checkbox.checked).toBe(true);
   await user.click(checkbox);
   expect(dialog.textContent).toContain('无法撤销');
   await user.click(checkbox);
-  await user.click(screen.getByRole('button', { name: '还原', exact: true }));
+  await user.click(within(dialog).getByRole('button', { name: '还原', exact: true }));
   await waitFor(() => expect(posted).toEqual([{ url: '/api/instances/test/backups/20261026-010203-abcdef/restore', body: { backupCurrent: true } }]));
   expect(await screen.findByText('备份已还原')).toBeTruthy();
 });
@@ -634,9 +631,9 @@ test('backups page: a note is shown when the instance record was updated to matc
   const onRestored = vi.fn();
   const user = userEvent.setup();
   mount(<BackupsTab instance={instance as never} onRestored={onRestored} />);
-  await user.click(await screen.findByRole('button', { name: /的备份操作$/ }));
-  await user.click(screen.getByRole('menuitem', { name: '还原' }));
-  await user.click(screen.getByRole('button', { name: '还原', exact: true }));
+  await user.click(await screen.findByRole('button', { name: '还原' }));
+  const dialog = screen.getByRole('dialog', { name: '还原这个备份？' });
+  await user.click(within(dialog).getByRole('button', { name: '还原', exact: true }));
   expect(await screen.findByText(/服务端文件、核心类型和版本已按备份更新/)).toBeTruthy();
   expect(onRestored).toHaveBeenCalledTimes(1);
 });
@@ -2185,13 +2182,15 @@ test('backups page: the automatic backup row says why the last one failed, and t
   const toggle = await screen.findByRole('switch', { name: '每天定时备份' }) as HTMLInputElement;
   await waitFor(() => expect(toggle.disabled).toBe(false));
   expect(toggle.checked).toBe(false);
-  expect(screen.getByText(/保留最新的 7 份定时备份。$/)).toBeTruthy();
-  const row = screen.getByText('上次定时备份').closest('.list-row') as HTMLElement;
-  expect(within(row).getByText('失败')).toBeTruthy();
-  expect(row.textContent).toContain('磁盘空间不足：定时备份约需 300 字节，当前只剩 100 字节');
-  expect(row.textContent).toContain('上一次成功：');
-  // The backup list names where an automatic backup came from.
-  expect(screen.getByText(/^定时备份 · /)).toBeTruthy();
+  expect(screen.getByText(/· 保留 7 份/)).toBeTruthy();
+  const scheduleSection = toggle.closest('section') as HTMLElement;
+  expect(within(scheduleSection).getByText('失败')).toBeTruthy();
+  const failureAlert = within(scheduleSection).getByRole('alert');
+  expect(failureAlert.textContent).toContain('上次定时备份失败');
+  expect(failureAlert.textContent).toContain('磁盘空间不足：定时备份约需 300 字节，当前只剩 100 字节');
+  expect(failureAlert.textContent).toContain('上一次成功：');
+  // The backup list tags where an automatic backup came from.
+  expect(screen.getByText('定时备份')).toBeTruthy();
 
   await user.click(toggle);
   await waitFor(() => expect(saved).toEqual([{ enabled: true, time: '04:00', keep: 7 }]));
@@ -2245,11 +2244,13 @@ test('backups page: the clock of the panel computer is named by its offset from 
       ? new Response(JSON.stringify({ ...schedule, utcOffsetMinutes }))
       : baseFetch(url, options)
   )));
+  const user = userEvent.setup();
   const cases: Array<[number, string]> = [[0, 'UTC'], [480, 'UTC+8'], [-300, 'UTC-5'], [345, 'UTC+5:45'], [-210, 'UTC-3:30']];
   for (const [offset, label] of cases) {
     utcOffsetMinutes = offset;
     const view = mount(<BackupScheduleSection instanceId="test" scheduledCount={0} reloadSignal={0} />);
-    expect(await screen.findByText(`按面板所在电脑的时间（${label}）。`)).toBeTruthy();
+    await user.click(await screen.findByRole('button', { name: '修改计划' }));
+    expect(screen.getByText(`按面板所在电脑的时间（${label}）。`)).toBeTruthy();
     view.unmount();
   }
 });
@@ -2304,4 +2305,28 @@ test('backups page: keeping fewer automatic backups than there are asks first, a
   await user.tab();
   expect(screen.getByText('填写 1–365 之间的整数')).toBeTruthy();
   expect(save.disabled).toBe(true);
+});
+
+test('backups page: row download and restore move into the overflow menu on narrow screens', async () => {
+  const backup = { id: '20261026-010203-abcdef', instanceId: 'test', instanceName: '测试', source: 'manual', createdAt: '2026-10-26T01:02:03.000Z', sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' };
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/backups' && !options?.method) return new Response(JSON.stringify({ backups: [backup] }));
+    return baseFetch(url, options);
+  }));
+  vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+    matches: query === '(max-width: 768px)',
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })));
+  const user = userEvent.setup();
+  mount(<BackupsTab instance={instance as never} onRestored={() => {}} />);
+  const menuTrigger = await screen.findByRole('button', { name: /的备份操作$/ });
+  expect(screen.queryByRole('button', { name: '还原' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '下载' })).toBeNull();
+  await user.click(menuTrigger);
+  expect(screen.getByRole('menuitem', { name: '下载' })).toBeTruthy();
+  expect(screen.getByRole('menuitem', { name: '还原' })).toBeTruthy();
+  expect(screen.getByRole('menuitem', { name: '删除' })).toBeTruthy();
 });
