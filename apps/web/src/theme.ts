@@ -1,5 +1,5 @@
 /**
- * Appearance management: auto (follow the system) / light / dark. The accent color is fixed to ink purple, written in styles.css, and no longer chosen by the user.
+ * Appearance management: auto (follow the system) / light / dark. The accent color is fixed to clay orange, written in styles.css, and not chosen by the user.
  * The initial value is written to data attributes on <html> before rendering by the inline script in index.html
  * (including migration of the six themes of the legacy mystry_theme); this module reads it, switches it, follows system changes,
  * and broadcasts an event so pickers in several places stay in sync.

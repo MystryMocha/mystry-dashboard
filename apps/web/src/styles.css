@@ -1,7 +1,7 @@
 /*
  * Mystry Dashboard UI styles: modeled on Apple's Human Interface Guidelines (HIG) and the Liquid Glass design language.
  * - Appearance: data-appearance = light | dark ("auto" is resolved to one of the two by script);
- * - Accent color: fixed to ink purple (taken from the end of the logo gradient), defined in one place below and no longer chosen by the user;
+ * - Accent color: fixed to clay orange, used the way macOS uses its accent, defined in one place below and not chosen by the user;
  * - Three visual layers: flat page canvas (--bg), crisp inset surface panels (--surface + 1px --panel-border) for all grouped lists and forms,
  *   and frosted-glass navigation/floating layers (sidebar, toolbar, tab bar, menus, popovers).
  */
@@ -60,7 +60,7 @@
 
 /* ========== Light appearance ========== */
 :root {
-  --bg: #ececf1;
+  --bg: #f5f5f7;
   --surface: #ffffff;
   --surface-2: #f7f7fa;
   --surface-raised: #ffffff;
@@ -82,12 +82,19 @@
   --fill: rgba(120, 120, 128, 0.12);
   --fill-2: rgba(120, 120, 128, 0.07);
   --fill-strong: rgba(120, 120, 128, 0.2);
-  --input-bg: rgba(118, 118, 128, 0.1);
+  --input-bg: #ffffff;
   --hover-overlay: rgba(0, 0, 0, 0.05);
   --active-overlay: rgba(0, 0, 0, 0.1);
   --segment-thumb: #ffffff;
   --switch-off: #e3e3e6;
   --editor-bg: #fbfbfd;
+
+  /* macOS-style controls: a plain grey for the selected sidebar item, white buttons and fields held by a hairline. */
+  --sidebar-bg: rgba(232, 232, 237, 0.78);
+  --select-fill: rgba(0, 0, 0, 0.07);
+  --control-bg: #ffffff;
+  --control-edge: 0 0 0 0.5px rgba(0, 0, 0, 0.2), 0 1px 1.5px rgba(0, 0, 0, 0.07);
+  --field-edge: inset 0 0 0 1px rgba(0, 0, 0, 0.13);
 
   --panel-border: rgba(0, 0, 0, 0.11);
   --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 6px rgba(0, 0, 0, 0.03);
@@ -98,13 +105,13 @@
   /* Semantic colors: text uses darkened variants to guarantee contrast, fills use the system colors.
      Text variants are chosen for the worst background: bg with an 11–16% tint of the same hue (status labels, tinted buttons, notices) is still ≥4.5:1. */
   --ok: #1a7431;
-  --warn: #a84a00;
+  /* Caution is amber, not orange: orange belongs to the accent, so "starting" never reads as a button. */
+  --warn: #7d5400;
   --danger: #c70012;
   --danger-fill: #e0281f;
   --c-green: #34c759;
   --c-blue: #007aff;
-  --c-purple: #af52de;
-  --c-orange: #ff9500;
+  --c-yellow: #f0a800;
   --c-red: #ff3b30;
   --c-gray: #8e8e93;
 
@@ -115,16 +122,17 @@
 
 /* ========== Dark appearance ========== */
 :root[data-appearance='dark'] {
-  --bg: #0a0a0b;
-  --surface: #1c1c1e;
-  --surface-2: #232325;
-  --surface-raised: #2c2c2e;
-  --material: rgba(36, 36, 39, 0.62);
-  --material-thick: rgba(40, 40, 43, 0.8);
-  --material-flat: rgba(38, 38, 41, 0.96);
-  --menu-bg: rgba(44, 44, 47, 0.86);
-  --sheet-bg: rgba(36, 36, 38, 0.95);
-  --sheet-bg-solid: rgb(36, 36, 38);
+  /* Graphite rather than near-black, as in macOS: panels sit one step lighter than the canvas. */
+  --bg: #1e1e20;
+  --surface: #2a2a2d;
+  --surface-2: #313134;
+  --surface-raised: #3a3a3d;
+  --material: rgba(46, 46, 50, 0.72);
+  --material-thick: rgba(50, 50, 54, 0.84);
+  --material-flat: rgba(44, 44, 48, 0.96);
+  --menu-bg: rgba(52, 52, 56, 0.9);
+  --sheet-bg: rgba(42, 42, 45, 0.95);
+  --sheet-bg-solid: rgb(42, 42, 45);
   --glass-edge: inset 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.6);
 
   --label: #f5f5f7;
@@ -136,28 +144,34 @@
   --fill: rgba(120, 120, 128, 0.24);
   --fill-2: rgba(120, 120, 128, 0.14);
   --fill-strong: rgba(120, 120, 128, 0.36);
-  --input-bg: rgba(118, 118, 128, 0.22);
+  --input-bg: rgba(255, 255, 255, 0.06);
   --hover-overlay: rgba(255, 255, 255, 0.07);
   --active-overlay: rgba(255, 255, 255, 0.13);
   --segment-thumb: #636366;
-  --switch-off: #39393d;
+  /* On the lighter graphite panels the old #39393d off-track all but vanished. */
+  --switch-off: #4a4a4e;
   --editor-bg: #151517;
 
-  --panel-border: rgba(255, 255, 255, 0.12);
+  --sidebar-bg: rgba(44, 44, 48, 0.8);
+  --select-fill: rgba(255, 255, 255, 0.1);
+  --control-bg: rgba(255, 255, 255, 0.1);
+  --control-edge: 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+  --field-edge: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+
+  --panel-border: rgba(255, 255, 255, 0.09);
   --panel-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --card-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
   --float-shadow: 0 16px 48px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
   --sheet-shadow: 0 30px 90px rgba(0, 0, 0, 0.65), 0 0 0 0.5px rgba(255, 255, 255, 0.12);
 
   --ok: #30d158;
-  --warn: #ff9f0a;
-  /* In dark mode red text goes one step lighter and solid danger buttons one step darker, guaranteeing ≥4.5:1 on a red-tinted background and with white text respectively. */
-  --danger: #ff6961;
+  --warn: #ffd60a;
+  /* In dark mode red text goes one step lighter and solid danger buttons one step darker, guaranteeing ≥4.5:1 on a red tint over the graphite panel and with white text respectively. */
+  --danger: #ff7b73;
   --danger-fill: #d93229;
   --c-green: #30d158;
   --c-blue: #0a84ff;
-  --c-purple: #bf5af2;
-  --c-orange: #ff9f0a;
+  --c-yellow: #ffd60a;
   --c-red: #ff453a;
   --c-gray: #8e8e93;
 
@@ -166,17 +180,18 @@
   color-scheme: dark;
 }
 
-/* ========== Accent color: ink purple (--accent for fills, --accent-text for text) ==========
- * Running, starting and failed already take green, orange and red, and purple is distinct from all of them; in particular it is not confused with the red "Stop" beside each row.
- * Contrast: in light mode white text on the fill is 6.6:1, text on bg is 6.9:1 and on a 20% tint of itself 5.0:1;
- * in dark mode white text on the fill is 5.7:1 and text on bg is 8.2:1; the console focus color on #161618 is ≥5.6:1. */
-:root { --accent: #6439e0; --accent-text: #5a30d4; --on-accent: #ffffff; }
-:root[data-appearance='dark'] { --accent: #6a48e6; --accent-text: #ab98ff; --on-accent: #ffffff; }
+/* ========== Accent color: clay orange (--accent for fills, --accent-text for text) ==========
+ * Used as macOS uses its accent: the primary action, controls that are on or checked, focus and progress. Navigation, links and icons stay neutral.
+ * Status keeps the traffic-light colors (green running, amber in between, red crashed), so orange means only "act here".
+ * Contrast: in light mode white text on the fill is 4.9:1, text on bg 5.4:1 and on a 13% tint of itself 4.5:1;
+ * in dark mode white text on the fill is 4.6:1, text on the panel 6.9:1 and on a 13% tint 6.1:1; the console focus color on #161618 is ≥6.7:1. */
+:root { --accent: #bc4f1f; --accent-text: #a94617; --on-accent: #ffffff; }
+:root[data-appearance='dark'] { --accent: #c2541f; --accent-text: #ff9a6b; --on-accent: #ffffff; }
 
 :root {
   --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
-  --accent-soft-strong: color-mix(in srgb, var(--accent) 20%, transparent);
   --focus-ring: color-mix(in srgb, var(--accent) 45%, transparent);
+  --focus-soft: color-mix(in srgb, var(--accent) 22%, transparent);
   /* The console is always dark: the accent color is brightened by mixing in white, giving ≥3:1 against the console background for any accent color and appearance. */
   --console-focus: color-mix(in srgb, var(--accent) 65%, #ffffff);
 }
@@ -262,8 +277,9 @@ h1[tabindex="-1"]:focus { outline: none; }
 .java-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
 .java-recommended { color: var(--label); font-size: var(--text-small); font-weight: 600; }
 
-.link { color: var(--accent-text); font-weight: 500; }
-.link:hover { text-decoration: underline; text-underline-offset: 3px; }
+/* Links stay in the text color and are told apart by the underline: orange is kept for actions. */
+.link { color: var(--label); font-weight: 500; text-decoration: underline; text-decoration-color: var(--separator-strong); text-underline-offset: 3px; }
+.link:hover { text-decoration-color: currentColor; }
 
 .link-button {
   display: inline-flex;
@@ -272,12 +288,15 @@ h1[tabindex="-1"]:focus { outline: none; }
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent-text);
+  color: var(--label);
   font: inherit;
   font-weight: 500;
   white-space: nowrap;
+  text-decoration: underline;
+  text-decoration-color: var(--separator-strong);
+  text-underline-offset: 3px;
 }
-.link-button:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+.link-button:hover:not(:disabled) { text-decoration-color: currentColor; }
 .link-button:disabled { opacity: 0.55; cursor: progress; }
 .link-button.is-danger { color: var(--danger); }
 
@@ -315,7 +334,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   display: flex;
   flex-direction: column;
   border-radius: var(--radius-xl);
-  background: var(--material);
+  background: var(--sidebar-bg);
   -webkit-backdrop-filter: blur(40px) saturate(180%);
   backdrop-filter: blur(40px) saturate(180%);
   box-shadow: var(--glass-edge), 0 8px 30px rgba(0, 0, 0, 0.06);
@@ -369,8 +388,9 @@ h1[tabindex="-1"]:focus { outline: none; }
 }
 .nav-item svg { flex-shrink: 0; color: var(--label-2); transition: color 0.15s var(--ease); }
 .nav-item:hover { background: var(--fill-2); }
-.nav-item.active { background: var(--accent); color: var(--on-accent); font-weight: 600; }
-.nav-item.active svg { color: var(--on-accent); }
+/* The current page is a plain grey, as in the Finder sidebar. */
+.nav-item.active { background: var(--select-fill); color: var(--label); font-weight: 600; }
+.nav-item.active svg { color: var(--label); }
 
 .sidebar-footer {
   display: flex;
@@ -385,7 +405,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 
 .user-profile { display: flex; align-items: center; gap: 10px; min-width: 0; }
 /* While the panel settings page is being viewed, the gear button stays selected. */
-.btn.sidebar-settings.active { --btn-bg: var(--fill); --btn-fg: var(--accent-text); }
+.btn.sidebar-settings.active { --btn-bg: var(--select-fill); --btn-fg: var(--label); }
 
 .user-avatar {
   display: grid;
@@ -520,7 +540,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
-.toolbar-badge.is-active { background: var(--accent); color: var(--on-accent); }
+.toolbar-badge.is-active { background: var(--label); color: var(--surface); }
 
 .topbar .sidebar-toggle {
   display: none;
@@ -622,7 +642,6 @@ h1[tabindex="-1"]:focus { outline: none; }
   letter-spacing: 0;
   white-space: nowrap;
 }
-.count-badge.is-accent { background: var(--accent-soft); color: var(--accent-text); }
 
 .card {
   background: var(--surface);
@@ -649,8 +668,8 @@ h1[tabindex="-1"]:focus { outline: none; }
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--fill);
+  color: var(--label-2);
   font-size: var(--text-footnote);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -716,9 +735,11 @@ h1[tabindex="-1"]:focus { outline: none; }
 }
 
 /* ========== Buttons ========== */
+/* Ordinary buttons are white on a hairline bezel, as macOS push buttons are; every filled or transparent variant clears --btn-edge. */
 .btn {
-  --btn-bg: var(--fill);
+  --btn-bg: var(--control-bg);
   --btn-fg: var(--label);
+  --btn-edge: var(--control-edge);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -728,6 +749,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   border: 0;
   border-radius: var(--radius-sm);
   background-color: var(--btn-bg);
+  box-shadow: var(--btn-edge);
   color: var(--btn-fg);
   font-size: var(--text-body);
   font-weight: 500;
@@ -741,12 +763,12 @@ h1[tabindex="-1"]:focus { outline: none; }
 .btn:active:not(:disabled) { background-image: linear-gradient(var(--active-overlay), var(--active-overlay)); transform: scale(0.97); }
 .btn:disabled { opacity: 0.42; cursor: not-allowed; }
 
-.btn-primary { --btn-bg: var(--accent); --btn-fg: var(--on-accent); font-weight: 600; }
-.btn-tinted { --btn-bg: var(--accent-soft); --btn-fg: var(--accent-text); font-weight: 600; }
-.btn-ok { --btn-bg: color-mix(in srgb, var(--c-green) 16%, transparent); --btn-fg: var(--ok); font-weight: 600; }
-.btn-danger { --btn-bg: color-mix(in srgb, var(--c-red) 13%, transparent); --btn-fg: var(--danger); font-weight: 600; }
-.btn-destructive { --btn-bg: var(--danger-fill); --btn-fg: #ffffff; font-weight: 600; }
-.btn-plain { --btn-bg: transparent; --btn-fg: var(--accent-text); }
+.btn-primary { --btn-bg: var(--accent); --btn-fg: var(--on-accent); --btn-edge: none; font-weight: 600; }
+.btn-tinted { --btn-bg: var(--accent-soft); --btn-fg: var(--accent-text); --btn-edge: none; font-weight: 600; }
+.btn-ok { --btn-bg: color-mix(in srgb, var(--c-green) 16%, transparent); --btn-fg: var(--ok); --btn-edge: none; font-weight: 600; }
+.btn-danger { --btn-bg: color-mix(in srgb, var(--c-red) 13%, transparent); --btn-fg: var(--danger); --btn-edge: none; font-weight: 600; }
+.btn-destructive { --btn-bg: var(--danger-fill); --btn-fg: #ffffff; --btn-edge: none; font-weight: 600; }
+.btn-plain { --btn-bg: transparent; --btn-fg: var(--label); --btn-edge: none; }
 .btn-plain.is-danger { --btn-fg: var(--danger); }
 
 .btn-icon { width: 34px; padding: 0; }
@@ -852,6 +874,12 @@ h1[tabindex="-1"]:focus { outline: none; }
   line-height: 1.35;
   transition: background-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
+/*
+ * The hairline is a shadow, not a border, so focus and error states replace it without the box changing size.
+ * :where() keeps it at zero specificity: the rule above outranks the red [aria-invalid] outline, and this one must not.
+ */
+:where(.field) :where(input:not([type='checkbox']):not([type='radio']):not([type='file']), select, textarea),
+:where(.input, .input-row > select, .lazy-select-trigger) { box-shadow: var(--field-edge); }
 
 .field :is(input, select, textarea):focus,
 .input:focus,
@@ -860,7 +888,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 .lazy-select.is-open .lazy-select-trigger {
   outline: none;
   background-color: var(--surface);
-  box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--focus-ring);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 3px var(--focus-soft);
 }
 
 /* A field filled in but non-compliant: a red outline, matching the red text below; it stays red when focused too. */
@@ -1000,7 +1028,9 @@ select.input,
 /* -- Forms: memory and JVM -- */
 /* Common presets below the memory inputs: wrap automatically in a narrow column. */
 .jvm-memory-tiers { display: flex; flex-wrap: wrap; gap: 6px; }
-.jvm-memory-tiers .chip.is-selected { background-color: var(--accent-soft-strong); color: var(--accent-text); }
+/* A chosen preset is lifted white like the thumb of a segmented control, not tinted. */
+.jvm-memory-tiers .chip.is-selected { background-color: var(--control-bg); color: var(--label); box-shadow: var(--control-edge); }
+:root[data-appearance='dark'] .jvm-memory-tiers .chip.is-selected { background-color: var(--segment-thumb); }
 .jvm-memory-tiers .chip.is-selected .chip-desc { color: inherit; }
 
 /* -- Forms: config editor and instance settings (including the save bar) -- */
@@ -1149,7 +1179,6 @@ input[type='radio'] {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.list-row-value.is-accent { color: var(--accent-text); font-weight: 600; }
 
 .config-row-text .list-row-control,
 .config-row-select .list-row-control { flex: 0 1 280px; }
@@ -1188,7 +1217,7 @@ input[type='radio'] {
 
 /* ========== Notice bars ========== */
 .callout {
-  --tone: var(--accent);
+  --tone: var(--c-gray);
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -1210,8 +1239,7 @@ input[type='radio'] {
 .callout-danger { --tone: var(--c-red); }
 .callout-danger strong { color: var(--danger); }
 .callout-success { --tone: var(--c-green); }
-.callout-warning { --tone: var(--c-orange); }
-.callout-info { --tone: var(--accent); }
+.callout-warning { --tone: var(--c-yellow); }
 .runtime-upload { display: grid; gap: 8px; }
 .runtime-upload a.btn { text-decoration: none; }
 .runtime-upload-hash code { overflow-wrap: anywhere; word-break: break-all; }
@@ -1236,7 +1264,7 @@ input[type='radio'] {
 .status-pill.running { --tone: var(--c-green); color: var(--ok); }
 .status-pill.starting,
 .status-pill.stopping,
-.status-pill.warning { --tone: var(--c-orange); color: var(--warn); }
+.status-pill.warning { --tone: var(--c-yellow); color: var(--warn); }
 .status-pill.crashed { --tone: var(--c-red); color: var(--danger); }
 
 .status-dot {
@@ -1286,10 +1314,10 @@ input[type='radio'] {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent-text);
+  background: var(--fill);
+  color: var(--label-2);
 }
-.empty-icon.is-warning { background: color-mix(in srgb, var(--c-orange) 16%, transparent); color: var(--warn); }
+.empty-icon.is-warning { background: color-mix(in srgb, var(--c-yellow) 16%, transparent); color: var(--warn); }
 .empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 8px; }
 
 .splash {
@@ -1582,7 +1610,7 @@ input[type='radio'] {
    only a button that fixes a problem (review the EULA, open the console after a crash) keeps a light background, so a healthy row has no prominent action
    and the rows that need attention are the ones that stand out. Invite Friends on a ready server is not a fix and stays as quiet as Start and Stop.
    Once stacked the buttons get their own line at the start of the row and keep the light background, or the text indent would not line up and they would not look like clickable buttons. */
-.server-actions .action-menu-trigger { --btn-bg: transparent; }
+.server-actions .action-menu-trigger { --btn-bg: transparent; --btn-edge: none; }
 @container servers (min-width: 821px) {
   .server-actions :is(.btn-ok, .btn-danger, .server-next-quiet) { --btn-bg: transparent; }
   .server-actions .btn-ok:hover:not(:disabled) { --btn-bg: color-mix(in srgb, var(--c-green) 16%, transparent); }
@@ -1647,8 +1675,8 @@ input[type='radio'] {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  color: var(--accent-text);
+  background: var(--fill);
+  color: var(--label-2);
 }
 .start-path-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .start-path-title { font-size: var(--text-body); font-weight: 600; }
@@ -1657,7 +1685,7 @@ input[type='radio'] {
 
 /* Core icons are solid color blocks, without gradients or colored shadows; one color per core, with the white glyph at least 3:1 against the background. */
 .core-icon {
-  --core: #6a5ae6;
+  --core: #8e8e93;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -1673,7 +1701,7 @@ input[type='radio'] {
 .core-forge { --core: #636366; }
 .core-neoforge { --core: #e8590c; }
 .core-vanilla { --core: #2f9e44; }
-.core-custom { --core: #6a5ae6; }
+.core-custom { --core: #8e8e93; }
 
 /* ========== Instance workspace ========== */
 .instance-page { gap: var(--instance-page-gap); }
@@ -1687,11 +1715,11 @@ input[type='radio'] {
   margin-left: -6px;
   padding: 4px 10px 4px 2px;
   border-radius: 8px;
-  color: var(--accent-text);
+  color: var(--label);
   font-size: var(--text-body);
   font-weight: 500;
 }
-.back-link:hover { background: var(--accent-soft); }
+.back-link:hover { background: var(--fill-2); }
 /* While the sidebar is permanent (same breakpoint as where the sidebar becomes a drawer) it already has "Instance Overview", so the instance page header no longer has a back link. */
 @media (min-width: 1025px) {
   .instance-header .back-link { display: none; }
@@ -1749,7 +1777,7 @@ input[type='radio'] {
   font-weight: 600;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.09), 0 0 0 0.5px var(--panel-border);
 }
-.hub-tab.active svg { color: var(--accent-text); }
+.hub-tab.active svg { color: var(--label); }
 .hub-tab:focus-visible { outline-offset: -2px; }
 .instance-body { min-width: 0; }
 
@@ -1971,7 +1999,7 @@ button.file-main:hover { background: var(--fill-2); }
 .file-meta { overflow: hidden; font-size: var(--text-footnote); color: var(--label-2); text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .file-chevron { flex-shrink: 0; margin-left: auto; color: var(--label-3); }
 .file-actions { flex-shrink: 0; }
-.file-actions .action-menu-trigger { --btn-bg: transparent; --btn-fg: var(--label-2); }
+.file-actions .action-menu-trigger { --btn-bg: transparent; --btn-fg: var(--label-2); --btn-edge: none; }
 
 /* ========== Backups ========== */
 .backups-workspace { gap: 20px; }
@@ -2013,10 +2041,7 @@ button.file-main:hover { background: var(--fill-2); }
   color: var(--label-2);
   transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
 }
-.backups-schedule.is-enabled .backups-schedule-icon {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-}
+.backups-schedule.is-enabled .backups-schedule-icon { color: var(--label); }
 .backups-schedule.has-failure .backups-schedule-icon {
   background: color-mix(in srgb, var(--c-red) 13%, transparent);
   color: var(--danger);
@@ -2166,9 +2191,9 @@ button.file-main:hover { background: var(--fill-2); }
   gap: 6px;
   flex-shrink: 0;
 }
-.backup-inline-btn { --btn-bg: transparent; --btn-fg: var(--label-2); }
+.backup-inline-btn { --btn-bg: transparent; --btn-fg: var(--label-2); --btn-edge: none; }
 .backup-inline-btn:hover:not(:disabled) { --btn-bg: var(--fill); --btn-fg: var(--label); }
-.backup-actions .action-menu-trigger { --btn-bg: transparent; --btn-fg: var(--label-2); }
+.backup-actions .action-menu-trigger { --btn-bg: transparent; --btn-fg: var(--label-2); --btn-edge: none; }
 
 /* ========== Popup menus and popovers ========== */
 @keyframes menu-in {
@@ -2542,7 +2567,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   background: var(--surface);
   box-shadow: var(--card-shadow);
 }
-.task-card.status-pending { --tone: var(--c-orange); }
+.task-card.status-pending { --tone: var(--c-yellow); }
 .task-card.status-completed { --tone: var(--c-green); }
 .task-card.status-failed { --tone: var(--c-red); }
 /* A cancelled task is not an error: the icon uses neutral grey, and the status word keeps the default secondary text color. */
@@ -2560,6 +2585,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   color: #ffffff;
 }
 .task-card.status-running .task-card-icon { color: var(--on-accent); }
+/* White on amber is 2.0:1 in light and 1.4:1 in dark; a dark glyph reads like a caution sign (≥8:1 in both). */
+.task-card.status-pending .task-card-icon { color: #1d1d1f; }
 .task-card-title { flex: 1; min-width: 0; font-size: var(--text-body); font-weight: 600; }
 .task-card-status { flex-shrink: 0; font-size: var(--text-small); font-weight: 600; color: var(--label-2); font-variant-numeric: tabular-nums; }
 .task-card.status-completed .task-card-status { color: var(--ok); }
@@ -2623,10 +2650,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .core-option .core-icon { margin-bottom: 10px; }
 /* Hover adds only one layer of the same light color as buttons, with no lift and no deeper shadow: it already looks clickable and needs no motion to hint at it. */
 .core-option:hover:not(:disabled) { background-image: linear-gradient(var(--hover-overlay), var(--hover-overlay)); }
-.core-option.selected {
-  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
-  box-shadow: 0 0 0 2px var(--accent), var(--card-shadow);
-}
+.core-option.selected { box-shadow: 0 0 0 2px var(--accent), var(--card-shadow); }
 .core-option:disabled { opacity: 0.6; cursor: not-allowed; }
 .core-name { font-size: var(--text-body); font-weight: 600; }
 .core-desc { font-size: var(--text-small); color: var(--label-2); }
@@ -2706,8 +2730,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .environment-status .status-dot { background: var(--label-3); }
 .environment-status.is-ready { background: color-mix(in srgb, var(--c-green) 12%, transparent); color: var(--ok); }
 .environment-status.is-ready .status-dot { background: var(--c-green); }
-.environment-status.is-missing { background: color-mix(in srgb, var(--c-orange) 13%, transparent); color: var(--warn); }
-.environment-status.is-missing .status-dot { background: var(--c-orange); }
+.environment-status.is-missing { background: color-mix(in srgb, var(--c-yellow) 13%, transparent); color: var(--warn); }
+.environment-status.is-missing .status-dot { background: var(--c-yellow); }
 
 /* ========== Import ========== */
 .import-mode-switch,
@@ -2845,7 +2869,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .remote-advanced[open] > *:not(summary) { margin-top: 8px; }
 .remote-entry-row { width: 100%; align-items: center; gap: 12px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .remote-entry-row:hover { background: var(--fill-2); }
-.remote-entry-icon { flex-shrink: 0; color: var(--accent-text); }
+.remote-entry-icon { flex-shrink: 0; color: var(--label-2); }
 .remote-entry-chevron { flex-shrink: 0; color: var(--label-2); }
 .is-spinning { animation: spin 0.9s linear infinite; }
 
@@ -2891,8 +2915,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--accent-text);
+  background: var(--fill);
+  color: var(--label-2);
 }
 .drop-zone-title { font-size: var(--text-body); font-weight: 600; overflow-wrap: anywhere; }
 .drop-zone-hint { font-size: var(--text-small); color: var(--label-2); }
@@ -3155,7 +3179,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
     font-weight: 600;
     transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
   }
-  .tab-bar-item.active { background: var(--fill); color: var(--accent-text); }
+  .tab-bar-item.active { background: var(--fill); color: var(--label); }
 
   /*
    * On narrow screens only the bottom tab bar keeps its backdrop blur: the toolbar, toolbar button group, sidebar drawer, floating action bar, task drawer and dialogs

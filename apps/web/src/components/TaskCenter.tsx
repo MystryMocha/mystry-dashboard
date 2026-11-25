@@ -108,7 +108,7 @@ export function TaskCenter() {
         <div className="drawer-header">
           <div className="drawer-title-group">
             <h2 id={titleId} className="drawer-title">{t('tasks.center.title')}</h2>
-            {activeCount > 0 && <span className="count-badge is-accent">{t('tasks.center.activeBadge', { count: fmt.number(activeCount) })}</span>}
+            {activeCount > 0 && <span className="count-badge">{t('tasks.center.activeBadge', { count: fmt.number(activeCount) })}</span>}
           </div>
           <div className="drawer-tools">
             <button
