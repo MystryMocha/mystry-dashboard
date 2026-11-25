@@ -302,7 +302,7 @@ You can work only with files inside the current instance's root folder:
 | Click a folder / text file | Opens the folder, or opens the file for editing |
 | "…" at the right of each item | **Download** (files only), **Edit** (text files only), **Rename**, **Delete** |
 
-**Edit** opens the file's content in a dialog; click **Save** to write it back to disk. Large files and binary files can't be edited online.
+**Edit** opens the file's content in a dialog; click **Save** to write it back to disk. Large files can't be edited online. A binary file, such as `level.dat` or a plugin `.jar`, opens read-only with a warning, because saving it here would break it.
 
 Paths are relative to the instance root. Before you change `mods`, `plugins` or world data, it's best to **stop the server first**.
 

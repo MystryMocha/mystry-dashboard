@@ -216,7 +216,7 @@ A successful takeover returns the updated `InstanceInfo`. The endpoint returns a
 | Method | Path | Description |
 |------|------|------|
 | GET | `/files?path=` | Lists a directory inside the instance root, `FileEntry[]`; the panel ownership marker `.mystry-instance.json` in the instance root is omitted from the list |
-| GET | `/files/content?path=` | Reads text `{ path, content }` |
+| GET | `/files/content?path=` | Reads text `{ path, content, binary }`. `binary` is `true` when the first 8 KiB contain a NUL byte; `content` is then lossy (bytes that are not UTF-8 become U+FFFD), so writing it back would break the file |
 | PUT | `/files/content` | Body: `{ path, content }` |
 | DELETE | `/files?path=` | Deletes a file or directory inside the instance root. It shares the per-instance lock with start, stop, restart and instance deletion: it waits for one of them in progress, and they wait until the delete has finished |
 | POST | `/files/mkdir` | Body: `{ path }` |

@@ -16,6 +16,7 @@ import { TaskCenter } from '../src/components/TaskCenter';
 import { ConsolePanel } from '../src/components/ConsolePanel';
 import { BackupsTab } from '../src/components/BackupsTab';
 import { BackupScheduleSection } from '../src/components/BackupScheduleSection';
+import { FilesTab } from '../src/components/FilesTab';
 import { ConfigTab } from '../src/components/ConfigTab';
 import { WhitelistNotice } from '../src/components/WhitelistNotice';
 import { ChangePasswordDialog } from '../src/components/ChangePasswordDialog';
@@ -2330,4 +2331,43 @@ test('backups page: row download and restore move into the overflow menu on narr
   expect(screen.getByRole('menuitem', { name: '下载' })).toBeTruthy();
   expect(screen.getByRole('menuitem', { name: '还原' })).toBeTruthy();
   expect(screen.getByRole('menuitem', { name: '删除' })).toBeTruthy();
+});
+
+test('files: a binary file opens read-only with a warning and no Save, while a text file still opens for editing', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/files?path=') {
+      return new Response(JSON.stringify([
+        { name: 'level.dat', path: 'level.dat', isDirectory: false, size: 10, modifiedAt },
+        { name: 'notes.txt', path: 'notes.txt', isDirectory: false, size: 5, modifiedAt },
+      ]));
+    }
+    if (url === '/api/instances/test/files/content?path=level.dat') {
+      return new Response(JSON.stringify({ path: 'level.dat', content: '\u001f\uFFFD\b\u0000', binary: true }));
+    }
+    if (url === '/api/instances/test/files/content?path=notes.txt') {
+      return new Response(JSON.stringify({ path: 'notes.txt', content: 'hello', binary: false }));
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  mount(<FilesTab instanceId="test" />);
+  const dialog = () => within(document.querySelector<HTMLElement>('.file-edit-dialog')!);
+
+  await user.click(await screen.findByTitle('编辑 level.dat'));
+  expect(await dialog().findByText('这是二进制文件，保存会把它写坏，所以这里只能查看。')).toBeTruthy();
+  expect(dialog().getByRole<HTMLTextAreaElement>('textbox', { name: '文件内容：level.dat' }).readOnly).toBe(true);
+  expect(dialog().queryByRole('button', { name: '保存' })).toBeNull();
+  await user.click(dialog().getByRole('button', { name: '关闭', exact: true }));
+  expect(document.querySelector<HTMLDialogElement>('.file-edit-dialog')!.open).toBe(false);
+
+  await user.click(screen.getByTitle('编辑 notes.txt'));
+  const textarea = await dialog().findByRole<HTMLTextAreaElement>('textbox', { name: '文件内容：notes.txt' });
+  expect(textarea.readOnly).toBe(false);
+  expect(dialog().queryByText(/二进制文件/)).toBeNull();
+  const save = dialog().getByRole<HTMLButtonElement>('button', { name: '保存' });
+  expect(save.disabled).toBe(true);
+  await user.type(textarea, '!');
+  expect(save.disabled).toBe(false);
 });
