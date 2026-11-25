@@ -15,6 +15,10 @@ This file records notable changes to the project. The format follows [Keep a Cha
 - The interface takes a calmer look modeled on macOS. Lists and forms sit on solid panels, buttons have square corners while status pills and badges stay round, and the accent is now clay orange, used only for the main action, controls that are switched on, focus and progress. Warnings and in-between states such as **Starting** are amber, and the dark appearance is graphite rather than near black.
 - **Instances** lists the servers that need attention first, no longer adds "Players can join now" after **Running**, and on wide screens draws **Start**, **Stop** and **Invite Players** without a fill. The sidebar drops its group titles, and the **Properties** tab no longer opens with a note about `server.properties`.
 
+### Fixed
+
+- The file editor opened binary files under 1 MiB, such as `level.dat`, a plugin `.jar` or `server-icon.png`, as garbled text, and **Save** wrote that text back and broke the file. A file with a NUL byte in its first 8 KiB now opens read-only, with a warning and only **Close**; `GET /api/instances/:id/files/content` reports it with `binary: true`.
+
 ## [0.2.0-preview.7] - 2026-11-24
 
 ### Added

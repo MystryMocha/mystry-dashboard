@@ -111,7 +111,19 @@ export function listFiles(instanceId: string, relativePath = ''): FileEntry[] {
     });
 }
 
-export function readTextFile(instanceId: string, relativePath: string): string {
+/** How much of the start of a file is searched for a NUL byte, much as Git tells binary files apart. */
+const BINARY_SNIFF_BYTES = 8192;
+
+export type TextFileRead = {
+  content: string;
+  /**
+   * A NUL byte in the first 8 KiB: the file is binary. UTF-8 text never contains one, whatever its language, and a BOM does not
+   * change that. Its bytes do not survive decoding as UTF-8 (invalid ones become U+FFFD), so writing `content` back would break it.
+   */
+  binary: boolean;
+};
+
+export function readTextFile(instanceId: string, relativePath: string): TextFileRead {
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
   if (!fs.existsSync(target)) {
@@ -129,7 +141,11 @@ export function readTextFile(instanceId: string, relativePath: string): string {
   if (stat.size > maxTextFileBytes) {
     throw new PanelError('server.files.text.tooLarge', { limit: maxTextFileBytes });
   }
-  return fs.readFileSync(target, 'utf8');
+  const bytes = fs.readFileSync(target);
+  return {
+    content: bytes.toString('utf8'),
+    binary: bytes.subarray(0, BINARY_SNIFF_BYTES).includes(0),
+  };
 }
 
 export function writeTextFile(instanceId: string, relativePath: string, content: string): void {
