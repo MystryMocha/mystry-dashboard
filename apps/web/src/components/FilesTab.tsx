@@ -157,6 +157,8 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   const [content, setContent] = useState('');
   /** The original content on a successful read; null means not read yet or the read failed, in which case no edit box is shown and saving is not possible, so the original file is not overwritten with empty content. */
   const [editOriginal, setEditOriginal] = useState<string | null>(null);
+  /** The server found a NUL byte near the start: the file is shown read-only, because saving the decoded text would break it. */
+  const [editBinary, setEditBinary] = useState(false);
   const [error, setError] = useState('');
   const [editError, setEditError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -225,6 +227,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setEditPath(null);
     setContent('');
     setEditOriginal(null);
+    setEditBinary(false);
     setEditError('');
     setLoadingEdit(false);
   }
@@ -267,14 +270,16 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setEditPath(file.path);
     setContent('');
     setEditOriginal(null);
+    setEditBinary(false);
     try {
-      const res = await api<{ content: string }>(
+      const res = await api<{ content: string; binary?: boolean }>(
         instanceApi(instanceId, `/files/content?path=${encodeURIComponent(file.path)}`),
       );
       // The editor may have been closed or another file opened in the meantime; stale responses must be discarded, or A's content would be saved into file B.
       if (generation !== editGenerationRef.current) return;
       setContent(res.content);
       setEditOriginal(res.content);
+      setEditBinary(res.binary === true);
     } catch (err) {
       if (generation !== editGenerationRef.current) return;
       setEditError(errorMessage(err));
@@ -284,7 +289,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   }, [instanceId]);
 
   async function saveFile() {
-    if (!editPath || editOriginal === null) return;
+    if (!editPath || editOriginal === null || editBinary) return;
     setSaving(true);
     try {
       await api(instanceApi(instanceId, '/files/content'), {
@@ -572,7 +577,8 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
               {t('action.close')}
             </button>
           </header>
-          {editError && <p className="callout callout-danger file-edit-dialog-error">{editError}</p>}
+          {editBinary && <p className="callout callout-warning file-edit-dialog-callout" role="status">{t('files.edit.binaryReadOnly')}</p>}
+          {editError && <p className="callout callout-danger file-edit-dialog-callout">{editError}</p>}
           {loadingEdit ? (
             <div className="page-loading file-edit-dialog-loading" role="status">
               <span className="spinner" aria-hidden="true" />
@@ -583,22 +589,31 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
               className="file-edit-dialog-textarea"
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              readOnly={editBinary}
               spellCheck={false}
               aria-label={t('files.edit.contentLabel', { path: editPath ?? '' })}
             />
           )}
           <footer className="file-edit-dialog-footer">
-            <button className="btn" type="button" onClick={closeEditor}>
-              {t('action.cancel')}
-            </button>
-            <button
-              className="btn btn-primary"
-              type="button"
-              disabled={saving || loadingEdit || !editPath || editOriginal === null || content === editOriginal}
-              onClick={() => void saveFile()}
-            >
-              {saving ? t('action.saving') : t('action.save')}
-            </button>
+            {editBinary ? (
+              <button className="btn" type="button" onClick={closeEditor}>
+                {t('action.close')}
+              </button>
+            ) : (
+              <>
+                <button className="btn" type="button" onClick={closeEditor}>
+                  {t('action.cancel')}
+                </button>
+                <button
+                  className="btn btn-primary"
+                  type="button"
+                  disabled={saving || loadingEdit || !editPath || editOriginal === null || content === editOriginal}
+                  onClick={() => void saveFile()}
+                >
+                  {saving ? t('action.saving') : t('action.save')}
+                </button>
+              </>
+            )}
           </footer>
         </div>
       </dialog>

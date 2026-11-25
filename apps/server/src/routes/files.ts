@@ -304,8 +304,8 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       if (req.validationError) return validationMessage(reply, 'server.files.validation.path');
       if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
-        const content = readTextFile(req.params.id, req.query.path);
-        return { path: req.query.path, content };
+        const { content, binary } = readTextFile(req.params.id, req.query.path);
+        return { path: req.query.path, content, binary };
       } catch (err) {
         return sendRouteError(reply, err);
       }

@@ -33,6 +33,7 @@ export default {
   'files.edit.title': 'Edit File',
   'files.edit.closeLabel': 'Close Editor',
   'files.edit.contentLabel': 'File content: {path}',
+  'files.edit.binaryReadOnly': 'This is a binary file. Saving it here would break it, so it can only be viewed.',
 
   'files.rename.hint': 'You can only rename within the same folder. The name can\'t contain / or \\.',
   'files.rename.newName': 'New Name',

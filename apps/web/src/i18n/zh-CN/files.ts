@@ -35,6 +35,7 @@ export default {
   'files.edit.title': '编辑文件',
   'files.edit.closeLabel': '关闭编辑',
   'files.edit.contentLabel': '文件内容：{path}',
+  'files.edit.binaryReadOnly': '这是二进制文件，保存会把它写坏，所以这里只能查看。',
 
   'files.rename.hint': '只能在当前文件夹里改名，名称里不能有 / 或 \\。',
   'files.rename.newName': '新名称',
