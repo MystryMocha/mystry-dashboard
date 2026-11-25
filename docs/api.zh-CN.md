@@ -258,7 +258,25 @@ Authorization: Bearer <token>
 - 备份与还原任务的运行时限为 `BACKUP_TASK_TIMEOUT_MS`（默认 6 小时），不受 `TASK_TIMEOUT_MS` 限制。
 - 上传超过 `MAX_BACKUP_UPLOAD_BYTES` 返回 **413**。下载票据的状态查询与取消沿用 `/files/download-ticket/:ticket/status` 和 `DELETE /files/download-ticket/:ticket`。
 
-`BackupInfo` 字段：`id`、`instanceId`、`instanceName`、`source`（`manual` / `pre-restore` / `upload`）、`createdAt`、`sizeBytes`（压缩包大小）、`fileCount`、`contentBytes`（解压后大小）、`coreType`、`mcVersion`、`wasRunning`、`sha256`（压缩包的 SHA-256）。
+`BackupInfo` 字段：`id`、`instanceId`、`instanceName`、`source`（`manual` / `pre-restore` / `upload` / `scheduled`）、`createdAt`、`sizeBytes`（压缩包大小）、`fileCount`、`contentBytes`（解压后大小）、`coreType`、`mcVersion`、`wasRunning`、`sha256`（压缩包的 SHA-256）。
+
+### 定时备份 `/api/instances/:id/backup-schedule`
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/backup-schedule` | `BackupScheduleInfo`；未保存过计划时为默认值（未启用、`04:00`、保留 `7` 份） |
+| PUT | `/backup-schedule` | Body：`{ enabled: boolean, time: "HH:MM", keep: 1–365 }`，三项必填；返回 `BackupScheduleInfo`。格式不符返回 **400** |
+
+每个实例有一份每日计划。`time` 为 24 小时制时刻，以面板所在机器的时钟为准；响应中的 `utcOffsetMinutes` 为该时钟当前相对 UTC 的偏移。面板每分钟检查一次，到期的备份作为普通 `backup` 任务排入，因此也出现在 `GET /api/tasks` 中；生成的备份 `source` 为 `'scheduled'`。
+
+- **到期**：当日备份自设定时刻起到期。启用计划，或在启用状态下修改时刻，均自该时刻下一次到来起算。面板未运行或机器休眠期间错过的日子，于下次启动后只补一次。夏令时切换当日，设定时刻被跳过时，在跳变后的第一分钟备份；设定时刻出现两次时，只在第一次备份。
+- **推迟**：仅在没有其他任务运行或排队时排入定时备份，故同一时间至多运行一份。面板正在处理其他任务，或实例正在启动、停止、备份或还原时，留待之后的检查，不作记录。
+- **跳过**：上一份定时备份之后服务器未运行过、亦未经面板改动文件，且该备份仍在时，当日跳过，不产生任务。还原视同改动；面板之外对实例目录的改动无从得知。
+- **磁盘空间**：打包前，备份目录所在磁盘的可用空间须不少于该实例最新一份备份的大小加 256 MiB。不足时，先删除已超出 `keep` 份的定时备份，再读取一次可用空间；仍然不足或无可删除时，本次失败。实例尚无备份，或平台无法报告可用空间时，不作检查。
+- **保留**：定时备份成功后，该实例 `source: 'scheduled'` 的备份中超出最新 `keep` 份者，按从旧到新删除。`keep` 取删除时已保存的值，打包期间的修改对本次即生效。刚生成的一份不在删除之列，即便机器时钟被调回、其日期早于其余各份。其他来源的备份不会被自动删除；正被还原任务使用的备份留待之后处理。
+- **失败**：失败的一次是一条失败的 `backup` 任务，错误信息带实例名称；`lastFailure`（`at`、`error`、`errorI18n`）保留其原因，直至下一份定时备份成功。当日不再重试，唯一的例外是因服务器启动、停止或崩溃而中断的一次：下次检查时重试，同一日至多运行三次。其中每一次仍是一条失败任务，第三次仍被中断时才写入 `lastFailure`。因面板关闭而中断的一次不作记录，于下次启动后补做。
+
+`BackupScheduleInfo` 字段：`enabled`、`time`、`keep`、`utcOffsetMinutes`、`lastBackupAt`（最近一份成功的定时备份的时间，无则为 `null`）、`lastFailure`（无则为 `null`）。计划随实例一并删除。
 
 ## 核心部署与导入
 

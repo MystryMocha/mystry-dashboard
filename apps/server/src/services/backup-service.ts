@@ -159,7 +159,7 @@ function toCoreType(value: unknown): CoreType | null {
   return typeof value === 'string' && (CORE_TYPE_ENUM as readonly string[]).includes(value) ? value as CoreType : null;
 }
 
-const BACKUP_SOURCES: readonly BackupSource[] = ['manual', 'pre-restore', 'upload'];
+const BACKUP_SOURCES: readonly BackupSource[] = ['manual', 'pre-restore', 'upload', 'scheduled'];
 
 /** Reads the metadata; returns null when the content is corrupted, the fields do not match or the archive is missing (it is not shown in the list). */
 function readBackupMeta(dir: string, instanceId: string, backupId: string): BackupInfo | null {
@@ -205,7 +205,7 @@ function writeBackupMeta(dir: string, info: BackupInfo): void {
   writeFileAtomic(metaFile(dir, info.id), `${JSON.stringify({ version: 1, ...info })}\n`);
 }
 
-function requireManagedInstance(instanceId: string): InstanceRow {
+export function requireManagedInstance(instanceId: string): InstanceRow {
   const row = getInstanceRow(instanceId);
   if (!row) throw new PanelError('server.instance.notFound', undefined, { statusCode: 404 });
   if (row.install_path !== null) throw new PanelError('server.backups.legacyInstance');
@@ -484,7 +484,12 @@ async function createBackup(
   }
 }
 
-/** Checks the state and enters maintenance inside the instance lock; no maintenance flag is left behind on failure. */
+/**
+ * Checks the state and enters maintenance inside the instance lock; no maintenance flag is left behind on failure.
+ * The task that follows ends maintenance through its `onSettled`, not at the end of its worker: a task can be over
+ * without its worker having been called, and the instance would then refuse to start, back up or be deleted until the
+ * panel restarts.
+ */
 async function enterMaintenance(
   instanceId: string,
   key: 'server.backups.busyBackingUp' | 'server.backups.busyRestoring',
@@ -517,13 +522,148 @@ export async function startBackupTask(instanceId: string): Promise<TaskInfo> {
   const release = await enterMaintenance(instanceId, 'server.backups.busyBackingUp');
   try {
     return await runBackgroundTask('backup', { key: 'server.backups.task.backupQueued' }, async (_taskId, signal, report) => {
-      try {
-        const info = await createBackup(instanceId, 'manual', signal, report, { from: 0, to: 99 });
-        return { instanceId, backupId: info.id };
-      } finally {
-        release();
+      const info = await createBackup(instanceId, 'manual', signal, report, { from: 0, to: 99 });
+      return { instanceId, backupId: info.id };
+    }, { timeoutMs: config.backupTaskTimeoutMs, onSettled: release });
+  } catch (error) {
+    release();
+    throw error;
+  }
+}
+
+export type ScheduledBackupOptions = {
+  /**
+   * How many scheduled backups to keep, or null when that is no longer known, in which case none is deleted.
+   * It is read when older backups are about to be deleted, not when the run is queued: packing a large world takes long
+   * enough for the number to be changed meanwhile, and a backup the user has just asked to keep must not be deleted.
+   */
+  keep: () => number | null;
+  /** Free space required on top of the size of the instance's previous backup. */
+  freeSpaceMarginBytes: number;
+  /** Free bytes on the disk that holds a directory, or null when the platform cannot tell. Replaced in tests. */
+  readFreeBytes?: (dir: string) => number | null;
+  /** Called with the new backup while the instance is still in maintenance, before older scheduled backups are deleted. */
+  onCreated: (info: BackupInfo) => void;
+  /** Called with the reason when no backup was made. */
+  onFailed: (error: unknown) => void;
+};
+
+function freeBytesOn(dir: string): number | null {
+  try {
+    const stats = fs.statfsSync(dir);
+    return Number(stats.bavail) * Number(stats.bsize);
+  } catch {
+    // When the platform does not support statfs the backup is not blocked; running out of space then fails while packing, and the temp file is removed.
+    return null;
+  }
+}
+
+/**
+ * Nobody is watching a scheduled run, and filling the disk under a running server can damage the world it is saving.
+ * The previous backup is the best estimate of the next one's size; with no previous backup there is nothing to estimate from.
+ * The space is read where the archive is written: BACKUP_DIR may be on another disk than the data directory.
+ */
+function assertEnoughSpaceForScheduledBackup(instanceId: string, options: ScheduledBackupOptions): void {
+  const [previous] = listBackups(instanceId);
+  if (!previous) return;
+  const available = (options.readFreeBytes ?? freeBytesOn)(instanceBackupDir(instanceId, true)!);
+  if (available === null) return;
+  const needed = previous.sizeBytes + options.freeSpaceMarginBytes;
+  if (available < needed) {
+    throw new PanelError('server.backups.schedule.diskSpace', { needed, available });
+  }
+}
+
+/**
+ * Deletes this instance's scheduled backups beyond the newest `keep`, oldest first; backups from every other source are
+ * never touched. Each one goes through deleteBackup, so a backup in use by a restore is refused and stays.
+ * Whatever could not be deleted is still beyond the count after the next scheduled backup, and is tried again then.
+ * `newestId` names the backup a run has just made; it counts as the newest whatever its date says.
+ */
+export function pruneScheduledBackups(
+  instanceId: string,
+  keep: number,
+  newestId?: string,
+): { deleted: string[]; kept: string[] } {
+  const result: { deleted: string[]; kept: string[] } = { deleted: [], kept: [] };
+  // Anything but a positive whole number would make slice() below start from the newest backup.
+  if (!Number.isSafeInteger(keep) || keep < 1) return result;
+  const scheduled = listBackups(instanceId).filter((backup) => backup.source === 'scheduled');
+  // The list is ordered by creation date. After the computer's clock is set back, the backup just made carries an
+  // earlier date than the ones already there, and going by date alone it would be the first one deleted.
+  const ranked = [
+    ...scheduled.filter((backup) => backup.id === newestId),
+    ...scheduled.filter((backup) => backup.id !== newestId),
+  ];
+  for (const backup of ranked.slice(keep).reverse()) {
+    try {
+      deleteBackup(instanceId, backup.id);
+      result.deleted.push(backup.id);
+    } catch (error) {
+      result.kept.push(backup.id);
+      if (!(error instanceof PanelError && error.messageKey === 'server.backups.inUse')) {
+        console.warn(`未能删除实例 ${instanceId} 超出保留数量的定时备份 ${backup.id}`, error);
       }
-    }, { timeoutMs: config.backupTaskTimeoutMs });
+    }
+  }
+  return result;
+}
+
+/**
+ * Deletes the scheduled backups beyond the number to keep as it stands now, and returns how many went. Never throws:
+ * failing to delete older backups must not turn a backup that exists into a failed task, nor replace the reason a run
+ * gives for having made none.
+ */
+function applyScheduledRetention(instanceId: string, options: ScheduledBackupOptions, newestId?: string): number {
+  try {
+    const keep = options.keep();
+    return keep === null ? 0 : pruneScheduledBackups(instanceId, keep, newestId).deleted.length;
+  } catch (error) {
+    console.warn(`未能清理实例 ${instanceId} 超出保留数量的定时备份`, error);
+    return 0;
+  }
+}
+
+/**
+ * Retention runs after a backup succeeds, which a full disk never lets happen: lowering the number to keep would then
+ * free nothing, and every later run would fail the same way. So when space is short, the scheduled backups already
+ * beyond that number are deleted first and the space is read again. Backups within the number stay, because no newer
+ * one exists yet to take their place.
+ */
+function makeRoomForScheduledBackup(instanceId: string, options: ScheduledBackupOptions): void {
+  try {
+    assertEnoughSpaceForScheduledBackup(instanceId, options);
+    return;
+  } catch (error) {
+    const outOfSpace = error instanceof PanelError && error.messageKey === 'server.backups.schedule.diskSpace';
+    if (!outOfSpace || applyScheduledRetention(instanceId, options) === 0) throw error;
+  }
+  assertEnoughSpaceForScheduledBackup(instanceId, options);
+}
+
+/**
+ * Queues a scheduled backup, then deletes scheduled backups beyond `keep`; when the disk is short of space, those are
+ * deleted before packing as well. Throws only when the backup cannot be queued
+ * now (the instance is busy, another task is running or waiting, or the task queue is shutting down); every later
+ * failure is a failed task whose reason names the instance, since nobody had its page open when it ran.
+ */
+export async function startScheduledBackupTask(instanceId: string, options: ScheduledBackupOptions): Promise<TaskInfo> {
+  const name = getInstanceRow(instanceId)?.name ?? instanceId;
+  const release = await enterMaintenance(instanceId, 'server.backups.busyBackingUp');
+  try {
+    return await runBackgroundTask('backup', { key: 'server.backups.task.scheduledQueued', params: { name } }, async (_taskId, signal, report) => {
+      let info: BackupInfo;
+      try {
+        makeRoomForScheduledBackup(instanceId, options);
+        info = await createBackup(instanceId, 'scheduled', signal, report, { from: 0, to: 99 });
+      } catch (error) {
+        options.onFailed(error);
+        throw new PanelError('server.backups.schedule.runFailed', { name, reason: errorParam(error) }, { cause: error });
+      }
+      options.onCreated(info);
+      applyScheduledRetention(instanceId, options, info.id);
+      return { instanceId, backupId: info.id };
+    }, { timeoutMs: config.backupTaskTimeoutMs, onlyWhenIdle: true, onSettled: release });
   } catch (error) {
     release();
     throw error;
@@ -687,13 +827,9 @@ export async function startRestoreTask(
   };
   try {
     return await runBackgroundTask('restore', { key: 'server.backups.task.restoreQueued' }, async (taskId, signal, report) => {
-      try {
-        const restored = await restoreBackup(taskId, instanceId, backupId, options.backupCurrent ?? true, signal, report);
-        return { instanceId, backupId, ...restored };
-      } finally {
-        finish();
-      }
-    }, { timeoutMs: config.backupTaskTimeoutMs });
+      const restored = await restoreBackup(taskId, instanceId, backupId, options.backupCurrent ?? true, signal, report);
+      return { instanceId, backupId, ...restored };
+    }, { timeoutMs: config.backupTaskTimeoutMs, onSettled: finish });
   } catch (error) {
     finish();
     throw error;

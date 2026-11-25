@@ -12,6 +12,7 @@ import {
   updateInstanceSettings,
 } from '../services/instance-service.js';
 import { deleteInstanceBackups } from '../services/backup-service.js';
+import { noteInstanceFilesChanged } from '../services/backup-schedule-service.js';
 import { removeInstanceFrp } from '../services/frp-manager.js';
 import { removeInstanceLan } from '../services/lan-manager.js';
 import { describeLocalNetwork } from '../services/local-network-service.js';
@@ -94,14 +95,21 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     if (req.validationError) {
       return reply.code(400).send(panelErrorBody('server.instance.invalidParams'));
     }
-    if (!getInstanceRow(req.params.id)) {
+    const row = getInstanceRow(req.params.id);
+    if (!row) {
       return reply.code(404).send(panelErrorBody('server.instance.notFound'));
     }
+    // Withdrawing EULA acceptance rewrites eula.txt. It is noted here rather than in instance-service, which the backup
+    // schedule service already depends on through backup-service.
+    const withdrawsEula = req.body?.acceptEula === false && Boolean(row.accept_eula);
     try {
       return await updateInstanceSettings(req.params.id, req.body);
     } catch (err) {
       // Withdrawing EULA acceptance while a backup is being restored gets a 409 conflict; everything else is returned as a common error.
       return replyProcessManagerError(reply, err);
+    } finally {
+      // Also when it failed: a write that fails may already have emptied the file.
+      if (withdrawsEula) noteInstanceFilesChanged(req.params.id);
     }
   });
 

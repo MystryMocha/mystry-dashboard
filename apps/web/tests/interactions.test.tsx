@@ -15,6 +15,7 @@ import { MultiplayerPage } from '../src/pages/MultiplayerPage';
 import { TaskCenter } from '../src/components/TaskCenter';
 import { ConsolePanel } from '../src/components/ConsolePanel';
 import { BackupsTab } from '../src/components/BackupsTab';
+import { BackupScheduleSection } from '../src/components/BackupScheduleSection';
 import { ConfigTab } from '../src/components/ConfigTab';
 import { WhitelistNotice } from '../src/components/WhitelistNotice';
 import { ChangePasswordDialog } from '../src/components/ChangePasswordDialog';
@@ -602,21 +603,18 @@ test('backups page: restore is disabled while running; the restore dialog backs 
   }));
   const user = userEvent.setup();
   const view = mount(<BackupsTab instance={{ ...instance, status: 'running' } as never} onRestored={() => {}} />);
-  await user.click(await screen.findByRole('button', { name: /的备份操作$/ }));
-  expect((screen.getByRole('menuitem', { name: '还原' }) as HTMLButtonElement).disabled).toBe(true);
-  await user.keyboard('{Escape}');
+  expect((await screen.findByRole('button', { name: '还原' }) as HTMLButtonElement).disabled).toBe(true);
   view.unmount();
 
   mount(<BackupsTab instance={instance as never} onRestored={() => {}} />);
-  await user.click(await screen.findByRole('button', { name: /的备份操作$/ }));
-  await user.click(screen.getByRole('menuitem', { name: '还原' }));
+  await user.click(await screen.findByRole('button', { name: '还原' }));
   const dialog = screen.getByRole('dialog', { name: '还原这个备份？' });
   const checkbox = screen.getByRole('checkbox', { name: '先备份当前文件' }) as HTMLInputElement;
   expect(checkbox.checked).toBe(true);
   await user.click(checkbox);
   expect(dialog.textContent).toContain('无法撤销');
   await user.click(checkbox);
-  await user.click(screen.getByRole('button', { name: '还原', exact: true }));
+  await user.click(within(dialog).getByRole('button', { name: '还原', exact: true }));
   await waitFor(() => expect(posted).toEqual([{ url: '/api/instances/test/backups/20261026-010203-abcdef/restore', body: { backupCurrent: true } }]));
   expect(await screen.findByText('备份已还原')).toBeTruthy();
 });
@@ -633,9 +631,9 @@ test('backups page: a note is shown when the instance record was updated to matc
   const onRestored = vi.fn();
   const user = userEvent.setup();
   mount(<BackupsTab instance={instance as never} onRestored={onRestored} />);
-  await user.click(await screen.findByRole('button', { name: /的备份操作$/ }));
-  await user.click(screen.getByRole('menuitem', { name: '还原' }));
-  await user.click(screen.getByRole('button', { name: '还原', exact: true }));
+  await user.click(await screen.findByRole('button', { name: '还原' }));
+  const dialog = screen.getByRole('dialog', { name: '还原这个备份？' });
+  await user.click(within(dialog).getByRole('button', { name: '还原', exact: true }));
   expect(await screen.findByText(/服务端文件、核心类型和版本已按备份更新/)).toBeTruthy();
   expect(onRestored).toHaveBeenCalledTimes(1);
 });
@@ -2152,4 +2150,183 @@ test('task center: the entry shows no number when no task is running; a cancelle
   expect(broken.className).toContain('status-failed');
   expect(within(broken).getAllByText('失败')).toHaveLength(1);
   expect(broken.querySelector('.task-card-error')?.textContent).toBe('磁盘空间不足');
+});
+
+test('backups page: the automatic backup row says why the last one failed, and the switch saves with the time and count already saved', async () => {
+  const backup = { id: '20261026-010203-abcdef', instanceId: 'test', instanceName: '测试', source: 'scheduled', createdAt: '2026-10-26T01:02:03.000Z', sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' };
+  let schedule = {
+    enabled: false,
+    time: '04:00',
+    keep: 7,
+    utcOffsetMinutes: -new Date().getTimezoneOffset() || 0,
+    lastBackupAt: '2026-10-25T20:00:00.000Z',
+    lastFailure: { at: '2026-10-26T20:00:00.000Z', error: 'x', errorI18n: { key: 'server.backups.schedule.diskSpace', params: { needed: 300, available: 100 } } },
+  };
+  const saved: unknown[] = [];
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/backups' && !options?.method) return new Response(JSON.stringify({ backups: [backup] }));
+    if (url === '/api/instances/test/backup-schedule') {
+      if (options?.method === 'PUT') {
+        const body = JSON.parse(String(options.body));
+        saved.push(body);
+        // The schedule is read again after a save, so what was saved has to be what a read then returns.
+        schedule = { ...schedule, ...body };
+      }
+      return new Response(JSON.stringify(schedule));
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  mount(<BackupsTab instance={instance as never} onRestored={() => {}} />);
+  const toggle = await screen.findByRole('switch', { name: '每天定时备份' }) as HTMLInputElement;
+  await waitFor(() => expect(toggle.disabled).toBe(false));
+  expect(toggle.checked).toBe(false);
+  expect(screen.getByText(/· 保留 7 份/)).toBeTruthy();
+  const scheduleSection = toggle.closest('section') as HTMLElement;
+  expect(within(scheduleSection).getByText('失败')).toBeTruthy();
+  const failureAlert = within(scheduleSection).getByRole('alert');
+  expect(failureAlert.textContent).toContain('上次定时备份失败');
+  expect(failureAlert.textContent).toContain('磁盘空间不足：定时备份约需 300 字节，当前只剩 100 字节');
+  expect(failureAlert.textContent).toContain('上一次成功：');
+  // The backup list tags where an automatic backup came from.
+  expect(screen.getByText('定时备份')).toBeTruthy();
+
+  await user.click(toggle);
+  await waitFor(() => expect(saved).toEqual([{ enabled: true, time: '04:00', keep: 7 }]));
+  await waitFor(() => expect(toggle.checked).toBe(true));
+});
+
+test('backups page: a read of the automatic backup that was under way when the switch was saved does not put the old state back', async () => {
+  const schedule = { enabled: true, time: '04:00', keep: 7, utcOffsetMinutes: 0, lastBackupAt: null, lastFailure: null };
+  let enabled = true;
+  let reads = 0;
+  let answerHeldRead!: (response: Response) => void;
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url !== '/api/instances/test/backup-schedule') return baseFetch(url, options);
+    if (options?.method === 'PUT') {
+      enabled = JSON.parse(String(options.body)).enabled;
+      return new Response(JSON.stringify({ ...schedule, enabled }));
+    }
+    reads += 1;
+    // The second read is the one still under way when the switch is turned off; it answers only at the end.
+    if (reads === 2) return new Promise<Response>((resolve) => { answerHeldRead = resolve; });
+    return new Response(JSON.stringify({ ...schedule, enabled }));
+  }));
+  const user = userEvent.setup();
+  const view = mount(<BackupScheduleSection instanceId="test" scheduledCount={0} reloadSignal={0} />);
+  const toggle = await screen.findByRole('switch', { name: '每天定时备份' }) as HTMLInputElement;
+  await waitFor(() => expect(toggle.checked).toBe(true));
+
+  // The backup list was read again, as after a backup ends, and the schedule with it.
+  view.rerender(<MemoryRouter><BackupScheduleSection instanceId="test" scheduledCount={0} reloadSignal={1} /><Location /></MemoryRouter>);
+  await waitFor(() => expect(reads).toBe(2));
+  await user.click(toggle);
+  await waitFor(() => expect(toggle.checked).toBe(false));
+  // The read made after the save is the one that counts from here on.
+  await waitFor(() => expect(reads).toBe(3));
+
+  await act(async () => {
+    answerHeldRead(new Response(JSON.stringify({ ...schedule, enabled: true })));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+  expect(toggle.checked).toBe(false);
+  expect(toggle.disabled).toBe(false);
+});
+
+test('backups page: the clock of the panel computer is named by its offset from UTC, to the minute', async () => {
+  const schedule = { enabled: true, time: '04:00', keep: 7, lastBackupAt: null, lastFailure: null };
+  let utcOffsetMinutes = 0;
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => (
+    url === '/api/instances/test/backup-schedule'
+      ? new Response(JSON.stringify({ ...schedule, utcOffsetMinutes }))
+      : baseFetch(url, options)
+  )));
+  const user = userEvent.setup();
+  const cases: Array<[number, string]> = [[0, 'UTC'], [480, 'UTC+8'], [-300, 'UTC-5'], [345, 'UTC+5:45'], [-210, 'UTC-3:30']];
+  for (const [offset, label] of cases) {
+    utcOffsetMinutes = offset;
+    const view = mount(<BackupScheduleSection instanceId="test" scheduledCount={0} reloadSignal={0} />);
+    await user.click(await screen.findByRole('button', { name: '修改计划' }));
+    expect(screen.getByText(`按面板所在电脑的时间（${label}）。`)).toBeTruthy();
+    view.unmount();
+  }
+});
+
+test('backups page: keeping fewer automatic backups than there are asks first, and saves only after confirming', async () => {
+  const backups = ['20261024-040000-aaaaaa', '20261025-040000-bbbbbb', '20261026-040000-cccccc'].map((id, index) => (
+    { id, instanceId: 'test', instanceName: '测试', source: 'scheduled', createdAt: `2026-10-2${4 + index}T04:00:00.000Z`, sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' }
+  ));
+  let schedule = { enabled: true, time: '04:00', keep: 7, utcOffsetMinutes: 0, lastBackupAt: '2026-10-26T04:00:00.000Z', lastFailure: null };
+  const saved: unknown[] = [];
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/backups' && !options?.method) return new Response(JSON.stringify({ backups }));
+    if (url === '/api/instances/test/backup-schedule') {
+      if (options?.method === 'PUT') {
+        const body = JSON.parse(String(options.body));
+        saved.push(body);
+        schedule = { ...schedule, ...body };
+      }
+      return new Response(JSON.stringify(schedule));
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  mount(<BackupsTab instance={instance as never} onRestored={() => {}} />);
+  await user.click(await screen.findByText('修改计划'));
+  const keep = screen.getByLabelText('保留份数') as HTMLInputElement;
+  expect(keep.value).toBe('7');
+  expect((screen.getByLabelText('备份时间') as HTMLInputElement).value).toBe('04:00');
+  const save = screen.getByRole('button', { name: '保存计划' }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+
+  await user.clear(keep);
+  await user.type(keep, '2');
+  await user.click(save);
+  const dialog = screen.getByRole('dialog', { name: '只保留最新的 2 份定时备份？' });
+  expect(dialog.textContent).toContain('这个服务器现有 3 份定时备份');
+  expect(saved).toEqual([]);
+  await user.click(within(dialog).getByRole('button', { name: '保留 2 份' }));
+  await waitFor(() => expect(saved).toEqual([{ enabled: true, time: '04:00', keep: 2 }]));
+  expect(await screen.findByText('计划已保存')).toBeTruthy();
+
+  // A count that deletes nothing is saved without asking.
+  await user.clear(keep);
+  await user.type(keep, '9');
+  await user.click(save);
+  await waitFor(() => expect(saved).toEqual([{ enabled: true, time: '04:00', keep: 2 }, { enabled: true, time: '04:00', keep: 9 }]));
+  expect(screen.queryByRole('dialog')).toBeNull();
+
+  await user.clear(keep);
+  await user.type(keep, '0');
+  await user.tab();
+  expect(screen.getByText('填写 1–365 之间的整数')).toBeTruthy();
+  expect(save.disabled).toBe(true);
+});
+
+test('backups page: row download and restore move into the overflow menu on narrow screens', async () => {
+  const backup = { id: '20261026-010203-abcdef', instanceId: 'test', instanceName: '测试', source: 'manual', createdAt: '2026-10-26T01:02:03.000Z', sizeBytes: 2048, fileCount: 3, contentBytes: 4096, coreType: null, mcVersion: null, wasRunning: false, sha256: 'x' };
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/backups' && !options?.method) return new Response(JSON.stringify({ backups: [backup] }));
+    return baseFetch(url, options);
+  }));
+  vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+    matches: query === '(max-width: 768px)',
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  })));
+  const user = userEvent.setup();
+  mount(<BackupsTab instance={instance as never} onRestored={() => {}} />);
+  const menuTrigger = await screen.findByRole('button', { name: /的备份操作$/ });
+  expect(screen.queryByRole('button', { name: '还原' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '下载' })).toBeNull();
+  await user.click(menuTrigger);
+  expect(screen.getByRole('menuitem', { name: '下载' })).toBeTruthy();
+  expect(screen.getByRole('menuitem', { name: '还原' })).toBeTruthy();
+  expect(screen.getByRole('menuitem', { name: '删除' })).toBeTruthy();
 });

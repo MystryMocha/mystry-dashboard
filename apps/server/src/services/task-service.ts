@@ -50,11 +50,21 @@ type QueuedTask = {
   task: TaskInfo;
   worker: TaskWorker;
   timeoutMs: number;
+  onSettled?: () => void;
 };
 
 export type BackgroundTaskOptions = {
   /** Time limit for a single task (counted from when it starts running, excluding queue time), TASK_TIMEOUT_MS by default. */
   timeoutMs?: number;
+  /** Accepts the task only while no other task is running or queued; throws TaskCapacityError otherwise. */
+  onlyWhenIdle?: boolean;
+  /**
+   * Called once when an accepted task is over, whichever way: the worker returned or threw, the task failed before
+   * its worker was called, or it was cancelled or shut down while still waiting. Whatever was taken for the task
+   * before queueing it is released here rather than at the end of the worker, which does not run in the last two cases.
+   * Not called when runBackgroundTask itself throws: the task was never accepted then.
+   */
+  onSettled?: () => void;
 };
 
 const taskQueue: QueuedTask[] = [];
@@ -299,6 +309,15 @@ export function recoverInterruptedTasks(): InterruptedTaskRecovery {
   return { interrupted: rows.length, cleanedStaging, stagingCleanupFailures };
 }
 
+function settle(item: QueuedTask): void {
+  try {
+    item.onSettled?.();
+  } catch (error) {
+    // A callback that throws must not stop the queue from moving on, nor a shutdown from ending the tasks behind this one.
+    console.warn(`任务 ${item.task.id} 结束后的收尾出错`, error);
+  }
+}
+
 function drainTaskQueue(): void {
   while (!shuttingDown && runningTasks < config.maxConcurrentTasks && taskQueue.length > 0) {
     const item = taskQueue.shift()!;
@@ -309,6 +328,7 @@ function drainTaskQueue(): void {
       runningTasks -= 1;
       runningControllers.delete(item.task.id);
       runningExecutions.delete(item.task.id);
+      settle(item);
       drainTaskQueue();
     });
     runningExecutions.set(item.task.id, execution);
@@ -378,12 +398,14 @@ export async function runBackgroundTask(
   if (shuttingDown) {
     throw new TaskShuttingDownError();
   }
-  if (runningTasks + taskQueue.length >= config.maxConcurrentTasks + config.maxQueuedTasks) {
+  if (options.onlyWhenIdle
+    ? runningTasks > 0 || taskQueue.length > 0
+    : runningTasks + taskQueue.length >= config.maxConcurrentTasks + config.maxQueuedTasks) {
     throw new TaskCapacityError();
   }
 
   const task = createTask(type, message);
-  taskQueue.push({ task, worker, timeoutMs: options.timeoutMs ?? config.taskTimeoutMs });
+  taskQueue.push({ task, worker, timeoutMs: options.timeoutMs ?? config.taskTimeoutMs, onSettled: options.onSettled });
   drainTaskQueue();
 
   return getTask(task.id)!;
@@ -397,12 +419,16 @@ export async function runBackgroundTask(
 export function cancelTask(id: string): boolean {
   const queuedIndex = taskQueue.findIndex((item) => item.task.id === id);
   if (queuedIndex !== -1) {
-    taskQueue.splice(queuedIndex, 1);
-    updateTask(id, {
-      status: 'failed',
-      message: { key: 'server.tasks.cancelled' },
-      error: { key: 'server.tasks.cancelledByUser' },
-    }, { phase: 'failed' });
+    const [item] = taskQueue.splice(queuedIndex, 1);
+    try {
+      updateTask(id, {
+        status: 'failed',
+        message: { key: 'server.tasks.cancelled' },
+        error: { key: 'server.tasks.cancelledByUser' },
+      }, { phase: 'failed' });
+    } finally {
+      settle(item!);
+    }
     return true;
   }
   const controller = runningControllers.get(id);
@@ -412,6 +438,11 @@ export function cancelTask(id: string): boolean {
     controller.abort(new PanelError('server.tasks.cancelledByUser'));
   }
   return true;
+}
+
+/** Whether no task is running or waiting, and the queue is still accepting work. */
+export function isTaskQueueIdle(): boolean {
+  return !shuttingDown && runningTasks === 0 && taskQueue.length === 0;
 }
 
 export function getTaskActivity(): { running: number; queued: number } {
@@ -424,11 +455,15 @@ export async function shutdownTasks(): Promise<void> {
 
   while (taskQueue.length > 0) {
     const item = taskQueue.shift()!;
-    updateTask(item.task.id, {
-      status: 'failed',
-      message: { key: 'server.tasks.cancelled' },
-      error: { key: 'server.tasks.cancelledByShutdown' },
-    }, { phase: 'failed' });
+    try {
+      updateTask(item.task.id, {
+        status: 'failed',
+        message: { key: 'server.tasks.cancelled' },
+        error: { key: 'server.tasks.cancelledByShutdown' },
+      }, { phase: 'failed' });
+    } finally {
+      settle(item);
+    }
   }
 
   for (const controller of runningControllers.values()) {

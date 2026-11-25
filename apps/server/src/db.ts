@@ -81,6 +81,32 @@ export type TaskRow = {
   updated_at: string;
 };
 
+/** The daily automatic backup of one instance, with what the scheduler has to remember across panel restarts. */
+export type BackupScheduleRow = {
+  instance_id: string;
+  enabled: number;
+  /** HH:MM, read on the clock of the computer the panel runs on */
+  time_of_day: string;
+  keep_count: number;
+  /**
+   * Calendar date (YYYY-MM-DD, panel computer's clock) of the latest daily slot that is settled: backed up, failed,
+   * skipped, or older than the schedule itself. A later slot that has come is due, however many were missed in between.
+   * NULL until the schedule is first enabled.
+   */
+  last_slot: string | null;
+  /** The latest scheduled backup that succeeded: when it was taken, and its ID */
+  last_backup_at: string | null;
+  last_backup_id: string | null;
+  /** Whether the server has run, or files were changed through the panel, since last_backup_at */
+  server_ran: number;
+  /** Set while the latest scheduled run is a failed one, with its reason as text and as a message key with params (JSON) */
+  last_failure_at: string | null;
+  last_failure: string | null;
+  last_failure_i18n: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 let db: DatabaseSync | undefined;
 
 export function closeDb(): void {
@@ -111,6 +137,7 @@ const DB_BACKUPS_KEPT = 5;
  */
 export const PANEL_DB_MIGRATIONS: readonly DbMigration[] = [
   { version: 1, name: 'baseline schema', up: applyBaselineSchema },
+  { version: 2, name: 'instance backup schedules', up: createBackupSchedules },
 ];
 
 export function initDb(): void {
@@ -316,6 +343,32 @@ function applyBaselineSchema(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
     CREATE INDEX IF NOT EXISTS idx_instances_node_id ON instances(node_id);
+  `);
+}
+
+/**
+ * A database can report an earlier version than its tables show: one rebuilt from a dump keeps its tables and reports
+ * user_version 0, and then runs every step again. So the table is created only when it is missing, and the schedules
+ * already in it are left as they are.
+ */
+function createBackupSchedules(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS instance_backup_schedules (
+      instance_id TEXT PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      time_of_day TEXT NOT NULL,
+      keep_count INTEGER NOT NULL,
+      last_slot TEXT,
+      last_backup_at TEXT,
+      last_backup_id TEXT,
+      server_ran INTEGER NOT NULL DEFAULT 0,
+      last_failure_at TEXT,
+      last_failure TEXT,
+      last_failure_i18n TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE
+    );
   `);
 }
 

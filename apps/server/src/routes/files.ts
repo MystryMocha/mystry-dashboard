@@ -31,6 +31,7 @@ import {
   reserveDownloadTicket,
   type DownloadTicketFailure,
 } from '../services/download-ticket-service.js';
+import { noteInstanceFilesChanged } from '../services/backup-schedule-service.js';
 import { getInstance } from '../services/instance-service.js';
 import { processManager } from '../services/process-manager.js';
 import {
@@ -109,7 +110,12 @@ export async function deleteInstancePath(instanceId: string, relativePath: strin
   rejectWhileRestoring(instanceId);
   await processManager.runExclusive(instanceId, async () => {
     rejectWhileRestoring(instanceId);
-    await deletePath(instanceId, relativePath);
+    try {
+      await deletePath(instanceId, relativePath);
+    } finally {
+      // Also when it failed: a folder may have been removed in part by then.
+      noteInstanceFilesChanged(instanceId);
+    }
   });
 }
 
@@ -315,6 +321,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       try {
         rejectWhileRestoring(req.params.id);
         writeTextFile(req.params.id, req.body.path, req.body.content);
+        noteInstanceFilesChanged(req.params.id);
         return { ok: true };
       } catch (err) {
         return sendRouteError(reply, err);
@@ -344,6 +351,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       try {
         rejectWhileRestoring(req.params.id);
         mkdirPath(req.params.id, req.body.path);
+        noteInstanceFilesChanged(req.params.id);
         return { ok: true };
       } catch (err) {
         return sendRouteError(reply, err);
@@ -359,6 +367,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       try {
         rejectWhileRestoring(req.params.id);
         renamePath(req.params.id, req.body.from, req.body.to);
+        noteInstanceFilesChanged(req.params.id);
         return { ok: true };
       } catch (err) {
         return sendRouteError(reply, err);
@@ -467,6 +476,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
           file.file,
           { beforeCommit: () => rejectWhileRestoring(req.params.id) },
         );
+        noteInstanceFilesChanged(req.params.id);
         return { path: saved };
       } catch (err) {
         return sendRouteError(reply, err);
@@ -499,6 +509,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(400).send(panelErrorBody('server.files.serverProperties.tooLarge', { limit: maxTextFileBytes }));
         }
         writeServerProperties(req.params.id, req.body, instance.mcVersion);
+        noteInstanceFilesChanged(req.params.id);
         return { ok: true };
       } catch (err) {
         return sendRouteError(reply, err);

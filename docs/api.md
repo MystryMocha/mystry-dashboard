@@ -258,7 +258,25 @@ A backup file is a gzip-compressed tar whose last entry, `.mystry-backup/manifes
 - The time limit for backup and restore tasks is `BACKUP_TASK_TIMEOUT_MS` (6 hours by default), and is not bound by `TASK_TIMEOUT_MS`.
 - An upload over `MAX_BACKUP_UPLOAD_BYTES` returns **413**. Status queries and cancellation of download tickets reuse `/files/download-ticket/:ticket/status` and `DELETE /files/download-ticket/:ticket`.
 
-`BackupInfo` fields: `id`, `instanceId`, `instanceName`, `source` (`manual` / `pre-restore` / `upload`), `createdAt`, `sizeBytes` (archive size), `fileCount`, `contentBytes` (size after extraction), `coreType`, `mcVersion`, `wasRunning`, `sha256` (SHA-256 of the archive).
+`BackupInfo` fields: `id`, `instanceId`, `instanceName`, `source` (`manual` / `pre-restore` / `upload` / `scheduled`), `createdAt`, `sizeBytes` (archive size), `fileCount`, `contentBytes` (size after extraction), `coreType`, `mcVersion`, `wasRunning`, `sha256` (SHA-256 of the archive).
+
+### Scheduled Backups `/api/instances/:id/backup-schedule`
+
+| Method | Path | Description |
+|------|------|------|
+| GET | `/backup-schedule` | `BackupScheduleInfo`; until a schedule is saved it holds the defaults (off, `04:00`, keep `7`) |
+| PUT | `/backup-schedule` | Body: `{ enabled: boolean, time: "HH:MM", keep: 1–365 }`, all three required; returns `BackupScheduleInfo`. A malformed body returns **400** |
+
+Each instance has one daily schedule. `time` is a 24-hour time of day on the clock of the computer the panel runs on; `utcOffsetMinutes` in the response is that clock's current offset from UTC. The panel checks once a minute and queues a due backup as an ordinary `backup` task, so it also appears in `GET /api/tasks`; the backup it makes has `source: 'scheduled'`.
+
+- **Due**: a day's backup is due from the scheduled time on. Turning the schedule on, or changing its time while it is on, counts from the next occurrence of that time. Days missed while the panel was not running, or the computer was asleep, are made up once after the next start. On the day daylight-saving time skips the scheduled time, the backup runs in the first minute after the gap; on the day the time occurs twice, it runs the first time only.
+- **Deferred**: a scheduled backup is queued only while no other task is running or waiting, so at most one runs at a time. While the panel is busy with another task, or the instance is starting, stopping, or being backed up or restored, the backup waits for a later check and nothing is recorded.
+- **Skipped**: when the server has not run and no file was changed through the panel since the previous scheduled backup, and that backup still exists, the day is skipped without a task. A restore counts as a change; changes made to the instance folder outside the panel are not seen.
+- **Free space**: before packing, the disk that holds the backup directory must have at least the size of the instance's newest backup plus 256 MiB free. When it has less, the scheduled backups already beyond `keep` are deleted and the space is read again; if it is still short, or there was nothing to delete, the run fails. Nothing is checked when the instance has no backup yet, or when the platform cannot report free space.
+- **Retention**: after a scheduled backup succeeds, the instance's `source: 'scheduled'` backups beyond the newest `keep` are deleted, oldest first. `keep` is the value saved at that moment, so a change made while the backup was being packed applies to that run. The backup just made is never among those deleted, even when the computer's clock was set back and it carries an earlier date than the others. Backups from other sources are never deleted automatically, and one in use by a restore task stays until a later run.
+- **Failure**: a failed run is a failed `backup` task whose error names the instance, and `lastFailure` (`at`, `error`, `errorI18n`) keeps its reason until the next scheduled backup succeeds. It is not tried again until the next day, with one exception: a run cut short because the server started, stopped or crashed is tried again at the next check, up to three runs for one day. Each of those runs is still a failed task, and `lastFailure` is set only when the third is cut short too. A run cut short by the panel shutting down is not recorded and is made up after the next start.
+
+`BackupScheduleInfo` fields: `enabled`, `time`, `keep`, `utcOffsetMinutes`, `lastBackupAt` (when the latest successful scheduled backup was taken, or `null`), `lastFailure` (or `null`). The schedule is deleted with its instance.
 
 ## Core Deploy and Import
 
