@@ -18,7 +18,6 @@ function javaMajor(value: string | undefined): number | null {
   return Number.isInteger(major) && major >= 5 && major <= 99 ? major : null;
 }
 
-/** Whether the marker line for finished startup has appeared in the output. */
 export function hasFinishedStarting(output: string): boolean {
   return STARTED_RE.test(output);
 }
