@@ -350,16 +350,8 @@ h1[tabindex="-1"]:focus { outline: none; }
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 10px 10px;
+  padding: 12px 10px 10px;
   overflow-y: auto;
-}
-
-.nav-header {
-  padding: 16px 10px 6px;
-  font-size: var(--text-footnote);
-  font-weight: 600;
-  color: var(--label-2);
-  letter-spacing: 0.01em;
 }
 
 .nav-item {
@@ -375,7 +367,7 @@ h1[tabindex="-1"]:focus { outline: none; }
   user-select: none;
   transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
 }
-.nav-item svg { flex-shrink: 0; color: var(--accent-text); transition: color 0.15s var(--ease); }
+.nav-item svg { flex-shrink: 0; color: var(--label-2); transition: color 0.15s var(--ease); }
 .nav-item:hover { background: var(--fill-2); }
 .nav-item.active { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .nav-item.active svg { color: var(--on-accent); }
@@ -1433,7 +1425,7 @@ input[type='radio'] {
 .host-meter-name { flex-shrink: 0; color: var(--label-2); }
 .host-meter-value {
   overflow: hidden;
-  font-weight: 600;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1455,7 +1447,6 @@ input[type='radio'] {
   background: var(--label-2);
   transition: inline-size 0.6s var(--ease);
 }
-.meter.is-accent .meter-fill { background: var(--accent); }
 .meter.is-warning .meter-fill { background: var(--c-red); }
 
 .metrics-status {
@@ -1511,7 +1502,6 @@ input[type='radio'] {
   position: relative;
   display: grid;
   grid-column: 1 / -1;
-  transition: background-color 0.15s var(--ease);
   grid-template-columns: subgrid;
   grid-template-areas: 'icon id state actions';
   align-items: center;
@@ -1546,10 +1536,21 @@ input[type='radio'] {
 .server-name:focus-visible { outline: none; }
 .server-row:has(.server-name:focus-visible) { outline: 3px solid var(--focus-ring); outline-offset: -3px; }
 .server-row .btn { position: relative; z-index: 1; }
-.server-row:hover { background: var(--hover-overlay); }
-.server-row:hover:has(.btn:hover) { background: transparent; }
-.server-row:hover .server-name { color: var(--accent-text); }
-.server-row:hover:has(.btn:hover) .server-name { color: inherit; }
+/* The hover tint is inset from the panel edge and drawn behind the content: tinting the whole row turned the white panel almost the same grey as the page,
+   so a list with a single row disappeared into the background while the pointer was over it. */
+.server-row { isolation: isolate; }
+.server-row::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  z-index: -1;
+  border-radius: var(--radius-sm);
+  background: var(--hover-overlay);
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+}
+.server-row:hover::after { opacity: 1; }
+.server-row:hover:has(.btn:hover)::after { opacity: 0; }
 .server-chevron { flex-shrink: 0; margin-inline-start: 2px; color: var(--label-3); }
 /* Data labels with a description are raised above the whole-row link too, so hover still shows the description. */
 .server-figure dt[title] { position: relative; z-index: 1; cursor: help; }
@@ -1565,25 +1566,25 @@ input[type='radio'] {
 .server-state { grid-area: state; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .server-status-line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
 .server-sentence { font-size: var(--text-small); color: var(--label-2); }
-.server-sentence.is-ok { color: var(--ok); font-weight: 600; }
 .server-sentence.is-warn { color: var(--warn); }
 .server-sentence.is-danger { color: var(--danger); }
 
 .server-figures { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin: 0; font-size: var(--text-small); }
 .server-figure { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .server-figure dt { color: var(--label-2); }
-.server-figure dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.server-figure dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .server-cap { margin-inline-start: 4px; font-weight: 400; color: var(--label-2); }
 .server-figure-memory { flex: 1 1 220px; max-width: 340px; }
 .server-figure-memory .meter { flex: 1 1 48px; min-width: 40px; }
 
 .server-actions { grid-area: actions; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 /* When laid out in one row on wide screens, the in-row start, stop and more actions normally have no background, only color and icon, and show a background only on hover;
-   the next-step button (invite friends, view EULA, etc.) keeps a light background and is the only prominent action per row.
+   only a button that fixes a problem (review the EULA, open the console after a crash) keeps a light background, so a healthy row has no prominent action
+   and the rows that need attention are the ones that stand out. Invite Friends on a ready server is not a fix and stays as quiet as Start and Stop.
    Once stacked the buttons get their own line at the start of the row and keep the light background, or the text indent would not line up and they would not look like clickable buttons. */
 .server-actions .action-menu-trigger { --btn-bg: transparent; }
 @container servers (min-width: 821px) {
-  .server-actions :is(.btn-ok, .btn-danger) { --btn-bg: transparent; }
+  .server-actions :is(.btn-ok, .btn-danger, .server-next-quiet) { --btn-bg: transparent; }
   .server-actions .btn-ok:hover:not(:disabled) { --btn-bg: color-mix(in srgb, var(--c-green) 16%, transparent); }
   .server-actions .btn-danger:hover:not(:disabled) { --btn-bg: color-mix(in srgb, var(--c-red) 13%, transparent); }
 }

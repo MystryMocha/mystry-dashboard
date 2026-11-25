@@ -130,9 +130,10 @@ test('each overview row gives a status note and next step, and only the three wa
   }));
   const user = userEvent.setup();
   const view = mount(<DashboardPage />);
-  expect(await screen.findByText('可以进服了')).toBeTruthy();
+  expect(await screen.findByText('这个服务器需要 Java 21')).toBeTruthy();
+  // The Running status already says players can join, so a ready row has no sentence of its own.
+  expect(screen.queryByText('可以进服了')).toBeNull();
   expect(screen.getByRole('link', { name: '邀请玩家' }).getAttribute('href')).toBe('/multiplayer?instance=ready');
-  expect(screen.getByText('这个服务器需要 Java 21')).toBeTruthy();
   expect(screen.getByRole('link', { name: '打开实例设置' }).getAttribute('href')).toBe('/instances/java/settings');
   expect(screen.getByRole('link', { name: '查看并同意' }).getAttribute('href')).toBe('/instances/eula');
   // An instance that stopped because the EULA was not accepted also counts as abnormal.

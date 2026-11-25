@@ -78,7 +78,7 @@ export function Meter({
   tone = 'neutral',
 }: {
   ratio: number | null | undefined;
-  tone?: 'neutral' | 'accent' | 'warning';
+  tone?: 'neutral' | 'warning';
 }) {
   const value = ratio == null || !Number.isFinite(ratio) ? 0 : Math.max(0, Math.min(100, ratio));
   return (
