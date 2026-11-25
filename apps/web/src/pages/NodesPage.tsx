@@ -162,7 +162,7 @@ export function NodesPage() {
             </div>
             <div className="list-row">
               <dt className="list-row-title">{t('nodes.spec.instances')}</dt>
-              <dd className="list-row-value is-accent">
+              <dd className="list-row-value">
                 {tp('nodes.spec.instanceCount', localNode.instanceCount)}
               </dd>
             </div>
