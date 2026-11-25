@@ -427,3 +427,30 @@ test('an upload overwrite should still succeed when backup cleanup fails afterwa
   assert.equal(fs.readFileSync(backupPath, 'utf8'), 'old-content');
   assert.match(String(warnings[0]?.[0]), /上传已完成，但无法删除旧文件备份/);
 });
+
+test('a text read reports a file with a NUL byte in its first 8 KiB as binary, and UTF-8 text with a BOM or Chinese as text', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { readTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'read-binary' });
+  const root = defaultInstanceDir(inst.id);
+  // The start of a gzip stream, as level.dat is written by the game.
+  fs.writeFileSync(path.join(root, 'level.dat'), Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff]));
+  fs.writeFileSync(path.join(root, 'bom.yml'), Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('motd: 欢迎来到服务器\n')]));
+  fs.writeFileSync(path.join(root, 'zh.txt'), '你好，世界');
+  // Only the first 8 KiB are searched: a NUL further in does not make the file binary.
+  fs.writeFileSync(path.join(root, 'late-nul.txt'), Buffer.concat([Buffer.alloc(8192, 'a'), Buffer.from([0x00])]));
+  fs.writeFileSync(path.join(root, 'empty.txt'), '');
+
+  assert.equal(readTextFile(inst.id, 'level.dat').binary, true);
+  const bom = readTextFile(inst.id, 'bom.yml');
+  assert.equal(bom.binary, false);
+  assert.equal(bom.content, '\uFEFFmotd: 欢迎来到服务器\n', 'the BOM is kept, so saving writes it back');
+  assert.deepEqual(readTextFile(inst.id, 'zh.txt'), { content: '你好，世界', binary: false });
+  assert.equal(readTextFile(inst.id, 'late-nul.txt').binary, false);
+  assert.deepEqual(readTextFile(inst.id, 'empty.txt'), { content: '', binary: false });
+});

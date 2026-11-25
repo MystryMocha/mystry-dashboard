@@ -35,6 +35,7 @@ export default {
   'files.edit.title': '編輯檔案',
   'files.edit.closeLabel': '關閉編輯',
   'files.edit.contentLabel': '檔案內容：{path}',
+  'files.edit.binaryReadOnly': '這是二進位檔案，儲存會把它弄壞，所以這裡只能檢視。',
 
   'files.rename.hint': '只能在同一個資料夾內重新命名，名稱裡不能有 / 或 \\。',
   'files.rename.newName': '新名稱',
