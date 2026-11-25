@@ -262,7 +262,7 @@ function ConfigRow({
           />
         )}
       </div>
-      {/* The description goes last in the row: right below the input on narrow screens, and right-aligned under the input on wide screens. */}
+      {/* The error goes last in the row: right below the input on narrow screens, and right-aligned under the input on wide screens. */}
       {shown && <p className="error config-row-error" id={errorId}>{errorText}</p>}
     </div>
   );

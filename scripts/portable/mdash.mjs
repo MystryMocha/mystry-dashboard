@@ -280,7 +280,6 @@ function getConnection(values) {
     port,
     url: `http://${browserHost}:${port}`,
     healthUrl: `http://${browserHost}:${port}/api/health`,
-    authStatusUrl: `http://${browserHost}:${port}/api/auth/status`,
     setupUrl: `http://${browserHost}:${port}/api/auth/setup`,
     shutdownUrl: `http://127.0.0.1:${port}/api/launcher/shutdown`,
     resetPasswordUrl: `http://127.0.0.1:${port}/api/launcher/reset-password`,

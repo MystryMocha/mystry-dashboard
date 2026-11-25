@@ -1858,7 +1858,7 @@ test('Java picker: one-click install when the recommended version is missing, an
   render(<JavaSelectHarness autoSelect onValue={(value) => values.push(value)} />);
   const button = await screen.findByRole('button', { name: '安装 Java 21' });
   expect(installingStates).toEqual([false]);
-  // The status dot, recommended version, install button and manual download link sit on one row, in this order; the download source and size are only in the hover tooltip.
+  // The status dot, recommended version, install button and manual download link sit on one row, in this order; the download source and size are only in the confirmation dialog.
   const row = button.closest('.java-status-row') as HTMLElement;
   expect([...row.children].map((child) => child.textContent)).toEqual(['系统默认 Java 1.8.0_492 可用', '推荐 Java 21', '安装 Java 21', '自己下载安装']);
   expect(screen.queryByText(/这台电脑还没装/)).toBeNull();
