@@ -58,35 +58,64 @@ export async function readProcesses(targets: Target[], powershellTimeoutMs = 350
   return [];
 }
 
+/** Whether per-process CPU and resident memory collection is supported on this platform. */
+export function isProcessMetricsSupported(platform: NodeJS.Platform = process.platform): boolean {
+  return platform === 'win32' || platform === 'linux';
+}
+
 export class MetricsService {
+  private readonly getDataDir: () => string;
   private cached: DashboardMetrics | null = null;
   private cachedAt = 0;
   private pending: Promise<DashboardMetrics> | null = null;
   private previousCpu: { total: number; idle: number } | null = null;
   private previousProcesses = new Map<string, RawProcess & { at: number }>();
   private highSince = new Map<string, number>();
+  private generation = 0;
 
-  constructor(private readonly dataDir: string, private readonly targets: () => Target[]) {}
+  constructor(dataDir: string | (() => string), private readonly targets: () => Target[]) {
+    this.getDataDir = typeof dataDir === 'function' ? dataDir : () => dataDir;
+  }
+
+  /** Clears cached samples and CPU delta baselines; invalidates any sample already in flight. */
+  reset(): void {
+    this.generation += 1;
+    this.cached = null;
+    this.cachedAt = 0;
+    this.pending = null;
+    this.previousCpu = null;
+    this.previousProcesses.clear();
+    this.highSince.clear();
+  }
 
   get(): Promise<DashboardMetrics> {
     if (this.pending) return this.pending;
     if (this.cached && performance.now() - this.cachedAt < 4000) return Promise.resolve(this.cached);
-    this.pending = this.sample().then(value => {
-      this.cached = value; this.cachedAt = performance.now(); return value;
-    }).finally(() => { this.pending = null; });
-    return this.pending;
+    const generation = this.generation;
+    const promise = this.sample(generation).then((value) => {
+      if (this.generation === generation) {
+        this.cached = value;
+        this.cachedAt = performance.now();
+      }
+      return value;
+    }).finally(() => {
+      if (this.pending === promise) this.pending = null;
+    });
+    this.pending = promise;
+    return promise;
   }
 
-  private async sample(): Promise<DashboardMetrics> {
+  private async sample(generation: number): Promise<DashboardMetrics> {
     const targets = this.targets();
-    const [diskResult, processResult] = await Promise.allSettled([statfs(this.dataDir), readProcesses(targets)]);
+    const [diskResult, processResult] = await Promise.allSettled([statfs(this.getDataDir()), readProcesses(targets)]);
+    const stale = this.generation !== generation;
     const now = performance.now();
     const cpus = os.cpus();
     const cpu = cpus.reduce((sum, item) => ({ idle: sum.idle + item.times.idle, total: sum.total + Object.values(item.times).reduce((a, b) => a + b, 0) }), { idle: 0, total: 0 });
-    const previous = this.previousCpu;
+    const previous = stale ? null : this.previousCpu;
     const delta = previous ? cpu.total - previous.total : 0;
     const cpuPercent = previous && delta > 0 ? Math.max(0, Math.min(100, (1 - (cpu.idle - previous.idle) / delta) * 100)) : null;
-    this.previousCpu = cpu;
+    if (!stale) this.previousCpu = cpu;
     const totalBytes = os.totalmem();
     const memory = { totalBytes, usedBytes: Math.max(0, totalBytes - os.freemem()) };
     const disk = diskResult.status === 'fulfilled' ? { availableBytes: diskResult.value.bavail * diskResult.value.bsize, totalBytes: diskResult.value.blocks * diskResult.value.bsize } : null;
@@ -98,7 +127,7 @@ export class MetricsService {
     for (const target of targets) {
       if (current.get(target.id) !== target.pid) continue;
       const raw = rows.get(target.pid);
-      const old = this.previousProcesses.get(target.id);
+      const old = stale ? undefined : this.previousProcesses.get(target.id);
       const validOld = raw && old && old.pid === raw.pid && old.identity === raw.identity;
       instances[target.id] = raw ? {
         memoryBytes: raw.memoryBytes,
@@ -107,17 +136,19 @@ export class MetricsService {
       } : { cpuPercent: null, memoryBytes: null, state: 'unavailable' };
       if (raw) next.set(target.id, { ...raw, at: now });
     }
-    this.previousProcesses = next;
+    if (!stale) this.previousProcesses = next;
     // Warnings return both the English text and the message key; Web uses the key to tell the warning kind and shows it in the current language.
     const warningsI18n: PanelMessage[] = [];
     const conditions: Array<[string, boolean, ServerMessageKey]> = [
       ['cpu', cpuPercent !== null && cpuPercent >= 90, 'server.system.metricsCpuHigh'],
       ['memory', totalBytes > 0 && memory.usedBytes / totalBytes >= 0.9, 'server.system.metricsMemoryHigh'],
     ];
-    for (const [key, high, messageKey] of conditions) {
-      if (!high || (this.cachedAt && now - this.cachedAt > 15000)) this.highSince.delete(key);
-      if (high && !this.highSince.has(key)) this.highSince.set(key, now);
-      if (high && now - this.highSince.get(key)! >= 30000) warningsI18n.push({ key: messageKey });
+    if (!stale) {
+      for (const [key, high, messageKey] of conditions) {
+        if (!high || (this.cachedAt && now - this.cachedAt > 15000)) this.highSince.delete(key);
+        if (high && !this.highSince.has(key)) this.highSince.set(key, now);
+        if (high && now - this.highSince.get(key)! >= 30000) warningsI18n.push({ key: messageKey });
+      }
     }
     if (disk && (disk.availableBytes < 5 * 1024 ** 3 || disk.availableBytes / disk.totalBytes < 0.1)) warningsI18n.push({ key: 'server.system.metricsDiskLow' });
     const warnings = warningsI18n.map((message) => renderPanelMessage(message));

@@ -31,7 +31,18 @@ Error responses are JSON:
 - `instances`: keyed by instance ID, containing `cpuPercent`, `memoryBytes` and `state` (`ready` / `collecting` / `unavailable`). Only live processes the panel holds are sampled; callers cannot specify a PID or path.
 - `warnings`: raised when CPU or memory stays at 90% across samples for at least 30 seconds, or when free disk space is below 5 GiB or 10%. The text is English; `warningsI18n` lists the matching message keys in the same order for the UI to translate.
 
-CPU is normalized to 0–100% of the total capacity of all logical cores; process memory is resident memory, not the JVM heap limit Xmx. Process metrics currently support only Windows and Linux and are `unavailable` on other platforms. An empty value does not mean zero usage. The snapshot is cached for 4 seconds and concurrent requests are merged; no history is stored, and the page refreshes every 5 seconds and pauses while hidden. A sampling gap longer than 15 seconds restarts the sustained-warning timer.
+CPU is normalized to 0–100% of the total capacity of all logical cores; process memory is resident memory, not the JVM heap limit Xmx. Process metrics currently support only Windows and Linux and are `unavailable` on other platforms. An empty value does not mean zero usage. The live snapshot is cached for 4 seconds and concurrent requests are merged (shared with the 5-minute background sampler), and the page refreshes every 5 seconds and pauses while hidden. A sampling gap longer than 15 seconds restarts the sustained-warning timer.
+
+### Overview History `/api/stats/overview`
+
+`GET /api/stats/overview?range=24h|7d|30d` requires a JWT and returns the shared type `StatsOverview`. `range` defaults to `7d`; any other value or unknown query parameter returns **400** (`server.system.statsRangeInvalid`).
+
+- `range` / `from` / `to` / `bucketSeconds`: requested range, UTC ISO-8601 window bounds (`from` is `to` minus the range duration), and bucket width in seconds (`300` for `24h`, `3600` for `7d`, `21600` for `30d`).
+- `processMetricsSupported`: `true` on Windows and Linux; `false` on platforms without per-process CPU and memory collection, where instance series stay `null`.
+- `buckets`: fixed-width slots (`288` for `24h`, `168` for `7d`, `120` for `30d`), each with `timestamp`, `hostCpuPercent`, `hostMemoryBytes`, `instancesCpuPercent` and `instancesMemoryBytes`. Missing slots return `null` and samples ahead of the current server time are ignored. Instance totals use two-layer aggregation anchored on each host sample timestamp (`instance_id IS NULL`): timestamps with no running instances count as `0` when per-process metrics are supported, whereas timestamps where running instances exist but all reported `null` are skipped before averaging the bucket.
+- `runs`: instance runs that finished starting (`ready_at` set) and overlap `[from, to]`, each with `instanceId`, `readyAt`, `endedAt` (`null` while still running) and `endReason` (`stopped` / `crashed` / `panel-exit`, or `null`). Pre-spawn failures leave no row; mid-start failures (`start-failed`) and unready zero-code exits (such as an unaccepted EULA) keep `ready_at` null and are omitted.
+- `host`: `osName` (`os.version()` on Windows, `PRETTY_NAME` from `/etc/os-release` with kernel fallback on Linux, `macOS` on macOS), `cpuModel` (`null` when unavailable), `cpuThreads`, `totalMemoryBytes` and `bootedAt`.
+- `diskBreakdown`: hourly cached sizes of `DATA_DIR/instances` (`instancesBytes`) and `BACKUP_DIR` (`backupsBytes`), plus `backupsOnSameVolume`. Sizes stay `null` until the first background scan completes; `backupsBytes` is `null` when `BACKUP_DIR` is on another volume. Scans skip symlinks and directory junctions without following them.
 
 ## Health Check
 
