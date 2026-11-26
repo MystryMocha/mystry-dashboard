@@ -2,22 +2,18 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-![Version](https://img.shields.io/badge/version-0.2.0--preview.7-6439e0)
-![License](https://img.shields.io/badge/license-MIT-6439e0)
-![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-6439e0)
-![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522%20%28bundled%20in%20portable%29-6439e0)
+![Version](https://img.shields.io/badge/version-0.3.0--preview.1-bc4f1f)
+![License](https://img.shields.io/badge/license-MIT-bc4f1f)
+![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-bc4f1f)
+![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522%20%28bundled%20in%20portable%29-bc4f1f)
 
-**A self-hosted game server panel, now supporting Minecraft: Java Edition.**
+**A self-hosted game server panel that runs right after unzipping, now supporting Minecraft: Java Edition.** Built-in Virtual LAN, one-click Java and server setup, and backups while the server runs, with no Docker or public IP needed.
 
-![The Instances page with three Minecraft servers, two of them running and ready for players](docs/assets/overview-light.en.png)
+[Download Portable Build](https://github.com/MystryMocha/mystry-dashboard/releases/latest) · [Quick Start](#quick-start) · [Features](#features) · [Documentation](docs/README.md) · [Tutorials](docs/tutorials.md) · [Contributing](CONTRIBUTING.md)
 
-Run it on a home PC or a cloud server and manage it from any browser, phone included. One-click deploys, a live console, backups while players are online, and multiplayer without a public IP; no Docker or external database required.
+![The Home page showing running servers, CPU, memory and disk usage, a 7-day CPU trend, machine info and an instance run timeline](docs/assets/overview-light.en.png)
 
-Mystry Dashboard is a standalone Node.js application, not a game mod, and needs neither Fabric nor Forge.
-
-[Quick Start](#quick-start) · [Features](#features) · [Documentation](docs/README.md) · [Tutorials](docs/tutorials.md) · [Contributing](CONTRIBUTING.md)
-
-> **Preview software.** Read [Scope and limitations](#scope-and-limitations) before running a long-term server on it.
+Run it on a home PC or a cloud server and manage it from any browser, phone included, with no external database. Mystry Dashboard is a standalone Node.js application, not a game mod, and needs neither Fabric nor Forge.
 
 ---
 
@@ -25,12 +21,12 @@ Mystry Dashboard is a standalone Node.js application, not a game mod, and needs 
 
 For players hosting servers for themselves and their friends, at home or in the cloud:
 
-- **Unzip and Run** — The portable builds for Windows x64 and Linux x64 include Node.js 22 and everything else the panel needs. Double-clicking `mdash.cmd` starts the panel in the background and shows the `admin` password once. Closing the window leaves the panel and your servers running.
-- **Multiplayer Without a Public IP** — Turn on **Virtual LAN** and send friends the join instructions. There's no port forwarding or sign-up, and the panel adds the Windows Firewall rules for you. Public IPv6, your own relay nodes and your own **frp** server work too. Only the game port is shared, never the panel.
-- **Startup Failures, With Fixes** — If the EULA hasn't been accepted, click **Agree and Start**. If the server needs a different Java, the panel names the version and can install it. Memory and JVM flags are set in a form with G1GC presets, plus Aikar's flags for Paper.
-- **Live Backups** — A backup turns off world saving, flushes the world to disk, packs the folder and turns saving back on, so you never copy a half-written world. A restore checks every file first and backs up the current server before replacing it.
-- **Slow or Blocked Networks** — Switch the download source to **China Mirrors** in **Panel Settings**. Mirrored files are used only when their checksum can be verified. frp and EasyTier can also be installed from an archive you upload.
-- **Any Device, Three Languages** — Light and dark appearance, bottom navigation on phones and tablets, and a screen-reader mode for the console. The panel loads no web fonts, so it opens offline, and it's available in English, Simplified Chinese and Traditional Chinese.
+- **Unzip and Run**: The portable builds for Windows x64 and Linux x64 include Node.js 22 and everything else the panel needs. Double-clicking `mdash.cmd` starts the panel in the background and shows the `admin` password once. Closing the window leaves the panel and your servers running.
+- **Multiplayer Without a Public IP**: Turn on **Virtual LAN** and send friends the join instructions. There's no port forwarding or sign-up, and the panel adds the Windows Firewall rules for you. Public IPv6, your own relay nodes and your own **frp** server work too. Only the game port is shared, never the panel.
+- **Startup Failures, With Fixes**: If the EULA hasn't been accepted, click **Agree and Start**. If the server needs a different Java, the panel names the version and can install it. Memory and JVM flags are set in a form with G1GC presets, plus Aikar's flags for Paper.
+- **Live Backups**: A backup turns off world saving, flushes the world to disk, packs the folder and turns saving back on, so you never copy a half-written world. A restore checks every file first and backs up the current server before replacing it.
+- **Slow or Blocked Networks**: Switch the download source to **China Mirrors** in **Panel Settings**. Mirrored files are used only when their checksum can be verified. frp and EasyTier can also be installed from an archive you upload.
+- **Any Device, Three Languages**: Light and dark appearance, bottom navigation on phones and tablets, and a screen-reader mode for the console. The panel loads no web fonts, so it opens offline, and it's available in English, Simplified Chinese and Traditional Chinese.
 
 ### How It Compares
 
@@ -56,7 +52,7 @@ For players hosting servers for themselves and their friends, at home or in the 
 | **Multiplayer** | Choose **Direct Connection** (LAN IPv4, public IPv6 or a public server address), **Virtual LAN** (EasyTier, no public IP needed) or **frp Tunnel**. Only the game port is shared. |
 | **Java & JVM** | Find the Java already installed, pick the right version for each new server, install Eclipse Temurin in one click when it's missing, and set memory with JVM presets. |
 | **Download sources** | **Official** (default) or **China Mirrors** (BMCLAPI and GitHub mirrors, falling back to official). frp, EasyTier and Java downloads are checked against pinned SHA-256 hashes. |
-| **Tasks & monitoring** | **Task Center** follows deploys, imports and backups. **Home** is a read-only dashboard with live status blocks and breakdown popovers (running instances, CPU, memory, data disk), 24-hour / 7-day / 30-day CPU and memory trends, machine specs and an instance activity timeline; **Instances** manages all servers and shows live per-server CPU and memory. |
+| **Tasks & monitoring** | **Task Center** follows deploys, imports and backups. **Home** shows running servers, CPU, memory and data-disk usage (click any item for its breakdown), 24-hour / 7-day / 30-day CPU, memory, network and disk I/O trends, machine info and an instance run timeline; **Instances** manages all servers and shows live per-server CPU and memory. |
 | **Account** | One `admin` account. Changing the password signs out every other browser and device. |
 | **Appearance & languages** | Light, dark or follow the system. English, Simplified Chinese and Traditional Chinese, including server errors and task progress. |
 
@@ -78,18 +74,28 @@ For players hosting servers for themselves and their friends, at home or in the 
 
 ## Quick Start
 
-Pick how you want to run Mystry Dashboard, then [sign in for the first time](docs/getting-started.md#set-up-administrator).
-
 | Option | Requirements | How |
 |---|---|---|
-| **1. Portable preview (Recommended)** | Windows x64 or Linux x64 (Node.js 22 bundled) | [Download, verify and start](docs/portable-release.md) |
+| **1. Portable preview (Recommended)** | Windows x64 or Linux x64 (Node.js 22 bundled) | [Download from Releases](https://github.com/MystryMocha/mystry-dashboard/releases/latest) · [Portable guide](docs/portable-release.md) |
 | **2. Windows, from source** | Node.js 22 or later | Double-click `mdash.cmd` in the repository root |
 | **3. Linux / WSL, from source** | Node.js 22 or later | Run `./mdash.sh start` |
 | **4. Manual development** | Node.js 22 or later, two terminals | [Development guide](docs/development.md) |
 
-### Start from Source in 3 Steps
+### Run the Portable Preview in 3 Steps
 
-Windows PowerShell:
+1. **Download and extract**: Download the Windows x64 (`.zip`) or Linux x64 (`.tar.gz`) archive from [GitHub Releases](https://github.com/MystryMocha/mystry-dashboard/releases/latest) and extract it to a new folder.
+2. **Launch and sign in**: On Windows, double-click `mdash.cmd`; on Linux, run `chmod +x mdash && ./mdash start`. Copy the one-time 16-character `admin` password shown in the window and sign in at `http://127.0.0.1:3000`. To set your own password, open **Panel Settings** (the gear at the bottom left) and click **Change Password**; if you forget it, run `reset-password` on this computer.
+3. **Deploy**: Open **Quick Deploy**, pick a core and version, check the EULA box, and click **Start Deploy**.
+
+To open the panel on a phone or another computer, click **Other Devices** in the top bar. On a server you reach over SSH, run `./mdash remote on` (or `./mdash.sh remote on` from source). See [Open the Panel on Another Device](docs/user-guide.md#open-the-panel-on-another-device).
+
+Each release also publishes SHA-256 checksums, a GPG signature and a CycloneDX SBOM; see the [portable release guide](docs/portable-release.md) for launcher commands, upgrades and optional verification.
+
+### Start from Source
+
+With Node.js 22 or later installed, the source launcher checks your environment, installs dependencies, generates `config/panel.env` (or `.env` on Windows) with random secrets, creates the `admin` account, and starts the panel in the background.
+
+Windows PowerShell (in the repository root, double-clicking `mdash.cmd` opens an interactive menu, and `help` lists every command; see [Getting Started](docs/getting-started.md)):
 
 ```powershell
 .\mdash.cmd start
@@ -102,13 +108,7 @@ chmod +x mdash.sh
 ./mdash.sh start
 ```
 
-1. **Launch**: The launcher checks your environment, installs dependencies, generates `config/panel.env` (or `.env` on Windows) with random secrets, creates the `admin` account with a random 16-character password shown once in the window, and starts the panel in the background.
-2. **Sign in**: Open `http://127.0.0.1:3000` and sign in with the account shown in the launcher window. To set your own password, open **Panel Settings** (the gear at the bottom left) and click **Change Password**. If you forget it, run `reset-password` on this computer.
-3. **Deploy**: Open **Quick Deploy**, pick a core and version, check the EULA box, and click **Start Deploy**.
-
-To open the panel on a phone or another computer, click **Other Devices** in the top bar. On a server you reach over SSH, run `./mdash.sh remote on`. See [Open the Panel on Another Device](docs/user-guide.md#open-the-panel-on-another-device).
-
-Double-clicking `mdash.cmd` opens a menu, and `help` lists every launcher command. [Getting Started](docs/getting-started.md) and the [portable release guide](docs/portable-release.md) explain what each one does.
+For manual production builds after completing [Getting Started](docs/getting-started.md), run `npm run build` followed by `npm start` (use `npm.cmd` on Windows PowerShell). Fastify serves the pre-compressed (`.br` / `.gz`) web UI directly.
 
 ### Java for Minecraft
 
@@ -123,20 +123,7 @@ Double-clicking `mdash.cmd` opens a menu, and `help` lists every launcher comman
 
 **Slow dependency downloads?** For source installations, run `.\mdash.cmd mirror` or `./mdash.sh mirror` to select npm's own config (default), the official registry, or a mainland China mirror (npmmirror, Tencent Cloud, Huawei Cloud). See [npm download source](docs/configuration.md#npm-registry). Portable builds already bundle production dependencies.
 
-### Portable Preview
-
-The release workflow builds self-contained archives for Windows x64 and Linux x64 with Node.js 22, production dependencies, built web assets, SHA-256 checksums, a GPG signature and a CycloneDX SBOM. Check the project's Releases page for published assets, and see the [portable release guide](docs/portable-release.md) for verification and upgrade steps.
-
-### Production Build from Source
-
-After installing dependencies and configuring secrets (see [getting started](docs/getting-started.md)):
-
-```bash
-npm run build
-npm start
-```
-
-On Windows PowerShell, use `npm.cmd` instead of `npm`. Fastify serves the pre-compressed (`.br` / `.gz`) web UI directly.
+> **Preview software.** Read [Scope and limitations](#scope-and-limitations) before running a long-term server on it.
 
 ---
 
@@ -202,7 +189,7 @@ See the [changelog](CHANGELOG.md) for detailed release history.
 
 Issues, pull requests and documentation improvements are welcome. Please read the [contributing guide](CONTRIBUTING.md) and the [code of conduct](CODE_OF_CONDUCT.md) first.
 
-If Mystry Dashboard makes hosting servers for your friends easier, consider giving the repository a **Star** on GitHub — it helps more players and self-hosters discover the project.
+If Mystry Dashboard makes hosting servers for your friends easier, consider giving the repository a **Star** on GitHub so more players and self-hosters can find it.
 
 ## License
 

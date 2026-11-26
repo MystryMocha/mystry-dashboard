@@ -2,22 +2,18 @@
 
 [English](README.md) · **简体中文**
 
-![Version](https://img.shields.io/badge/version-0.2.0--preview.7-6439e0)
-![License](https://img.shields.io/badge/license-MIT-6439e0)
-![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-6439e0)
-![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522%20%28%E4%BE%BF%E6%90%BA%E7%89%88%E5%B7%B2%E5%86%85%E7%BD%AE%29-6439e0)
+![Version](https://img.shields.io/badge/version-0.3.0--preview.1-bc4f1f)
+![License](https://img.shields.io/badge/license-MIT-bc4f1f)
+![Platform](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-bc4f1f)
+![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522%20%28%E4%BE%BF%E6%90%BA%E7%89%88%E5%B7%B2%E5%86%85%E7%BD%AE%29-bc4f1f)
 
-**自托管的游戏服务器面板，现已支持 Minecraft Java 版。**
+**解压即用的自托管游戏服务器面板，现已支持 Minecraft Java 版。** 内置虚拟局域网联机、Java 与服务端核心一键部署、运行中备份，不需要公网 IP，也不需要 Docker。
 
-![实例总览：三个 Minecraft 服务器，其中两个正在运行、可以进服](docs/assets/overview-light.zh-CN.png)
+[下载便携包](https://github.com/MystryMocha/mystry-dashboard/releases/latest) · [快速开始](#快速开始) · [功能](#功能) · [文档中心](docs/README.zh-CN.md) · [分步教程](docs/tutorials.zh-CN.md) · [贡献指南](CONTRIBUTING.zh-CN.md)
 
-部署在家用电脑或云服务器上，以浏览器管理，手机亦可。一键部署、实时控制台、运行中备份，无公网 IP 也能与好友联机；无需 Docker，也无需外部数据库。
+![首页：运行中实例与本机占用、7 天 CPU 趋势、本机信息与实例运行时间线](docs/assets/overview-light.zh-CN.png)
 
-面板是独立的 Node.js 程序，并非游戏模组，无需安装 Fabric 或 Forge。
-
-[快速开始](#快速开始) · [功能](#功能) · [文档中心](docs/README.zh-CN.md) · [分步教程](docs/tutorials.zh-CN.md) · [贡献指南](CONTRIBUTING.zh-CN.md)
-
-> **预览版**：长期开服前，请先阅读 [使用边界](#使用边界)。
+部署在家用电脑或云服务器上，无需外部数据库，用电脑或手机浏览器即可管理。面板是独立的 Node.js 程序，并非游戏模组，无需安装 Fabric 或 Forge。
 
 ---
 
@@ -25,12 +21,12 @@
 
 为自己与好友开服的玩家，服务器在家中或云端皆可：
 
-- **解压即用** — 便携包内置 Node.js 22 与全部依赖（Windows x64、Linux x64）。Windows 双击 `mdash.cmd` 即在后台启动，管理员 `admin` 的密码仅显示一次；关闭窗口不影响面板与服务端，重新打开后按 `Ctrl+C` 安全停止。
-- **无公网 IP 联机** — 开启「虚拟局域网」，将加入说明发给好友即可：无需端口转发与注册，Windows 防火墙规则由面板自动配置。另支持公网 IPv6、自建中继与自有 **frp** 服务器；仅开放游戏端口，不暴露面板。
-- **启动失败，附带解法** — 未同意 EULA 时可「同意并启动」；Java 版本不符时指明所需版本，并可一键安装。内存与 JVM 参数以表单配置，提供 G1GC 预设，Paper 另有 Aikar 预设。
-- **运行中备份** — 备份前暂停自动保存、将存档写入磁盘，打包后再恢复，不会复制到写了一半的存档。还原前逐一校验文件，并先备份当前服务端。
-- **适应国内网络** — 在「面板设置」将下载来源切换为「国内镜像」，镜像文件须通过校验方可使用。无法连接 GitHub 时，frp 与 EasyTier 可上传离线包安装。
-- **多端与多语言** — 浅色与深色外观，手机与平板采用底部导航，控制台提供读屏模式。不加载外网字体，离线亦可打开；界面、报错与任务进度均提供简体中文、繁體中文与 English。
+- **解压即用**：便携包内置 Node.js 22 与全部依赖（Windows x64、Linux x64）。Windows 双击 `mdash.cmd` 即在后台启动，管理员 `admin` 的密码仅显示一次；关闭窗口不影响面板与服务端，重新打开后按 `Ctrl+C` 安全停止。
+- **无公网 IP 联机**：开启「虚拟局域网」，将加入说明发给好友即可，无需端口转发与注册，Windows 防火墙规则由面板自动配置。另支持公网 IPv6、自建中继与自有 **frp** 服务器；仅开放游戏端口，不暴露面板。
+- **启动失败，附带解法**：未同意 EULA 时可「同意并启动」；Java 版本不符时指明所需版本，并可一键安装。内存与 JVM 参数以表单配置，提供 G1GC 预设，Paper 另有 Aikar 预设。
+- **运行中备份**：备份前暂停自动保存、将存档写入磁盘，打包后再恢复，不会复制到写了一半的存档。还原前逐一校验文件，并先备份当前服务端。
+- **适应国内网络**：在「面板设置」将下载来源切换为「国内镜像」，镜像文件须通过校验方可使用。无法连接 GitHub 时，frp 与 EasyTier 可上传离线包安装。
+- **多端与多语言**：浅色与深色外观，手机与平板采用底部导航，控制台提供读屏模式。不加载外网字体，离线亦可打开；界面、报错与任务进度均提供简体中文、繁體中文与 English。
 
 ### 方案对比
 
@@ -56,7 +52,7 @@
 | **联机** | 在「直接连接」（局域网 IPv4、公网 IPv6 或公网服务器地址）、「虚拟局域网」（EasyTier，不需要公网 IP）和「frp 穿透」之间切换；只开放游戏端口 |
 | **Java 与 JVM** | 找到本机已装的 Java，新建服务端时按 MC 版本选对 Java，缺少时一键安装 Eclipse Temurin，并用 JVM 预设配置内存 |
 | **下载来源** | 「官方来源」（默认）或「国内镜像」（BMCLAPI 与 GitHub 镜像，失败时回退官方）；frp、EasyTier 和 Java 下载按固定的 SHA-256 校验 |
-| **任务与监测** | 顶栏「任务中心」跟踪部署、导入与备份；「首页」为只读数据看板，展示实时状态块与详情气泡（运行中实例、CPU、内存、数据盘）、24 小时 / 7 天 / 30 天 CPU 与内存趋势图、本机信息及实例运行时间线；「实例」页集中管理服务端并显示每个服务端的实时 CPU 与内存 |
+| **任务与监测** | 顶栏「任务中心」跟踪部署、导入与备份；「首页」展示运行中实例、CPU、内存与数据盘占用（点击可看明细）、24 小时 / 7 天 / 30 天 CPU、内存、网络与磁盘读写趋势、本机信息及实例运行时间线；「实例」页集中管理服务端并显示每台服务端的实时 CPU 与内存 |
 | **账号** | 一个管理员账号 `admin`；修改密码后，其他浏览器和设备需要重新登录 |
 | **外观与语言** | 浅色、深色或跟随系统；简体中文、繁體中文与 English，包括服务端报错和任务进度 |
 
@@ -78,18 +74,28 @@
 
 ## 快速开始
 
-先选择运行方式，再按 [初始化管理员](docs/getting-started.zh-CN.md#初始化管理员) 进入面板。
-
 | 运行方式 | 环境要求 | 入口 |
 |---|---|---|
-| **1. 便携预览版（推荐）** | Windows x64 / Linux x64；**包内自带 Node.js 22** | [下载、校验与启动](docs/portable-release.zh-CN.md) |
+| **1. 便携预览版（推荐）** | Windows x64 / Linux x64；**包内自带 Node.js 22** | [前往 Releases 下载](https://github.com/MystryMocha/mystry-dashboard/releases/latest) · [便携版说明](docs/portable-release.zh-CN.md) |
 | **2. Windows 源码管理器** | Node.js ≥ 22 | 双击仓库根目录 `mdash.cmd` |
 | **3. Linux / WSL 源码管理器** | Node.js ≥ 22 | 运行 `./mdash.sh start` |
 | **4. 手动开发** | Node.js ≥ 22，两个开发终端 | [安装与配置](docs/getting-started.zh-CN.md#手动安装与首次配置)、[开发指南](docs/development.zh-CN.md) |
 
-### 3 步从源码启动
+### 3 步运行便携包（推荐）
 
-Windows PowerShell：
+1. **下载解压**：前往 [GitHub Releases](https://github.com/MystryMocha/mystry-dashboard/releases/latest) 下载 Windows x64（`.zip`）或 Linux x64（`.tar.gz`）压缩包并解压到新目录。
+2. **启动并登录**：Windows 双击 `mdash.cmd`；Linux 运行 `chmod +x mdash && ./mdash start`。用窗口中仅显示一次的管理员 `admin` 随机 16 位密码打开 `http://127.0.0.1:3000` 登录。想换成自己的密码，点左下角齿轮进入「面板设置」并点「修改密码」；忘记密码时，在本机执行 `reset-password` 命令重置。
+3. **部署开服**：进入「一键部署」，选择服务端核心与版本，勾选同意 EULA，点击「开始部署」。
+
+想用手机或另一台电脑打开面板，点顶栏的「其他设备」；面板在经 SSH 登录的服务器上时运行 `./mdash remote on`（源码运行为 `./mdash.sh remote on`）。详见 [在其他设备上打开面板](docs/user-guide.zh-CN.md#在其他设备上打开面板)。
+
+发布包同时附带 SHA-256 校验和、GPG 签名与 CycloneDX SBOM；管理器完整命令、升级回滚及可选签名校验步骤见 [便携预览版说明](docs/portable-release.zh-CN.md)。
+
+### 从源码启动
+
+已安装 Node.js 22 及以上版本时，源码管理器会自动检查环境、安装依赖、生成带随机密钥的配置文件，并创建管理员 `admin` 在后台启动面板。
+
+Windows PowerShell（在仓库根目录不带命令双击 `mdash.cmd` 会打开交互菜单，`help` 列出全部命令；详见 [快速开始](docs/getting-started.zh-CN.md)）：
 
 ```powershell
 .\mdash.cmd start
@@ -102,13 +108,7 @@ chmod +x mdash.sh
 ./mdash.sh start
 ```
 
-1. **启动面板**：管理器会自动检查环境、安装依赖、生成带随机密钥的配置文件，并创建管理员 `admin` 和随机 16 位密码（只在窗口里显示一次），随后在后台启动面板。
-2. **登录面板**：浏览器打开 `http://127.0.0.1:3000`，用窗口显示的账号密码登录。想换成自己的密码，点左下角的齿轮进入「面板设置」，再点「修改密码」；忘记密码时，在本机执行 `reset-password` 命令重置。
-3. **部署开服**：进入「一键部署」，选择服务端核心与版本，勾选同意 EULA，点击「开始部署」。
-
-想用手机或另一台电脑打开面板，点顶栏的「其他设备」；面板在经 SSH 登录的服务器上时运行 `./mdash.sh remote on`。详见 [在其他设备上打开面板](docs/user-guide.zh-CN.md#在其他设备上打开面板)。
-
-不带命令双击 `mdash.cmd` 会打开菜单，`help` 列出全部管理器命令；各命令的作用见 [快速开始](docs/getting-started.zh-CN.md) 与 [便携预览版说明](docs/portable-release.zh-CN.md)。
+已按 [快速开始](docs/getting-started.zh-CN.md#手动安装与首次配置) 完成依赖安装和密钥配置后，也可手动构建并启动生产服务：执行 `npm.cmd run build` 与 `npm.cmd start`（Linux/macOS 将 `npm.cmd` 换成 `npm`），后端会直接托管预压缩（`.br` / `.gz`）后的 Web 页面。
 
 ### Minecraft 所需的 Java 版本
 
@@ -117,26 +117,13 @@ chmod +x mdash.sh
 | Minecraft 版本 | 推荐 Java 版本 |
 |---|---|
 | 26.1 及更高 | **Java 25** |
-| 1.20.5 – 1.21.x | **Java 21** |
-| 1.17 – 1.20.4 | **Java 17** |
+| 1.20.5 至 1.21.x | **Java 21** |
+| 1.17 至 1.20.4 | **Java 17** |
 | 1.16.5 及更早 | **Java 8** |
 
 **依赖下载慢？** 源码管理器用 npm 安装依赖。运行 `.\mdash.cmd mirror` 或 `./mdash.sh mirror` 可选择下载源：跟随 npm 自身配置（默认）、npm 官方，或国内镜像（npmmirror、腾讯云、华为云），见 [npm 下载源](docs/configuration.zh-CN.md#npm-下载源)。便携版已自带生产依赖，无需设置。
 
-### 便携预览版
-
-发布流程构建 Windows x64 与 Linux x64 两个自包含便携包，内置 Node.js 22、生产依赖和已构建的前后端资源，并附带 SHA-256 校验和、GPG 签名与 CycloneDX SBOM。已发布版本与下载文件见仓库 Releases 页面，签名校验与升级步骤见 [便携预览版说明](docs/portable-release.zh-CN.md)。
-
-### 生产部署（手动构建）
-
-已按 [快速开始](docs/getting-started.zh-CN.md#手动安装与首次配置) 完成依赖安装和密钥配置后，可手动构建并启动：
-
-```powershell
-npm.cmd run build
-npm.cmd start
-```
-
-Linux/macOS 将 `npm.cmd` 换成 `npm`。后端直接托管预压缩（`.br` / `.gz`）后的 Web 页面。
+> **预览版**：长期开服前，请先阅读 [使用边界](#使用边界)。
 
 ---
 
@@ -170,7 +157,7 @@ Linux/macOS 将 `npm.cmd` 换成 `npm`。后端直接托管预压缩（`.br` / `
 - **托管目录隔离**：实例工作目录固定为最终数据根下的 `instances/<id>`；面板不提供全盘浏览或外部目录直接绑定。旧版使用外部目录的实例可以迁入，见 [旧版外部实例接管](docs/user-guide.zh-CN.md#旧版外部实例接管)。
 - **导入文件夹**：已有服务端先停止，再在浏览器里选它的文件夹上传，面板收到的是一份副本，原目录完整保留；特别大的服务端也可以复制到数据目录的 `imports/` 下导入。步骤见 [上传文件夹](docs/user-guide.zh-CN.md#上传文件夹)。
 - **内存任务队列**：任务元数据保存在 SQLite，执行队列在内存；面板重启后，未完成的遗留任务会标记为失败并清理临时文件，不会自动续跑。
-- **单实例备份范围**：备份只针对单个实例目录，可手动进行，也可每天定时进行；暂未提供包含面板数据库 `panel.db` 的整面板备份，整面板迁移见 [备份与迁移](docs/tutorials.zh-CN.md#教程-8备份与迁移)。
+- **单实例备份范围**：备份只针对单个实例目录，可手动备份，也可每天定时备份；暂未提供包含面板数据库 `panel.db` 的整面板备份，整面板迁移见 [备份与迁移](docs/tutorials.zh-CN.md#教程-8备份与迁移)。
 - **联机前提**：Windows 上需以管理员身份启动面板才能使用虚拟局域网，好友也须以管理员身份运行加入命令；直连打洞失败时，流量经社区共享节点（或你填写的自建节点）加密中转；frp 需自备服务器。持有网络密钥或 **玩家配置** 者均可连接该游戏端口，请仅交给信任的人。详见 [联机](docs/user-guide.zh-CN.md#联机)。
 - **单管理员账号**：修改或重置密码会立即使旧登录令牌、一次性票据与控制台连接失效；多用户权限、会话列表与双重验证（2FA）尚未实现。
 
