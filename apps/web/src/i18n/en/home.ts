@@ -45,6 +45,8 @@ export default {
   'home.trend.read': 'Read',
   'home.trend.write': 'Write',
   'home.trend.summaryPair': '{metric} trend over the {range}: {first} latest {firstLatest} (peak {firstPeak}), {second} latest {secondLatest} (peak {secondPeak}).',
+  'home.trend.networkUnavailable': "Network traffic on this computer can't be read.",
+  'home.trend.diskIoUnavailable': "Disk activity on this computer can't be read.",
 
   'home.machine.title': 'This Machine',
   'home.machine.os': 'System',

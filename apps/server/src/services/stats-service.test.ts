@@ -112,6 +112,7 @@ function fakeIoSampler(rates: Partial<IoRates> = {}): IoRateSampler & { maxElaps
     reset: () => {
       sampler.resets += 1;
     },
+    readFailed: () => ({ network: false, disk: false }),
   };
   return sampler;
 }
@@ -529,6 +530,15 @@ test('two-layer aggregation prevents half-bucket overshoot, handles NULL process
   const ioBucket11 = ioOverview.buckets.find((b) => b.timestamp === '2026-11-26T11:00:00.000Z')!;
   assert.equal(ioBucket11.hostNetRxBytesPerSec, null, 'rows written before collection began stay null');
   assert.equal(getStatsOverview('7d', { now: () => now, ioMetricsSupported: false }).ioMetricsSupported, false);
+  assert.deepEqual(
+    getStatsOverview('7d', { now: () => now, ioMetricsSupported: true, ioReadFailed: { network: true, disk: false } }).ioReadFailed,
+    { network: true, disk: false },
+  );
+  assert.deepEqual(
+    getStatsOverview('7d', { now: () => now, ioMetricsSupported: false, ioReadFailed: { network: true, disk: true } }).ioReadFailed,
+    { network: false, disk: false },
+    'an unsupported platform never reports a failed read',
+  );
 
   // Unsupported platform (e.g. macOS): instance series stays null everywhere.
   const macOverview = getStatsOverview('7d', { now: () => now, processMetricsSupported: false });

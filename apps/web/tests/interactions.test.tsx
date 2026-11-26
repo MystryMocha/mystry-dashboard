@@ -64,6 +64,7 @@ const statsOverviewSample = {
   bucketSeconds: 3600,
   processMetricsSupported: true,
   ioMetricsSupported: true,
+  ioReadFailed: { network: false, disk: false },
   buckets: [
     {
       timestamp: '2026-11-26T09:00:00.000Z', hostCpuPercent: 20, hostMemoryBytes: 10 * 1024 ** 3, instancesCpuPercent: 8, instancesMemoryBytes: 3 * 1024 ** 3,
@@ -650,6 +651,30 @@ test('home: empty state omits header status sentence and shows deploy and import
   await user.click(screen.getAllByRole('button', { name: '重试' })[0]!);
   expect(await screen.findByText('Windows 11 Home')).toBeTruthy();
   expect(screen.getByText('还没有运行记录。')).toBeTruthy();
+});
+
+test('home: a failed counter read says so instead of collecting, and an I/O summary keeps the line that has data', async () => {
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (String(url).startsWith('/api/stats/overview')) {
+      return new Response(JSON.stringify({
+        ...statsOverviewSample,
+        ioReadFailed: { network: true, disk: false },
+        buckets: statsOverviewSample.buckets.map((bucket) => ({
+          ...bucket, hostNetRxBytesPerSec: null, hostNetTxBytesPerSec: null, hostDiskReadBytesPerSec: null,
+        })),
+      }));
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  mount(<HomePage />);
+
+  await user.click(await screen.findByRole('button', { name: '网络', exact: true }));
+  expect(await screen.findByText('无法读取本机的网络流量。')).toBeTruthy();
+  expect(screen.queryByText('正在收集趋势数据…')).toBeNull();
+  await user.click(screen.getByRole('button', { name: '磁盘读写', exact: true }));
+  expect(screen.getByRole('img', { name: /近 7 天磁盘读写趋势：读取最新 —（峰值 —），写入最新 6\.0 MiB\/s/ })).toBeTruthy();
 });
 
 test('panel settings page switching the download source: the original choice is kept on failure, and the description is shown on success', async () => {

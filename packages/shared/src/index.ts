@@ -124,6 +124,12 @@ export interface StatsDiskBreakdown {
   backupsOnSameVolume: boolean;
 }
 
+/** Per counter half, whether the latest read of whole-machine I/O counters came back empty or failed. */
+export interface StatsIoReadFailed {
+  network: boolean;
+  disk: boolean;
+}
+
 /** GET /api/stats/overview response. */
 export interface StatsOverview {
   range: StatsRange;
@@ -137,6 +143,11 @@ export interface StatsOverview {
   processMetricsSupported: boolean;
   /** Whether whole-machine network and disk I/O rates are collected on this platform (Windows and Linux). */
   ioMetricsSupported: boolean;
+  /**
+   * Whether the latest background read found no usable network or disk counter, so an empty series means
+   * "cannot be read" rather than "not collected yet". False before the first read and where ioMetricsSupported is false.
+   */
+  ioReadFailed: StatsIoReadFailed;
   buckets: StatsMetricBucket[];
   runs: StatsInstanceRun[];
   host: StatsHostInfo;

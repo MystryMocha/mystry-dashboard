@@ -137,9 +137,15 @@ function rateUnitFor(bytesPerSec: number) {
 /** Formats a transfer rate with binary units, matching the GiB used for capacity elsewhere on the page. */
 export function formatRate(bytesPerSec: number, fmt: Formatters): string {
   const safe = Number.isFinite(bytesPerSec) && bytesPerSec > 0 ? bytesPerSec : 0;
-  const unit = rateUnitFor(safe);
-  const value = safe / unit.bytes;
-  return `${fmt.fixed(value, unit.bytes === 1 || value >= 100 ? 0 : 1)} ${unit.label}`;
+  let index = RATE_UNITS.indexOf(rateUnitFor(safe));
+  let value = safe / RATE_UNITS[index]!.bytes;
+  // Unit and decimals follow the rounded value, so 1023.95 KiB/s reads "1.0 MiB/s" and 99.96 KiB/s reads "100 KiB/s".
+  if (Math.round(value) >= 1024 && index < RATE_UNITS.length - 1) {
+    index += 1;
+    value = safe / RATE_UNITS[index]!.bytes;
+  }
+  const digits = index === 0 || Math.round(value * 10) / 10 >= 100 ? 0 : 1;
+  return `${fmt.fixed(value, digits)} ${RATE_UNITS[index]!.label}`;
 }
 
 /** Ceilings whose midpoint is also a round number. */
