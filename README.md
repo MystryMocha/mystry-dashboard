@@ -56,7 +56,7 @@ For players hosting servers for themselves and their friends, at home or in the 
 | **Multiplayer** | Choose **Direct Connection** (LAN IPv4, public IPv6 or a public server address), **Virtual LAN** (EasyTier, no public IP needed) or **frp Tunnel**. Only the game port is shared. |
 | **Java & JVM** | Find the Java already installed, pick the right version for each new server, install Eclipse Temurin in one click when it's missing, and set memory with JVM presets. |
 | **Download sources** | **Official** (default) or **China Mirrors** (BMCLAPI and GitHub mirrors, falling back to official). frp, EasyTier and Java downloads are checked against pinned SHA-256 hashes. |
-| **Tasks & monitoring** | **Task Center** follows deploys, imports and backups. **Instances** shows CPU, memory and free disk space for this computer, and CPU and memory for each server. |
+| **Tasks & monitoring** | **Task Center** follows deploys, imports and backups. **Home** is a read-only dashboard with live status blocks and breakdown popovers (running instances, CPU, memory, data disk), 24-hour / 7-day / 30-day CPU and memory trends, machine specs and an instance activity timeline; **Instances** manages all servers and shows live per-server CPU and memory. |
 | **Account** | One `admin` account. Changing the password signs out every other browser and device. |
 | **Appearance & languages** | Light, dark or follow the system. English, Simplified Chinese and Traditional Chinese, including server errors and task progress. |
 

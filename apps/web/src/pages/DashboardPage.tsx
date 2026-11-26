@@ -3,24 +3,16 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ChevronRight,
   FolderDown,
-  PackageOpen,
   Play,
   Plus,
   Power,
-  RefreshCw,
   RotateCcw,
-  Settings,
-  SquareTerminal,
   Trash2,
   TriangleAlert,
-  Users,
-  Zap,
-  type LucideIcon,
 } from 'lucide-react';
 import type { DashboardMetrics, InstanceInfo } from '@mystry/shared';
 import { api, controlInstance, type InstanceAction } from '../api';
 import {
-  HostMeters,
   Meter,
   metricWarningTexts,
   processMetric,
@@ -34,12 +26,14 @@ import { EulaCheckbox } from '../components/EulaCheckbox';
 import { JavaRuntimeSelect } from '../components/JavaRuntimeSelect';
 import { JvmSettingsEditor } from '../components/JvmSettingsEditor';
 import { PageHeader } from '../components/PageHeader';
+import { StartPaths } from '../components/StartPaths';
 import { InstanceStatusPill } from '../components/StatusPill';
 import { errorMessage } from '../errors';
 import { useInstanceAction } from '../hooks/useInstanceAction';
 import { usePolling } from '../hooks/usePolling';
-import { useI18n, type I18n, type MessageKey } from '../i18n';
+import { useI18n, type I18n } from '../i18n';
 import { instanceNameIssue } from '../validation';
+import { hasIssue, rowState } from '../instance-attention';
 import {
   canStartInstance,
   canStopInstance,
@@ -64,77 +58,6 @@ function formatGib(bytes: number, fmt: I18n['fmt']): string {
   const gib = bytes / 1024 ** 3;
   // Whole GiB values (the common 2G, 4G) have no decimals; the rest keep one decimal place.
   return `${fmt.gib(bytes, Number.isInteger(gib) ? 0 : 1)} GiB`;
-}
-
-/** Instances that need the user's attention: crashed, pending migration, last start failed for a recognizable reason, or the chosen Java is no longer available. */
-function hasIssue(inst: InstanceInfo): boolean {
-  return inst.requiresMigration || inst.status === 'crashed' || (canStartInstance(inst.status) && !!inst.startIssue);
-}
-
-type RowState = {
-  sentence: string | null;
-  tone: 'warn' | 'danger' | null;
-  /** `quiet` marks a next step that is not a fix, so it does not compete with the rows that need attention. */
-  fix: { to: string; label: string; icon: LucideIcon; quiet?: boolean } | null;
-};
-
-/** The sentence after the status, and the one step most worth taking for this row. */
-function rowState(inst: InstanceInfo, t: I18n['t']): RowState {
-  const page = `/instances/${inst.id}`;
-  if (inst.requiresMigration) {
-    return {
-      sentence: t('dashboard.row.migration'),
-      tone: 'warn',
-      fix: { to: page, label: t('dashboard.row.action.migrate'), icon: PackageOpen },
-    };
-  }
-  const issue = canStartInstance(inst.status) ? inst.startIssue ?? null : null;
-  if (issue?.kind === 'eula') {
-    return {
-      sentence: t('dashboard.row.eula'),
-      tone: 'warn',
-      fix: { to: page, label: t('dashboard.row.action.reviewEula'), icon: TriangleAlert },
-    };
-  }
-  if (issue?.kind === 'java-unavailable') {
-    return {
-      sentence: t('instance.startIssue.javaUnavailable.title'),
-      tone: 'warn',
-      fix: { to: `${page}/settings`, label: t('instance.startIssue.java.openSettings'), icon: Settings },
-    };
-  }
-  if (issue) {
-    return {
-      sentence: issue.requiredJava != null
-        ? t('instance.startIssue.java.title', { java: issue.requiredJava })
-        : t('instance.startIssue.java.titleUnknown'),
-      tone: 'warn',
-      fix: { to: `${page}/settings`, label: t('instance.startIssue.java.openSettings'), icon: Settings },
-    };
-  }
-  switch (inst.status) {
-    case 'crashed':
-      return {
-        sentence: t('dashboard.row.crashed'),
-        tone: 'danger',
-        fix: { to: page, label: t('dashboard.row.action.console'), icon: SquareTerminal },
-      };
-    case 'starting':
-      return { sentence: t('dashboard.row.loading'), tone: null, fix: null };
-    case 'running':
-      return inst.ready
-        ? {
-          // The Running pill already says the server is up; a second sentence would repeat it.
-          sentence: null,
-          tone: null,
-          fix: { to: `/multiplayer?instance=${encodeURIComponent(inst.id)}`, label: t('instance.ready.action'), icon: Users, quiet: true },
-        }
-        : { sentence: t('dashboard.row.loading'), tone: null, fix: null };
-    case 'stopping':
-      return { sentence: t('dashboard.row.stopping'), tone: null, fix: null };
-    default:
-      return { sentence: null, tone: null, fix: null };
-  }
 }
 
 function ServerRow({
@@ -271,48 +194,6 @@ function ServerRow({
   );
 }
 
-/** When there are no instances yet: one row for each of the three ways to add one, explaining which situation each suits. */
-function StartPaths({ onCreateEmpty }: { onCreateEmpty: () => void }) {
-  const { t } = useI18n();
-  const paths: Array<{ key: string; icon: LucideIcon; title: MessageKey; desc: MessageKey; to?: string }> = [
-    { key: 'deploy', icon: Plus, title: 'nav.deploy', desc: 'dashboard.empty.deploy.desc', to: '/deploy' },
-    { key: 'import', icon: FolderDown, title: 'nav.import', desc: 'dashboard.empty.import.desc', to: '/import' },
-    { key: 'empty', icon: Zap, title: 'dashboard.action.createEmpty', desc: 'dashboard.empty.createEmpty.desc' },
-  ];
-  return (
-    <div className="start-paths card">
-      <div className="start-paths-head">
-        <h3>{t('empty.instances.title')}</h3>
-        <p>{t('dashboard.empty.lead')}</p>
-      </div>
-      <ul className="start-path-list">
-        {paths.map((path) => {
-          const Icon = path.icon;
-          const body = (
-            <>
-              <span className="start-path-icon" aria-hidden="true"><Icon size={18} /></span>
-              <span className="start-path-text">
-                <span className="start-path-title">{t(path.title)}</span>
-                <span className="start-path-desc">{t(path.desc)}</span>
-              </span>
-              <ChevronRight size={16} aria-hidden="true" className="start-path-chevron" />
-            </>
-          );
-          return (
-            <li key={path.key}>
-              {path.to ? (
-                <Link to={path.to} className="start-path">{body}</Link>
-              ) : (
-                <button type="button" className="start-path" onClick={onCreateEmpty}>{body}</button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
 export function DashboardPage() {
   const i18n = useI18n();
   const { t, tp, fmt } = i18n;
@@ -431,14 +312,12 @@ export function DashboardPage() {
   const metricsWarningText = metrics && !metricsError && metrics.warnings.length > 0
     ? metricWarningTexts(metrics, i18n.tm).join(' · ')
     : '';
-  const metricsStatusText = metricsError
+  const metricsErrorText = metricsError
     ? (metrics ? t('dashboard.metrics.errorStale', { error: metricsError }) : metricsError)
-    : metrics
-      ? t('dashboard.metrics.updatedAt', { time: fmt.time(metrics.sampledAt) })
-      : t('dashboard.metrics.loading');
-  // The "updated at" timestamp that changes every 5 seconds stays out of the live region; screen readers announce only errors, warning changes and recovery from an error.
+    : '';
+  // Routine samples every 5 seconds stay out of the live region; screen readers announce only errors, warning changes and recovery from an error.
   const metricsAnnouncement = metricsError
-    ? metricsStatusText
+    ? metricsErrorText
     : [
       metricsRecoveredAt ? t('dashboard.metrics.updatedAt', { time: fmt.time(metricsRecoveredAt) }) : '',
       metricsWarningText,
@@ -447,7 +326,7 @@ export function DashboardPage() {
   return (
     <div className="page overview-page">
       <PageHeader
-        title={t('nav.overview')}
+        title={t('nav.instances')}
         // With instances, the description line is the current status: large text says how many are running, followed by a red sentence when something needs attention, replacing separate stat cards.
         subtitle={
           loaded && instances.length > 0 ? (
@@ -478,29 +357,7 @@ export function DashboardPage() {
         )}
       />
 
-      <section className="host-strip" aria-labelledby="host-strip-title">
-        <h2 className="host-strip-title" id="host-strip-title">{t('dashboard.host.title')}</h2>
-        <HostMeters metrics={metrics} error={metricsError} />
-        <div className={`metrics-status${metricsError ? ' is-error' : ''}`}>
-          <span>{metricsStatusText}</span>
-          <span className="visually-hidden" role="status">{metricsAnnouncement}</span>
-          <button type="button" className="link-button" disabled={metricsBusy} onClick={() => void refreshMetrics(true)}>
-            <RefreshCw size={12} aria-hidden="true" className={metricsBusy ? 'spin' : undefined} />
-            {metricsBusy
-              ? t('dashboard.metrics.refreshing')
-              : metricsError
-                ? t('dashboard.metrics.retry')
-                : t('action.refresh')}
-          </button>
-        </div>
-        {/* Warnings get a row of their own: squeezing them into the status column on the right would truncate the three usage bars. */}
-        {metricsWarningText && (
-          <p className="host-strip-warning">
-            <TriangleAlert size={14} aria-hidden="true" />
-            {metricsWarningText}
-          </p>
-        )}
-      </section>
+      <span className="visually-hidden" role="status">{metricsAnnouncement}</span>
 
       {actionError &&<p className="callout callout-danger" role="alert">{actionError}</p>}
       {loadError && (
@@ -531,6 +388,21 @@ export function DashboardPage() {
                 </button>
               ))}
             </div>
+            {/* Host usage lives on the home page; here it only surfaces when something is wrong. Row CPU and memory come from the same samples, so a failure and its retry stay on this page. */}
+            {metricsError ? (
+              <p className="overview-metrics-line is-error">
+                <span>{metricsErrorText}</span>
+                <button type="button" className="link-button" disabled={metricsBusy} onClick={() => void refreshMetrics(true)}>
+                  {metricsBusy ? t('dashboard.metrics.refreshing') : t('dashboard.metrics.retry')}
+                </button>
+              </p>
+            ) : metricsWarningText ? (
+              <p className="overview-metrics-line is-warning">
+                <TriangleAlert size={14} aria-hidden="true" />
+                <span>{metricsWarningText}</span>
+                <Link to="/" className="link">{t('dashboard.metrics.viewUsage')}</Link>
+              </p>
+            ) : null}
           </div>
         )}
 

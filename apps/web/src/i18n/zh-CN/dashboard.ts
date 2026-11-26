@@ -1,6 +1,6 @@
 import type en from '../en/dashboard';
 
-/** 实例总览页与本机监测卡片文案（简体中文）。 */
+/** 实例列表页文案（简体中文）。 */
 export default {
   'dashboard.subtitle.summary_one': '共 {count} 个实例，{running} 个正在运行',
   'dashboard.subtitle.summary_other': '共 {count} 个实例，{running} 个正在运行',
@@ -10,22 +10,13 @@ export default {
 
   'dashboard.metrics.errorStale': '{error}，数据可能过期',
   'dashboard.metrics.updatedAt': '更新于 {time}',
-  'dashboard.metrics.loading': '正在读取监测数据…',
   'dashboard.metrics.refreshing': '刷新中…',
   'dashboard.metrics.retry': '重试监测',
+  'dashboard.metrics.viewUsage': '查看资源占用',
   'dashboard.metrics.fetchFailed': '监测数据获取失败',
   'dashboard.metrics.unavailable': '暂不可用',
   'dashboard.metrics.collecting': '采集中…',
   'dashboard.metrics.valueStale': '{value}（过期）',
-
-  'dashboard.host.title': '本机',
-  'dashboard.host.cpu': 'CPU',
-  'dashboard.host.cpu.hint': '100% 表示所有 CPU 核心都满载',
-  'dashboard.host.memory': '内存',
-  'dashboard.host.memory.hint': '已用 / 总量，单位 GiB',
-  'dashboard.host.disk': '数据盘',
-  'dashboard.host.disk.hint': '数据目录所在磁盘的剩余空间',
-  'dashboard.host.diskFree': '剩余 {value}',
 
   'dashboard.load.staleNotice': '显示的是上次加载到的实例。',
   'dashboard.list.title': 'Minecraft 实例',

@@ -1,4 +1,4 @@
-/** Instance overview page and local monitoring card strings (English primary table). */
+/** Instances page strings (English primary table). */
 export default {
   'dashboard.subtitle.summary_one': '{count} instance, {running} running',
   'dashboard.subtitle.summary_other': '{count} instances, {running} running',
@@ -8,22 +8,13 @@ export default {
 
   'dashboard.metrics.errorStale': '{error}. Data may be out of date.',
   'dashboard.metrics.updatedAt': 'Updated at {time}',
-  'dashboard.metrics.loading': 'Loading monitoring data…',
   'dashboard.metrics.refreshing': 'Refreshing…',
   'dashboard.metrics.retry': 'Retry Monitoring',
+  'dashboard.metrics.viewUsage': 'View Usage',
   'dashboard.metrics.fetchFailed': "Couldn't load monitoring data",
   'dashboard.metrics.unavailable': 'Unavailable',
   'dashboard.metrics.collecting': 'Collecting…',
   'dashboard.metrics.valueStale': '{value} (stale)',
-
-  'dashboard.host.title': 'This Machine',
-  'dashboard.host.cpu': 'CPU',
-  'dashboard.host.cpu.hint': '100% means every CPU core is fully busy',
-  'dashboard.host.memory': 'Memory',
-  'dashboard.host.memory.hint': 'Used / total, in GiB',
-  'dashboard.host.disk': 'Data Disk',
-  'dashboard.host.disk.hint': 'Free space on the disk that holds the data folder',
-  'dashboard.host.diskFree': '{value} free',
 
   'dashboard.load.staleNotice': 'Showing the list from the last time it loaded.',
   'dashboard.list.title': 'Minecraft Instances',

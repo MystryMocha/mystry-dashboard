@@ -3,7 +3,7 @@ import commonMessages from './common';
 import shellMessages from './shell';
 import loginMessages from './login';
 import dashboardMessages from './dashboard';
-import nodesMessages from './nodes';
+import homeMessages from './home';
 import settingsMessages from './settings';
 import deployMessages from './deploy';
 import importMessages from './import';
@@ -23,7 +23,7 @@ export default {
   ...shellMessages,
   ...loginMessages,
   ...dashboardMessages,
-  ...nodesMessages,
+  ...homeMessages,
   ...settingsMessages,
   ...deployMessages,
   ...importMessages,

@@ -8,7 +8,7 @@ import { DashboardPage } from '../src/pages/DashboardPage';
 import { JavaRuntimeSelect } from '../src/components/JavaRuntimeSelect';
 import { DeployPage } from '../src/pages/DeployPage';
 import { ImportPage } from '../src/pages/ImportPage';
-import { NodesPage } from '../src/pages/NodesPage';
+import { HomePage } from '../src/pages/HomePage';
 import { SettingsPage } from '../src/pages/SettingsPage';
 import { InstancePage } from '../src/pages/InstancePage';
 import { MultiplayerPage } from '../src/pages/MultiplayerPage';
@@ -57,27 +57,52 @@ function mount(element: React.ReactNode) {
 }
 const instance = { id: 'test', name: '很长的测试实例'.repeat(12), coreType: 'custom', status: 'stopped', jarFile: 'server.jar', jvmArgs: '-Xmx2G', nodeId: 'local' };
 const metricSample = { sampledAt: '2026-09-08T10:00:00Z', cpuPercent: 24, memory: { usedBytes: 8 * 1024 ** 3, totalBytes: 32 * 1024 ** 3 }, disk: { availableBytes: 186 * 1024 ** 3, totalBytes: 512 * 1024 ** 3 }, instances: { test: { cpuPercent: 8.2, memoryBytes: 2.4 * 1024 ** 3, state: 'ready' } }, warnings: [] };
+const statsOverviewSample = {
+  range: '7d',
+  from: '2026-11-19T12:00:00.000Z',
+  to: '2026-11-26T12:00:00.000Z',
+  bucketSeconds: 3600,
+  processMetricsSupported: true,
+  buckets: [
+    { timestamp: '2026-11-26T09:00:00.000Z', hostCpuPercent: 20, hostMemoryBytes: 10 * 1024 ** 3, instancesCpuPercent: 8, instancesMemoryBytes: 3 * 1024 ** 3 },
+    { timestamp: '2026-11-26T10:00:00.000Z', hostCpuPercent: null, hostMemoryBytes: null, instancesCpuPercent: null, instancesMemoryBytes: null },
+    { timestamp: '2026-11-26T11:00:00.000Z', hostCpuPercent: 32, hostMemoryBytes: 14 * 1024 ** 3, instancesCpuPercent: 12, instancesMemoryBytes: 4 * 1024 ** 3 },
+  ],
+  runs: [
+    { instanceId: 'test', readyAt: '2026-11-26T06:00:00.000Z', endedAt: '2026-11-26T12:00:00.000Z', endReason: 'stopped' },
+  ],
+  host: {
+    osName: 'Windows 11 Home',
+    cpuModel: 'AMD Ryzen 9 7950X 16-Core Processor',
+    cpuThreads: 32,
+    totalMemoryBytes: 32 * 1024 ** 3,
+    bootedAt: '2026-11-23T08:00:00.000Z',
+  },
+  diskBreakdown: {
+    instancesBytes: 48 * 1024 ** 3,
+    backupsBytes: 22 * 1024 ** 3,
+    backupsOnSameVolume: true,
+  },
+};
 let requests: string[];
-let nodes: unknown[];
-let failNodes: boolean;
 beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
   // This regression group looks up elements by the Chinese text, with the UI language fixed to zh-CN; for language switching and English text see i18n.test.tsx.
   document.documentElement.lang = 'zh-CN'; document.documentElement.dataset.localePreference = 'zh-CN';
-  requests = []; nodes = []; failNodes = false; terminal.text = ''; terminal.written = ''; terminal.created = []; terminal.srChanges = []; terminal.current = null;
+  requests = []; terminal.text = ''; terminal.written = ''; terminal.created = []; terminal.srChanges = []; terminal.current = null;
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener() {}, removeEventListener() {} });
   // jsdom does not implement the native modal layer; this stub only verifies open state and the app's focus restoration logic.
   HTMLDialogElement.prototype.showModal = function () { this.open = true; this.querySelector<HTMLElement>('button')?.focus(); };
   HTMLDialogElement.prototype.close = function () { if (!this.open) return; this.open = false; this.dispatchEvent(new Event('close')); };
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     requests.push(String(url));
-    if (url === '/api/nodes' && failNodes) return new Response(JSON.stringify({ error: '测试网络失败' }), { status: 503 });
     const data = url === '/api/auth/status' ? { needsSetup: false }
       : url === '/api/auth/me' ? { user: { id: 'tester', username: '测试员' } }
       : url === '/api/instances' ? [instance]
       : url === '/api/system/metrics' ? metricSample
+      : String(url).startsWith('/api/stats/overview') ? { ...statsOverviewSample, range: new URL(String(url), 'http://localhost').searchParams.get('range') || '7d' }
       : url === '/api/tasks' ? { tasks: [{ id: 'task', type: 'import', status: 'running', progress: 30, createdAt: new Date().toISOString() }] }
-      : url === '/api/nodes' ? nodes
+      : url === '/api/nodes' ? []
       : url === '/api/system/download-source' ? { source: 'official' }
       : url === '/api/auth/session-duration' ? { duration: '12h' }
       : url === '/api/system/panel-info' ? { host: '127.0.0.1', port: 3000, dataDir: '/srv/mystry/data', backupDir: '/srv/mystry/data/backups', configPath: '/srv/mystry/config/panel.env' }
@@ -89,7 +114,7 @@ beforeEach(() => {
   vi.stubGlobal('WebSocket', class { close() {} });
 });
 
-test('overview monitoring keeps stale data, recovers on retry, and the abnormal filter can be cleared', async () => {
+test('instances page monitoring keeps stale data, says so beside the filter, recovers on retry, and the abnormal filter can be cleared', async () => {
   const baseFetch = globalThis.fetch;
   let fail = false;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
@@ -99,10 +124,13 @@ test('overview monitoring keeps stale data, recovers on retry, and the abnormal 
   }));
   const user = userEvent.setup();
   mount(<DashboardPage />);
-  expect(await screen.findByText('24.0%')).toBeTruthy();
   expect(await screen.findByText('2.4 GiB')).toBeTruthy();
+  // Host usage moved to the home page: the instances page shows only the rows' own figures.
+  expect(screen.queryByText('24.0%')).toBeNull();
+  expect(screen.queryByRole('button', { name: '刷新', exact: true })).toBeNull();
   fail = true;
-  await user.click(screen.getByRole('button', { name: '刷新', exact: true }));
+  // Returning to the foreground polls at once, which stands in for the next 5-second sample.
+  await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
   // The visible status line and the screen reader live region each have a copy of the error text.
   expect(await screen.findAllByText(/数据可能过期/)).toHaveLength(2);
   expect(screen.getByText('2.4 GiB（过期）')).toBeTruthy();
@@ -231,7 +259,8 @@ test('desktop sidebar collapse toggles the icon rail, keeps tooltip labels and p
   expect(collapse.hasAttribute('aria-pressed')).toBe(false);
   expect(collapse.getAttribute('title')).toBe('收起侧栏');
   expect(document.querySelector('.app-shell')?.classList.contains('is-sidebar-collapsed')).toBe(false);
-  expect(document.querySelector('.sidebar a.nav-item[href="/"]')?.getAttribute('data-label')).toBe('实例总览');
+  expect(document.querySelector('.sidebar a.nav-item[href="/"]')?.getAttribute('data-label')).toBe('首页');
+  expect(document.querySelector('.sidebar a.nav-item[href="/instances"]')?.getAttribute('data-label')).toBe('实例');
   expect(document.querySelector('.sidebar a.nav-item[href="/deploy"]')?.getAttribute('data-label')).toBe('一键部署');
 
   await user.click(collapse);
@@ -412,18 +441,197 @@ test('ZIP choosing and dropping are locked while a preview is restored and durin
   expect(screen.queryByText('locked.zip')).toBeNull();
 });
 
-test('the nodes page shows the empty state, and after a failure a manual retry recovers the real offline state', async () => {
+test('home: status blocks open portaled popovers, support Escape and Tab keyboard closing, show warnings with text, and respect unsupported process metrics', async () => {
+  const baseFetch = globalThis.fetch;
+  let overview = {
+    ...statsOverviewSample,
+    diskBreakdown: { instancesBytes: 48 * 1024 ** 3, backupsBytes: 22 * 1024 ** 3, backupsOnSameVolume: true },
+  };
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/metrics') {
+      return new Response(JSON.stringify({
+        ...metricSample,
+        warnings: ['Data disk is low on space'],
+        warningsI18n: [{ key: 'server.system.metricsDiskLow' }],
+      }));
+    }
+    if (url === '/api/instances') {
+      return new Response(JSON.stringify([
+        { ...instance, id: 'test', name: '生存服', status: 'running', ready: true },
+        { ...instance, id: 'boot', name: '模组服', status: 'starting', ready: false },
+        { ...instance, id: 'idle', name: '旧存档', status: 'stopped' },
+      ]));
+    }
+    if (String(url).startsWith('/api/stats/overview')) return new Response(JSON.stringify(overview));
+    return baseFetch(url, options);
+  }));
   const user = userEvent.setup();
-  mount(<NodesPage />);
-  expect(await screen.findByText('读不到本机信息。')).toBeTruthy();
-  failNodes = true;
-  await user.click(screen.getByRole('button', { name: '重新读取' }));
-  expect(await screen.findByRole('alert')).toBeTruthy();
-  failNodes = false;
-  nodes = [{ id: 'local', isLocal: true, name: '本机', status: 'offline', instanceCount: 0 }];
-  await user.click(screen.getByRole('button', { name: '重试加载' }));
-  expect(await screen.findByText('离线')).toBeTruthy();
-  expect(screen.queryByText(/健康运转中/)).toBeNull();
+  const view = mount(<HomePage />);
+
+  expect(await screen.findByText('1 / 3')).toBeTruthy();
+  expect(screen.getByText('24%')).toBeTruthy();
+  expect(screen.getByText('8.0 / 32.0 GiB')).toBeTruthy();
+  expect(screen.getByText('326 / 512 GiB')).toBeTruthy();
+
+  // Disk warning uses text beside the label (without middle dots) and turns the cell amber.
+  const diskTrigger = screen.getByRole('button', { name: /数据盘/ });
+  expect(diskTrigger.className).toContain('is-warning');
+  expect(within(diskTrigger).getByText('空间不足')).toBeTruthy();
+  expect(diskTrigger.textContent).not.toContain('·');
+
+  // Running popover portals to document.body, lists active instances with links, and returns focus to trigger on Escape.
+  const runningTrigger = screen.getByRole('button', { name: /运行中/ });
+  await user.click(runningTrigger);
+  const runningPop = screen.getByRole('dialog', { name: '运行中的实例' });
+  expect(runningPop.parentElement).toBe(document.body);
+  expect(runningTrigger.getAttribute('aria-expanded')).toBe('true');
+  expect(within(runningPop).getByRole('link', { name: /生存服/ }).getAttribute('href')).toBe('/instances/test');
+  expect(within(runningPop).getByRole('link', { name: /模组服/ })).toBeTruthy();
+  expect(within(runningPop).getByText('启动中')).toBeTruthy();
+  expect(within(runningPop).queryByText('旧存档')).toBeNull();
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog', { name: '运行中的实例' })).toBeNull();
+  expect(document.activeElement).toBe(runningTrigger);
+
+  // Disk popover shows instances, backups, other files and available when backups share the volume; Tab leaves and closes it.
+  await user.click(diskTrigger);
+  const diskPop = screen.getByRole('dialog', { name: '数据盘空间详情' });
+  expect(within(diskPop).getByText('48.0 GiB')).toBeTruthy();
+  expect(within(diskPop).getByText('22.0 GiB')).toBeTruthy();
+  expect(within(diskPop).getByText('256 GiB')).toBeTruthy();
+  expect(within(diskPop).getByText('186 GiB')).toBeTruthy();
+  await user.tab();
+  expect(screen.queryByRole('dialog', { name: '数据盘空间详情' })).toBeNull();
+
+  // Memory popover splits instances, other apps and available when process metrics are supported.
+  const statsPanel = document.querySelector('.home-stats') as HTMLElement;
+  const memTrigger = within(statsPanel).getByRole('button', { name: /内存/ });
+  await user.click(memTrigger);
+  const memPop = screen.getByRole('dialog', { name: '内存占用详情' });
+  expect(within(memPop).getByText('2.4 GiB')).toBeTruthy();
+  expect(within(memPop).getByText('5.6 GiB')).toBeTruthy();
+  expect(within(memPop).getByText('24.0 GiB')).toBeTruthy();
+  view.unmount();
+
+  // When process metrics are unsupported and disk breakdown is still pending (null), popovers omit instance and directory splits.
+  overview = {
+    ...statsOverviewSample,
+    processMetricsSupported: false,
+    diskBreakdown: { instancesBytes: null, backupsBytes: null, backupsOnSameVolume: false },
+  };
+  mount(<HomePage />);
+  await screen.findByText('1 / 3');
+  const statsPanel2 = document.querySelector('.home-stats') as HTMLElement;
+  await user.click(within(statsPanel2).getByRole('button', { name: /内存/ }));
+  const unsupMemPop = screen.getByRole('dialog', { name: '内存占用详情' });
+  expect(within(unsupMemPop).queryByText('实例')).toBeNull();
+  expect(within(unsupMemPop).getByText('已用')).toBeTruthy();
+  await user.click(within(statsPanel2).getByRole('button', { name: /数据盘/ }));
+  const pendingDiskPop = screen.getByRole('dialog', { name: '数据盘空间详情' });
+  expect(within(pendingDiskPop).queryByText('备份')).toBeNull();
+  expect(within(pendingDiskPop).getByText('已用')).toBeTruthy();
+});
+
+test('home: range switch persists, trend switches CPU and memory, machine omits null CPU model, and timeline sorts runs with crash markers and tiered durations', async () => {
+  const baseFetch = globalThis.fetch;
+  const overviewRequests: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances') {
+      return new Response(JSON.stringify([
+        { ...instance, id: 'short', name: '短运行服', status: 'stopped' },
+        { ...instance, id: 'long', name: '生存服', status: 'running', ready: true },
+        { ...instance, id: 'brief', name: '秒退服', status: 'stopped' },
+        { ...instance, id: 'never', name: '未开过', status: 'stopped' },
+      ]));
+    }
+    if (String(url).startsWith('/api/stats/overview')) {
+      overviewRequests.push(String(url));
+      const range = new URL(String(url), 'http://localhost').searchParams.get('range') || '7d';
+      return new Response(JSON.stringify({
+        ...statsOverviewSample,
+        range,
+        host: { ...statsOverviewSample.host, cpuModel: null },
+        runs: [
+          { instanceId: 'short', readyAt: '2026-11-26T11:00:00.000Z', endedAt: '2026-11-26T11:30:00.000Z', endReason: 'crashed' },
+          { instanceId: 'long', readyAt: '2026-11-25T12:00:00.000Z', endedAt: null, endReason: null },
+          { instanceId: 'brief', readyAt: '2026-11-26T11:59:30.000Z', endedAt: '2026-11-26T12:00:00.000Z', endReason: 'stopped' },
+        ],
+      }));
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  mount(<HomePage />);
+
+  expect(await screen.findByText('1 个实例正在运行')).toBeTruthy();
+  expect(screen.getByText('，近 7 天崩溃 1 次')).toBeTruthy();
+  expect(screen.getByText('Windows 11 Home')).toBeTruthy();
+  expect(screen.queryByText('处理器')).toBeNull();
+  expect(screen.getByText('32')).toBeTruthy();
+  expect(screen.getByText('3 天 4 小时')).toBeTruthy();
+
+  // Timeline lists only instances that ran, sorted by duration descending, with accessible labels and tiered durations.
+  const rows = [...document.querySelectorAll<HTMLAnchorElement>('.home-tl-row')];
+  expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
+    '生存服，近 7 天运行 24 小时',
+    '短运行服，近 7 天运行 30 分钟，崩溃 1 次',
+    '秒退服，近 7 天运行 < 1 分钟',
+  ]);
+  expect(document.querySelectorAll('.home-tl-crash')).toHaveLength(1);
+  expect(screen.queryByText('未开过')).toBeNull();
+
+  // Switching metric updates the SVG trend chart; switching range persists to localStorage and re-queries.
+  expect(screen.getByRole('img', { name: /近 7 天CPU趋势/ })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '内存', exact: true }));
+  expect(screen.getByRole('img', { name: /近 7 天内存趋势/ })).toBeTruthy();
+
+  await user.click(screen.getByRole('button', { name: '30 天' }));
+  await waitFor(() => expect(overviewRequests.some((url) => url.includes('/api/stats/overview?range=30d'))).toBe(true));
+  expect(localStorage.getItem('mystry_home_range')).toBe('30d');
+  expect(screen.getByText('，近 30 天崩溃 1 次')).toBeTruthy();
+});
+
+test('home: empty state omits header status sentence and shows deploy and import actions; history failure keeps status blocks and remote access usable', async () => {
+  const baseFetch = globalThis.fetch;
+  let instanceList: unknown[] = [];
+  let failOverview = false;
+  let overviewOverride: Record<string, unknown> = { ...statsOverviewSample, buckets: [], runs: [] };
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances') return new Response(JSON.stringify(instanceList));
+    if (String(url).startsWith('/api/stats/overview')) {
+      if (failOverview) return new Response(JSON.stringify({ error: 'history failed' }), { status: 503 });
+      return new Response(JSON.stringify(overviewOverride));
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  const view = mount(<HomePage />);
+
+  expect(await screen.findByText('暂无 Minecraft 实例')).toBeTruthy();
+  expect(screen.getByText('0 / 0')).toBeTruthy();
+  expect(screen.queryByText(/个实例正在运行/)).toBeNull();
+  const emptyPanel = document.querySelector('.home-empty-panel') as HTMLElement;
+  expect(within(emptyPanel).getByRole('link', { name: '一键部署' }).getAttribute('href')).toBe('/deploy');
+  expect(within(emptyPanel).getByRole('link', { name: '导入服务端' }).getAttribute('href')).toBe('/import');
+  expect(screen.getByText('正在收集趋势数据…')).toBeTruthy();
+  // Home never queries legacy /api/nodes or panel settings endpoints.
+  expect(requests).not.toContain('/api/nodes');
+  expect(requests).not.toContain('/api/auth/session-duration');
+  expect(requests).not.toContain('/api/system/download-source');
+  view.unmount();
+
+  // When instances exist with no run history and history fails, status blocks and "Open on another device" stay usable, and retry recovers.
+  instanceList = [instance];
+  failOverview = true;
+  mount(<HomePage />);
+  expect(await screen.findByText('24%')).toBeTruthy();
+  expect(await screen.findAllByText('读取历史数据失败。')).toHaveLength(3);
+  expect(screen.getByRole('button', { name: /在其他设备上打开/ })).toBeTruthy();
+  failOverview = false;
+  overviewOverride = { ...statsOverviewSample, runs: [] };
+  await user.click(screen.getAllByRole('button', { name: '重试' })[0]!);
+  expect(await screen.findByText('Windows 11 Home')).toBeTruthy();
+  expect(screen.getByText('还没有运行记录。')).toBeTruthy();
 });
 
 test('panel settings page switching the download source: the original choice is kept on failure, and the description is shown on success', async () => {
@@ -545,15 +753,20 @@ test('the sidebar gear opens panel settings: language and appearance apply in pl
   expect(localStorage.getItem('mystry_token')).toBeNull();
 });
 
-test('the local environment page no longer holds session duration and download source, and keeps "Open on other devices"', async () => {
-  nodes = [{ id: 'local', isLocal: true, name: '本机', status: 'online', instanceCount: 1 }];
-  mount(<NodesPage />);
-  expect(await screen.findByText('在线')).toBeTruthy();
-  expect(screen.getByRole('button', { name: /在其他设备上打开/ })).toBeTruthy();
-  expect(screen.queryByRole('combobox', { name: '登录有效期' })).toBeNull();
-  expect(screen.queryByRole('button', { name: '官方来源' })).toBeNull();
-  expect(requests).not.toContain('/api/auth/session-duration');
-  expect(requests).not.toContain('/api/system/download-source');
+test('home: monitoring failure shows error bar with retry and keeps stale values', async () => {
+  const baseFetch = globalThis.fetch;
+  let failMetrics = true;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/metrics' && failMetrics) return new Response('{}', { status: 503 });
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  mount(<HomePage />);
+  expect(await screen.findAllByText('监测数据获取失败')).toHaveLength(2);
+  failMetrics = false;
+  await user.click(screen.getByRole('button', { name: '重试监测' }));
+  await waitFor(() => expect(screen.queryByText('监测数据获取失败')).toBeNull());
+  expect(await screen.findByText('24%')).toBeTruthy();
 });
 
 test('the panel settings page explains why when runtime info cannot be read, and the other settings stay usable', async () => {
@@ -604,20 +817,6 @@ test('after a console reconnect the history snapshot replaces the old log, witho
   act(() => { sockets[1].onopen?.(); sockets[1].onmessage?.({ data: history }); });
   expect(terminal.written.match(/Done \(3\.2s\)/g)).toHaveLength(1);
   expect(terminal.written).toContain('已重新连接');
-});
-
-test('a node polling failure keeps the old data and marks it as possibly stale', async () => {
-  nodes = [{ id: 'local', isLocal: true, name: '本机', status: 'online', instanceCount: 3 }];
-  vi.useFakeTimers();
-  mount(<NodesPage />);
-  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-  expect(screen.getByText('在线')).toBeTruthy();
-  failNodes = true;
-  await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
-  expect(screen.getByText('3 个服务实例')).toBeTruthy();
-  expect(screen.getByText('状态可能已过期')).toBeTruthy();
-  expect(screen.queryByText('在线')).toBeNull();
-  expect(screen.getByRole('button', { name: '重试加载' })).toBeTruthy();
 });
 
 test('the copy notice timer is cleared when the console unmounts', async () => {
@@ -884,7 +1083,7 @@ test('deploy page Paper build dropdown: options arriving only after opening fill
   await waitFor(() => expect(within(listbox).getAllByRole('option')).toHaveLength(20));
 });
 
-test('routine overview refreshes stay out of the live region, which announces only errors and recovery', async () => {
+test('routine monitoring refreshes on the instances page stay out of the live region, which announces only errors and recovery', async () => {
   vi.useFakeTimers();
   const baseFetch = globalThis.fetch;
   let fail = false;
@@ -900,17 +1099,12 @@ test('routine overview refreshes stay out of the live region, which announces on
   mount(<DashboardPage />);
   const liveText = () => [...document.querySelectorAll('[role="status"], [role="alert"], [aria-live]')]
     .map((node) => node.textContent ?? '').join('|');
-  const refresh = () => screen.getByRole('button', { name: '刷新', exact: true }) as HTMLButtonElement;
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-  expect(screen.getByText(/^更新于/)).toBeTruthy();
-  expect(liveText()).not.toContain('更新于');
-
-  const before = screen.getByText(/^更新于/).textContent;
   await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
-  expect(screen.getByText(/^更新于/).textContent).not.toBe(before);
+  expect(sample).toBeGreaterThan(1);
   expect(liveText()).not.toContain('更新于');
-  // Routine polling does not toggle the refresh button's disabled state, so keyboard users focused on the button are not interrupted.
-  expect(refresh().disabled).toBe(false);
+  // While monitoring works and the host has no warning, nothing about it shows beside the filter.
+  expect(document.querySelector('.overview-metrics-line')).toBeNull();
 
   fail = true;
   await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
@@ -2073,7 +2267,7 @@ test('instance page header buttons follow the status: only "Start" while stopped
   expect(screen.queryByRole('button', { name: '停止' })).toBeNull();
 });
 
-test('instance settings: the instance can be deleted at the bottom of the page, not while it is not stopped; it can be deleted with unsaved changes too, returning to the overview afterwards', async () => {
+test('instance settings: the instance can be deleted at the bottom of the page, not while it is not stopped; it can be deleted with unsaved changes too, returning to the instance list afterwards', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
   let status = 'running';
@@ -2100,7 +2294,7 @@ test('instance settings: the instance can be deleted at the bottom of the page, 
     constructor(public url: string, init?: { signal?: AbortSignal }) { this.signal = init?.signal; }
   });
   const open = () => render(<RouterProvider router={createMemoryRouter(
-    [{ path: '/instances/:id/*', element: <InstancePage /> }, { path: '/', element: <p>总览页</p> }],
+    [{ path: '/instances/:id/*', element: <InstancePage /> }, { path: '/instances', element: <p>实例列表页</p> }],
     { initialEntries: ['/instances/test/settings'] },
   )} />);
 
@@ -2124,10 +2318,10 @@ test('instance settings: the instance can be deleted at the bottom of the page, 
   await user.click(confirm);
   // Delete fails: the dialog stays open and the reason is shown inside it.
   expect((await within(dialog).findByRole('alert')).textContent).toContain('测试删除失败');
-  expect(screen.queryByText('总览页')).toBeNull();
+  expect(screen.queryByText('实例列表页')).toBeNull();
   failDelete = false;
   await user.click(within(dialog).getByRole('button', { name: '永久删除' }));
-  expect(await screen.findByText('总览页')).toBeTruthy();
+  expect(await screen.findByText('实例列表页')).toBeTruthy();
   expect(deletes).toEqual(['/api/instances/test', '/api/instances/test']);
 });
 
