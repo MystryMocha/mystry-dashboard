@@ -38,6 +38,13 @@ export default {
   'home.trend.collecting': 'Collecting trend data…',
   'home.trend.summary': '{metric} trend over the {range}: latest {latest}, peak {peak}.',
   'home.trend.summarySplit': '{metric} trend over the {range}: total latest {latest} (peak {peak}), instances latest {instLatest} (peak {instPeak}).',
+  'home.trend.network': 'Network',
+  'home.trend.diskIo': 'Disk I/O',
+  'home.trend.download': 'Download',
+  'home.trend.upload': 'Upload',
+  'home.trend.read': 'Read',
+  'home.trend.write': 'Write',
+  'home.trend.summaryPair': '{metric} trend over the {range}: {first} latest {firstLatest} (peak {firstPeak}), {second} latest {secondLatest} (peak {secondPeak}).',
 
   'home.machine.title': 'This Machine',
   'home.machine.os': 'System',

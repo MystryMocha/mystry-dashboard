@@ -79,6 +79,14 @@ export interface StatsMetricBucket {
   instancesCpuPercent: number | null;
   /** Average combined resident memory in bytes of running instances anchored on host samples in this bucket, or null when unavailable. */
   instancesMemoryBytes: number | null;
+  /** Average whole-machine download rate in bytes per second across physical network adapters, or null when unavailable. */
+  hostNetRxBytesPerSec: number | null;
+  /** Average whole-machine upload rate in bytes per second across physical network adapters, or null when unavailable. */
+  hostNetTxBytesPerSec: number | null;
+  /** Average whole-machine disk read rate in bytes per second across physical disks, or null when unavailable. */
+  hostDiskReadBytesPerSec: number | null;
+  /** Average whole-machine disk write rate in bytes per second across physical disks, or null when unavailable. */
+  hostDiskWriteBytesPerSec: number | null;
 }
 
 /** One instance run that finished starting (readyAt is set) and overlaps the requested range. */
@@ -127,6 +135,8 @@ export interface StatsOverview {
   bucketSeconds: number;
   /** Whether per-process CPU and memory metrics are supported on this platform (Windows and Linux). */
   processMetricsSupported: boolean;
+  /** Whether whole-machine network and disk I/O rates are collected on this platform (Windows and Linux). */
+  ioMetricsSupported: boolean;
   buckets: StatsMetricBucket[];
   runs: StatsInstanceRun[];
   host: StatsHostInfo;
