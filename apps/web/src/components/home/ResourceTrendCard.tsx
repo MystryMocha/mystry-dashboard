@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StatsOverview } from '@mystry/shared';
-import { useI18n } from '../../i18n';
+import { useI18n, type Formatters, type MessageKey } from '../../i18n';
 import {
   extractBucketValues,
   formatAxisTick,
   formatBucketTooltipTime,
   formatCapacity,
+  formatRate,
   memoryAxisSpec,
   rangePhraseKey,
+  rateAxisSpec,
   splitSeriesRuns,
+  type SeriesRun,
+  type TrendSeriesField,
 } from './format';
 
-export type TrendMetric = 'cpu' | 'memory';
+export type TrendMetric = 'cpu' | 'memory' | 'network' | 'disk';
 
 interface ResourceTrendCardProps {
   overview: StatsOverview | null;
@@ -22,18 +26,105 @@ interface ResourceTrendCardProps {
   onRetry: () => void;
 }
 
+type SeriesTone = 'is-context' | 'is-s1' | 'is-s2';
+
+interface SeriesSpec {
+  field: TrendSeriesField;
+  label: MessageKey;
+  tone: SeriesTone;
+  /** Only the instance share of CPU and memory gets a filled area; two overlapping I/O areas would muddy each other. */
+  area: boolean;
+}
+
+interface ChartSeries extends SeriesSpec {
+  raw: Array<number | null>;
+  scaled: Array<number | null>;
+  runs: SeriesRun[];
+  latest: number | null;
+  peak: number | null;
+}
+
 const DEFAULT_PLOT_WIDTH = 560;
 const DEFAULT_PLOT_HEIGHT = 176;
 
+const METRIC_LABELS: Record<TrendMetric, MessageKey> = {
+  cpu: 'home.stat.cpu',
+  memory: 'home.stat.memory',
+  network: 'home.trend.network',
+  disk: 'home.trend.diskIo',
+};
+
+/** Space for the widest Y tick label of each metric ("100%", "32 GiB", "1,000 KiB/s"). */
+const LEFT_MARGIN: Record<TrendMetric, number> = { cpu: 42, memory: 54, network: 72, disk: 72 };
+
+function seriesFor(metric: TrendMetric, showInstances: boolean): SeriesSpec[] {
+  switch (metric) {
+    case 'network':
+      return [
+        { field: 'hostNetRxBytesPerSec', label: 'home.trend.download', tone: 'is-s1', area: false },
+        { field: 'hostNetTxBytesPerSec', label: 'home.trend.upload', tone: 'is-s2', area: false },
+      ];
+    case 'disk':
+      return [
+        { field: 'hostDiskReadBytesPerSec', label: 'home.trend.read', tone: 'is-s1', area: false },
+        { field: 'hostDiskWriteBytesPerSec', label: 'home.trend.write', tone: 'is-s2', area: false },
+      ];
+    case 'memory':
+      return [
+        { field: 'hostMemoryBytes', label: 'home.breakdown.all', tone: 'is-context', area: false },
+        ...(showInstances ? [{ field: 'instancesMemoryBytes', label: 'home.breakdown.instances', tone: 'is-s1', area: true } as const] : []),
+      ];
+    default:
+      return [
+        { field: 'hostCpuPercent', label: 'home.breakdown.all', tone: 'is-context', area: false },
+        ...(showInstances ? [{ field: 'instancesCpuPercent', label: 'home.breakdown.instances', tone: 'is-s1', area: true } as const] : []),
+      ];
+  }
+}
+
+function axisFor(metric: TrendMetric, overview: StatsOverview, peak: number, fmt: Formatters) {
+  if (metric === 'cpu') {
+    return {
+      yMax: 100,
+      yTicks: [0, 50, 100],
+      unitScale: 1,
+      formatTick: (value: number) => fmt.percent(value, 0),
+      formatValue: (value: number) => fmt.percent(value, 1),
+    };
+  }
+  if (metric === 'memory') {
+    const axis = memoryAxisSpec(overview.host.totalMemoryBytes, peak, fmt);
+    return {
+      yMax: axis.maxUnit,
+      yTicks: axis.ticks,
+      unitScale: axis.unitBytes,
+      formatTick: axis.formatTick,
+      formatValue: (bytes: number) => formatCapacity(bytes, fmt),
+    };
+  }
+  const axis = rateAxisSpec(peak, fmt);
+  return {
+    yMax: axis.maxUnit,
+    yTicks: axis.ticks,
+    unitScale: axis.unitBytes,
+    formatTick: axis.formatTick,
+    formatValue: (bytesPerSec: number) => formatRate(bytesPerSec, fmt),
+  };
+}
+
+function isFiniteValue(value: number | null): value is number {
+  return value != null && Number.isFinite(value);
+}
+
 /**
- * Hand-written SVG trend chart for host and instance CPU / memory over the selected range.
+ * Hand-written SVG trend chart for host and instance CPU / memory, and host network and disk I/O, over the selected range.
  * Breaks lines and area fills cleanly at null offline gaps, draws dots for isolated samples, and follows sidebar resize via ResizeObserver.
  */
 export function ResourceTrendCard({
   overview,
   loading,
   error,
-  metric,
+  metric: requestedMetric,
   onMetricChange,
   onRetry,
 }: ResourceTrendCardProps) {
@@ -44,54 +135,34 @@ export function ResourceTrendCard({
 
   const buckets = overview?.buckets ?? [];
   const showInstances = Boolean(overview?.processMetricsSupported);
+  // Assume support until the first response so the tabs do not appear a moment after the page loads.
+  const ioSupported = overview ? overview.ioMetricsSupported : true;
+  const metrics: TrendMetric[] = ioSupported ? ['cpu', 'memory', 'network', 'disk'] : ['cpu', 'memory'];
+  const metric = metrics.includes(requestedMetric) ? requestedMetric : 'cpu';
 
   const chartData = useMemo(() => {
     if (!overview || buckets.length === 0) return null;
-    const hostRaw = extractBucketValues(buckets, metric, 'host');
-    const instRaw = showInstances ? extractBucketValues(buckets, metric, 'instances') : [];
+    const specs = seriesFor(metric, showInstances);
+    const raws = specs.map((spec) => extractBucketValues(buckets, spec.field));
+    const present = raws.map((raw) => raw.filter(isFiniteValue));
+    if (present.every((values) => values.length === 0)) return null;
 
-    const hostNonNull = hostRaw.filter((v): v is number => v != null && Number.isFinite(v));
-    const instNonNull = instRaw.filter((v): v is number => v != null && Number.isFinite(v));
-    if (hostNonNull.length === 0 && instNonNull.length === 0) return null;
-
-    if (metric === 'cpu') {
+    const peakAll = Math.max(0, ...present.flat());
+    const axis = axisFor(metric, overview, peakAll, fmt);
+    const series: ChartSeries[] = specs.map((spec, index) => {
+      const raw = raws[index]!;
+      const values = present[index]!;
+      const scaled = raw.map((value) => (isFiniteValue(value) ? value / axis.unitScale : null));
       return {
-        yMax: 100,
-        yTicks: [0, 50, 100],
-        formatTick: (value: number) => fmt.percent(value, 0),
-        formatValue: (value: number) => fmt.percent(value, 1),
-        hostValues: hostRaw,
-        instValues: instRaw,
-        hostRuns: splitSeriesRuns(hostRaw),
-        instRuns: splitSeriesRuns(instRaw),
-        hostLatest: hostNonNull.at(-1) ?? null,
-        hostPeak: hostNonNull.length > 0 ? Math.max(...hostNonNull) : null,
-        instLatest: instNonNull.at(-1) ?? null,
-        instPeak: instNonNull.length > 0 ? Math.max(...instNonNull) : null,
-        unitScale: 1,
+        ...spec,
+        raw,
+        scaled,
+        runs: splitSeriesRuns(scaled),
+        latest: values.at(-1) ?? null,
+        peak: values.length > 0 ? Math.max(...values) : null,
       };
-    }
-
-    const peakBytes = Math.max(0, ...hostNonNull, ...instNonNull);
-    const axis = memoryAxisSpec(overview.host.totalMemoryBytes, peakBytes, fmt);
-    const hostScaled = hostRaw.map((v) => (v != null ? v / axis.unitBytes : null));
-    const instScaled = instRaw.map((v) => (v != null ? v / axis.unitBytes : null));
-
-    return {
-      yMax: axis.maxUnit,
-      yTicks: axis.ticks,
-      formatTick: axis.formatTick,
-      formatValue: (bytes: number) => formatCapacity(bytes, fmt),
-      hostValues: hostScaled,
-      instValues: instScaled,
-      hostRuns: splitSeriesRuns(hostScaled),
-      instRuns: splitSeriesRuns(instScaled),
-      hostLatest: hostNonNull.at(-1) ?? null,
-      hostPeak: hostNonNull.length > 0 ? Math.max(...hostNonNull) : null,
-      instLatest: instNonNull.at(-1) ?? null,
-      instPeak: instNonNull.length > 0 ? Math.max(...instNonNull) : null,
-      unitScale: axis.unitBytes,
-    };
+    });
+    return { ...axis, series };
   }, [overview, buckets, metric, showInstances, fmt]);
 
   const hasChart = Boolean(chartData);
@@ -120,7 +191,7 @@ export function ResourceTrendCard({
 
   const width = size.width;
   const height = size.height;
-  const margin = { top: 10, right: 12, bottom: 24, left: metric === 'memory' ? 54 : 42 };
+  const margin = { top: 10, right: 12, bottom: 24, left: LEFT_MARGIN[metric] };
   const plotWidth = Math.max(1, width - margin.left - margin.right);
   const plotHeight = Math.max(1, height - margin.top - margin.bottom);
 
@@ -160,28 +231,49 @@ export function ResourceTrendCard({
   }, [overview, plotWidth, margin.left, fmt]);
 
   const summaryLabel = useMemo(() => {
-    if (!overview || !chartData || chartData.hostLatest == null || chartData.hostPeak == null) {
-      return t('home.trend.title');
-    }
-    const metricName = metric === 'cpu' ? t('home.stat.cpu') : t('home.stat.memory');
+    const [first, second] = chartData?.series ?? [];
+    if (!overview || !chartData || !first) return t('home.trend.title');
+    const metricName = t(METRIC_LABELS[metric]);
     const rangeText = t(rangePhraseKey(overview.range));
-    if (showInstances && chartData.instLatest != null && chartData.instPeak != null) {
+    const format = chartData.formatValue;
+    // Either I/O line can be empty on its own (a counter that reset), and the other one is still drawn.
+    if (metric === 'network' || metric === 'disk') {
+      const show = (value: number | null | undefined) => (value != null ? format(value) : '—');
+      return t('home.trend.summaryPair', {
+        metric: metricName,
+        range: rangeText,
+        first: t(first.label),
+        firstLatest: show(first.latest),
+        firstPeak: show(first.peak),
+        second: second ? t(second.label) : '',
+        secondLatest: show(second?.latest),
+        secondPeak: show(second?.peak),
+      });
+    }
+    if (first.latest == null || first.peak == null) return t('home.trend.title');
+    if (second && second.latest != null && second.peak != null) {
       return t('home.trend.summarySplit', {
         metric: metricName,
         range: rangeText,
-        latest: chartData.formatValue(chartData.hostLatest),
-        peak: chartData.formatValue(chartData.hostPeak),
-        instLatest: chartData.formatValue(chartData.instLatest),
-        instPeak: chartData.formatValue(chartData.instPeak),
+        latest: format(first.latest),
+        peak: format(first.peak),
+        instLatest: format(second.latest),
+        instPeak: format(second.peak),
       });
     }
     return t('home.trend.summary', {
       metric: metricName,
       range: rangeText,
-      latest: chartData.formatValue(chartData.hostLatest),
-      peak: chartData.formatValue(chartData.hostPeak),
+      latest: format(first.latest),
+      peak: format(first.peak),
     });
-  }, [overview, chartData, metric, showInstances, t]);
+  }, [overview, chartData, metric, t]);
+
+  // With no history to draw, a failed counter read must not look like data that is still on its way.
+  const emptyMessage: MessageKey =
+    metric === 'network' && overview?.ioReadFailed.network ? 'home.trend.networkUnavailable'
+      : metric === 'disk' && overview?.ioReadFailed.disk ? 'home.trend.diskIoUnavailable'
+        : 'home.trend.collecting';
 
   const hoveredBucket = hoverIndex != null && buckets[hoverIndex] ? buckets[hoverIndex] : null;
   const hoverX = hoverIndex != null ? xFor(hoverIndex) : null;
@@ -192,22 +284,17 @@ export function ResourceTrendCard({
       <div className="home-section-head">
         <h2 className="form-section-title" id="home-trend-title">{t('home.trend.title')}</h2>
         <div className="segmented home-metric-tabs" role="group" aria-label={t('home.trend.metricLabel')}>
-          <button
-            type="button"
-            className={`segmented-item${metric === 'cpu' ? ' active' : ''}`}
-            aria-pressed={metric === 'cpu'}
-            onClick={() => onMetricChange('cpu')}
-          >
-            {t('home.stat.cpu')}
-          </button>
-          <button
-            type="button"
-            className={`segmented-item${metric === 'memory' ? ' active' : ''}`}
-            aria-pressed={metric === 'memory'}
-            onClick={() => onMetricChange('memory')}
-          >
-            {t('home.stat.memory')}
-          </button>
+          {metrics.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={`segmented-item${metric === item ? ' active' : ''}`}
+              aria-pressed={metric === item}
+              onClick={() => onMetricChange(item)}
+            >
+              {t(METRIC_LABELS[item])}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -224,13 +311,14 @@ export function ResourceTrendCard({
           </div>
         ) : !chartData ? (
           <div className="home-panel-state" role="status">
-            <span>{t('home.trend.collecting')}</span>
+            <span>{t(emptyMessage)}</span>
           </div>
         ) : (
           <>
             <ul className="home-legend" aria-hidden="true">
-              <li><span className="home-line-key is-context" />{t('home.breakdown.all')}</li>
-              {showInstances && <li><span className="home-line-key is-s1" />{t('home.breakdown.instances')}</li>}
+              {chartData.series.map((series) => (
+                <li key={series.field}><span className={`home-line-key ${series.tone}`} />{t(series.label)}</li>
+              ))}
             </ul>
 
             <div
@@ -265,13 +353,13 @@ export function ResourceTrendCard({
                   </text>
                 ))}
 
-                {chartData.hostRuns.map((run, idx) => {
+                {chartData.series.map((series) => series.runs.map((run, idx) => {
                   if (run.points.length === 1) {
                     const pt = run.points[0]!;
                     return (
                       <circle
-                        key={`h-dot-${idx}`}
-                        className="home-chart-dot is-context"
+                        key={`${series.field}-dot-${idx}`}
+                        className={`home-chart-dot ${series.tone}`}
                         cx={xFor(pt.index)}
                         cy={yFor(pt.value, chartData.yMax)}
                         r={3}
@@ -281,36 +369,20 @@ export function ResourceTrendCard({
                   const d = run.points
                     .map((pt, k) => `${k === 0 ? 'M' : 'L'}${xFor(pt.index).toFixed(1)},${yFor(pt.value, chartData.yMax).toFixed(1)}`)
                     .join('');
-                  return <path key={`h-line-${idx}`} className="home-chart-line is-context" d={d} />;
-                })}
-
-                {showInstances && chartData.instRuns.map((run, idx) => {
-                  if (run.points.length === 1) {
-                    const pt = run.points[0]!;
-                    return (
-                      <circle
-                        key={`i-dot-${idx}`}
-                        className="home-chart-dot is-s1"
-                        cx={xFor(pt.index)}
-                        cy={yFor(pt.value, chartData.yMax)}
-                        r={3}
-                      />
-                    );
+                  if (!series.area) {
+                    return <path key={`${series.field}-line-${idx}`} className={`home-chart-line ${series.tone}`} d={d} />;
                   }
-                  const d = run.points
-                    .map((pt, k) => `${k === 0 ? 'M' : 'L'}${xFor(pt.index).toFixed(1)},${yFor(pt.value, chartData.yMax).toFixed(1)}`)
-                    .join('');
                   const first = run.points[0]!;
                   const last = run.points[run.points.length - 1]!;
                   const baseY = yFor(0, chartData.yMax).toFixed(1);
                   const areaD = `${d}L${xFor(last.index).toFixed(1)},${baseY}L${xFor(first.index).toFixed(1)},${baseY}Z`;
                   return (
-                    <g key={`i-run-${idx}`}>
-                      <path className="home-chart-area is-s1" d={areaD} />
-                      <path className="home-chart-line is-s1" d={d} />
+                    <g key={`${series.field}-run-${idx}`}>
+                      <path className={`home-chart-area ${series.tone}`} d={areaD} />
+                      <path className={`home-chart-line ${series.tone}`} d={d} />
                     </g>
                   );
-                })}
+                }))}
 
                 {hoverIndex != null && hoverX != null && (
                   <g className="home-chart-hover" aria-hidden="true">
@@ -321,22 +393,18 @@ export function ResourceTrendCard({
                       y1={margin.top}
                       y2={margin.top + plotHeight}
                     />
-                    {chartData.hostValues[hoverIndex] != null && (
-                      <circle
-                        className="home-chart-dot is-context"
-                        cx={hoverX}
-                        cy={yFor(chartData.hostValues[hoverIndex]!, chartData.yMax)}
-                        r={4}
-                      />
-                    )}
-                    {showInstances && chartData.instValues[hoverIndex] != null && (
-                      <circle
-                        className="home-chart-dot is-s1"
-                        cx={hoverX}
-                        cy={yFor(chartData.instValues[hoverIndex]!, chartData.yMax)}
-                        r={4}
-                      />
-                    )}
+                    {chartData.series.map((series) => {
+                      const value = series.scaled[hoverIndex];
+                      return value != null ? (
+                        <circle
+                          key={series.field}
+                          className={`home-chart-dot ${series.tone}`}
+                          cx={hoverX}
+                          cy={yFor(value, chartData.yMax)}
+                          r={4}
+                        />
+                      ) : null;
+                    })}
                   </g>
                 )}
               </svg>
@@ -350,24 +418,15 @@ export function ResourceTrendCard({
                     {formatBucketTooltipTime(hoveredBucket.timestamp, overview.range, fmt)}
                   </div>
                   <dl className="home-chart-tooltip-dl">
-                    <div>
-                      <dt><span className="home-swatch is-context" aria-hidden="true" />{t('home.breakdown.all')}</dt>
-                      <dd>
-                        {metric === 'cpu'
-                          ? (hoveredBucket.hostCpuPercent != null ? fmt.percent(hoveredBucket.hostCpuPercent, 1) : '—')
-                          : (hoveredBucket.hostMemoryBytes != null ? formatCapacity(hoveredBucket.hostMemoryBytes, fmt) : '—')}
-                      </dd>
-                    </div>
-                    {showInstances && (
-                      <div>
-                        <dt><span className="home-swatch is-s1" aria-hidden="true" />{t('home.breakdown.instances')}</dt>
-                        <dd>
-                          {metric === 'cpu'
-                            ? (hoveredBucket.instancesCpuPercent != null ? fmt.percent(hoveredBucket.instancesCpuPercent, 1) : '—')
-                            : (hoveredBucket.instancesMemoryBytes != null ? formatCapacity(hoveredBucket.instancesMemoryBytes, fmt) : '—')}
-                        </dd>
-                      </div>
-                    )}
+                    {chartData.series.map((series) => {
+                      const value = series.raw[hoverIndex!] ?? null;
+                      return (
+                        <div key={series.field}>
+                          <dt><span className={`home-swatch ${series.tone}`} aria-hidden="true" />{t(series.label)}</dt>
+                          <dd>{isFiniteValue(value) ? chartData.formatValue(value) : '—'}</dd>
+                        </div>
+                      );
+                    })}
                   </dl>
                 </div>
               )}

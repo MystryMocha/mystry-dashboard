@@ -139,7 +139,7 @@ mystry-dashboard/
 | `metrics-service` | 实时本机与逐进程 CPU/内存采样，带 4 秒缓存，供页面轮询与后台采集共用 |
 | `run-history-service` | 监听 `ProcessManager` 状态与 `ready` 事件持久化 `instance_runs`，并在面板异常退出重启后将遗留记录补全为 `panel-exit` |
 | `dir-size-scanner` | 每小时异步统计 `instances` 与 `backups` 目录大小，跳过符号链接/目录联接、分批让出事件循环并判断同卷边界 |
-| `stats-service` | 每 5 分钟后台采样、30 天过期清理、本机系统信息读取，以及 `/api/stats/overview` 的两层分桶聚合 |
+| `stats-service` | 每 5 分钟后台采样（含 `io-counters` 读取的本机网络与磁盘读写计数）、30 天过期清理、本机系统信息读取，以及 `/api/stats/overview` 的两层分桶聚合 |
 | `node-service` | 节点 CRUD、密钥哈希；远程创建受 `REMOTE_NODE_CREATION_ENABLED` 控制 |
 | `node-registry` | 节点在线态 / 心跳（内存；Agent 接入前本机恒为 online） |
 
@@ -162,7 +162,7 @@ SQLite 表：
 - `java_runtimes` — 面板扫描、验证过的 Java 运行时及当前可用状态
 - `instance_backup_schedules` — 每个实例的每日定时备份配置与状态（随实例级联删除）
 - `instance_runs` — 实例的启动、就绪与退出记录及结束原因（`stopped`、`crashed`、`start-failed`、`panel-exit`；随实例级联删除）
-- `metric_samples` — 每 5 分钟一次的本机（`instance_id IS NULL`）与运行中实例 CPU/内存采样，每小时清理超过 30 天的记录（实例行随实例级联删除）
+- `metric_samples` — 每 5 分钟一次的本机（`instance_id IS NULL`）与运行中实例 CPU/内存采样，本机行另含网络与磁盘读写速率（字节每秒，数据库第 4 版），每小时清理超过 30 天的记录（实例行随实例级联删除）
 
 使用 `node:sqlite` 的 `DatabaseSync`，启用 WAL 模式。实例文件不存入数据库，统一存放于 `DATA_DIR/instances/<id>`。
 

@@ -125,6 +125,11 @@ export type MetricSampleRow = {
   instance_id: string | null;
   cpu_percent: number | null;
   memory_bytes: number | null;
+  /** Host rows only: average I/O rates in bytes per second since the previous background sample; NULL on instance rows. */
+  net_rx_bytes_per_sec: number | null;
+  net_tx_bytes_per_sec: number | null;
+  disk_read_bytes_per_sec: number | null;
+  disk_write_bytes_per_sec: number | null;
 };
 
 let db: DatabaseSync | undefined;
@@ -159,6 +164,7 @@ export const PANEL_DB_MIGRATIONS: readonly DbMigration[] = [
   { version: 1, name: 'baseline schema', up: applyBaselineSchema },
   { version: 2, name: 'instance backup schedules', up: createBackupSchedules },
   { version: 3, name: 'overview run history and metric samples', up: createOverviewStatsTables },
+  { version: 4, name: 'overview network and disk io samples', up: addMetricSampleIoColumns },
 ];
 
 export function initDb(): void {
@@ -421,6 +427,26 @@ function createOverviewStatsTables(db: DatabaseSync): void {
     CREATE INDEX IF NOT EXISTS idx_metric_samples_time ON metric_samples(sampled_at, instance_id);
     CREATE INDEX IF NOT EXISTS idx_metric_samples_instance ON metric_samples(instance_id) WHERE instance_id IS NOT NULL;
   `);
+}
+
+const METRIC_SAMPLE_IO_COLUMNS = [
+  'net_rx_bytes_per_sec',
+  'net_tx_bytes_per_sec',
+  'disk_read_bytes_per_sec',
+  'disk_write_bytes_per_sec',
+] as const;
+
+/**
+ * Version 4: host network and disk I/O rates on metric_samples. SQLite has no ADD COLUMN IF NOT EXISTS,
+ * so each column is checked first; a database rebuilt from a dump (user_version 0, columns present) replays this as a no-op.
+ */
+function addMetricSampleIoColumns(db: DatabaseSync): void {
+  const existing = new Set(
+    (db.prepare('PRAGMA table_info(metric_samples)').all() as Array<{ name: string }>).map((column) => column.name),
+  );
+  for (const column of METRIC_SAMPLE_IO_COLUMNS) {
+    if (!existing.has(column)) db.exec(`ALTER TABLE metric_samples ADD COLUMN ${column} REAL`);
+  }
 }
 
 /** Backfills phase for old task rows; idempotent and safe to run repeatedly. */

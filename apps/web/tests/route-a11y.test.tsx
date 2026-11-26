@@ -56,6 +56,8 @@ beforeEach(() => {
         to: '2026-11-26T12:00:00.000Z',
         bucketSeconds: 3600,
         processMetricsSupported: true,
+        ioMetricsSupported: true,
+        ioReadFailed: { network: false, disk: false },
         buckets: [],
         runs: [],
         host: { osName: 'Windows 11', cpuModel: 'Test CPU', cpuThreads: 8, totalMemoryBytes: 16 * 1024 ** 3, bootedAt: '2026-11-25T12:00:00.000Z' },
