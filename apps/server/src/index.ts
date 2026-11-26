@@ -15,6 +15,7 @@ import { backupRoutes } from './routes/backups.js';
 import { coreRoutes } from './routes/cores.js';
 import { consoleRoutes } from './routes/console.js';
 import { systemRoutes } from './routes/system.js';
+import { statsRoutes } from './routes/stats.js';
 import { nodeRoutes } from './routes/nodes.js';
 import { frpRoutes } from './routes/frp.js';
 import { lanRoutes } from './routes/lan.js';
@@ -38,6 +39,16 @@ import {
 } from './services/data-lock-service.js';
 import { recoverInterruptedBackups } from './services/backup-service.js';
 import { attachBackupScheduleLifecycle, backupScheduler } from './services/backup-schedule-service.js';
+import {
+  attachRunHistoryLifecycle,
+  detachRunHistoryLifecycle,
+  recoverInterruptedInstanceRuns,
+} from './services/run-history-service.js';
+import {
+  diskUsageScanner,
+  resetStatsRuntime,
+  statsCollector,
+} from './services/stats-service.js';
 import {
   initializeImportPreviews,
   shutdownImportPreviews,
@@ -82,9 +93,13 @@ export async function buildApp(options: BuildAppOptions = {}) {
     // Recovering an interrupted restore directory swap must come before task recovery: task recovery cleans up the staging directory.
     const backupRecovery = recoverInterruptedBackups();
     const taskRecovery = recoverInterruptedTasks();
+    // Run-history recovery must finish before background metric sampling starts in main(), so open runs
+    // use the last host sample from the previous process rather than a fresh sample from this startup.
+    const runHistoryRecovery = recoverInterruptedInstanceRuns();
     attachFrpLifecycle();
     attachLanLifecycle();
     attachBackupScheduleLifecycle();
+    attachRunHistoryLifecycle();
     const previewRecovery = initializeImportPreviews();
     const folderUploadRecovery = initializeFolderUploads();
 
@@ -117,6 +132,9 @@ export async function buildApp(options: BuildAppOptions = {}) {
   if (taskRecovery.interrupted > 0) {
     app.log.warn(taskRecovery, '已将上次面板进程遗留的任务标记为失败');
   }
+  if (runHistoryRecovery.recovered > 0) {
+    app.log.warn(runHistoryRecovery, '已补全上次面板进程遗留的实例运行记录');
+  }
   if (previewRecovery.purged > 0) {
     app.log.info(previewRecovery, '已清理上次面板进程遗留的 ZIP 导入预览');
   }
@@ -127,6 +145,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
     app.log.warn('JWT_EXPIRES_IN 已不再使用：登录有效期改在面板「面板设置」页设置，默认 12 小时');
   }
   app.addHook('onClose', async () => {
+    detachRunHistoryLifecycle();
+    resetStatsRuntime();
     shutdownImportPreviews();
     shutdownFolderUploads();
   });
@@ -209,6 +229,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
   await app.register(coreRoutes);
   await app.register(consoleRoutes);
   await app.register(systemRoutes);
+  await app.register(statsRoutes);
   await app.register(nodeRoutes);
   await app.register(frpRoutes);
   await app.register(lanRoutes);
@@ -231,6 +252,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
 
   return app;
   } catch (error) {
+    detachRunHistoryLifecycle();
+    resetStatsRuntime();
     shutdownImportPreviews();
     releasePanelDataLock();
     throw error;
@@ -277,6 +300,8 @@ async function main() {
     shuttingDown = true;
     // Stopped before the task queue is: a backup that comes due now would only be queued to be cancelled.
     backupScheduler.stop();
+    statsCollector.stop();
+    diskUsageScanner.stop();
     processManager.beginShutdown();
     return summary;
   };
@@ -324,6 +349,7 @@ async function main() {
       } else {
         releasePanelDataLock();
       }
+      detachRunHistoryLifecycle();
       getDb().close();
     })().catch((error) => {
       process.exitCode = 1;
@@ -369,6 +395,8 @@ async function main() {
     await app.listen({ host: config.host, port: config.port });
     app.log.info(`面板已启动 http://${config.host}:${config.port}`);
     backupScheduler.start();
+    statsCollector.start();
+    diskUsageScanner.start();
     // Restore "access from other devices" from the settings; on failure only the reason is recorded, and the panel keeps listening on this machine only as usual.
     await initRemoteAccess({ httpServer: app.server, log: app.log }).catch((error: unknown) => {
       app?.log.warn({ err: error }, '恢复从其他设备访问的设置失败');

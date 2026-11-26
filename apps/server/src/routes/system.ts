@@ -19,8 +19,7 @@ import { getDownloadSource, setDownloadSource } from '../services/download-sourc
 import { detectJava } from '../services/java-detect.js';
 import { cancelJavaInstall, installableJavaMajors, startJavaInstall } from '../services/java-install-service.js';
 import { scanJavaRuntimes } from '../services/java-runtime-service.js';
-import { MetricsService } from '../services/metrics-service.js';
-import { processManager } from '../services/process-manager.js';
+import { getSharedMetricsService } from '../services/stats-service.js';
 import {
   getPanelNetworkJoinInfo,
   refreshPanelNetworkDevices,
@@ -40,7 +39,7 @@ import { panelErrorBody } from '../utils/errors.js';
 
 export async function systemRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
-  const metrics = new MetricsService(config.dataDir, () => processManager.getMetricTargets());
+  const metrics = getSharedMetricsService();
   app.get('/api/system/metrics', () => metrics.get());
 
   // Panel runtime info: shows the listen address and directories on the "Panel Settings" page. Read-only, returning only non-secret items from the config file.

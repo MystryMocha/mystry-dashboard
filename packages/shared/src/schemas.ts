@@ -16,6 +16,18 @@ export const DOWNLOAD_SOURCE_ENUM = ['official', 'china'] as const;
 /** Session duration: how long after sign-in the password must be entered again; never does not expire. Defaults to 12h. */
 export const SESSION_DURATION_ENUM = ['2h', '12h', '1d', '7d', '30d', 'never'] as const;
 
+/** Time range for GET /api/stats/overview; defaults to 7d when omitted. */
+export const STATS_RANGE_ENUM = ['24h', '7d', '30d'] as const;
+
+/** GET /api/stats/overview query parameters */
+export const statsOverviewQuerySchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    range: { type: 'string', enum: [...STATS_RANGE_ENUM] },
+  },
+} as const;
+
 /** Core types that support one-click deploy (excluding custom) */
 export const DEPLOYABLE_CORE_TYPE_ENUM = [
   'vanilla',

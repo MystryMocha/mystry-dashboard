@@ -87,7 +87,7 @@ In the portable package, `mdash.cmd` and `mdash` only invoke the bundled Node; t
 ### Entry `apps/server/src/index.ts`
 
 - Registers CORS, JWT, multipart, WebSocket and static assets (`frontend-assets.ts`: serves the `.br` / `.gz` precompressed copies generated at build time, caches `/assets/*` long-term, and revalidates `index.html` on every request).
-- Mounts routes: `auth`, `instances`, `files`, `backups`, `cores`, `console`, `system`, `nodes`, `frp`, `lan`, `launcher`.
+- Mounts routes: `auth`, `instances`, `files`, `backups`, `cores`, `console`, `system`, `stats`, `nodes`, `frp`, `lan`, `launcher`.
 - Health check: `GET /api/health`.
 
 ### Route Layer `apps/server/src/routes/`
@@ -99,7 +99,8 @@ In the portable package, `mdash.cmd` and `mdash` only invoke the bundled Node; t
 | `files.ts` | `/api/instances/:id/files/*` | Files inside the instance root and `server.properties` |
 | `cores.ts` | `/api/cores/*`, `/api/import*` | Version lists, deploy, ZIP import and same-machine directory handoff |
 | `console.ts` | `/api/instances/:id/console-ticket`, `/ws/console/:id` | Console ticket and WebSocket |
-| `system.ts` | `/api/system/java`, `/api/system/java-runtimes` | PATH `java` status and local runtime detection |
+| `system.ts` | `/api/system/*` | Live host/instance metrics, panel settings, remote access, PATH `java` status and runtime registry |
+| `stats.ts` | `/api/stats/overview` | Bucketed resource trends, instance run history, host info and cached disk breakdown |
 | `nodes.ts` | `/api/nodes/*` | Local/remote node list and management (phase one) |
 | `frp.ts` | `/api/frp/*`, `/api/instances/:id/tunnel` | Multiplayer through the official frpc. Executable paths and raw config are not accepted |
 | `lan.ts` | `/api/lan/*`, `/api/instances/:id/lan` | Virtual LAN through the official EasyTier. Executable paths and raw config are not accepted |
@@ -135,6 +136,10 @@ Except for `auth/status`, `auth/setup`, `auth/login`, the health check and the l
 | `backup-schedule-service` | One daily backup schedule per instance, stored in `instance_backup_schedules`; a once-a-minute in-process check that queues a due backup through `task-service`, one at a time, and remembers across restarts which day is settled and whether the server has run since |
 | `java-detect` | Runs `java -version` and returns availability and version |
 | `java-runtime-service` | Scans, verifies and registers Java runtimes, merges refreshes, and re-verifies the bound entry before execution |
+| `metrics-service` | Live host and per-process CPU/memory sampling with a 4-second cache, shared between live polling and background collection |
+| `run-history-service` | Listens to `ProcessManager` status and `ready` events to persist `instance_runs` and settle open rows as `panel-exit` after an unexpected panel exit |
+| `dir-size-scanner` | Hourly asynchronous directory-size walker for `instances` and `backups`, skipping symlinks/junctions, yielding periodically and checking volume boundaries |
+| `stats-service` | 5-minute background metric sampling, 30-day retention pruning, host OS info and two-layer bucket aggregation for `/api/stats/overview` |
 | `node-service` | Node CRUD and secret hashing; remote creation is controlled by `REMOTE_NODE_CREATION_ENABLED` |
 | `node-registry` | Node online state / heartbeat (in memory; the local node is always online until the Agent exists) |
 
@@ -155,6 +160,9 @@ SQLite tables:
 - `tasks` — deploy / import tasks
 - `nodes` — execution node metadata and secret hashes (including the built-in `local`)
 - `java_runtimes` — Java runtimes the panel scanned and verified, with their current availability
+- `instance_backup_schedules` — daily scheduled backup settings and state per instance (cascades on instance delete)
+- `instance_runs` — instance start, ready and exit records with end reasons (`stopped`, `crashed`, `start-failed`, `panel-exit`; cascades on instance delete)
+- `metric_samples` — 5-minute host (`instance_id IS NULL`) and per-instance CPU and memory samples, pruned hourly past 30 days (instance rows cascade on instance delete)
 
 The database uses `DatabaseSync` from `node:sqlite` in WAL mode. Instance files are not stored in the database; they all live in `DATA_DIR/instances/<id>`.
 

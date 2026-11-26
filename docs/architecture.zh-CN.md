@@ -87,7 +87,7 @@ mystry-dashboard/
 ### 入口 `apps/server/src/index.ts`
 
 - 注册 CORS、JWT、multipart、WebSocket、静态资源（`frontend-assets.ts`：发送构建时生成的 `.br` / `.gz` 预压缩副本，`/assets/*` 长期缓存，`index.html` 每次重新校验）。
-- 挂载路由：`auth`、`instances`、`files`、`backups`、`cores`、`console`、`system`、`nodes`、`frp`、`lan`、`launcher`。
+- 挂载路由：`auth`、`instances`、`files`、`backups`、`cores`、`console`、`system`、`stats`、`nodes`、`frp`、`lan`、`launcher`。
 - 健康检查：`GET /api/health`。
 
 ### 路由层 `apps/server/src/routes/`
@@ -99,7 +99,8 @@ mystry-dashboard/
 | `files.ts` | `/api/instances/:id/files/*` | 实例根目录内的文件与 `server.properties` |
 | `cores.ts` | `/api/cores/*`、`/api/import*` | 版本列表、部署、ZIP 导入和同机目录交接 |
 | `console.ts` | `/api/instances/:id/console-ticket`、`/ws/console/:id` | 控制台 ticket 与 WebSocket |
-| `system.ts` | `/api/system/java`、`/api/system/java-runtimes` | PATH `java` 状态和本机运行时探测 |
+| `system.ts` | `/api/system/*` | 实时本机与实例监测、面板设置、远程访问、PATH `java` 状态和本机运行时探测 |
+| `stats.ts` | `/api/stats/overview` | 分桶资源趋势、实例运行记录、本机信息与缓存的目录大小拆分 |
 | `nodes.ts` | `/api/nodes/*` | 本机/远程节点列表与管理（阶段一） |
 | `frp.ts` | `/api/frp/*`、`/api/instances/:id/tunnel` | 官方 frpc 联机。不接受可执行路径或原始配置 |
 | `lan.ts` | `/api/lan/*`、`/api/instances/:id/lan` | 官方 EasyTier 虚拟局域网。不接受可执行路径或原始配置 |
@@ -135,6 +136,10 @@ mystry-dashboard/
 | `backup-schedule-service` | 每个实例一份每日备份计划，存于 `instance_backup_schedules`；进程内每分钟检查一次，到期的备份经 `task-service` 逐个排入，并跨重启记住已处理到哪一天、此后服务器是否运行过 |
 | `java-detect` | 执行 `java -version` 并返回可用状态与版本 |
 | `java-runtime-service` | 扫描、验证、注册 Java 运行时，合并刷新并在执行前复验绑定条目 |
+| `metrics-service` | 实时本机与逐进程 CPU/内存采样，带 4 秒缓存，供页面轮询与后台采集共用 |
+| `run-history-service` | 监听 `ProcessManager` 状态与 `ready` 事件持久化 `instance_runs`，并在面板异常退出重启后将遗留记录补全为 `panel-exit` |
+| `dir-size-scanner` | 每小时异步统计 `instances` 与 `backups` 目录大小，跳过符号链接/目录联接、分批让出事件循环并判断同卷边界 |
+| `stats-service` | 每 5 分钟后台采样、30 天过期清理、本机系统信息读取，以及 `/api/stats/overview` 的两层分桶聚合 |
 | `node-service` | 节点 CRUD、密钥哈希；远程创建受 `REMOTE_NODE_CREATION_ENABLED` 控制 |
 | `node-registry` | 节点在线态 / 心跳（内存；Agent 接入前本机恒为 online） |
 
@@ -155,6 +160,9 @@ SQLite 表：
 - `tasks` — 部署 / 导入任务
 - `nodes` — 执行节点元数据与密钥哈希（含内置 `local`）
 - `java_runtimes` — 面板扫描、验证过的 Java 运行时及当前可用状态
+- `instance_backup_schedules` — 每个实例的每日定时备份配置与状态（随实例级联删除）
+- `instance_runs` — 实例的启动、就绪与退出记录及结束原因（`stopped`、`crashed`、`start-failed`、`panel-exit`；随实例级联删除）
+- `metric_samples` — 每 5 分钟一次的本机（`instance_id IS NULL`）与运行中实例 CPU/内存采样，每小时清理超过 30 天的记录（实例行随实例级联删除）
 
 使用 `node:sqlite` 的 `DatabaseSync`，启用 WAL 模式。实例文件不存入数据库，统一存放于 `DATA_DIR/instances/<id>`。
 

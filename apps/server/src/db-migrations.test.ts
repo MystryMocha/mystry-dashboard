@@ -492,6 +492,88 @@ test('a database that already has the backup schedule table but reports version 
   assert.equal(backupsIn(s)?.length, 1, 'the copy is still taken before the steps run');
 });
 
+test('overview run history and metric sample tables are added to a prior version and cascade on instance delete', async (t) => {
+  const s = scratch(t, 'overview-stats');
+  useDataDir(s);
+  const { initDb, getDb, PANEL_DB_MIGRATIONS } = await import('./db.js');
+  const index = PANEL_DB_MIGRATIONS.findIndex((migration) => migration.name === 'overview run history and metric samples');
+  assert.ok(index > 0, 'the migration list has the overview stats entry after the baseline');
+
+  const before = openWal(s);
+  migrateDatabase(before, PANEL_DB_MIGRATIONS.slice(0, index), runnerOptions(s));
+  assert.ok(!tableNames(before).includes('instance_runs'));
+  assert.ok(!tableNames(before).includes('metric_samples'));
+  before.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').run('u1', 'admin', '$2a$04$hash', now);
+  const instance = before.prepare('INSERT INTO instances (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)');
+  instance.run('i1', 'Survival', now, now);
+  instance.run('i2', 'Creative', now, now);
+  before.close();
+
+  initDb();
+  const db = getDb();
+  assert.equal(pragmaNumber(db, 'user_version'), PANEL_DB_MIGRATIONS.length);
+  for (const idx of ['idx_instance_runs_instance', 'idx_metric_samples_time', 'idx_metric_samples_instance']) {
+    const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?").get(idx) as { sql: string } | undefined;
+    assert.ok(row, idx);
+    if (idx === 'idx_metric_samples_instance') {
+      assert.match(row.sql, /WHERE instance_id IS NOT NULL/i);
+    }
+  }
+
+  const insertRun = db.prepare(
+    'INSERT INTO instance_runs (instance_id, started_at, ready_at, ended_at, end_reason) VALUES (?, ?, ?, ?, ?)',
+  );
+  insertRun.run('i1', now, now, null, null);
+  insertRun.run('i2', now, now, now, 'stopped');
+  assert.throws(() => insertRun.run('missing', now, null, null, null), /FOREIGN KEY/);
+
+  const insertSample = db.prepare(
+    'INSERT INTO metric_samples (sampled_at, instance_id, cpu_percent, memory_bytes) VALUES (?, ?, ?, ?)',
+  );
+  insertSample.run(now, null, 25, 4_000_000_000);
+  insertSample.run(now, 'i1', 12, 1_000_000_000);
+  insertSample.run(now, 'i2', 8, 500_000_000);
+  assert.throws(() => insertSample.run(now, 'missing', 1, 1), /FOREIGN KEY/);
+
+  db.prepare('DELETE FROM instances WHERE id = ?').run('i1');
+  assert.deepEqual(
+    (db.prepare('SELECT instance_id FROM instance_runs ORDER BY id').all() as Array<{ instance_id: string }>).map((r) => r.instance_id),
+    ['i2'],
+  );
+  assert.deepEqual(
+    (db.prepare('SELECT instance_id FROM metric_samples ORDER BY id').all() as Array<{ instance_id: string | null }>).map((r) => r.instance_id),
+    [null, 'i2'],
+    'deleting an instance cascades its metric rows while keeping host and other instance samples',
+  );
+});
+
+test('a dump-rebuilt database with overview stats tables at version 0 replays migration v3 without error or data loss', async (t) => {
+  const s = scratch(t, 'overview-stats-rerun');
+  useDataDir(s);
+  const { initDb, getDb, closeDb, PANEL_DB_MIGRATIONS } = await import('./db.js');
+  initDb();
+  const schema = schemaDump(getDb());
+  getDb().prepare('INSERT INTO instances (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)').run('i1', 'Survival', now, now);
+  getDb().prepare(
+    "INSERT INTO instance_runs (instance_id, started_at, ready_at, ended_at, end_reason) VALUES (?, ?, ?, ?, 'stopped')",
+  ).run('i1', now, now, now);
+  getDb().prepare(
+    'INSERT INTO metric_samples (sampled_at, instance_id, cpu_percent, memory_bytes) VALUES (?, NULL, 30, 8000000000), (?, ?, 15, 2000000000)',
+  ).run(now, now, 'i1');
+  const runsBefore = JSON.stringify(getDb().prepare('SELECT * FROM instance_runs ORDER BY id').all());
+  const samplesBefore = JSON.stringify(getDb().prepare('SELECT * FROM metric_samples ORDER BY id').all());
+
+  getDb().exec('PRAGMA user_version = 0');
+  closeDb();
+
+  initDb();
+  const db = getDb();
+  assert.equal(pragmaNumber(db, 'user_version'), PANEL_DB_MIGRATIONS.length);
+  assert.equal(schemaDump(db), schema);
+  assert.equal(JSON.stringify(db.prepare('SELECT * FROM instance_runs ORDER BY id').all()), runsBefore);
+  assert.equal(JSON.stringify(db.prepare('SELECT * FROM metric_samples ORDER BY id').all()), samplesBefore);
+});
+
 const tree: DbMigration = {
   version: 1,
   name: 'tree',
