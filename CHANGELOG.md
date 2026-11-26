@@ -6,6 +6,8 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+## [0.3.0-preview.1] - 2026-11-26
+
 ### Added
 
 - The **Home** resource trend gains **Network** (download and upload) and **Disk I/O** (read and write) tabs on Windows and Linux. Every 5 minutes the panel reads whole-machine counters (raw WMI/CIM counters on Windows, `/proc/net/dev` and `/proc/diskstats` on Linux), counting physical network adapters and whole physical disks only so tunnels, bridges and partitions are not counted twice. Schema version 4 adds the rate columns to `metric_samples`, and `GET /api/stats/overview` returns them per bucket with an `ioMetricsSupported` flag. When the counters cannot be read, the tab says so instead of waiting for data, and `ioReadFailed` reports which half failed.
@@ -18,6 +20,7 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 - The interface takes a calmer, sharper look. Every surface is solid: lists and forms sit on panels with a 1px edge, the sidebar is docked to the window edge, and the top bar sits flush with the page, drawing a line beneath it only once content scrolls under it. Frosted glass is gone, so text keeps the sharp rendering of Windows and macOS, and Chinese text at body size and smaller uses a medium weight instead of semibold, which Microsoft YaHei draws as bold. Buttons have square corners while status pills and badges stay round, and the accent is now clay orange, used only for the main action, controls that are switched on, focus and progress. Warnings and in-between states such as **Starting** are amber, and the dark appearance is a deep graphite rather than near black.
 - **Instances** lists the servers that need attention first, no longer adds "Players can join now" after **Running**, and on wide screens draws **Start**, **Stop** and **Invite Players** without a fill. The sidebar drops its group titles, and the **Properties** tab no longer opens with a note about `server.properties`.
+- The README quick start and portable guide now lead with running the portable build, and the screenshots and social preview image are retaken from the current interface.
 
 ### Fixed
 
