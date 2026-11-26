@@ -232,24 +232,25 @@ export function ResourceTrendCard({
 
   const summaryLabel = useMemo(() => {
     const [first, second] = chartData?.series ?? [];
-    if (!overview || !chartData || !first || first.latest == null || first.peak == null) {
-      return t('home.trend.title');
-    }
+    if (!overview || !chartData || !first) return t('home.trend.title');
     const metricName = t(METRIC_LABELS[metric]);
     const rangeText = t(rangePhraseKey(overview.range));
     const format = chartData.formatValue;
+    // Either I/O line can be empty on its own (a counter that reset), and the other one is still drawn.
     if (metric === 'network' || metric === 'disk') {
+      const show = (value: number | null | undefined) => (value != null ? format(value) : '—');
       return t('home.trend.summaryPair', {
         metric: metricName,
         range: rangeText,
         first: t(first.label),
-        firstLatest: format(first.latest),
-        firstPeak: format(first.peak),
+        firstLatest: show(first.latest),
+        firstPeak: show(first.peak),
         second: second ? t(second.label) : '',
-        secondLatest: second?.latest != null ? format(second.latest) : '—',
-        secondPeak: second?.peak != null ? format(second.peak) : '—',
+        secondLatest: show(second?.latest),
+        secondPeak: show(second?.peak),
       });
     }
+    if (first.latest == null || first.peak == null) return t('home.trend.title');
     if (second && second.latest != null && second.peak != null) {
       return t('home.trend.summarySplit', {
         metric: metricName,
@@ -267,6 +268,12 @@ export function ResourceTrendCard({
       peak: format(first.peak),
     });
   }, [overview, chartData, metric, t]);
+
+  // With no history to draw, a failed counter read must not look like data that is still on its way.
+  const emptyMessage: MessageKey =
+    metric === 'network' && overview?.ioReadFailed.network ? 'home.trend.networkUnavailable'
+      : metric === 'disk' && overview?.ioReadFailed.disk ? 'home.trend.diskIoUnavailable'
+        : 'home.trend.collecting';
 
   const hoveredBucket = hoverIndex != null && buckets[hoverIndex] ? buckets[hoverIndex] : null;
   const hoverX = hoverIndex != null ? xFor(hoverIndex) : null;
@@ -304,7 +311,7 @@ export function ResourceTrendCard({
           </div>
         ) : !chartData ? (
           <div className="home-panel-state" role="status">
-            <span>{t('home.trend.collecting')}</span>
+            <span>{t(emptyMessage)}</span>
           </div>
         ) : (
           <>

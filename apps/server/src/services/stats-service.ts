@@ -7,6 +7,7 @@ import type {
   StatsDiskBreakdown,
   StatsHostInfo,
   StatsInstanceRun,
+  StatsIoReadFailed,
   StatsMetricBucket,
   StatsOverview,
   StatsRange,
@@ -131,6 +132,7 @@ export type StatsCollector = {
   stop(): void;
   sampleOnce(): Promise<boolean>;
   pruneOldSamples(): number;
+  ioReadFailed(): StatsIoReadFailed;
 };
 
 /**
@@ -261,6 +263,7 @@ export function createStatsCollector(options: StatsCollectorOptions = {}): Stats
     stop,
     sampleOnce,
     pruneOldSamples,
+    ioReadFailed: () => io.readFailed(),
   };
 }
 
@@ -328,6 +331,7 @@ export type StatsOverviewOptions = {
   db?: () => DatabaseSync;
   processMetricsSupported?: boolean;
   ioMetricsSupported?: boolean;
+  ioReadFailed?: StatsIoReadFailed;
   diskBreakdown?: StatsDiskBreakdown;
   host?: StatsHostInfo;
 };
@@ -337,6 +341,9 @@ export function getStatsOverview(range: StatsRange, options: StatsOverviewOption
   const db = options.db ?? getDb;
   const processMetricsSupported = options.processMetricsSupported ?? isProcessMetricsSupported();
   const ioMetricsSupported = options.ioMetricsSupported ?? isIoMetricsSupported();
+  const ioReadFailed = ioMetricsSupported
+    ? (options.ioReadFailed ?? statsCollector.ioReadFailed())
+    : { network: false, disk: false };
 
   const spec = RANGE_SPECS[range];
   const nowMs = now().getTime();
@@ -477,6 +484,7 @@ export function getStatsOverview(range: StatsRange, options: StatsOverviewOption
     bucketSeconds: spec.bucketMs / 1000,
     processMetricsSupported,
     ioMetricsSupported,
+    ioReadFailed,
     buckets,
     runs,
     host: options.host ?? getHostInfo(nowMs),

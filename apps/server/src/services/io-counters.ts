@@ -269,6 +269,8 @@ export type IoRateSampler = {
   sample(maxElapsedMs: number): Promise<IoRates>;
   /** Drops the baseline and invalidates reads in flight. */
   reset(): void;
+  /** Per half, whether the latest read failed or kept no device; both false before the first read and after reset. */
+  readFailed(): { network: boolean; disk: boolean };
 };
 
 export function createIoRateSampler(options: IoRateSamplerOptions = {}): IoRateSampler {
@@ -276,6 +278,7 @@ export function createIoRateSampler(options: IoRateSamplerOptions = {}): IoRateS
   const now = options.now ?? (() => performance.now());
   let previous: { snapshot: IoCounterSnapshot; at: number } | null = null;
   let generation = 0;
+  let failed = { network: false, disk: false };
 
   async function take(): Promise<{ snapshot: IoCounterSnapshot; at: number } | null> {
     const started = generation;
@@ -285,7 +288,10 @@ export function createIoRateSampler(options: IoRateSamplerOptions = {}): IoRateS
     } catch {
       snapshot = { network: null, disks: null };
     }
-    return started === generation ? { snapshot, at: now() } : null;
+    if (started !== generation) return null;
+    // An empty map counts as failed too: filters that drop every device would otherwise store NULL forever unnoticed.
+    failed = { network: !snapshot.network?.size, disk: !snapshot.disks?.size };
+    return { snapshot, at: now() };
   }
 
   return {
@@ -306,6 +312,10 @@ export function createIoRateSampler(options: IoRateSamplerOptions = {}): IoRateS
     reset() {
       generation += 1;
       previous = null;
+      failed = { network: false, disk: false };
+    },
+    readFailed() {
+      return { ...failed };
     },
   };
 }

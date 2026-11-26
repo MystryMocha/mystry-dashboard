@@ -47,6 +47,8 @@ export default {
   'home.trend.read': '读取',
   'home.trend.write': '写入',
   'home.trend.summaryPair': '{range}{metric}趋势：{first}最新 {firstLatest}（峰值 {firstPeak}），{second}最新 {secondLatest}（峰值 {secondPeak}）。',
+  'home.trend.networkUnavailable': '无法读取本机的网络流量。',
+  'home.trend.diskIoUnavailable': '无法读取本机的磁盘读写。',
 
   'home.machine.title': '本机',
   'home.machine.os': '系统',

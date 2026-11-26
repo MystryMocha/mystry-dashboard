@@ -147,19 +147,34 @@ test('the sampler needs a baseline, re-baselines after a long gap, and ignores r
   clock += 300_000;
   assert.equal((await sampler.sample(600_000)).netRxBytesPerSec, null, 'reset left no baseline behind');
 
+  assert.deepEqual(sampler.readFailed(), { network: false, disk: false });
+
   const failing = createIoRateSampler({ read: () => Promise.reject(new Error('timeout')) });
+  assert.deepEqual(failing.readFailed(), { network: false, disk: false }, 'nothing is reported before the first read');
   await failing.prime();
   assert.equal((await failing.sample(600_000)).diskWriteBytesPerSec, null);
+  assert.deepEqual(failing.readFailed(), { network: true, disk: true });
+  failing.reset();
+  assert.deepEqual(failing.readFailed(), { network: false, disk: false });
+
+  const noDisks = createIoRateSampler({ read: async () => snapshot({ nic: [1, 1] }, {}) });
+  await noDisks.prime();
+  assert.deepEqual(noDisks.readFailed(), { network: false, disk: true }, 'a read that kept no disk counts as failed');
 });
 
 test('real counters on this platform are readable', { skip: !['win32', 'linux'].includes(process.platform) }, async () => {
   // Same reasoning as the readProcesses check in metrics-service.test.ts: this checks the query, not its speed.
   // A GitHub Windows runner takes 2–3.5 s just to start PowerShell, and the first WMI query adds a cold start.
-  // Device counts are not asserted: a CI VM may expose no device the filters treat as physical.
-  const counters = process.platform === 'win32' ? await readWindowsIoCounters(45_000) : await readIoCounters();
-  assert.ok(counters.disks, 'disk counters are readable');
-  assert.ok(counters.network, 'network counters are readable');
-  for (const value of counters.disks.values()) {
+  const read = () => (process.platform === 'win32' ? readWindowsIoCounters(45_000) : readIoCounters());
+  const first = await read();
+  const second = await read();
+  // Every filter falls back to a wider set rather than to nothing, so an empty map means the query or a join broke.
+  assert.ok(first.disks && first.disks.size > 0, 'at least one disk is kept');
+  assert.ok(first.network && first.network.size > 0, 'at least one network adapter is kept');
+  for (const value of first.disks.values()) {
     assert.ok(value.readBytes >= 0 && value.writeBytes >= 0);
   }
+  // Rates need the same device ids on consecutive reads; ids that change every read would store NULL forever.
+  const rates = computeIoRates(first, second, 1000);
+  for (const [name, rate] of Object.entries(rates)) assert.notEqual(rate, null, name);
 });
