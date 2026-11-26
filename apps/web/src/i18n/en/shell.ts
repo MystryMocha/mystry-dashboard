@@ -9,6 +9,8 @@ export default {
   'shell.nav.label': 'Main navigation',
   'shell.nav.open': 'Open navigation menu',
   'shell.nav.close': 'Close navigation menu',
+  'shell.nav.collapse': 'Collapse Sidebar',
+  'shell.nav.expand': 'Expand Sidebar',
   'shell.tabBar.label': 'Quick navigation',
   'shell.tabBar.overview': 'Overview',
   'shell.tabBar.deploy': 'Deploy',
