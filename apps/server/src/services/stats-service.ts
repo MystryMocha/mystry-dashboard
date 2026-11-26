@@ -7,6 +7,7 @@ import type {
   StatsDiskBreakdown,
   StatsHostInfo,
   StatsInstanceRun,
+  StatsIoReadFailed,
   StatsMetricBucket,
   StatsOverview,
   StatsRange,
@@ -14,6 +15,7 @@ import type {
 import { config } from '../config.js';
 import { getDb } from '../db.js';
 import { createDiskUsageScanner } from './dir-size-scanner.js';
+import { createIoRateSampler, EMPTY_IO_RATES, isIoMetricsSupported, type IoRateSampler, type IoRates } from './io-counters.js';
 import { isProcessMetricsSupported, MetricsService } from './metrics-service.js';
 import { processManager } from './process-manager.js';
 
@@ -117,6 +119,7 @@ export function getHostInfo(nowMs = Date.now()): StatsHostInfo {
 
 export type StatsCollectorOptions = {
   metrics?: Pick<MetricsService, 'get'>;
+  io?: IoRateSampler;
   now?: () => Date;
   db?: () => DatabaseSync;
   sampleIntervalMs?: number;
@@ -129,6 +132,7 @@ export type StatsCollector = {
   stop(): void;
   sampleOnce(): Promise<boolean>;
   pruneOldSamples(): number;
+  ioReadFailed(): StatsIoReadFailed;
 };
 
 /**
@@ -138,6 +142,9 @@ export type StatsCollector = {
  */
 export function createStatsCollector(options: StatsCollectorOptions = {}): StatsCollector {
   const metrics = options.metrics ?? sharedMetrics;
+  // Network and disk counters are read only here, not in the 5-second live polling, so each value is the
+  // average over one sample interval and no extra PowerShell starts while the home page is open.
+  const io = options.io ?? createIoRateSampler();
   const now = options.now ?? (() => new Date());
   const db = options.db ?? getDb;
   const sampleIntervalMs = options.sampleIntervalMs ?? STATS_DEFAULTS.sampleIntervalMs;
@@ -150,16 +157,27 @@ export function createStatsCollector(options: StatsCollectorOptions = {}): Stats
   let sampling = false;
   let runGeneration = 0;
 
-  function persistSnapshot(snapshot: DashboardMetrics, sampledAt: string): void {
+  function persistSnapshot(snapshot: DashboardMetrics, ioRates: IoRates, sampledAt: string): void {
     const target = db();
     target.exec('BEGIN');
     try {
       target
         .prepare(
-          `INSERT INTO metric_samples (sampled_at, instance_id, cpu_percent, memory_bytes)
-           VALUES (?, NULL, ?, ?)`,
+          `INSERT INTO metric_samples (
+             sampled_at, instance_id, cpu_percent, memory_bytes,
+             net_rx_bytes_per_sec, net_tx_bytes_per_sec, disk_read_bytes_per_sec, disk_write_bytes_per_sec
+           )
+           VALUES (?, NULL, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(sampledAt, snapshot.cpuPercent, snapshot.memory.usedBytes);
+        .run(
+          sampledAt,
+          snapshot.cpuPercent,
+          snapshot.memory.usedBytes,
+          ioRates.netRxBytesPerSec,
+          ioRates.netTxBytesPerSec,
+          ioRates.diskReadBytesPerSec,
+          ioRates.diskWriteBytesPerSec,
+        );
 
       // Filter through `instances` so an instance deleted while metrics.get() was in flight does not trigger a FK error.
       const insertInstance = target.prepare(
@@ -185,9 +203,12 @@ export function createStatsCollector(options: StatsCollectorOptions = {}): Stats
     sampling = true;
     const generation = runGeneration;
     try {
-      const snapshot = await metrics.get();
+      // Settled separately: a slow or failed counter read only leaves the I/O columns NULL and never costs the CPU and memory row.
+      const [snapshotResult, ioResult] = await Promise.allSettled([metrics.get(), io.sample(sampleIntervalMs * 2)]);
       if (stopped || runGeneration !== generation) return false;
-      persistSnapshot(snapshot, now().toISOString());
+      if (snapshotResult.status === 'rejected') throw snapshotResult.reason;
+      const ioRates = ioResult.status === 'fulfilled' ? ioResult.value : EMPTY_IO_RATES;
+      persistSnapshot(snapshotResult.value, ioRates, now().toISOString());
       return true;
     } catch (error) {
       if (!stopped && runGeneration === generation) {
@@ -216,6 +237,7 @@ export function createStatsCollector(options: StatsCollectorOptions = {}): Stats
   function stop(): void {
     stopped = true;
     runGeneration += 1;
+    io.reset();
     if (sampleTimer) {
       clearInterval(sampleTimer);
       sampleTimer = null;
@@ -230,8 +252,9 @@ export function createStatsCollector(options: StatsCollectorOptions = {}): Stats
     start() {
       stopped = false;
       if (sampleTimer) return;
-      // Prime the CPU delta baseline without inserting a row so the first 5-minute sample already has a CPU value.
+      // Prime the CPU and I/O counter baselines without inserting a row so the first 5-minute sample already has values.
       void metrics.get().catch(() => {});
+      void io.prime().catch(() => {});
       sampleTimer = setInterval(() => void sampleOnce(), sampleIntervalMs);
       sampleTimer.unref();
       pruneTimer = setInterval(() => pruneOldSamples(), pruneIntervalMs);
@@ -240,6 +263,7 @@ export function createStatsCollector(options: StatsCollectorOptions = {}): Stats
     stop,
     sampleOnce,
     pruneOldSamples,
+    ioReadFailed: () => io.readFailed(),
   };
 }
 
@@ -256,6 +280,10 @@ type AnchoredSampleRow = {
   sampled_at: string;
   host_cpu: number | null;
   host_mem: number | null;
+  host_net_rx: number | null;
+  host_net_tx: number | null;
+  host_disk_read: number | null;
+  host_disk_write: number | null;
   instance_count: number | null;
   cpu_count: number | null;
   cpu_sum: number | null;
@@ -280,12 +308,30 @@ type BucketAccumulator = {
   instCpuCount: number;
   instMemSum: number;
   instMemCount: number;
+  netRx: RateAverage;
+  netTx: RateAverage;
+  diskRead: RateAverage;
+  diskWrite: RateAverage;
 };
+
+type RateAverage = { sum: number; count: number };
+
+function addRate(target: RateAverage, value: number | null): void {
+  if (value === null || !Number.isFinite(value)) return;
+  target.sum += Math.max(0, value);
+  target.count += 1;
+}
+
+function averageRate(target: RateAverage): number | null {
+  return target.count > 0 ? target.sum / target.count : null;
+}
 
 export type StatsOverviewOptions = {
   now?: () => Date;
   db?: () => DatabaseSync;
   processMetricsSupported?: boolean;
+  ioMetricsSupported?: boolean;
+  ioReadFailed?: StatsIoReadFailed;
   diskBreakdown?: StatsDiskBreakdown;
   host?: StatsHostInfo;
 };
@@ -294,6 +340,10 @@ export function getStatsOverview(range: StatsRange, options: StatsOverviewOption
   const now = options.now ?? (() => new Date());
   const db = options.db ?? getDb;
   const processMetricsSupported = options.processMetricsSupported ?? isProcessMetricsSupported();
+  const ioMetricsSupported = options.ioMetricsSupported ?? isIoMetricsSupported();
+  const ioReadFailed = ioMetricsSupported
+    ? (options.ioReadFailed ?? statsCollector.ioReadFailed())
+    : { network: false, disk: false };
 
   const spec = RANGE_SPECS[range];
   const nowMs = now().getTime();
@@ -314,6 +364,10 @@ export function getStatsOverview(range: StatsRange, options: StatsOverviewOption
     instCpuCount: 0,
     instMemSum: 0,
     instMemCount: 0,
+    netRx: { sum: 0, count: 0 },
+    netTx: { sum: 0, count: 0 },
+    diskRead: { sum: 0, count: 0 },
+    diskWrite: { sum: 0, count: 0 },
   }));
 
   const target = db();
@@ -338,6 +392,10 @@ export function getStatsOverview(range: StatsRange, options: StatsOverviewOption
          h.sampled_at,
          h.cpu_percent AS host_cpu,
          h.memory_bytes AS host_mem,
+         h.net_rx_bytes_per_sec AS host_net_rx,
+         h.net_tx_bytes_per_sec AS host_net_tx,
+         h.disk_read_bytes_per_sec AS host_disk_read,
+         h.disk_write_bytes_per_sec AS host_disk_write,
          inst.instance_count,
          inst.cpu_count,
          inst.cpu_sum,
@@ -365,6 +423,10 @@ export function getStatsOverview(range: StatsRange, options: StatsOverviewOption
       bucket.hostMemSum += row.host_mem;
       bucket.hostMemCount += 1;
     }
+    addRate(bucket.netRx, row.host_net_rx);
+    addRate(bucket.netTx, row.host_net_tx);
+    addRate(bucket.diskRead, row.host_disk_read);
+    addRate(bucket.diskWrite, row.host_disk_write);
 
     if (processMetricsSupported) {
       const instanceCount = row.instance_count ?? 0;
@@ -391,6 +453,10 @@ export function getStatsOverview(range: StatsRange, options: StatsOverviewOption
     instancesCpuPercent:
       bucket.instCpuCount > 0 ? Math.min(100, Math.max(0, bucket.instCpuSum / bucket.instCpuCount)) : null,
     instancesMemoryBytes: bucket.instMemCount > 0 ? Math.round(bucket.instMemSum / bucket.instMemCount) : null,
+    hostNetRxBytesPerSec: averageRate(bucket.netRx),
+    hostNetTxBytesPerSec: averageRate(bucket.netTx),
+    hostDiskReadBytesPerSec: averageRate(bucket.diskRead),
+    hostDiskWriteBytesPerSec: averageRate(bucket.diskWrite),
   }));
 
   const runRows = target
@@ -417,6 +483,8 @@ export function getStatsOverview(range: StatsRange, options: StatsOverviewOption
     to,
     bucketSeconds: spec.bucketMs / 1000,
     processMetricsSupported,
+    ioMetricsSupported,
+    ioReadFailed,
     buckets,
     runs,
     host: options.host ?? getHostInfo(nowMs),

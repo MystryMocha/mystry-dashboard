@@ -39,7 +39,9 @@ CPU 按整机逻辑核总容量归一至 0–100%；进程内存为驻留内存�
 
 - `range` / `from` / `to` / `bucketSeconds`：请求的时间范围、UTC ISO-8601 起止时刻（`from` 为 `to` 减去范围时长）与单个时间桶的宽度秒数（`24h` 为 `300`，`7d` 为 `3600`，`30d` 为 `21600`）。
 - `processMetricsSupported`：Windows 与 Linux 为 `true`；不支持逐进程采集的平台为 `false`，此时实例序列恒为 `null`。
-- `buckets`：固定槽位序列（`24h` 为 `288` 桶、`7d` 为 `168` 桶、`30d` 为 `120` 桶），每项含 `timestamp`、`hostCpuPercent`、`hostMemoryBytes`、`instancesCpuPercent` 与 `instancesMemoryBytes`。无采样的槽位返回 `null`，超前于当前服务端时间的采样忽略。实例合计采用以本机采样时刻（`instance_id IS NULL`）为锚点的两层聚合：在支持逐进程采集的平台上，该时刻没有运行中实例时按 `0` 计入；存在运行中实例但进程指标全为 `null` 时按空跳过，再对桶内有效点求平均。
+- `ioMetricsSupported`：Windows 与 Linux 为 `true`，面板在这两个平台采集整机网络与磁盘读写；其他平台为 `false`，相应序列恒为 `null`。
+- `ioReadFailed`：`{ network, disk }`，最近一次后台读取对应计数失败或未保留任何设备时为 `true`，用于区分「无法读取」与「尚未采到」。首次读取前以及 `ioMetricsSupported` 为 `false` 时两者均为 `false`。
+- `buckets`：固定槽位序列（`24h` 为 `288` 桶、`7d` 为 `168` 桶、`30d` 为 `120` 桶），每项含 `timestamp`、`hostCpuPercent`、`hostMemoryBytes`、`instancesCpuPercent`、`instancesMemoryBytes`、`hostNetRxBytesPerSec`、`hostNetTxBytesPerSec`、`hostDiskReadBytesPerSec` 与 `hostDiskWriteBytesPerSec`。无采样的槽位返回 `null`，超前于当前服务端时间的采样忽略。实例合计采用以本机采样时刻（`instance_id IS NULL`）为锚点的两层聚合：在支持逐进程采集的平台上，该时刻没有运行中实例时按 `0` 计入；存在运行中实例但进程指标全为 `null` 时按空跳过，再对桶内有效点求平均。四项读写速率单位为字节每秒，取每个 5 分钟采样间隔内的平均值：网络只计物理网卡（Windows 为硬件网卡，Linux 为 sysfs 中带 `device` 链接的接口，容器内没有此类接口时计除回环外的全部接口），避免 VPN、代理 TUN、网桥与 veth 重复计入；磁盘只计整块物理磁盘，不含分区与叠加设备。与上一次采样间隔超过两个周期（面板未运行或电脑休眠）的采样不含读写数值。
 - `runs`：已完成启动（`ready_at` 非空）且与 `[from, to]` 有交集的运行段，每项含 `instanceId`、`readyAt`、`endedAt`（仍在运行时为 `null`）与 `endReason`（`stopped` / `crashed` / `panel-exit`，运行中为 `null`）。启动前失败不留记录；启动中途失败（`start-failed`）与未就绪即以退出码 0 结束（如未同意 EULA）的记录 `ready_at` 为空，不包含在此列表中。
 - `host`：`osName`（Windows 取 `os.version()`，Linux 取 `/etc/os-release` 的 `PRETTY_NAME` 并在读取失败时回落为内核类型与版本，macOS 为 `macOS`）、`cpuModel`（不可用时为 `null`）、`cpuThreads`、`totalMemoryBytes` 与 `bootedAt`。
 - `diskBreakdown`：后台每小时统计并缓存的 `DATA_DIR/instances` 大小（`instancesBytes`）、`BACKUP_DIR` 大小（`backupsBytes`）以及 `backupsOnSameVolume`。首次扫描完成前大小返回 `null`；`BACKUP_DIR` 位于其他卷时 `backupsBytes` 返回 `null`。目录扫描跳过符号链接与目录联接，不跟随外部目标。

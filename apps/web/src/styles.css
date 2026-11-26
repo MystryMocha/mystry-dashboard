@@ -3032,9 +3032,11 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .home-legend li { display: inline-flex; align-items: center; gap: 6px; }
 .home-line-key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; background: var(--chart-1); }
 .home-line-key.is-context { background: var(--chart-context); }
+.home-line-key.is-s2 { background: var(--chart-2); }
 .home-swatch { display: inline-block; flex-shrink: 0; width: 10px; height: 10px; border-radius: 3px; background: var(--chart-1); }
 .home-swatch.is-s1-soft { background: color-mix(in srgb, var(--chart-1) 45%, transparent); }
 .home-swatch.is-context { background: var(--chart-context); }
+.home-swatch.is-s2 { background: var(--chart-2); }
 .home-swatch.is-free { background: var(--fill-strong); }
 .home-swatch.is-green { background: var(--c-green); }
 .home-swatch.is-red { background: var(--c-red); }
@@ -3077,10 +3079,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 .home-chart-tick { fill: var(--label-2); font-size: var(--text-footnote); font-variant-numeric: tabular-nums; }
 .home-chart-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .home-chart-line.is-s1 { stroke: var(--chart-1); }
+.home-chart-line.is-s2 { stroke: var(--chart-2); }
 .home-chart-line.is-context { stroke: var(--chart-context); }
 .home-chart-area.is-s1 { fill: var(--chart-1); fill-opacity: 0.1; }
 .home-chart-dot { stroke: var(--surface); stroke-width: 1.5; }
 .home-chart-dot.is-s1 { fill: var(--chart-1); }
+.home-chart-dot.is-s2 { fill: var(--chart-2); }
 .home-chart-dot.is-context { fill: var(--chart-context); }
 .home-chart-crosshair { stroke: var(--separator-strong); stroke-width: 1; stroke-dasharray: 3 3; }
 .home-chart-tooltip {

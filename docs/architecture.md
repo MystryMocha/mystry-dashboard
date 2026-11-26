@@ -139,7 +139,7 @@ Except for `auth/status`, `auth/setup`, `auth/login`, the health check and the l
 | `metrics-service` | Live host and per-process CPU/memory sampling with a 4-second cache, shared between live polling and background collection |
 | `run-history-service` | Listens to `ProcessManager` status and `ready` events to persist `instance_runs` and settle open rows as `panel-exit` after an unexpected panel exit |
 | `dir-size-scanner` | Hourly asynchronous directory-size walker for `instances` and `backups`, skipping symlinks/junctions, yielding periodically and checking volume boundaries |
-| `stats-service` | 5-minute background metric sampling, 30-day retention pruning, host OS info and two-layer bucket aggregation for `/api/stats/overview` |
+| `stats-service` | 5-minute background metric sampling (including host network and disk I/O counters read by `io-counters`), 30-day retention pruning, host OS info and two-layer bucket aggregation for `/api/stats/overview` |
 | `node-service` | Node CRUD and secret hashing; remote creation is controlled by `REMOTE_NODE_CREATION_ENABLED` |
 | `node-registry` | Node online state / heartbeat (in memory; the local node is always online until the Agent exists) |
 
@@ -162,7 +162,7 @@ SQLite tables:
 - `java_runtimes` — Java runtimes the panel scanned and verified, with their current availability
 - `instance_backup_schedules` — daily scheduled backup settings and state per instance (cascades on instance delete)
 - `instance_runs` — instance start, ready and exit records with end reasons (`stopped`, `crashed`, `start-failed`, `panel-exit`; cascades on instance delete)
-- `metric_samples` — 5-minute host (`instance_id IS NULL`) and per-instance CPU and memory samples, pruned hourly past 30 days (instance rows cascade on instance delete)
+- `metric_samples` — 5-minute host (`instance_id IS NULL`) and per-instance CPU and memory samples; host rows also carry network and disk I/O rates in bytes per second (schema version 4), pruned hourly past 30 days (instance rows cascade on instance delete)
 
 The database uses `DatabaseSync` from `node:sqlite` in WAL mode. Instance files are not stored in the database; they all live in `DATA_DIR/instances/<id>`.
 
