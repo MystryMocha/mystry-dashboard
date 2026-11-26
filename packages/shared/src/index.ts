@@ -61,6 +61,78 @@ export interface DashboardMetrics {
   }>;
 }
 
+/** Time range for GET /api/stats/overview; for the values see STATS_RANGE_ENUM in schemas.ts. */
+export type StatsRange = '24h' | '7d' | '30d';
+
+/** Why an instance run ended; null while the run is still open. */
+export type InstanceRunEndReason = 'stopped' | 'crashed' | 'start-failed' | 'panel-exit';
+
+/** One fixed-width time bucket in the overview resource trend; null values mean no valid sample in that slot. */
+export interface StatsMetricBucket {
+  /** UTC ISO-8601 start of this bucket. */
+  timestamp: string;
+  /** Average whole-machine CPU usage (0–100) across host samples in this bucket, or null when unavailable. */
+  hostCpuPercent: number | null;
+  /** Average whole-machine used memory in bytes across host samples in this bucket, or null when unavailable. */
+  hostMemoryBytes: number | null;
+  /** Average combined CPU usage (0–100) of running instances anchored on host samples in this bucket, or null when unavailable. */
+  instancesCpuPercent: number | null;
+  /** Average combined resident memory in bytes of running instances anchored on host samples in this bucket, or null when unavailable. */
+  instancesMemoryBytes: number | null;
+}
+
+/** One instance run that finished starting (readyAt is set) and overlaps the requested range. */
+export interface StatsInstanceRun {
+  instanceId: string;
+  /** UTC ISO-8601 time the server finished starting and became joinable. */
+  readyAt: string;
+  /** UTC ISO-8601 time the run ended, or null while the instance is still running. */
+  endedAt: string | null;
+  /** How the run ended, or null while still running. */
+  endReason: InstanceRunEndReason | null;
+}
+
+/** Static and uptime info about the computer running the panel, shown in the overview Machine card. */
+export interface StatsHostInfo {
+  /** Human-readable OS name (e.g. "Windows 11 Home", "Ubuntu 24.04.1 LTS", or "macOS"). */
+  osName: string;
+  /** CPU model from os.cpus()[0]?.model, or null when unavailable. */
+  cpuModel: string | null;
+  /** Logical CPU thread count from os.availableParallelism(). */
+  cpuThreads: number;
+  /** Total host memory in bytes. */
+  totalMemoryBytes: number;
+  /** Estimated UTC ISO-8601 host boot time derived from os.uptime(). */
+  bootedAt: string;
+}
+
+/** Cached breakdown of disk space used by panel-managed directories; sizes are null until the first background scan completes. */
+export interface StatsDiskBreakdown {
+  /** Total size in bytes of DATA_DIR/instances, or null while not yet scanned. */
+  instancesBytes: number | null;
+  /** Total size in bytes of BACKUP_DIR, or null while not yet scanned or when backups live on another volume. */
+  backupsBytes: number | null;
+  /** True when BACKUP_DIR resides on the same filesystem/volume as DATA_DIR; false omits backups from the data-disk breakdown. */
+  backupsOnSameVolume: boolean;
+}
+
+/** GET /api/stats/overview response. */
+export interface StatsOverview {
+  range: StatsRange;
+  /** UTC ISO-8601 start of the requested range (`to` minus the range duration). */
+  from: string;
+  /** UTC ISO-8601 end of the requested range (server time when generated). */
+  to: string;
+  /** Width of each bucket in `buckets`, in seconds (300 for 24h, 3600 for 7d, 21600 for 30d). */
+  bucketSeconds: number;
+  /** Whether per-process CPU and memory metrics are supported on this platform (Windows and Linux). */
+  processMetricsSupported: boolean;
+  buckets: StatsMetricBucket[];
+  runs: StatsInstanceRun[];
+  host: StatsHostInfo;
+  diskBreakdown: StatsDiskBreakdown;
+}
+
 export type InstanceStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'crashed';
 
 /** The process is still exiting after the normal stop grace period (HTTP 202) */
@@ -612,6 +684,8 @@ export {
   updateDownloadSourceBodySchema,
   SESSION_DURATION_ENUM,
   updateSessionDurationBodySchema,
+  STATS_RANGE_ENUM,
+  statsOverviewQuerySchema,
   JAVA_INSTALL_MAJORS,
   installJavaBodySchema,
   createInstanceBodySchema,
