@@ -18,7 +18,7 @@ export function metricWarningTexts(metrics: Metrics, tm: I18n['tm']): string[] {
 }
 
 /** Tells by message key whether a certain kind of warning is present. */
-function hasWarning(metrics: Metrics | null, key: ServerMessageKey): boolean {
+export function hasWarning(metrics: Metrics | null, key: ServerMessageKey): boolean {
   return metrics?.warningsI18n?.some((message) => message.key === key) ?? false;
 }
 
@@ -54,7 +54,7 @@ export function useDashboardMetrics() {
     if (manual) setBusy(true);
     try {
       const result = await api<Metrics>('/api/system/metrics');
-      if (!result.memory || !result.instances || !Array.isArray(result.warnings)) throw new Error('监测数据暂不可用');
+      if (!result.memory || !result.instances || !Array.isArray(result.warnings)) throw new Error('Monitoring data unavailable');
       if (mounted.current) { setMetrics(result); setErrorKey(null); }
     } catch {
       if (mounted.current) setErrorKey('dashboard.metrics.fetchFailed');
@@ -73,76 +73,11 @@ export function useDashboardMetrics() {
 }
 
 /** Thin usage bar: values 0–100, drawn full when above; with null only the track shows. Purely decorative, with the number given by the text beside it. */
-export function Meter({
-  ratio,
-  tone = 'neutral',
-}: {
-  ratio: number | null | undefined;
-  tone?: 'neutral' | 'warning';
-}) {
+export function Meter({ ratio }: { ratio: number | null | undefined }) {
   const value = ratio == null || !Number.isFinite(ratio) ? 0 : Math.max(0, Math.min(100, ratio));
   return (
-    <span className={`meter is-${tone}`} aria-hidden="true">
+    <span className="meter" aria-hidden="true">
       {value > 0 && <span className="meter-fill" style={{ inlineSize: `${value}%` }} />}
     </span>
-  );
-}
-
-function HostMeter({
-  name,
-  hint,
-  value,
-  ratio,
-  warning,
-}: {
-  name: string;
-  hint: string;
-  value: string;
-  ratio: number | null | undefined;
-  warning: boolean;
-}) {
-  return (
-    <div className={`host-meter${warning ? ' is-warning' : ''}`} title={hint}>
-      <div className="host-meter-head">
-        <span className="host-meter-name">{name}</span>
-        <span className="host-meter-value">{value}</span>
-      </div>
-      <Meter ratio={ratio} tone={warning ? 'warning' : 'neutral'} />
-    </div>
-  );
-}
-
-/** Local resources: three thin usage bars for CPU, memory and the data disk, with the matching one turning red on a warning. */
-export function HostMeters({ metrics, error }: { metrics: Metrics | null; error: string }) {
-  const { t, fmt } = useI18n();
-  const placeholder = error ? t('dashboard.metrics.unavailable') : t('dashboard.metrics.collecting');
-  return (
-    <div className="host-meters">
-      <HostMeter
-        name={t('dashboard.host.cpu')}
-        hint={t('dashboard.host.cpu.hint')}
-        value={metrics?.cpuPercent == null ? placeholder : fmt.percent(metrics.cpuPercent)}
-        ratio={metrics?.cpuPercent}
-        warning={hasWarning(metrics, 'server.system.metricsCpuHigh')}
-      />
-      <HostMeter
-        name={t('dashboard.host.memory')}
-        hint={t('dashboard.host.memory.hint')}
-        value={metrics ? `${fmt.gib(metrics.memory.usedBytes)} / ${fmt.gib(metrics.memory.totalBytes)} GiB` : placeholder}
-        ratio={metrics ? metrics.memory.usedBytes / metrics.memory.totalBytes * 100 : null}
-        warning={hasWarning(metrics, 'server.system.metricsMemoryHigh')}
-      />
-      <HostMeter
-        name={t('dashboard.host.disk')}
-        hint={t('dashboard.host.disk.hint')}
-        value={
-          metrics?.disk
-            ? t('dashboard.host.diskFree', { value: `${fmt.gib(metrics.disk.availableBytes)} GiB` })
-            : metrics ? t('dashboard.metrics.unavailable') : placeholder
-        }
-        ratio={metrics?.disk ? (1 - metrics.disk.availableBytes / metrics.disk.totalBytes) * 100 : null}
-        warning={hasWarning(metrics, 'server.system.metricsDiskLow')}
-      />
-    </div>
   );
 }

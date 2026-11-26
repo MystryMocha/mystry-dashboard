@@ -35,12 +35,12 @@ export default {
   'action.copy': 'Copy',
   'action.clear': 'Clear',
 
-  'nav.overview': 'Instances',
+  'nav.home': 'Home',
+  'nav.instances': 'Instances',
   'nav.workspace': 'Current Workspace',
   'nav.deploy': 'Quick Deploy',
   'nav.import': 'Import Server',
   'nav.multiplayer': 'Multiplayer',
-  'nav.machine': 'This Machine',
   'nav.settings': 'Panel Settings',
 
   'instance.tab.console': 'Console',

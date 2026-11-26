@@ -111,12 +111,12 @@ Keys are those of `i18n/en/common.ts`. These are drafts with consistent terminol
 
 | Key | en | fr | ru | es | ar |
 | --- | --- | --- | --- | --- | --- |
-| nav.overview | Instances | Instances | Экземпляры | Instancias | المثيلات |
+| nav.home | Home | Accueil | Главная | Inicio | الرئيسية |
+| nav.instances | Instances | Instances | Экземпляры | Instancias | المثيلات |
 | nav.workspace | Current Workspace | Espace de travail actuel | Текущая рабочая область | Espacio de trabajo actual | مساحة العمل الحالية |
 | nav.deploy | Quick Deploy | Déploiement rapide | Быстрое развёртывание | Despliegue rápido | نشر سريع |
 | nav.import | Import Server | Importer un serveur | Импорт сервера | Importar servidor | استيراد خادم |
 | nav.multiplayer | Multiplayer | Multijoueur | Сетевая игра | Multijugador | اللعب الجماعي |
-| nav.machine | This Machine | Cette machine | Этот компьютер | Este equipo | هذا الجهاز |
 | instance.tab.console | Console | Console | Консоль | Consola | وحدة التحكم |
 | instance.tab.files | Files | Fichiers | Файлы | Archivos | الملفات |
 | instance.tab.properties | Properties | Propriétés | Параметры | Propiedades | الخصائص |

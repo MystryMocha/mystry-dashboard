@@ -1,0 +1,70 @@
+import type en from '../en/home';
+
+/** 首頁文案：狀態塊、資源趨勢、本機與實例執行時間線（繁體中文）。 */
+export default {
+  'home.status.running_one': '{count} 個實例執行中',
+  'home.status.running_other': '{count} 個實例執行中',
+  'home.status.crashes_one': '，{range}當機 {count} 次',
+  'home.status.crashes_other': '，{range}當機 {count} 次',
+
+  'home.range.label': '時間範圍',
+  'home.range.24h': '24 小時',
+  'home.range.7d': '7 天',
+  'home.range.30d': '30 天',
+  'home.range.phrase.24h': '近 24 小時',
+  'home.range.phrase.7d': '近 7 天',
+  'home.range.phrase.30d': '近 30 天',
+
+  'home.stat.running': '執行中',
+  'home.stat.cpu': 'CPU',
+  'home.stat.memory': '記憶體',
+  'home.stat.disk': '資料磁碟',
+  'home.stat.warnHigh': '偏高',
+  'home.stat.warnDiskLow': '空間不足',
+  'home.stat.popover.running': '執行中的實例',
+  'home.stat.popover.cpu': 'CPU 使用詳情',
+  'home.stat.popover.memory': '記憶體使用詳情',
+  'home.stat.popover.disk': '資料磁碟空間詳情',
+
+  'home.breakdown.all': '全部',
+  'home.breakdown.instances': '實例',
+  'home.breakdown.otherApps': '其他程式',
+  'home.breakdown.backups': '備份',
+  'home.breakdown.otherFiles': '其他檔案',
+  'home.breakdown.used': '已用',
+  'home.breakdown.available': '可用',
+  'home.instances.all': '全部實例',
+
+  'home.trend.title': '資源趨勢',
+  'home.trend.metricLabel': '指標',
+  'home.trend.collecting': '正在收集趨勢資料…',
+  'home.trend.summary': '{range}{metric}趨勢：最新 {latest}，峰值 {peak}。',
+  'home.trend.summarySplit': '{range}{metric}趨勢：全部最新 {latest}（峰值 {peak}），實例最新 {instLatest}（峰值 {instPeak}）。',
+
+  'home.machine.title': '本機',
+  'home.machine.os': '系統',
+  'home.machine.cpu': '處理器',
+  'home.machine.threads': '執行緒',
+  'home.machine.memory': '記憶體',
+  'home.machine.uptime': '開機時間',
+  'home.uptime.days_one': '{count} 天',
+  'home.uptime.days_other': '{count} 天',
+  'home.uptime.daysHours': '{days} {hours}',
+  'home.uptime.hoursMinutes': '{hours} {minutes}',
+
+  'home.activity.title': '實例執行',
+  'home.activity.legend.running': '執行',
+  'home.activity.legend.crashed': '當機',
+  'home.activity.empty': '還沒有執行紀錄。',
+  'home.activity.rowLabel': '{name}，{range}執行 {duration}',
+  'home.activity.rowLabelWithCrashes_one': '{name}，{range}執行 {duration}，當機 {count} 次',
+  'home.activity.rowLabelWithCrashes_other': '{name}，{range}執行 {duration}，當機 {count} 次',
+
+  'home.duration.lessThanMinute': '< 1 分鐘',
+  'home.duration.minutes_one': '{count} 分鐘',
+  'home.duration.minutes_other': '{count} 分鐘',
+  'home.duration.hours_one': '{count} 小時',
+  'home.duration.hours_other': '{count} 小時',
+
+  'home.history.error': '無法讀取歷史資料。',
+} satisfies Record<keyof typeof en, string>;
