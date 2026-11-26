@@ -17,7 +17,7 @@
 
 .error-summary-content strong {
   color: var(--danger);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .error-summary-content p {
@@ -25,7 +25,7 @@
   overflow: hidden;
   margin: 0.2rem 0 0;
   color: var(--label-2);
-  font-size: 13px;
+  font-size: var(--text-small);
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -60,7 +60,7 @@
 
 .error-dialog-header h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--text-headline);
   font-weight: 700;
 }
 
@@ -74,7 +74,7 @@
   background: #161618;
   color: #e5e5ea;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--text-footnote);
   line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -92,7 +92,7 @@
 
 .error-dialog-footer .muted {
   margin-right: auto;
-  font-size: 12.5px;
+  font-size: var(--text-footnote);
 }
 
 @media (max-width: 768px) {

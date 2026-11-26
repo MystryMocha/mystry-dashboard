@@ -1,6 +1,6 @@
 # Localization
 
-Writing rules for every language of the web UI, how to add a language, and right-to-left layout. Visual rules are in the [Design System](design-system.md).
+Writing rules for every language of the web UI, how to add a language, and right-to-left layout.
 
 ## Status
 
