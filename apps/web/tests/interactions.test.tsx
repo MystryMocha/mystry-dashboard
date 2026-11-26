@@ -222,6 +222,45 @@ test('clicking a navigation item with the menu open navigates and closes the men
   expect(document.querySelector('main')?.hasAttribute('inert')).toBe(false);
 });
 
+test('desktop sidebar collapse toggles the icon rail, keeps tooltip labels and persists across remounts', async () => {
+  const user = userEvent.setup();
+  localStorage.setItem('mystry_token', 'test-only');
+  const first = mount(<AuthProvider><App /></AuthProvider>);
+  const collapse = await screen.findByRole('button', { name: '收起侧栏' });
+  expect(collapse.getAttribute('aria-controls')).toBe('app-sidebar');
+  expect(collapse.hasAttribute('aria-pressed')).toBe(false);
+  expect(collapse.getAttribute('title')).toBe('收起侧栏');
+  expect(document.querySelector('.app-shell')?.classList.contains('is-sidebar-collapsed')).toBe(false);
+  expect(document.querySelector('.sidebar a.nav-item[href="/"]')?.getAttribute('data-label')).toBe('实例总览');
+  expect(document.querySelector('.sidebar a.nav-item[href="/deploy"]')?.getAttribute('data-label')).toBe('一键部署');
+
+  await user.click(collapse);
+  expect(document.querySelector('.app-shell')?.classList.contains('is-sidebar-collapsed')).toBe(true);
+  expect(screen.getByRole('button', { name: '展开侧栏' })).toBe(collapse);
+  expect(collapse.getAttribute('title')).toBe('展开侧栏');
+  expect(localStorage.getItem('mystry_sidebar_collapsed')).toBe('1');
+
+  await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a.nav-item[href="/deploy"]')!);
+  expect(screen.getByTestId('location').textContent).toBe('/deploy');
+  expect(document.querySelector('.app-shell')?.classList.contains('is-sidebar-collapsed')).toBe(true);
+  first.unmount();
+
+  const second = mount(<AuthProvider><App /></AuthProvider>);
+  const expand = await screen.findByRole('button', { name: '展开侧栏' });
+  expect(document.querySelector('.app-shell')?.classList.contains('is-sidebar-collapsed')).toBe(true);
+
+  await user.click(expand);
+  expect(document.querySelector('.app-shell')?.classList.contains('is-sidebar-collapsed')).toBe(false);
+  expect(screen.getByRole('button', { name: '收起侧栏' })).toBe(expand);
+  expect(localStorage.getItem('mystry_sidebar_collapsed')).toBe('0');
+
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+  await user.click(expand);
+  expect(document.querySelector('.app-shell')?.classList.contains('is-sidebar-collapsed')).toBe(true);
+  setItem.mockRestore();
+  second.unmount();
+});
+
 test('Enter on an instance action button only performs the action, and the name link can still navigate', async () => {
   const user = userEvent.setup();
   mount(<DashboardPage />);

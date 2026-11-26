@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { FolderDown, Globe, LayoutGrid, LogOut, Menu, MonitorSmartphone, Rocket, Server, Settings, Terminal, X } from 'lucide-react';
+import { FolderDown, Globe, LayoutGrid, LogOut, Menu, MonitorSmartphone, PanelLeftClose, PanelLeftOpen, Rocket, Server, Settings, Terminal, X } from 'lucide-react';
 import { useAuth } from './auth';
 import { useI18n, type MessageKey } from './i18n';
 import { BrandMark } from './components/BrandMark';
@@ -43,6 +43,17 @@ const FOCUSABLE =
 
 /** Once the content area scrolls past this distance, the toolbar shows the page title and the frosted-glass background. */
 const SCROLLED_THRESHOLD = 12;
+
+const SIDEBAR_COLLAPSED_KEY = 'mystry_sidebar_collapsed';
+
+// Read synchronously in useState so a saved collapsed rail renders collapsed immediately without a shrink flash on reload.
+function readSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 function pageTitleKeyFor(pathname: string): MessageKey {
   if (pathname === '/') return 'nav.overview';
@@ -123,6 +134,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useI18n();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsed);
   const [remoteAccessOpen, setRemoteAccessOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   /** Toolbar title supplied by the page (such as the instance name); the fixed text for the route is used when there is none. */
@@ -197,10 +209,22 @@ function Shell({ children }: { children: React.ReactNode }) {
     setScrolled((current) => (current === next ? current : next));
   }
 
+  function toggleSidebarCollapsed() {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0');
+      } catch {
+        // Ignore storage failures in restricted or private browsing contexts.
+      }
+      return next;
+    });
+  }
+
   const initial = user?.username ? user.username.slice(0, 1).toUpperCase() : 'A';
 
   return (
-    <div className={`app-shell${sidebarOpen ? ' sidebar-open' : ''}`}>
+    <div className={`app-shell${sidebarOpen ? ' sidebar-open' : ''}${sidebarCollapsed ? ' is-sidebar-collapsed' : ''}`}>
       <aside
         id="app-sidebar"
         ref={sidebarRef}
@@ -216,30 +240,30 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="nav-section" onClick={() => closeSidebar()}>
-          <NavLink ref={firstNavRef} to="/" end className={navClass}>
+          <NavLink ref={firstNavRef} to="/" end className={navClass} data-label={t('nav.overview')}>
             <LayoutGrid size={17} aria-hidden="true" />
             <span>{t('nav.overview')}</span>
           </NavLink>
           {onInstancePage && (
-            <NavLink to={location.pathname} className="nav-item active">
+            <NavLink to={location.pathname} className="nav-item active" data-label={t('nav.workspace')}>
               <Terminal size={17} aria-hidden="true" />
               <span>{t('nav.workspace')}</span>
             </NavLink>
           )}
 
-          <NavLink to="/deploy" className={navClass}>
+          <NavLink to="/deploy" className={navClass} data-label={t('nav.deploy')}>
             <Rocket size={17} aria-hidden="true" />
             <span>{t('nav.deploy')}</span>
           </NavLink>
-          <NavLink to="/import" className={navClass}>
+          <NavLink to="/import" className={navClass} data-label={t('nav.import')}>
             <FolderDown size={17} aria-hidden="true" />
             <span>{t('nav.import')}</span>
           </NavLink>
-          <NavLink to="/multiplayer" className={navClass}>
+          <NavLink to="/multiplayer" className={navClass} data-label={t('nav.multiplayer')}>
             <Globe size={17} aria-hidden="true" />
             <span>{t('nav.multiplayer')}</span>
           </NavLink>
-          <NavLink to="/nodes" className={navClass}>
+          <NavLink to="/nodes" className={navClass} data-label={t('nav.machine')}>
             <Server size={17} aria-hidden="true" />
             <span>{t('nav.machine')}</span>
           </NavLink>
@@ -290,6 +314,16 @@ function Shell({ children }: { children: React.ReactNode }) {
               }}
             >
               {sidebarOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+            </button>
+            <button
+              type="button"
+              className="sidebar-collapse toolbar-button"
+              aria-label={sidebarCollapsed ? t('shell.nav.expand') : t('shell.nav.collapse')}
+              title={sidebarCollapsed ? t('shell.nav.expand') : t('shell.nav.collapse')}
+              aria-controls="app-sidebar"
+              onClick={toggleSidebarCollapsed}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={17} aria-hidden="true" /> : <PanelLeftClose size={17} aria-hidden="true" />}
             </button>
             <h2 className="toolbar-title">{toolbarTitle ?? t(pageTitleKeyFor(location.pathname))}</h2>
           </div>
