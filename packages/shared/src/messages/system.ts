@@ -29,4 +29,7 @@ export const SYSTEM_MESSAGES = {
   'server.system.metricsCpuHigh': 'Host CPU has stayed high',
   'server.system.metricsMemoryHigh': 'Host memory has stayed high',
   'server.system.metricsDiskLow': 'Data disk is low on space',
+
+  // Overview stats
+  'server.system.statsRangeInvalid': 'Choose a supported time range (24h, 7d or 30d).',
 } as const satisfies Record<string, string>;

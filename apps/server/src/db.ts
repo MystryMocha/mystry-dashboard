@@ -107,6 +107,26 @@ export type BackupScheduleRow = {
   updated_at: string;
 };
 
+/** One start-to-exit run of an instance; ended_at is NULL while the server is still running. */
+export type InstanceRunRow = {
+  id: number;
+  instance_id: string;
+  started_at: string;
+  /** UTC ISO-8601 time the server printed its ready marker; NULL when it never finished starting. */
+  ready_at: string | null;
+  ended_at: string | null;
+  end_reason: 'stopped' | 'crashed' | 'start-failed' | 'panel-exit' | null;
+};
+
+/** One 5-minute resource sample for either the host (instance_id IS NULL) or a running instance. */
+export type MetricSampleRow = {
+  id: number;
+  sampled_at: string;
+  instance_id: string | null;
+  cpu_percent: number | null;
+  memory_bytes: number | null;
+};
+
 let db: DatabaseSync | undefined;
 
 export function closeDb(): void {
@@ -138,6 +158,7 @@ const DB_BACKUPS_KEPT = 5;
 export const PANEL_DB_MIGRATIONS: readonly DbMigration[] = [
   { version: 1, name: 'baseline schema', up: applyBaselineSchema },
   { version: 2, name: 'instance backup schedules', up: createBackupSchedules },
+  { version: 3, name: 'overview run history and metric samples', up: createOverviewStatsTables },
 ];
 
 export function initDb(): void {
@@ -369,6 +390,36 @@ function createBackupSchedules(db: DatabaseSync): void {
       updated_at TEXT NOT NULL,
       FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE
     );
+  `);
+}
+
+/**
+ * Version 3: instance run history and 5-minute host/instance resource samples for the overview dashboard.
+ * Uses IF NOT EXISTS on every table and index so a database rebuilt from a dump (user_version 0 with tables intact)
+ * can replay the migration without error or data loss; the partial index on metric_samples.instance_id avoids full-table
+ * scans when deleting an instance triggers ON DELETE CASCADE.
+ */
+function createOverviewStatsTables(db: DatabaseSync): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS instance_runs (
+      id INTEGER PRIMARY KEY,
+      instance_id TEXT NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+      started_at TEXT NOT NULL,
+      ready_at TEXT,
+      ended_at TEXT,
+      end_reason TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_instance_runs_instance ON instance_runs(instance_id, started_at);
+
+    CREATE TABLE IF NOT EXISTS metric_samples (
+      id INTEGER PRIMARY KEY,
+      sampled_at TEXT NOT NULL,
+      instance_id TEXT REFERENCES instances(id) ON DELETE CASCADE,
+      cpu_percent REAL,
+      memory_bytes INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_metric_samples_time ON metric_samples(sampled_at, instance_id);
+    CREATE INDEX IF NOT EXISTS idx_metric_samples_instance ON metric_samples(instance_id) WHERE instance_id IS NOT NULL;
   `);
 }
 

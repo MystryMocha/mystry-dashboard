@@ -31,7 +31,18 @@ Authorization: Bearer <token>
 - `instances`：以实例 ID 为键，包含 `cpuPercent`、`memoryBytes` 与 `state`（`ready` / `collecting` / `unavailable`）。仅采集面板持有的存活进程，调用方不可指定 PID 或路径。
 - `warnings`：CPU 或内存在连续采样中达到 90% 且持续至少 30 秒，或磁盘可用空间低于 5 GiB 或 10% 时提示。文本为英文，`warningsI18n` 按相同顺序给出对应的消息键，供界面翻译。
 
-CPU 按整机逻辑核总容量归一至 0–100%；进程内存为驻留内存，不同于 JVM 堆上限 Xmx。进程指标目前仅支持 Windows 与 Linux，其他平台为 `unavailable`。空值不代表零占用。快照缓存 4 秒，并发请求合并；不保存历史，页面每 5 秒刷新，隐藏时暂停。采样间隔超过 15 秒时，持续告警时间重新累计。
+CPU 按整机逻辑核总容量归一至 0–100%；进程内存为驻留内存，不同于 JVM 堆上限 Xmx。进程指标目前仅支持 Windows 与 Linux，其他平台为 `unavailable`。空值不代表零占用。实时快照缓存 4 秒，并发请求合并（与每 5 分钟一次的后台采样共用同一缓存）；页面每 5 秒刷新，隐藏时暂停。采样间隔超过 15 秒时，持续告警时间重新累计。
+
+### 总览历史统计 `/api/stats/overview`
+
+`GET /api/stats/overview?range=24h|7d|30d` 需 JWT，返回共享类型 `StatsOverview`。`range` 缺省为 `7d`；非法取值或多余查询参数返回 **400**（`server.system.statsRangeInvalid`）。
+
+- `range` / `from` / `to` / `bucketSeconds`：请求的时间范围、UTC ISO-8601 起止时刻（`from` 为 `to` 减去范围时长）与单个时间桶的宽度秒数（`24h` 为 `300`，`7d` 为 `3600`，`30d` 为 `21600`）。
+- `processMetricsSupported`：Windows 与 Linux 为 `true`；不支持逐进程采集的平台为 `false`，此时实例序列恒为 `null`。
+- `buckets`：固定槽位序列（`24h` 为 `288` 桶、`7d` 为 `168` 桶、`30d` 为 `120` 桶），每项含 `timestamp`、`hostCpuPercent`、`hostMemoryBytes`、`instancesCpuPercent` 与 `instancesMemoryBytes`。无采样的槽位返回 `null`，超前于当前服务端时间的采样忽略。实例合计采用以本机采样时刻（`instance_id IS NULL`）为锚点的两层聚合：在支持逐进程采集的平台上，该时刻没有运行中实例时按 `0` 计入；存在运行中实例但进程指标全为 `null` 时按空跳过，再对桶内有效点求平均。
+- `runs`：已完成启动（`ready_at` 非空）且与 `[from, to]` 有交集的运行段，每项含 `instanceId`、`readyAt`、`endedAt`（仍在运行时为 `null`）与 `endReason`（`stopped` / `crashed` / `panel-exit`，运行中为 `null`）。启动前失败不留记录；启动中途失败（`start-failed`）与未就绪即以退出码 0 结束（如未同意 EULA）的记录 `ready_at` 为空，不包含在此列表中。
+- `host`：`osName`（Windows 取 `os.version()`，Linux 取 `/etc/os-release` 的 `PRETTY_NAME` 并在读取失败时回落为内核类型与版本，macOS 为 `macOS`）、`cpuModel`（不可用时为 `null`）、`cpuThreads`、`totalMemoryBytes` 与 `bootedAt`。
+- `diskBreakdown`：后台每小时统计并缓存的 `DATA_DIR/instances` 大小（`instancesBytes`）、`BACKUP_DIR` 大小（`backupsBytes`）以及 `backupsOnSameVolume`。首次扫描完成前大小返回 `null`；`BACKUP_DIR` 位于其他卷时 `backupsBytes` 返回 `null`。目录扫描跳过符号链接与目录联接，不跟随外部目标。
 
 ## 健康检查
 

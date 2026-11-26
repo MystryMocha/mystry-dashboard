@@ -454,6 +454,7 @@ export class ProcessManager extends EventEmitter {
         // The marker line may be split across two adjacent output chunks, so it is checked together with the previous chunk.
         if (!managed.ready && hasFinishedStarting(managed.buffer.slice(-2).join(''))) {
           managed.ready = true;
+          this.emit('ready', instance.id);
         }
       };
 

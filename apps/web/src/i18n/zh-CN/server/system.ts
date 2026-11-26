@@ -31,4 +31,7 @@ export default {
   'server.system.metricsCpuHigh': '主机 CPU 持续偏高',
   'server.system.metricsMemoryHigh': '主机内存持续偏高',
   'server.system.metricsDiskLow': '数据盘剩余空间不足',
+
+  // 概览统计
+  'server.system.statsRangeInvalid': '请选择支持的时间范围（24 小时、7 天或 30 天）',
 } satisfies Record<keyof typeof SYSTEM_MESSAGES, string>;
