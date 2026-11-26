@@ -10,6 +10,8 @@ export default {
   'shell.nav.label': '主導覽',
   'shell.nav.open': '開啟導覽選單',
   'shell.nav.close': '關閉導覽選單',
+  'shell.nav.collapse': '收合側欄',
+  'shell.nav.expand': '展開側欄',
   'shell.tabBar.label': '快速導覽',
   'shell.tabBar.overview': '總覽',
   'shell.tabBar.deploy': '部署',
