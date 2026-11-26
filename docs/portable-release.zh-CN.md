@@ -2,54 +2,14 @@
 
 [English](portable-release.md) · **简体中文**
 
-仓库当前版本为 `v0.2.0-preview.7`。发布流程为其配置了两个便携目标，均内置 Node.js 22、生产依赖与已构建的前后端：
+`v0.3.0-preview.1` 的便携包内置 Node.js 22、生产依赖与已构建的前后端。前往 [GitHub Releases](https://github.com/MystryMocha/mystry-dashboard/releases/latest) 下载对应系统的压缩包，解压即可启动，无需安装 Node.js 或运行 `npm install`：
 
 | 系统 | 文件 |
 |------|------|
-| Windows x64 | `mystry-v0.2.0-preview.7-windows-x64.zip` |
-| Linux x64 | `mystry-v0.2.0-preview.7-linux-x64.tar.gz` |
+| Windows x64 | `mystry-v0.3.0-preview.1-windows-x64.zip` |
+| Linux x64 | `mystry-v0.3.0-preview.1-linux-x64.tar.gz` |
 
-Linux ARM64 与 macOS（Intel / Apple Silicon）的打包脚本仍可在本地使用，但未纳入本 Preview 的公开发布矩阵，留待后续版本。
-
-此表仅列出构建目标与文件命名，不代表对应资产已公开发布。下载前以项目实际的 Release 页面为准；若无所需资产，可按 [快速开始](getting-started.zh-CN.md) 使用源码管理器。
-
-这是 Preview，并非系统安装器。你无需安装 Node.js 或运行 `npm install`，但 Minecraft 所需的 Java 不随包提供。实例默认使用系统 `PATH` 中的 `java`，也可在面板中选择已扫描并验证的本机运行时，或在缺少推荐版本时由面板安装 Eclipse Temurin。本阶段未采用 [Node SEA](https://nodejs.org/download/release/latest-jod/docs/api/single-executable-applications.html)：该功能仍标为 Active development，且面向单个 CommonJS 主脚本，不适合当前 ESM、多包与静态前端资源的布局。
-
-## 下载与校验
-
-从同一 GitHub Release 下载对应平台的压缩包、`SHA256SUMS`、`SHA256SUMS.asc` 与 `mystry-release-signing-key.asc`（与仓库中的 [`.github/release-signing-key.asc`](../.github/release-signing-key.asc) 相同）。发布页另提供生产依赖的 `sbom.cdx.json`。
-
-### 1. 取得并信任发布公钥
-
-首次启用签名前，维护者须按 [`.github/RELEASE_SIGNING.md`](../.github/RELEASE_SIGNING.zh-CN.md) 提交公钥与单行指纹文件 [`.github/release-signing-key.fingerprint`](../.github/release-signing-key.fingerprint)。
-
-作为用户，执行：
-
-```bash
-gpg --import mystry-release-signing-key.asc
-gpg --fingerprint
-```
-
-将输出中的指纹与仓库中的 `release-signing-key.fingerprint` 或 Release 说明中的记录比对（40 位十六进制，忽略空格与大小写后须完全一致）。只有从项目发布渠道取得并信任该公钥后，GPG 签名校验才有意义。
-
-### 2. 校验文件哈希与签名
-
-Linux：
-
-```bash
-sha256sum -c SHA256SUMS --ignore-missing
-gpg --verify SHA256SUMS.asc SHA256SUMS
-```
-
-在 Windows PowerShell 中，先计算压缩包哈希，再与 `SHA256SUMS` 中的对应行比对：
-
-```powershell
-Get-FileHash .\mystry-v0.2.0-preview.7-windows-x64.zip -Algorithm SHA256
-```
-
-也可在 WSL 或 Gpg4win 中执行与 Linux 相同的 `gpg --verify`。
-
-若流水线缺少 `RELEASE_GPG_PRIVATE_KEY`，或 `RELEASE_GPG_FINGERPRINT` 与仓库指纹不一致，流水线将拒绝创建公开 Release，绝不降级为未签名发布。CI 先在独立 keyring 中以仓库公钥验证 `SHA256SUMS.asc`，再执行 `gh release create`。
+Minecraft 所需的 Java 不随包提供。实例默认使用系统 `PATH` 中的 `java`，也可在面板中选择已扫描并验证的本机运行时，或在缺少推荐版本时一键安装 Eclipse Temurin。其他系统（如 macOS 或 Linux ARM64）请按 [快速开始](getting-started.zh-CN.md) 从源码启动。
 
 ## 启动
 
@@ -59,11 +19,11 @@ Windows：
 解压 → 双击 mdash.cmd → 面板在后台运行并打开浏览器 → 用窗口里的账号密码登录 → 要停止时在窗口里按 Ctrl+C
 ```
 
-双击后，面板与服务端以 daemon 形式在后台运行，自身没有窗口；你看到的窗口仅显示账号与重要日志，完整日志位于 `logs/panel.stdout.log`。关闭窗口不影响面板与服务端；如需再次查看日志或停止面板，重新双击 `mdash.cmd` 即可。按 Ctrl+C 可安全停止面板与所有服务端，关机或重启前亦须先行停止。面板在其他窗口中重启时，此窗口会接着显示新面板的日志。启动失败时，窗口停留在错误信息上，按回车后关闭。
+首次启动会创建含随机密钥的 `config/panel.env`，并创建管理员 `admin` 与 16 位随机密码；密码仅在窗口中显示一次，不写入日志文件。打开 `http://127.0.0.1:3000` 登录后，点击左下角齿轮进入「面板设置」，再点「修改密码」即可换成自己的密码。忘记密码时，在面板运行期间于交互终端执行 `.\mdash.cmd reset-password`（Linux 为 `./mdash reset-password`）；若输出被重定向或经管道传出，命令将拒绝执行，避免新密码落入文件。切勿上传或分享 `config/panel.env`。
 
-如需使用菜单，运行 `.\mdash.cmd menu`。带参数的命令行调用不会暂停，可安全用于脚本。
+双击后，面板与服务端以 daemon 形式在后台运行，自身没有独立窗口；当前窗口仅显示账号与重要日志，完整日志位于 `logs/panel.stdout.log`。关闭窗口不影响面板与服务端；再次双击 `mdash.cmd` 即可重新查看日志，或按 Ctrl+C 安全停止面板与所有服务端（关机或重启电脑前也请先行停止）。面板在其他窗口中重启时，此窗口会接着跟踪新面板的日志；启动失败时，窗口会停留在报错信息上，按回车后关闭。
 
-也可在终端中运行：
+也可在终端中管理面板（运行 `.\mdash.cmd menu` 打开交互菜单；带参数的命令调用不会暂停，可安全用于脚本）：
 
 ```powershell
 .\mdash.cmd start
@@ -72,7 +32,7 @@ Windows：
 Linux：
 
 ```bash
-tar -xzf mystry-v0.2.0-preview.7-linux-x64.tar.gz
+tar -xzf mystry-v0.3.0-preview.1-linux-x64.tar.gz
 cd mystry-dashboard
 chmod +x mdash
 ./mdash start
@@ -93,8 +53,6 @@ chmod +x mdash
 | `reset-password` | 面板运行期间在交互终端中重置并显示新的随机管理员密码 |
 | `remote` | 面板运行期间开关「从其他设备访问」：`remote on`、`remote off`、`remote status`、`remote https off`、`remote renew-cert` |
 | `menu` | 打开交互式命令菜单 |
-
-首次启动将创建 `config/panel.env`，生成互不相同的随机密钥，并创建管理员 `admin` 与 16 位随机密码。密码仅在窗口中显示一次，不写入日志文件；登录后，点击左下角齿轮进入「面板设置」，再点击「修改密码」即可修改。忘记密码时，在面板运行期间于终端窗口中执行 `.\mdash.cmd reset-password` 生成新密码；若输出被重定向或经管道传出，命令将拒绝执行，新密码因此不会写入文件。配置文件含有密钥，请勿上传或分享。
 
 ## 目录与数据
 
@@ -130,17 +88,46 @@ mystry-dashboard/
 
 若环境中已设置 `MYSTRY_HOME`，Windows `.cmd` 与 Unix `.sh` 包装脚本将保留该值，并仅对未设置的 `MYSTRY_CONFIG_PATH`、`MYSTRY_DATA_DIR` 使用便携包默认值；相对路径均相对于 `MYSTRY_HOME`。日常使用便携版无需手动设置这些变量。
 
+## 校验下载文件（可选）
+
+每个 GitHub Release 均同时提供校验和文件 `SHA256SUMS`、分离式 GPG 签名 `SHA256SUMS.asc`、发布签名公钥 `mystry-release-signing-key.asc`（与仓库中的 [`.github/release-signing-key.asc`](../.github/release-signing-key.asc) 相同）及生产依赖清单 `sbom.cdx.json`。
+
+### 1. 校验 SHA-256 哈希
+
+Windows PowerShell（将输出与 `SHA256SUMS` 中的对应行比对）：
+
+```powershell
+Get-FileHash .\mystry-v0.3.0-preview.1-windows-x64.zip -Algorithm SHA256
+```
+
+Linux：
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+### 2. 校验 GPG 签名
+
+导入公钥，确认输出的 40 位十六进制指纹与仓库中的 [`.github/release-signing-key.fingerprint`](../.github/release-signing-key.fingerprint)（或 Release 说明中的记录，忽略空格与大小写）完全一致后，再验证 `SHA256SUMS.asc`（Windows 可在 WSL 或 Gpg4win 中执行）：
+
+```bash
+gpg --import mystry-release-signing-key.asc
+gpg --fingerprint
+gpg --verify SHA256SUMS.asc SHA256SUMS
+```
+
 ## Preview 已知限制
 
 - 公开发布仅覆盖 Windows x64 与 Linux x64；暂不提供 Linux ARM64 与 macOS 便携包。
 - 不提供 NSIS、DEB、PKG 安装包，也不支持系统级安装或卸载。
+- 当前以便携目录而非 [Node SEA](https://nodejs.org/download/release/latest-jod/docs/api/single-executable-applications.html) 单文件可执行程序分发：该特性仍标为 Active development，且面向单个 CommonJS 主脚本，不适合当前 ESM、多包与静态前端资源的目录结构。
 - 不注册 WinSW、systemd 或 LaunchDaemon，也不随开机自动启动。
 - Windows 产物尚无代码签名，操作系统可能显示来源警告。
 - 不提供原生自动更新、自动回滚与运行中覆盖升级。
 - Java 8/17/21/25 不随包提供；可使用系统 `PATH` 中的运行时、选择面板扫描到的其他已安装版本，或在缺少推荐版本时由面板安装 Eclipse Temurin。
 - 登录仍使用浏览器本地存储的 JWT；Cookie 会话、CSRF 防护、TOTP 与公网部署向导尚未实现。
 - 面板默认仅监听 `127.0.0.1`。切勿将面板端口直接暴露于不可信的公网。
-- 2026-11-24 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系公告（GHSA-wrjc-x8rr-h8h6 反斜杠开放重定向、GHSA-337j-9hxr-rhxg SSR hydration 构造注入），仅 7.18 及更高版本修复。当前 SPA 不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；但这些公告仍作为 Preview 残余风险记录，每次发布须重新审计。此前的公告已通过以下升级消除：`react-router-dom` / `react-router` 升至 6.30.6（GHSA-jjmj-jmhj-qwj2），`@fastify/static` 升至 10.1.10 并带动 `glob` 14.0.3 / `minimatch` 11.0.4（GHSA-3g3m-2fjr-6pw4、GHSA-g3hv-75wg-m249），以及传递依赖（`fastify` 5.12.7、`fast-jwt` 6.3.5、`@fastify/busboy` 3.2.3、`fast-uri` 3.1.9 / 4.2.3、`brace-expansion` 5.0.12）。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入便携包；修复需跨大版本升级，暂未处理。
+- 2026-11-26 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系公告（GHSA-wrjc-x8rr-h8h6 反斜杠开放重定向、GHSA-337j-9hxr-rhxg SSR hydration 构造注入），仅 7.18 及更高版本修复。当前 SPA 不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；但这些公告仍作为 Preview 残余风险记录，每次发布须重新审计。此前的公告已通过以下升级消除：`react-router-dom` / `react-router` 升至 6.30.6（GHSA-jjmj-jmhj-qwj2），`@fastify/static` 升至 10.1.10 并带动 `glob` 14.0.3 / `minimatch` 11.0.4（GHSA-3g3m-2fjr-6pw4、GHSA-g3hv-75wg-m249），以及传递依赖（`fastify` 5.12.7、`fast-jwt` 6.3.5、`@fastify/busboy` 3.2.3、`fast-uri` 3.1.9 / 4.2.3、`brace-expansion` 5.0.12）。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入便携包；修复需跨大版本升级，暂未处理。
 
 ## 发布维护
 
@@ -152,7 +139,7 @@ npm run verify
 npm run audit:production
 npm run build
 node scripts/portable/package-portable.mjs --platform win32 --arch x64 --output-dir release
-node scripts/portable/smoke-portable.mjs release/mystry-v0.2.0-preview.7-windows-x64.zip
+node scripts/portable/smoke-portable.mjs release/mystry-v0.3.0-preview.1-windows-x64.zip
 ```
 
 以上流程可由一条命令完成（在目标平台原生运行，自动采用当前平台与架构，并生成压缩包、SHA256SUMS 与 SBOM）：
@@ -173,7 +160,7 @@ npm run package:release
 
 `package-portable.mjs` 写入 `manifest.json` 的 Git SHA 优先取自当前 checkout 的 `git rev-parse HEAD`（而非 workflow 的 `GITHUB_SHA`）。正式资产须基于干净的工作树；本地非发布调试可设置 `MYSTRY_PORTABLE_ALLOW_DIRTY=1` 或传入 `--allow-dirty`。
 
-目标平台须与构建机的平台、架构一致。发布流程定义于 `.github/workflows/portable-release.yml`：仅当现有 `v*` 标签位于 `main` 历史中、版本与根 `package.json` 一致且 checkout 工作树干净时，方可触发发布；prepare 阶段执行 `npm run verify` 与生产依赖审计；Windows x64 矩阵 job 显式执行 `npm run windows:test`；Win/Linux x64 两个最终压缩包均须重新解压并通过健康检查，Release job 才会生成校验和、经指纹绑定的 GPG 签名、SBOM 与自动 Release Notes。第三方 Actions 使用固定的 commit SHA，见 [`.github/actions-pins.md`](../.github/actions-pins.md)。
+首次启用签名前，维护者须按 [`.github/RELEASE_SIGNING.md`](../.github/RELEASE_SIGNING.zh-CN.md) 提交公钥与单行指纹文件 [`.github/release-signing-key.fingerprint`](../.github/release-signing-key.fingerprint)。目标平台须与构建机的平台、架构一致。发布流程定义于 `.github/workflows/portable-release.yml`：仅当现有 `v*` 标签位于 `main` 历史中、版本与根 `package.json` 一致且 checkout 工作树干净时，方可触发发布；prepare 阶段执行 `npm run verify` 与生产依赖审计；Windows x64 矩阵 job 显式执行 `npm run windows:test`；Win/Linux x64 两个最终压缩包均须重新解压并通过健康检查，Release job 才会生成校验和、经指纹绑定的 GPG 签名、SBOM 与自动 Release Notes。若流水线缺少 `RELEASE_GPG_PRIVATE_KEY`，或 `RELEASE_GPG_FINGERPRINT` 与仓库指纹不一致，流水线将拒绝创建公开 Release，绝不降级为未签名发布；CI 先在独立 keyring 中以仓库公钥验证 `SHA256SUMS.asc`，再执行 `gh release create`。第三方 Actions 使用固定的 commit SHA，见 [`.github/actions-pins.md`](../.github/actions-pins.md)。
 
 仓库须在 GitHub `release` Environment 中配置：
 
