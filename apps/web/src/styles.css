@@ -111,6 +111,10 @@
   --c-red: #ff3b30;
   --c-gray: #8a8a93;
 
+  --chart-1: #2a78d6;
+  --chart-2: #159c6b;
+  --chart-context: var(--label-3);
+
   --scrollbar: rgba(0, 0, 0, 0.2);
   --scrollbar-hover: rgba(0, 0, 0, 0.35);
   color-scheme: light;
@@ -165,6 +169,10 @@
   --c-yellow: #ffd60a;
   --c-red: #ff453a;
   --c-gray: #8a8a93;
+
+  --chart-1: #3987e5;
+  --chart-2: #199e70;
+  --chart-context: var(--label-3);
 
   --scrollbar: rgba(255, 255, 255, 0.22);
   --scrollbar-hover: rgba(255, 255, 255, 0.38);
@@ -1394,13 +1402,13 @@ input[type='radio'] {
   border-radius: var(--radius-md);
   box-shadow: var(--panel-shadow);
 }
-/* Local environment wrapper and overview start-paths wrapper stay flush on the page canvas while their inner lists carry the unified surface panel. */
-.page :is(.about-card, .start-paths.card, .deploy-guide):not(dialog *) {
+/* The start-paths wrapper stays flush on the page canvas while its inner list carries the unified surface panel. */
+.page :is(.start-paths.card, .deploy-guide):not(dialog *) {
   background: transparent;
   box-shadow: none;
   border-radius: 0;
 }
-.page :is(.about-card, .start-paths.card):not(dialog *) { padding: 0; }
+.page .start-paths.card:not(dialog *) { padding: 0; }
 .page .start-paths.card .start-paths-head h3 { font-size: var(--text-headline); font-weight: 600; }
 .page .start-path-list:not(dialog *) {
   background: var(--surface);
@@ -1435,29 +1443,21 @@ input[type='radio'] {
 }
 .overview-status-issues { color: var(--danger); }
 
-/* ========== Overview: local resource bars ========== */
-/* Local resources are only background information: no backing panel, three thin usage bars in one row, between the page header and the instance list, without competing with the list for attention. */
-.host-strip {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, max-content);
+/* ========== Instances: monitoring status line ========== */
+/* Host usage lives on the home page. Beside the filter, one line appears only on a host warning (amber, with a link to the usage) or when monitoring fails (red, with a retry). */
+.overview-metrics-line {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px 28px;
-  padding: 2px 0;
+  gap: 4px 10px;
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-small);
 }
-.host-strip-title { margin: 0; font-size: var(--text-small); font-weight: 500; color: var(--label-2); white-space: nowrap; }
-
-.host-meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 24px; min-width: 0; }
-.host-meter { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.host-meter-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; font-size: var(--text-small); }
-.host-meter-name { flex-shrink: 0; color: var(--label-2); }
-.host-meter-value {
-  overflow: hidden;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.host-meter.is-warning .host-meter-value { color: var(--danger); }
+.overview-metrics-line.is-warning { color: var(--warn); }
+.overview-metrics-line.is-warning svg { flex-shrink: 0; color: var(--c-yellow); }
+.overview-metrics-line.is-error { color: var(--danger); }
+.overview-metrics-line :is(.link, .link-button) { font-size: var(--text-small); }
 
 .meter {
   display: block;
@@ -1474,32 +1474,6 @@ input[type='radio'] {
   background: var(--label-2);
   transition: inline-size 0.6s var(--ease);
 }
-.meter.is-warning .meter-fill { background: var(--c-red); }
-
-.metrics-status {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  max-width: 260px;
-  font-size: var(--text-small);
-  color: var(--label-2);
-  text-align: end;
-}
-.metrics-status.is-error { color: var(--danger); }
-.metrics-status .link-button { font-size: var(--text-small); }
-.host-strip-warning {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  grid-column: 1 / -1;
-  margin: 0;
-  font-size: var(--text-small);
-  font-weight: 500;
-  color: var(--danger);
-}
-.host-strip-warning svg { flex-shrink: 0; }
-
 /* ========== Overview: instance list ========== */
 .server-filter .segmented-item { padding: 0 14px; }
 .segmented-count { color: var(--label-2); font-weight: 500; font-variant-numeric: tabular-nums; }
@@ -2924,16 +2898,376 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 /* The core, version, Java and JVM config shown when "Edit Settings" is expanded, with the same spacing as other controls in the card. */
 .import-settings-body { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 
-/* ========== Local environment ========== */
-.about-card {
+/* ========== Home ========== */
+.home-status-error {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  color: var(--danger);
+  font-size: var(--text-small);
+}
+.home-status-error .link-button { font-size: var(--text-small); }
+
+.home-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.home-metric-tabs .segmented-item { padding: 0 10px; }
+
+/* Row 1: four status cells inside one solid inset panel separated by 1px rules (2x2 below 860px). */
+.home-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: var(--surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--panel-shadow);
+}
+.home-stat-cell { position: relative; min-width: 0; }
+.home-stat-cell + .home-stat-cell::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  inset-inline-start: 0;
+  border-inline-start: 1px solid var(--separator);
+  pointer-events: none;
+}
+.home-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  padding: 14px 18px;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 1px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  transition: background-color 0.15s var(--ease);
+}
+.home-stat:hover { background: var(--hover-overlay); }
+.home-stat.is-open { background: var(--select-fill); }
+.home-stat-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.home-stat-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; min-width: 0; }
+.home-stat-name { font-size: var(--text-small); color: var(--label-2); }
+.home-stat-warn { font-size: var(--text-small); font-weight: 500; color: var(--warn); white-space: nowrap; }
+.home-stat-value {
+  font-size: var(--text-headline);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-stat.is-warning .home-stat-value { color: var(--warn); }
+.home-stat.is-stale .home-stat-value { color: var(--label-2); }
+.home-ring { flex-shrink: 0; }
+.home-ring-track { fill: none; stroke: color-mix(in srgb, var(--chart-1) 16%, transparent); stroke-width: 6; }
+.home-ring-fill { fill: none; stroke: var(--chart-1); stroke-width: 6; stroke-linecap: round; }
+.home-ring.is-warning .home-ring-track { stroke: color-mix(in srgb, var(--c-yellow) 20%, transparent); }
+.home-ring.is-warning .home-ring-fill { stroke: var(--c-yellow); }
+
+/* Portal popover for status-block breakdowns: solid surface with viewport-clamped coordinates. */
+.home-stat-popover {
+  position: fixed;
+  z-index: 90;
+  min-width: 248px;
+  max-width: calc(100vw - 16px);
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--menu-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--float-shadow);
+  animation: menu-in 0.16s var(--ease);
+}
+.home-stat-popover:focus { outline: none; }
+.home-pop-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.home-pop-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto 16px;
+  align-items: center;
+  gap: 0 10px;
+  min-height: 36px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 0.15s var(--ease);
+}
+.home-pop-row:hover { background: var(--hover-overlay); }
+.home-pop-row:focus-visible { outline-offset: -1px; }
+.home-pop-row .core-icon { width: 24px; height: 24px; border-radius: 6px; }
+.home-pop-row .core-icon svg { width: 14px; height: 14px; }
+.home-pop-name { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.home-pop-figure { font-size: var(--text-small); color: var(--label-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.home-pop-dl { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 8px 10px; font-size: var(--text-small); }
+.home-pop-dl > div { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+.home-pop-dl dt { display: inline-flex; align-items: center; gap: 8px; color: var(--label-2); }
+.home-pop-dl dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.home-pop-empty-box { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 8px 10px; }
+.home-pop-empty { margin: 0; padding: 8px 10px; font-size: var(--text-small); color: var(--label-2); }
+.home-pop-empty-box .home-pop-empty { padding: 0; }
+.home-pop-link { font-size: var(--text-small); }
+.home-chevron { flex-shrink: 0; color: var(--label-3); }
+
+/* Shared swatches and legend items for charts, popovers and timeline. */
+.home-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+.home-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.home-line-key { display: inline-block; width: 14px; height: 2px; border-radius: 1px; background: var(--chart-1); }
+.home-line-key.is-context { background: var(--chart-context); }
+.home-swatch { display: inline-block; flex-shrink: 0; width: 10px; height: 10px; border-radius: 3px; background: var(--chart-1); }
+.home-swatch.is-s1-soft { background: color-mix(in srgb, var(--chart-1) 45%, transparent); }
+.home-swatch.is-context { background: var(--chart-context); }
+.home-swatch.is-free { background: var(--fill-strong); }
+.home-swatch.is-green { background: var(--c-green); }
+.home-swatch.is-red { background: var(--c-red); }
+
+/* Row 2: 2:1 paired panels (equal 250px height side-by-side). */
+.home-pair { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--page-gap) 16px; }
+.home-pair > .form-section { min-width: 0; }
+/* Match the left header height (38px with the metric segmented control) so both side-by-side panels align top and bottom. */
+.home-pair .home-section-head { min-height: 38px; }
+.home-panel {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  max-width: 760px;
-  padding: 28px;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--panel-shadow);
 }
-/* Blocks on the local environment page share one width: neither the local info nor the "Open on other devices" entry exceeds 760px. */
-.remote-entry-section { max-width: 760px; }
+.home-panel-state {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 10px;
+  min-height: 76px;
+  padding: 18px 20px;
+  font-size: var(--text-small);
+  color: var(--label-2);
+}
+.home-panel-state.is-error { color: var(--danger); }
+.home-panel-state .link-button { font-size: var(--text-small); }
+
+/* Resource trend SVG chart */
+.home-trend-panel { height: 250px; gap: 8px; padding: 14px 18px 10px; }
+.home-plot { position: relative; flex: 1; min-height: 0; touch-action: none; }
+.home-plot svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.home-chart-grid { stroke: var(--separator); stroke-width: 1; }
+.home-chart-axis { stroke: var(--panel-border); stroke-width: 1; }
+.home-chart-tick { fill: var(--label-2); font-size: var(--text-footnote); font-variant-numeric: tabular-nums; }
+.home-chart-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.home-chart-line.is-s1 { stroke: var(--chart-1); }
+.home-chart-line.is-context { stroke: var(--chart-context); }
+.home-chart-area.is-s1 { fill: var(--chart-1); fill-opacity: 0.1; }
+.home-chart-dot { stroke: var(--surface); stroke-width: 1.5; }
+.home-chart-dot.is-s1 { fill: var(--chart-1); }
+.home-chart-dot.is-context { fill: var(--chart-context); }
+.home-chart-crosshair { stroke: var(--separator-strong); stroke-width: 1; stroke-dasharray: 3 3; }
+.home-chart-tooltip {
+  position: absolute;
+  top: 6px;
+  z-index: 2;
+  min-width: 148px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  background: var(--menu-bg);
+  box-shadow: var(--float-shadow);
+  pointer-events: none;
+}
+.home-chart-tooltip-time {
+  margin-bottom: 6px;
+  font-size: var(--text-footnote);
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.home-chart-tooltip-dl { display: flex; flex-direction: column; gap: 4px; margin: 0; font-size: var(--text-footnote); }
+.home-chart-tooltip-dl > div { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.home-chart-tooltip-dl dt { display: inline-flex; align-items: center; gap: 6px; color: var(--label-2); }
+.home-chart-tooltip-dl dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Machine specs card */
+.home-machine-panel { height: 250px; padding: 6px 18px; justify-content: space-between; }
+.home-facts { display: flex; flex-direction: column; flex: 1; justify-content: space-evenly; margin: 0; min-width: 0; }
+.home-facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  min-width: 0;
+}
+.home-facts > div + div { border-top: 1px solid var(--separator); }
+.home-facts dt { flex-shrink: 0; color: var(--label-2); font-size: var(--text-body); }
+.home-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Hidden on desktop where the top bar already shows "Open on Another Device"; shown below 768px even if history fails. */
+.home-machine-remote {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--separator);
+  background: transparent;
+  color: var(--label);
+  font: inherit;
+  font-weight: 500;
+  text-align: start;
+}
+.home-machine-remote:hover { color: var(--label); }
+.home-machine-remote-icon { flex-shrink: 0; color: var(--label-2); }
+.home-machine-remote-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Row 3: Instance activity state timeline (subgrid aligns the adaptive duration column with the axis below). */
+.home-timeline-panel { padding: 8px 10px 12px; }
+.home-tl-grid {
+  display: grid;
+  grid-template-columns: minmax(100px, 148px) minmax(0, 1fr) auto 16px;
+  column-gap: 12px;
+  row-gap: 4px;
+  min-width: 0;
+}
+.home-tl-list {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.home-tl-item {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+}
+.home-tl-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  min-height: 36px;
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 0.15s var(--ease);
+}
+.home-tl-row:hover { background: var(--hover-overlay); }
+.home-tl-row:active { background: var(--active-overlay); }
+.home-tl-name { overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.home-tl-track { position: relative; height: 12px; border-radius: 3px; background: var(--fill); }
+.home-tl-run { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: var(--c-green); }
+.home-tl-crash { position: absolute; top: -3px; bottom: -3px; width: 3px; border-radius: 2px; background: var(--c-red); }
+.home-tl-duration {
+  text-align: end;
+  font-size: var(--text-small);
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.home-tl-axis {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  padding: 4px 10px 0;
+}
+.home-tl-ticks {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--text-footnote);
+  color: var(--label-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Row 3 empty state when no instances exist yet: left-aligned horizontal panel with neutral icon and two actions. */
+.home-empty-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding: 20px 22px;
+  background: var(--surface);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--panel-shadow);
+}
+.home-empty-lead { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.home-empty-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--label-2);
+}
+.home-empty-text { min-width: 0; }
+.home-empty-title { margin: 0; font-size: var(--text-headline); font-weight: 600; }
+.home-empty-body { margin: 4px 0 0; font-size: var(--text-small); color: var(--label-2); }
+.home-empty-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; flex-shrink: 0; }
+
+/* Home container breakpoints follow .page inline size so sidebar collapse and drawer widths stay consistent. */
+@container page (max-width: 860px) {
+  .home-page .overview-status { font-size: var(--text-headline); }
+  .home-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-stat { padding: 12px 14px; gap: 10px; }
+  .home-stat-cell:nth-child(3)::before { display: none; }
+  .home-stat-cell:nth-child(-n + 2)::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    inset-inline: 12px;
+    border-bottom: 1px solid var(--separator);
+    pointer-events: none;
+  }
+  .home-stat-value { font-size: var(--text-body); font-weight: 500; }
+  .home-pair { grid-template-columns: minmax(0, 1fr); }
+  .home-pair .home-section-head { min-height: 0; }
+  .home-trend-panel { height: 230px; }
+  .home-machine-panel { height: auto; }
+  .home-empty-panel { flex-direction: column; align-items: flex-start; }
+}
+
+@container page (max-width: 520px) {
+  .home-tl-grid { grid-template-columns: 80px minmax(0, 1fr) auto 16px; column-gap: 8px; }
+  .home-tl-ticks > span:not(:first-child, :last-child) { display: none; }
+}
 
 /* ========== Panel settings ========== */
 /* Each settings group: the group name and a sentence on its scope first, then the setting rows. Setting rows are all short rows of "name and description on the left, control on the right",
@@ -2980,22 +3314,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   background: var(--fill-2);
 }
 .download-source-hint-panel .segmented { justify-self: start; max-width: 100%; }
-.about-hero { display: flex; align-items: center; gap: 18px; min-width: 0; }
-.about-icon {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 76px;
-  height: 76px;
-  border-radius: 20px;
-  background: #636366;
-  color: #ffffff;
-}
-.about-title { min-width: 0; }
-.about-title h2 { margin: 0 0 8px; font-size: var(--text-title); font-weight: 700; overflow-wrap: anywhere; }
-.about-specs dt,
-.about-specs dd { margin: 0; }
-.node-row .list-row-control { flex-wrap: wrap; }
 
 /* ========== Login ========== */
 .login-page {
@@ -3090,10 +3408,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 @media (max-width: 1180px) {
   .deploy-layout { grid-template-columns: minmax(0, 1fr); }
   .deploy-guide { position: static; }
-  /* Local resource bars: the title and update time take the first row, and the three usage bars spread across a full row. At this width the sidebar is still there and the content area is only 760–900px, so three bars squeezed into one row would be truncated. */
-  .host-strip { grid-template-columns: minmax(0, 1fr) auto; }
-  .host-meters { grid-column: 1 / -1; grid-row: 2; }
-  .metrics-status { flex-direction: row; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 2px 10px; max-width: none; }
 }
 
 @media (max-width: 1024px) {
@@ -3129,8 +3443,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 @media (max-width: 768px) {
   :root { --toolbar-height: 56px; --tab-bar-space: calc(72px + env(safe-area-inset-bottom)); }
 
-  /* On narrow screens the top bar does not hold "Open on other devices"; the entry is on the "Local" page */
+  /* On narrow screens the top bar does not hold "Open on other devices"; the entry moves to the bottom of the Machine card on the home page. */
   .toolbar-remote-access { display: none; }
+  .home-machine-remote { display: flex; }
   .remote-qr { flex-direction: column; align-items: flex-start; }
   .remote-host-row { flex-wrap: wrap; }
   .remote-host-row .input { flex-basis: 100%; }
@@ -3175,14 +3490,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .file-edit-dialog,
   .error-dialog { background: var(--sheet-bg-solid); }
 
-  /* Overview: the bottom tab bar already has "Deploy" and "Import", so the page header does not repeat them, keeping only "Create Empty Instance" on the same row as the title;
-     local resources go after the instance list, so instances are seen first on the first screen. */
+  /* Instances: the bottom tab bar already has "Deploy" and "Import", so the page header does not repeat them, keeping only "Create Empty Instance" on the same row as the title. */
   .overview-page .overview-nav-action { display: none; }
   .overview-page .page-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0 12px; }
   .overview-page .page-header-text { display: contents; }
   .overview-page .page-subtitle { grid-column: 1 / -1; }
   .overview-page .page-header-actions { grid-column: 2; grid-row: 1; }
-  .overview-page .host-strip { order: 1; }
 
   .instance-title-row { gap: 12px 14px; }
   .instance-title-row .core-icon-lg { width: 48px; height: 48px; border-radius: 13px; }
@@ -3224,8 +3537,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .config-row-number .list-row-control { flex: 1 1 100%; }
   .config-row-error { text-align: start; }
 
-  .about-card { padding: 22px 18px; }
-  .about-icon { width: 64px; height: 64px; border-radius: 17px; }
 
   /* On narrow screens dialogs become sheets that slide up from the bottom. */
   .confirm-dialog,
@@ -3259,8 +3570,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
 @media (max-width: 560px) {
   /* Panel settings: when the select moves below the description it takes the full row. */
   .settings-row-select { flex: 1 1 100%; }
-  /* On phones the three usage bars each take one row, so values are not truncated. */
-  .host-meters { grid-template-columns: minmax(0, 1fr); }
   .start-paths { padding: 20px 16px; }
   /* On phones the scheduled backup controls drop onto a second aligned row so English labels never squeeze the title. */
   .backups-schedule-row { flex-wrap: wrap; align-items: flex-start; }
@@ -3283,7 +3592,8 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .page-header-actions { width: 100%; }
   .page-header-actions > .btn { flex: 1 1 auto; }
   /* The overview page header has only one button left, which stays to the right of the title and is not stretched to a full row. */
-  .overview-page .page-header-actions { width: auto; }
+  .overview-page .page-header-actions,
+  .home-page .page-header-actions { width: auto; }
   .overview-page .page-header-actions > .btn { flex: 0 0 auto; }
   .instance-actions { width: 100%; }
   /* "⋯" keeps the size of an icon button, and the other buttons share the row equally. */
@@ -3316,7 +3626,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .menu-item { height: 44px; }
   .nav-item,
   .language-option,
-  .lazy-select-option { min-height: 44px; }
+  .lazy-select-option,
+  .home-pop-row,
+  .home-tl-row { min-height: 44px; }
   .chip { height: 44px; }
   .console-tool { min-width: 44px; height: 44px; }
   .disclosure > summary { min-height: 44px; }
@@ -3352,6 +3664,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .task-drawer[open],
   .action-menu-panel,
   .popover,
+  .home-stat-popover,
   .lazy-select-panel,
   .sidebar-backdrop,
   dialog::backdrop,
@@ -3360,6 +3673,9 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .sidebar,
   .switch,
   .meter-fill,
+  .home-stat,
+  .home-pop-row,
+  .home-tl-row,
   .progress-fill,
   .backups-schedule-chevron,
   .backups-schedule-icon { transition: none; }

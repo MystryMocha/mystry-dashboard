@@ -118,7 +118,7 @@ test('Intl formatters are cached by language and options, the useI18n().fmt refe
 test('switching the language writes <html lang> and local storage, and the module-level t() updates together with components', async () => {
   function Title() {
     const { t: tr } = useI18n();
-    return <h1>{tr('nav.overview')}</h1>;
+    return <h1>{tr('nav.instances')}</h1>;
   }
   render(<><Title /><LanguageToggle /></>);
   expect(screen.getByRole('heading').textContent).toBe('Instances');
@@ -127,13 +127,13 @@ test('switching the language writes <html lang> and local storage, and the modul
   await userEvent.click(screen.getByLabelText('简体中文'));
   expect(document.documentElement.lang).toBe('zh-CN');
   expect(localStorage.getItem('mystry_locale')).toBe('zh-CN');
-  expect(screen.getByRole('heading').textContent).toBe('实例总览');
+  expect(screen.getByRole('heading').textContent).toBe('实例');
   expect(t('action.forceStop')).toBe('强制停止');
   expect(screen.getByRole('button', { name: '语言设置，当前为简体中文' })).toBeTruthy();
 
   act(() => setLocalePreference('zh-TW'));
   expect(document.documentElement.lang).toBe('zh-TW');
-  expect(screen.getByRole('heading').textContent).toBe('實例總覽');
+  expect(screen.getByRole('heading').textContent).toBe('實例');
   expect(t('instance.status.crashed')).toBe('已當機');
 
   act(() => setLocalePreference('en'));

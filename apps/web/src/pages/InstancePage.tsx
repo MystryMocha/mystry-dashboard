@@ -465,14 +465,14 @@ export function InstancePage() {
   }
 
   // The instance is deleted: the whole page is replaced by a redirect. The settings form unmounts with it, so unsaved changes no longer prompt "save before leaving".
-  if (deleted) return <Navigate to="/" replace />;
+  if (deleted) return <Navigate to="/instances" replace />;
 
   if (!instance) {
     return (
       <div className="page">
-        <Link to="/" className="back-link">
+        <Link to="/instances" className="back-link">
           <ChevronLeft size={18} aria-hidden="true" />
-          {t('nav.overview')}
+          {t('nav.instances')}
         </Link>
         {error ? (
           <div className="empty-state card" role="alert">
@@ -500,9 +500,9 @@ export function InstancePage() {
   return (
     <div className="page instance-page">
       <header className="instance-header">
-        <Link to="/" className="back-link" title={t('instance.header.backTitle')}>
+        <Link to="/instances" className="back-link" title={t('instance.header.backTitle')}>
           <ChevronLeft size={18} aria-hidden="true" />
-          {t('nav.overview')}
+          {t('nav.instances')}
         </Link>
         <div className="instance-title-row">
           <CoreIcon coreType={instance.coreType} size="lg" />

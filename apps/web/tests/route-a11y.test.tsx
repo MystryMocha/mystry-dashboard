@@ -50,6 +50,17 @@ beforeEach(() => {
       : url === '/api/instances/test' ? instance
       : url === '/api/tasks' ? { tasks: [] }
       : url === '/api/nodes' ? []
+      : String(url).startsWith('/api/stats/overview') ? {
+        range: '7d',
+        from: '2026-11-19T12:00:00.000Z',
+        to: '2026-11-26T12:00:00.000Z',
+        bucketSeconds: 3600,
+        processMetricsSupported: true,
+        buckets: [],
+        runs: [],
+        host: { osName: 'Windows 11', cpuModel: 'Test CPU', cpuThreads: 8, totalMemoryBytes: 16 * 1024 ** 3, bootedAt: '2026-11-25T12:00:00.000Z' },
+        diskBreakdown: { instancesBytes: 0, backupsBytes: 0, backupsOnSameVolume: true },
+      }
       : String(url).startsWith('/api/instances/test/files') ? []
       : url === '/api/instances/test/backups' ? { backups: [] }
       : String(url).includes('/import/sources') ? { sources: [] }
@@ -64,19 +75,19 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 test('the browser tab title changes with the route and updates after a language switch', async () => {
   const user = userEvent.setup();
   mountApp('/');
-  await screen.findByRole('heading', { level: 1, name: 'Instances' });
-  await waitFor(() => expect(document.title).toBe('Instances · Mystry Dashboard'));
+  await screen.findByRole('heading', { level: 1, name: 'Home' });
+  await waitFor(() => expect(document.title).toBe('Home · Mystry Dashboard'));
 
   await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/deploy"]')!);
   await waitFor(() => expect(document.title).toBe('Quick Deploy · Mystry Dashboard'));
 
   act(() => setLocalePreference('zh-CN'));
   expect(document.title).toBe('一键部署 · Mystry Dashboard');
-  await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/nodes"]')!);
-  await waitFor(() => expect(document.title).toBe('本机环境 · Mystry Dashboard'));
+  await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/instances"]')!);
+  await waitFor(() => expect(document.title).toBe('实例 · Mystry Dashboard'));
 
   act(() => setLocalePreference('zh-TW'));
-  expect(document.title).toBe('本機環境 · Mystry Dashboard');
+  expect(document.title).toBe('實例 · Mystry Dashboard');
   act(() => setLocalePreference('en'));
   await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/import"]')!);
   await waitFor(() => expect(document.title).toBe('Import Server · Mystry Dashboard'));
@@ -117,7 +128,7 @@ test('the login page title is shown when not signed in', async () => {
 test('the initial load does not take focus; after navigation focus lands on the new page h1; switching tabs within an instance keeps focus on the tab', async () => {
   const user = userEvent.setup();
   mountApp('/');
-  await screen.findByRole('heading', { level: 1, name: 'Instances' });
+  await screen.findByRole('heading', { level: 1, name: 'Home' });
   expect(document.activeElement).toBe(document.body);
 
   await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/deploy"]')!);
@@ -126,7 +137,7 @@ test('the initial load does not take focus; after navigation focus lands on the 
   // The heading can only be focused by script and does not enter the Tab order.
   expect(deployHeading.getAttribute('tabindex')).toBe('-1');
 
-  await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/"]')!);
+  await user.click(document.querySelector<HTMLAnchorElement>('.sidebar a[href="/instances"]')!);
   const instanceLink = await screen.findByRole('link', { name: /Survival/ });
   await waitFor(() => expect(document.activeElement?.textContent).toBe('Instances'));
 
@@ -149,11 +160,17 @@ test('an unknown instance sub-route redirects to the console instead of a blank 
   await waitFor(() => expect(document.title).toBe('Console · Survival · Mystry Dashboard'));
 });
 
-test('an unknown top-level route redirects to the overview', async () => {
+test('an unknown top-level route redirects to the home page', async () => {
   mountApp('/no-such-page');
-  await screen.findByRole('heading', { level: 1, name: 'Instances' });
+  await screen.findByRole('heading', { level: 1, name: 'Home' });
   expect(screen.getByTestId('location').textContent).toBe('/');
-  await waitFor(() => expect(document.title).toBe('Instances · Mystry Dashboard'));
+  await waitFor(() => expect(document.title).toBe('Home · Mystry Dashboard'));
+});
+
+test('the old local environment address lands on the home page, where the machine info now lives', async () => {
+  mountApp('/nodes');
+  await screen.findByRole('heading', { level: 1, name: 'Home' });
+  expect(screen.getByTestId('location').textContent).toBe('/');
 });
 
 test('collapsing the sidebar keeps accessible names on every nav item including the workspace link and updates on language switch', async () => {
@@ -171,7 +188,7 @@ test('collapsing the sidebar keeps accessible names on every nav item including 
 
   const sidebar = document.querySelector<HTMLElement>('.sidebar')!;
   const navLinks = [...sidebar.querySelectorAll<HTMLAnchorElement>('.nav-item')];
-  const expectedLabels = ['Instances', 'Current Workspace', 'Quick Deploy', 'Import Server', 'Multiplayer', 'This Machine'];
+  const expectedLabels = ['Home', 'Instances', 'Current Workspace', 'Quick Deploy', 'Import Server', 'Multiplayer'];
   expect(navLinks.map((link) => link.getAttribute('data-label'))).toEqual(expectedLabels);
   expect(navLinks.map((link) => link.textContent)).toEqual(expectedLabels);
 

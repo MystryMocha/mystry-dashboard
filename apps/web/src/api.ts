@@ -37,6 +37,8 @@ import type {
   InstanceInfo,
   InstanceStopPendingResult,
   NodeInfo,
+  StatsOverview,
+  StatsRange,
   TaskInfo,
   TaskListResult,
 } from '@mystry/shared';
@@ -374,6 +376,11 @@ export async function detectDefaultJava() {
 /** Panel runtime info: listen address, data directory, backup directory and config file path, read-only. */
 export async function getPanelInfo() {
   return api<PanelInfo>('/api/system/panel-info');
+}
+
+/** Overview history: bucketed host and instance resource trends, ready-only instance runs, machine specs and cached disk breakdown. */
+export async function getStatsOverview(range: StatsRange, signal?: AbortSignal) {
+  return api<StatsOverview>(`/api/stats/overview?range=${encodeURIComponent(range)}`, { signal });
 }
 
 export async function getDownloadSource() {
