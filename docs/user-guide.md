@@ -18,20 +18,19 @@ The panel's default address is `http://127.0.0.1:3000`. It listens on this compu
 
 ## Interface Tour
 
-The interface follows Apple's design style: a floating, translucent **sidebar** on the left and the **main content area** on the right. The button group at the top right holds "Task Center", "Language" and "Appearance". Each page starts with a large title, which collapses into the top toolbar as you scroll down.
+The interface follows Apple's design style: a **sidebar** on the left and the **main content area** on the right. The button group at the top right holds "Task Center", "Language" and "Appearance". Each page starts with a large title, which collapses into the top toolbar as you scroll down.
 
 ```
 ┌──────────────────────┐             [Task Center][Language][Appearance]
 │ Mystry Dashboard     │  Large title                    [Primary action]
 │                      │  Description
-│ Servers              │  ───────────────────────────────────
-│  [Instances]         │  Main content (cards / grouped lists / console)
+│  [Home]              │  ───────────────────────────────────
+│  [Instances]         │  Main content (grouped lists / console)
 │  [Current Workspace] │
-│ Deploy & Maintain    │
 │  [Quick Deploy]      │
 │  [Import Server]     │  ┌ Floating bottom action bar (Save / Start Deploy) ┐
 │  [Multiplayer]       │  └──────────────────────────────────────────────────┘
-│  [This Machine]      │
+│                      │
 │ Username             │
 │  [Settings][Sign Out]│
 └──────────────────────┘
@@ -39,12 +38,12 @@ The interface follows Apple's design style: a floating, translucent **sidebar** 
 
 | Sidebar Entry | Route | What It Does |
 |----------|------|------|
-| Instances | `/` | Lists all instances, with quick start and stop |
+| Home | `/` | Live status blocks with breakdown popovers, 24h / 7d / 30d CPU and memory trends, machine specs (plus Open on Another Device at phone width) and the instance activity timeline |
+| Instances | `/instances` | Lists all instances, with quick start and stop |
 | Current Workspace | `/instances/<instance ID>` | Appears after you open an instance and points to the one you're viewing |
 | Quick Deploy | `/deploy` | Downloads and installs a core from the official source |
 | Import Server | `/import` | Turns an uploaded server folder or zip, or a folder copied into imports, into an instance |
 | Multiplayer | `/multiplayer` | Opens an instance's game port to friends, through your own frp server or a virtual LAN |
-| This Machine | `/nodes` | Shows this computer's system, CPU, memory and number of instances |
 | Panel Settings (the gear at the bottom left) | `/settings` | **This Device**: language and appearance, for this browser only. **Panel**: sign-in duration, download source and Open on Another Device, for every device that signs in. **Account**: change the password or sign out. **Panel Info**: the version, listening address, data folder, backup folder and config file location, read-only; to change them, edit the config file and restart the panel |
 | Task Center (top right) | — | Slides in from the right with recent deploy and import tasks, and keeps updating after you leave the deploy page until each task completes or fails. The number on the button counts tasks in progress and is hidden when none are running. A task you cancelled shows as "Cancelled" |
 | Language (top right) | — | Choose **Auto / English / 简体中文 / 繁體中文**. With Auto, the panel follows your browser language: Traditional Chinese (Taiwan, Hong Kong, Macau) shows 繁體中文, other Chinese shows 简体中文, and every other language shows English. The choice is saved in this browser and can also be changed at the top right of the sign-in page or in Panel Settings |
@@ -53,7 +52,7 @@ The interface follows Apple's design style: a floating, translucent **sidebar** 
 
 The top of the instance details page has five tabs: **Console / Files / Properties / Backups / Settings**.
 
-At tablet width (1024 pixels and below), the sidebar collapses into "Open navigation menu" at the top left. At phone width (768 pixels and below), a tab bar with **Overview / Deploy / Import / Join / Machine** also appears at the bottom, and dialogs become sheets that rise from the bottom. Press Escape or click the backdrop to close menus, dialogs and the Task Center.
+At tablet width (1024 pixels and below), the sidebar collapses into "Open navigation menu" at the top left. At phone width (768 pixels and below), a tab bar with **Home / Instances / Deploy / Import / Join** also appears at the bottom, and dialogs become sheets that rise from the bottom. Press Escape or click the backdrop to close menus, dialogs and the Task Center.
 
 > On upgrade from an older version, your saved theme is converted automatically: Mystry Dark/Light → Dark/Light + Mystry Pink, Codex → Green, Grok → Graphite.
 
@@ -80,7 +79,7 @@ On the **Panel Settings** page, under **Panel**, use **Sign-In Expires After** t
 
 ### Open the Panel on Another Device
 
-By default the panel accepts connections from this computer only. To open it on a phone or another computer, click **Other Devices** in the top bar (at phone width, use **Open on Another Device** on the **This Machine** page). The **Panel** section of **Panel Settings** has the same entry.
+By default the panel accepts connections from this computer only. To open it on a phone or another computer, click **Other Devices** in the top bar (at phone width, use **Open on Another Device** on the **Home** page). The **Panel** section of **Panel Settings** has the same entry.
 
 - **Direct Access**: for a phone on the same Wi-Fi as this computer, or when this computer has a public IP. Click **Turn On**, then scan the QR code in the dialog with your phone, or type one of the listed addresses into a browser.
   - HTTPS is used by default with a certificate the panel issues itself, so a browser warns that the site is not secure the first time. Choose Advanced, then continue to the site (on iPhone, Show Details, then visit this website). To skip the warning, turn off **Use HTTPS**; the connection is then unencrypted.
@@ -102,11 +101,22 @@ When you're done, click **Turn Off** and the panel goes back to accepting only t
 
 ---
 
+## Home
+
+**Purpose**: read this computer's live load, historical trends and instance activity at a glance right after you sign in. Everyday start/stop and troubleshooting controls stay on **Instances**.
+
+- **Header**: shows how many instances are running plus any crashes in the chosen time range (counting only crashes after startup finished, not startup failures). Use the **24 Hours / 7 Days / 30 Days** switch on the right to change the range across the page; your choice is saved in the browser.
+- **Status blocks**: four cells inside one panel — **Running**, **CPU**, **Memory** and **Data Disk** — refreshed every 5 seconds. High CPU or memory, or low disk space, turns the cell amber with a warning label. Click any cell to open a breakdown popover: active instances (clickable to open the instance), CPU and memory split between instances and other programs, and data disk split between instances, backups (when on the same volume), other files and free space.
+- **Resource Trend & This Machine**: on the left, a CPU and memory trend chart showing the whole machine alongside your instances (on platforms without per-process metrics, only the whole machine is plotted; offline gaps break the line). Hover or touch the chart for exact values at any point. On the right, this computer's OS, processor, threads, total memory and uptime; at phone width (768 pixels and below), **Open on Another Device** appears at the bottom of this card because the top bar hides that button.
+- **Instance Activity**: one row per instance that ran during the selected range, sorted by total runtime. Green segments mark time after startup finished, and red bars mark crashes; click any row to open that instance. When you have no instances yet, this area offers **Quick Deploy** and **Import Server**.
+
+The old This Machine address, `/nodes`, redirects here.
+
 ## Instances
 
 **Purpose**: see the status of all your servers at a glance and handle everyday tasks.
 
-The "This Machine" strip under the title shows host CPU, host memory and free space on the data disk. Below it, each server has one row: its status; a sentence on what you can do now, such as "Players can join now", "This server needs Java 21" or "The Java chosen for this server is no longer available"; the matching next step (Invite Players, Open Settings, Review EULA, Open Console); then Start or Stop. Switch between **All**, **Running** and **Issues** at the top right of the list. A running server shows the process's CPU and actual memory use; the bar beside it compares that memory with "Max Memory", the heap limit set for Java (`-Xmx`). Actual use is usually slightly above that limit; the two are different measures. With no instances yet, the page lists three ways to add one: Quick Deploy, Import Server and Create Empty Instance. The first sample shows "Collecting…", and metrics the current system doesn't support show "Unavailable". If monitoring fails, the old values stay on screen, marked as possibly out of date, and you can click "Retry Monitoring".
+Each server has one row: its status; a sentence on what you can do now, such as "Players can join now", "This server needs Java 21" or "The Java chosen for this server is no longer available"; the matching next step (Invite Players, Open Settings, Review EULA, Open Console); then Start or Stop. Switch between **All**, **Running** and **Issues** at the top right of the list. A running server shows the process's CPU and actual memory use; the bar beside it compares that memory with "Max Memory", the heap limit set for Java (`-Xmx`). Actual use is usually slightly above that limit; the two are different measures. With no instances yet, the page lists three ways to add one: Quick Deploy, Import Server and Create Empty Instance. The first sample shows "Collecting…", and metrics the current system doesn't support show "Unavailable". Host usage is on the Home page; here a line beside the filter appears only when the host has a warning, with **View Usage** leading there, or when monitoring fails, with the old values kept and marked as possibly out of date and a **Retry Monitoring** link.
 
 | Column / Area | Description |
 |-----------|------|
@@ -116,7 +126,7 @@ The "This Machine" strip under the title shows host CPU, host memory and free sp
 | Status | A colored badge (see the table below), followed by what you can do now |
 | Actions | The next step when there is one (Invite Players, Open Settings, Review EULA, Open Console, Migrate), then whichever of start/stop is available now. Restart, Force Stop and Delete are under "More Actions" |
 
-Instance status and metrics refresh automatically every 5 seconds and pause while you're on another browser tab. At the top right of the page are **Quick Deploy**, **Import Server** and **Create Empty Instance** (for uploading your own `server.jar`). With no instances yet, these three are listed in the middle of the page instead. At phone width, Quick Deploy and Import Server are in the bottom tab bar, only Create Empty Instance stays at the top right, and the "This Machine" strip moves below the server list. If a refresh fails, the last data stays on screen with a note that it may be out of date.
+Instance status and metrics refresh automatically every 5 seconds and pause while you're on another browser tab. At the top right of the page are **Quick Deploy**, **Import Server** and **Create Empty Instance** (for uploading your own `server.jar`). With no instances yet, these three are listed in the middle of the page instead. At phone width, Quick Deploy and Import Server are in the bottom tab bar and only Create Empty Instance stays at the top right. If a refresh fails, the last data stays on screen with a note that it may be out of date.
 
 ### Instance Status
 

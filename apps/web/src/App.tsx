@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { FolderDown, Globe, LayoutGrid, LogOut, Menu, MonitorSmartphone, PanelLeftClose, PanelLeftOpen, Rocket, Server, Settings, Terminal, X } from 'lucide-react';
+import { FolderDown, Globe, House, LayoutGrid, LogOut, Menu, MonitorSmartphone, PanelLeftClose, PanelLeftOpen, Rocket, Settings, Terminal, X } from 'lucide-react';
 import { useAuth } from './auth';
 import { useI18n, type MessageKey } from './i18n';
 import { BrandMark } from './components/BrandMark';
@@ -16,6 +16,9 @@ import { LoginPage } from './pages/LoginPage';
 const RemoteAccessDialog = lazy(() =>
   import('./components/RemoteAccessDialog').then(({ RemoteAccessDialog }) => ({ default: RemoteAccessDialog })),
 );
+const HomePage = lazy(() =>
+  import('./pages/HomePage').then(({ HomePage }) => ({ default: HomePage })),
+);
 const DashboardPage = lazy(() =>
   import('./pages/DashboardPage').then(({ DashboardPage }) => ({ default: DashboardPage })),
 );
@@ -27,9 +30,6 @@ const DeployPage = lazy(() =>
 );
 const ImportPage = lazy(() =>
   import('./pages/ImportPage').then(({ ImportPage }) => ({ default: ImportPage })),
-);
-const NodesPage = lazy(() =>
-  import('./pages/NodesPage').then(({ NodesPage }) => ({ default: NodesPage })),
 );
 const MultiplayerPage = lazy(() =>
   import('./pages/MultiplayerPage').then(({ MultiplayerPage }) => ({ default: MultiplayerPage })),
@@ -56,11 +56,12 @@ function readSidebarCollapsed(): boolean {
 }
 
 function pageTitleKeyFor(pathname: string): MessageKey {
-  if (pathname === '/') return 'nav.overview';
-  if (pathname.startsWith('/instances')) return 'shell.pageTitle.workspace';
+  pathname = trimTrailingSlash(pathname);
+  if (pathname === '/') return 'nav.home';
+  if (pathname === '/instances') return 'nav.instances';
+  if (pathname.startsWith('/instances/')) return 'shell.pageTitle.workspace';
   if (pathname.startsWith('/deploy')) return 'nav.deploy';
   if (pathname.startsWith('/import')) return 'nav.import';
-  if (pathname.startsWith('/nodes')) return 'nav.machine';
   if (pathname.startsWith('/multiplayer')) return 'nav.multiplayer';
   if (pathname.startsWith('/settings')) return 'nav.settings';
   return 'shell.pageTitle.fallback';
@@ -74,11 +75,11 @@ function trimTrailingSlash(pathname: string): string {
 function documentTitleKeyFor(pathname: string, needsSetup: boolean): MessageKey | null | undefined {
   pathname = trimTrailingSlash(pathname);
   if (pathname === '/login') return needsSetup ? 'login.setup.title' : 'login.signin.title';
-  if (pathname === '/') return 'nav.overview';
+  if (pathname === '/') return 'nav.home';
+  if (pathname === '/instances') return 'nav.instances';
   if (/^\/instances\/[^/]+/.test(pathname)) return undefined;
   if (pathname === '/deploy') return 'nav.deploy';
   if (pathname === '/import') return 'nav.import';
-  if (pathname === '/nodes') return 'nav.machine';
   if (pathname === '/multiplayer') return 'nav.multiplayer';
   if (pathname === '/settings') return 'nav.settings';
   return null;
@@ -145,7 +146,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const mainRef = useRef<HTMLElement>(null);
   const topbarToolsRef = useRef<HTMLDivElement>(null);
   const tabBarRef = useRef<HTMLElement>(null);
-  const onInstancePage = location.pathname.startsWith('/instances');
+  const onInstancePage = /^\/instances\/[^/]+/.test(location.pathname);
 
   const closeSidebar = useCallback((restoreFocus = true) => {
     mainRef.current?.removeAttribute('inert');
@@ -240,9 +241,13 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="nav-section" onClick={() => closeSidebar()}>
-          <NavLink ref={firstNavRef} to="/" end className={navClass} data-label={t('nav.overview')}>
+          <NavLink ref={firstNavRef} to="/" end className={navClass} data-label={t('nav.home')}>
+            <House size={17} aria-hidden="true" />
+            <span>{t('nav.home')}</span>
+          </NavLink>
+          <NavLink to="/instances" end className={navClass} data-label={t('nav.instances')}>
             <LayoutGrid size={17} aria-hidden="true" />
-            <span>{t('nav.overview')}</span>
+            <span>{t('nav.instances')}</span>
           </NavLink>
           {onInstancePage && (
             <NavLink to={location.pathname} className="nav-item active" data-label={t('nav.workspace')}>
@@ -262,10 +267,6 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavLink to="/multiplayer" className={navClass} data-label={t('nav.multiplayer')}>
             <Globe size={17} aria-hidden="true" />
             <span>{t('nav.multiplayer')}</span>
-          </NavLink>
-          <NavLink to="/nodes" className={navClass} data-label={t('nav.machine')}>
-            <Server size={17} aria-hidden="true" />
-            <span>{t('nav.machine')}</span>
           </NavLink>
         </nav>
 
@@ -329,7 +330,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="topbar-right" ref={topbarToolsRef}>
             <div className="toolbar-group">
-              {/* Below 768px the top bar does not show this button (the title would be squeezed out); the entry moves to the "Local" page. */}
+              {/* Below 768px the top bar does not show this button (the title would be squeezed out); the entry is on the home page. */}
               <button
                 type="button"
                 className="toolbar-button toolbar-button-labeled toolbar-remote-access"
@@ -356,9 +357,13 @@ function Shell({ children }: { children: React.ReactNode }) {
         </main>
 
         <nav className="tab-bar" ref={tabBarRef} aria-label={t('shell.tabBar.label')}>
-          <NavLink to="/" end className={() => tabClass({ isActive: location.pathname === '/' || onInstancePage })}>
+          <NavLink to="/" end className={tabClass}>
+            <House size={21} aria-hidden="true" />
+            <span>{t('shell.tabBar.home')}</span>
+          </NavLink>
+          <NavLink to="/instances" className={() => tabClass({ isActive: trimTrailingSlash(location.pathname) === '/instances' || onInstancePage })}>
             <LayoutGrid size={21} aria-hidden="true" />
-            <span>{t('shell.tabBar.overview')}</span>
+            <span>{t('shell.tabBar.instances')}</span>
           </NavLink>
           <NavLink to="/deploy" className={tabClass}>
             <Rocket size={21} aria-hidden="true" />
@@ -371,10 +376,6 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavLink to="/multiplayer" className={tabClass}>
             <Globe size={21} aria-hidden="true" />
             <span>{t('shell.tabBar.multiplayer')}</span>
-          </NavLink>
-          <NavLink to="/nodes" className={tabClass}>
-            <Server size={21} aria-hidden="true" />
-            <span>{t('shell.tabBar.machine')}</span>
           </NavLink>
         </nav>
       </div>
@@ -417,6 +418,14 @@ export function App() {
           path="/"
           element={
             <RequireAuth>
+              <HomePage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/instances"
+          element={
+            <RequireAuth>
               <DashboardPage />
             </RequireAuth>
           }
@@ -453,14 +462,8 @@ export function App() {
             </RequireAuth>
           }
         />
-        <Route
-          path="/nodes"
-          element={
-            <RequireAuth>
-              <NodesPage />
-            </RequireAuth>
-          }
-        />
+        {/* The local environment page became part of the home page; old bookmarks land there. */}
+        <Route path="/nodes" element={<Navigate to="/" replace />} />
         <Route
           path="/settings"
           element={

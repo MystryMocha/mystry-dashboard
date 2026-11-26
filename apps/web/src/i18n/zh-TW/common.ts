@@ -37,12 +37,12 @@ export default {
   'action.copy': '複製',
   'action.clear': '清除',
 
-  'nav.overview': '實例總覽',
+  'nav.home': '首頁',
+  'nav.instances': '實例',
   'nav.workspace': '目前工作台',
   'nav.deploy': '一鍵部署',
   'nav.import': '匯入伺服器',
   'nav.multiplayer': '多人連線',
-  'nav.machine': '本機環境',
   'nav.settings': '面板設定',
 
   'instance.tab.console': '主控台',

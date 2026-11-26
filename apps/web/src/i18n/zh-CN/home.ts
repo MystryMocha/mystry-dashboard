@@ -1,0 +1,70 @@
+import type en from '../en/home';
+
+/** 首页文案：状态块、资源趋势、本机与实例运行时间线（简体中文）。 */
+export default {
+  'home.status.running_one': '{count} 个实例正在运行',
+  'home.status.running_other': '{count} 个实例正在运行',
+  'home.status.crashes_one': '，{range}崩溃 {count} 次',
+  'home.status.crashes_other': '，{range}崩溃 {count} 次',
+
+  'home.range.label': '时间范围',
+  'home.range.24h': '24 小时',
+  'home.range.7d': '7 天',
+  'home.range.30d': '30 天',
+  'home.range.phrase.24h': '近 24 小时',
+  'home.range.phrase.7d': '近 7 天',
+  'home.range.phrase.30d': '近 30 天',
+
+  'home.stat.running': '运行中',
+  'home.stat.cpu': 'CPU',
+  'home.stat.memory': '内存',
+  'home.stat.disk': '数据盘',
+  'home.stat.warnHigh': '偏高',
+  'home.stat.warnDiskLow': '空间不足',
+  'home.stat.popover.running': '运行中的实例',
+  'home.stat.popover.cpu': 'CPU 占用详情',
+  'home.stat.popover.memory': '内存占用详情',
+  'home.stat.popover.disk': '数据盘空间详情',
+
+  'home.breakdown.all': '全部',
+  'home.breakdown.instances': '实例',
+  'home.breakdown.otherApps': '其他程序',
+  'home.breakdown.backups': '备份',
+  'home.breakdown.otherFiles': '其他文件',
+  'home.breakdown.used': '已用',
+  'home.breakdown.available': '可用',
+  'home.instances.all': '全部实例',
+
+  'home.trend.title': '资源趋势',
+  'home.trend.metricLabel': '指标',
+  'home.trend.collecting': '正在收集趋势数据…',
+  'home.trend.summary': '{range}{metric}趋势：最新 {latest}，峰值 {peak}。',
+  'home.trend.summarySplit': '{range}{metric}趋势：全部最新 {latest}（峰值 {peak}），实例最新 {instLatest}（峰值 {instPeak}）。',
+
+  'home.machine.title': '本机',
+  'home.machine.os': '系统',
+  'home.machine.cpu': '处理器',
+  'home.machine.threads': '线程',
+  'home.machine.memory': '内存',
+  'home.machine.uptime': '开机',
+  'home.uptime.days_one': '{count} 天',
+  'home.uptime.days_other': '{count} 天',
+  'home.uptime.daysHours': '{days} {hours}',
+  'home.uptime.hoursMinutes': '{hours} {minutes}',
+
+  'home.activity.title': '实例运行',
+  'home.activity.legend.running': '运行',
+  'home.activity.legend.crashed': '崩溃',
+  'home.activity.empty': '还没有运行记录。',
+  'home.activity.rowLabel': '{name}，{range}运行 {duration}',
+  'home.activity.rowLabelWithCrashes_one': '{name}，{range}运行 {duration}，崩溃 {count} 次',
+  'home.activity.rowLabelWithCrashes_other': '{name}，{range}运行 {duration}，崩溃 {count} 次',
+
+  'home.duration.lessThanMinute': '< 1 分钟',
+  'home.duration.minutes_one': '{count} 分钟',
+  'home.duration.minutes_other': '{count} 分钟',
+  'home.duration.hours_one': '{count} 小时',
+  'home.duration.hours_other': '{count} 小时',
+
+  'home.history.error': '读取历史数据失败。',
+} satisfies Record<keyof typeof en, string>;

@@ -3,7 +3,7 @@ import type en from '../en/instance';
 /** 实例工作台外壳与实例设置文案（繁體中文）。 */
 export default {
   // 工作台头部与标签页
-  'instance.header.backTitle': '返回總覽',
+  'instance.header.backTitle': '返回實例列表',
   'instance.tabs.label': '實例功能',
 
   // 面板托管的实例目录（用于迁移提示与设置页的安装路径占位）

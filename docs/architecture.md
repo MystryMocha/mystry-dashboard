@@ -241,11 +241,12 @@ The virtual LAN starts a separate official `easytier-core` child process, with `
 Route table:
 
 - `/login` — sign-in / setup
-- `/` — instance overview
+- `/` — home dashboard: live status blocks with breakdown popovers, CPU/memory trend chart, machine specs (with "Open on other devices" at phone width) and instance activity timeline
+- `/instances` — instance list
 - `/deploy` — one-click deploy
 - `/import` — same-machine directory handoff or zip import
 - `/multiplayer` — multiplayer. After choosing an instance, a segmented control switches between the virtual LAN and frp
-- `/nodes` — local environment (currently only the built-in local node)
+- `/nodes` — redirects to `/`, where the former local environment page now lives
 - `/settings` — panel settings: language and appearance for this device; the panel's session duration, download source and "Open on other devices"; change password; read-only runtime info. Opened from the gear in the user area at the bottom of the sidebar
 - `/instances/:id/*` — instance detail tabs
 
