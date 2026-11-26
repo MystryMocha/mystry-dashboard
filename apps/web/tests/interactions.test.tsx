@@ -63,10 +63,20 @@ const statsOverviewSample = {
   to: '2026-11-26T12:00:00.000Z',
   bucketSeconds: 3600,
   processMetricsSupported: true,
+  ioMetricsSupported: true,
   buckets: [
-    { timestamp: '2026-11-26T09:00:00.000Z', hostCpuPercent: 20, hostMemoryBytes: 10 * 1024 ** 3, instancesCpuPercent: 8, instancesMemoryBytes: 3 * 1024 ** 3 },
-    { timestamp: '2026-11-26T10:00:00.000Z', hostCpuPercent: null, hostMemoryBytes: null, instancesCpuPercent: null, instancesMemoryBytes: null },
-    { timestamp: '2026-11-26T11:00:00.000Z', hostCpuPercent: 32, hostMemoryBytes: 14 * 1024 ** 3, instancesCpuPercent: 12, instancesMemoryBytes: 4 * 1024 ** 3 },
+    {
+      timestamp: '2026-11-26T09:00:00.000Z', hostCpuPercent: 20, hostMemoryBytes: 10 * 1024 ** 3, instancesCpuPercent: 8, instancesMemoryBytes: 3 * 1024 ** 3,
+      hostNetRxBytesPerSec: 2 * 1024 ** 2, hostNetTxBytesPerSec: 256 * 1024, hostDiskReadBytesPerSec: 4 * 1024 ** 2, hostDiskWriteBytesPerSec: 1024 ** 2,
+    },
+    {
+      timestamp: '2026-11-26T10:00:00.000Z', hostCpuPercent: null, hostMemoryBytes: null, instancesCpuPercent: null, instancesMemoryBytes: null,
+      hostNetRxBytesPerSec: null, hostNetTxBytesPerSec: null, hostDiskReadBytesPerSec: null, hostDiskWriteBytesPerSec: null,
+    },
+    {
+      timestamp: '2026-11-26T11:00:00.000Z', hostCpuPercent: 32, hostMemoryBytes: 14 * 1024 ** 3, instancesCpuPercent: 12, instancesMemoryBytes: 4 * 1024 ** 3,
+      hostNetRxBytesPerSec: 3 * 1024 ** 2, hostNetTxBytesPerSec: 512 * 1024, hostDiskReadBytesPerSec: 1024 ** 2, hostDiskWriteBytesPerSec: 6 * 1024 ** 2,
+    },
   ],
   runs: [
     { instanceId: 'test', readyAt: '2026-11-26T06:00:00.000Z', endedAt: '2026-11-26T12:00:00.000Z', endReason: 'stopped' },
@@ -517,10 +527,13 @@ test('home: status blocks open portaled popovers, support Escape and Tab keyboar
   overview = {
     ...statsOverviewSample,
     processMetricsSupported: false,
+    ioMetricsSupported: false,
     diskBreakdown: { instancesBytes: null, backupsBytes: null, backupsOnSameVolume: false },
   };
   mount(<HomePage />);
   await screen.findByText('1 / 3');
+  await waitFor(() => expect(screen.queryByRole('button', { name: '网络', exact: true })).toBeNull());
+  expect(screen.queryByRole('button', { name: '磁盘读写', exact: true })).toBeNull();
   const statsPanel2 = document.querySelector('.home-stats') as HTMLElement;
   await user.click(within(statsPanel2).getByRole('button', { name: /内存/ }));
   const unsupMemPop = screen.getByRole('dialog', { name: '内存占用详情' });
@@ -584,6 +597,11 @@ test('home: range switch persists, trend switches CPU and memory, machine omits 
   expect(screen.getByRole('img', { name: /近 7 天CPU趋势/ })).toBeTruthy();
   await user.click(screen.getByRole('button', { name: '内存', exact: true }));
   expect(screen.getByRole('img', { name: /近 7 天内存趋势/ })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '网络', exact: true }));
+  expect(screen.getByRole('img', { name: /近 7 天网络趋势：下载最新 3\.0 MiB\/s（峰值 3\.0 MiB\/s），上传最新 512 KiB\/s/ })).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: '磁盘读写', exact: true }));
+  expect(screen.getByRole('img', { name: /近 7 天磁盘读写趋势：读取最新 1\.0 MiB\/s（峰值 4\.0 MiB\/s），写入最新 6\.0 MiB\/s/ })).toBeTruthy();
+  expect(screen.getByText('10 MiB/s')).toBeTruthy();
 
   await user.click(screen.getByRole('button', { name: '30 天' }));
   await waitFor(() => expect(overviewRequests.some((url) => url.includes('/api/stats/overview?range=30d'))).toBe(true));

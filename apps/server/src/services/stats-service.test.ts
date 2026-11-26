@@ -12,6 +12,7 @@ import { PassThrough } from 'node:stream';
 import test from 'node:test';
 import type { DashboardMetrics, StatsOverview } from '@mystry/shared';
 import type { InstanceRow, InstanceRunRow } from '../db.js';
+import type { IoRates, IoRateSampler } from './io-counters.js';
 
 const JWT_SECRET = 'a'.repeat(64);
 const SETUP_TOKEN = 'b'.repeat(64);
@@ -90,6 +91,30 @@ function fakeChild(options: {
 }
 
 const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+const NO_IO_RATES: IoRates = {
+  netRxBytesPerSec: null,
+  netTxBytesPerSec: null,
+  diskReadBytesPerSec: null,
+  diskWriteBytesPerSec: null,
+};
+
+/** Stands in for the counter reader so collector tests never start PowerShell or read /proc. */
+function fakeIoSampler(rates: Partial<IoRates> = {}): IoRateSampler & { maxElapsed: number[]; resets: number } {
+  const sampler = {
+    maxElapsed: [] as number[],
+    resets: 0,
+    prime: async () => {},
+    sample: async (maxElapsedMs: number) => {
+      sampler.maxElapsed.push(maxElapsedMs);
+      return { ...NO_IO_RATES, ...rates };
+    },
+    reset: () => {
+      sampler.resets += 1;
+    },
+  };
+  return sampler;
+}
 
 test('run history records ready/stopped/crashed/start-failed, drops pre-spawn failures, and keeps one open row when stop write fails', async (t) => {
   prepareTempDataRoot(t, 'run-history');
@@ -312,26 +337,48 @@ test('metric collector shares timestamps, skips deleted instances, prunes >30d s
       }),
   };
 
+  const io = fakeIoSampler({ netRxBytesPerSec: 1500, netTxBytesPerSec: 250, diskReadBytesPerSec: 4096, diskWriteBytesPerSec: null });
   const collector = createStatsCollector({
     metrics: fakeMetrics,
+    io,
     now: () => new Date(currentNow),
+    sampleIntervalMs: 60_000,
   });
   t.after(() => collector.stop());
 
   assert.equal(await collector.sampleOnce(), true);
-  const inserted = getDb().prepare('SELECT sampled_at, instance_id, cpu_percent, memory_bytes FROM metric_samples ORDER BY id').all() as Array<{
-    sampled_at: string;
-    instance_id: string | null;
-    cpu_percent: number | null;
-    memory_bytes: number | null;
-  }>;
+  assert.deepEqual(io.maxElapsed, [120_000], 'a gap longer than two sample intervals is not averaged over');
+  const inserted = getDb().prepare(
+    `SELECT sampled_at, instance_id, cpu_percent, memory_bytes,
+            net_rx_bytes_per_sec, net_tx_bytes_per_sec, disk_read_bytes_per_sec, disk_write_bytes_per_sec
+     FROM metric_samples ORDER BY id`,
+  ).all() as Array<Record<string, string | number | null>>;
   assert.deepEqual(
     inserted.map((row) => ({ ...row })),
     [
-      { sampled_at: '2026-11-26T12:00:00.000Z', instance_id: null, cpu_percent: 42.5, memory_bytes: 8_000_000_000 },
-      { sampled_at: '2026-11-26T12:00:00.000Z', instance_id: instA.id, cpu_percent: 18, memory_bytes: 2_000_000_000 },
+      {
+        sampled_at: '2026-11-26T12:00:00.000Z', instance_id: null, cpu_percent: 42.5, memory_bytes: 8_000_000_000,
+        net_rx_bytes_per_sec: 1500, net_tx_bytes_per_sec: 250, disk_read_bytes_per_sec: 4096, disk_write_bytes_per_sec: null,
+      },
+      {
+        sampled_at: '2026-11-26T12:00:00.000Z', instance_id: instA.id, cpu_percent: 18, memory_bytes: 2_000_000_000,
+        net_rx_bytes_per_sec: null, net_tx_bytes_per_sec: null, disk_read_bytes_per_sec: null, disk_write_bytes_per_sec: null,
+      },
     ],
   );
+
+  // A failed counter read leaves the I/O columns empty but still writes CPU and memory.
+  const failingIoCollector = createStatsCollector({
+    metrics: fakeMetrics,
+    io: { ...fakeIoSampler(), sample: () => Promise.reject(new Error('counter read failed')) },
+    now: () => new Date(currentNow + 300_000),
+  });
+  assert.equal(await failingIoCollector.sampleOnce(), true);
+  const hostRow = getDb().prepare(
+    'SELECT cpu_percent, net_rx_bytes_per_sec FROM metric_samples WHERE instance_id IS NULL AND sampled_at = ?',
+  ).get('2026-11-26T12:05:00.000Z') as { cpu_percent: number; net_rx_bytes_per_sec: number | null };
+  assert.deepEqual({ ...hostRow }, { cpu_percent: 42.5, net_rx_bytes_per_sec: null });
+  getDb().prepare('DELETE FROM metric_samples WHERE sampled_at = ?').run('2026-11-26T12:05:00.000Z');
 
   // Add a 31-day-old sample and a 29-day-old sample for instB, then prune.
   getDb().prepare(
@@ -339,6 +386,8 @@ test('metric collector shares timestamps, skips deleted instances, prunes >30d s
   ).run('2026-10-25T11:59:59.000Z', '2026-10-28T12:00:00.000Z', instB.id);
   const pruned = collector.pruneOldSamples();
   assert.equal(pruned, 1);
+  collector.stop();
+  assert.equal(io.resets, 1, 'stopping drops the I/O counter baseline');
 
   // Deleting instA cascades its samples and runs while preserving host & instB rows.
   getDb().prepare("INSERT INTO instance_runs (instance_id, started_at, ready_at, ended_at, end_reason) VALUES (?, ?, ?, ?, 'stopped')")
@@ -361,6 +410,7 @@ test('metric collector shares timestamps, skips deleted instances, prunes >30d s
         releasePending = resolve;
       }),
     },
+    io: fakeIoSampler(),
     now: () => new Date(currentNow),
   });
   const emitter = new EventEmitter();
@@ -452,7 +502,33 @@ test('two-layer aggregation prevents half-bucket overshoot, handles NULL process
     hostMemoryBytes: null,
     instancesCpuPercent: null,
     instancesMemoryBytes: null,
+    hostNetRxBytesPerSec: null,
+    hostNetTxBytesPerSec: null,
+    hostDiskReadBytesPerSec: null,
+    hostDiskWriteBytesPerSec: null,
   });
+
+  // Host I/O rates average across the host samples in a bucket that have a value; instance rows never carry them.
+  getDb().prepare(
+    `UPDATE metric_samples
+     SET net_rx_bytes_per_sec = ?, net_tx_bytes_per_sec = ?, disk_read_bytes_per_sec = ?, disk_write_bytes_per_sec = ?
+     WHERE instance_id IS NULL AND sampled_at = ?`,
+  ).run(1000, 100, 2000, null, '2026-11-26T10:10:00.000Z');
+  getDb().prepare(
+    `UPDATE metric_samples
+     SET net_rx_bytes_per_sec = ?, net_tx_bytes_per_sec = ?, disk_read_bytes_per_sec = ?, disk_write_bytes_per_sec = ?
+     WHERE instance_id IS NULL AND sampled_at = ?`,
+  ).run(3000, 300, null, 8000, '2026-11-26T10:40:00.000Z');
+  const ioOverview = getStatsOverview('7d', { now: () => now, processMetricsSupported: true, ioMetricsSupported: true });
+  assert.equal(ioOverview.ioMetricsSupported, true);
+  const ioBucket10 = ioOverview.buckets.find((b) => b.timestamp === '2026-11-26T10:00:00.000Z')!;
+  assert.equal(ioBucket10.hostNetRxBytesPerSec, 2000);
+  assert.equal(ioBucket10.hostNetTxBytesPerSec, 200);
+  assert.equal(ioBucket10.hostDiskReadBytesPerSec, 2000, 'a NULL rate is skipped, not averaged in as 0');
+  assert.equal(ioBucket10.hostDiskWriteBytesPerSec, 8000);
+  const ioBucket11 = ioOverview.buckets.find((b) => b.timestamp === '2026-11-26T11:00:00.000Z')!;
+  assert.equal(ioBucket11.hostNetRxBytesPerSec, null, 'rows written before collection began stay null');
+  assert.equal(getStatsOverview('7d', { now: () => now, ioMetricsSupported: false }).ioMetricsSupported, false);
 
   // Unsupported platform (e.g. macOS): instance series stays null everywhere.
   const macOverview = getStatsOverview('7d', { now: () => now, processMetricsSupported: false });

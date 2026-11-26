@@ -119,6 +119,60 @@ export function memoryAxisSpec(totalMemoryBytes: number, peakBytes: number, fmt:
   };
 }
 
+const RATE_UNITS = [
+  { bytes: 1, label: 'B/s' },
+  { bytes: 1024, label: 'KiB/s' },
+  { bytes: 1024 ** 2, label: 'MiB/s' },
+  { bytes: 1024 ** 3, label: 'GiB/s' },
+] as const;
+
+function rateUnitFor(bytesPerSec: number) {
+  let unit: (typeof RATE_UNITS)[number] = RATE_UNITS[0];
+  for (const candidate of RATE_UNITS) {
+    if (bytesPerSec >= candidate.bytes) unit = candidate;
+  }
+  return unit;
+}
+
+/** Formats a transfer rate with binary units, matching the GiB used for capacity elsewhere on the page. */
+export function formatRate(bytesPerSec: number, fmt: Formatters): string {
+  const safe = Number.isFinite(bytesPerSec) && bytesPerSec > 0 ? bytesPerSec : 0;
+  const unit = rateUnitFor(safe);
+  const value = safe / unit.bytes;
+  return `${fmt.fixed(value, unit.bytes === 1 || value >= 100 ? 0 : 1)} ${unit.label}`;
+}
+
+/** Ceilings whose midpoint is also a round number. */
+const RATE_AXIS_STEPS = [2, 4, 10, 20, 40, 100, 200, 400, 1000];
+
+/**
+ * Picks a rate axis ceiling in one unit so all three ticks share it. An idle series still gets 2 KiB/s,
+ * so the ticks never collapse to 0 / 0 / 0.
+ */
+export function rateAxisSpec(peakBytesPerSec: number, fmt: Formatters): {
+  unitBytes: number;
+  maxUnit: number;
+  ticks: number[];
+  formatTick: (value: number) => string;
+} {
+  const peak = Number.isFinite(peakBytesPerSec) && peakBytesPerSec > 0 ? peakBytesPerSec : 0;
+  let unitIndex = RATE_UNITS.indexOf(rateUnitFor(Math.max(peak, 1024)));
+  let raw = Math.max(peak, 1024) / RATE_UNITS[unitIndex]!.bytes;
+  // 1000–1023 of a unit reads better as 2 of the next one than as 2,000 of this one.
+  if (raw > RATE_AXIS_STEPS.at(-1)! && unitIndex < RATE_UNITS.length - 1) {
+    unitIndex += 1;
+    raw /= 1024;
+  }
+  const unit = RATE_UNITS[unitIndex]!;
+  const maxUnit = RATE_AXIS_STEPS.find((step) => step >= raw) ?? Math.ceil(raw / 1000) * 1000;
+  return {
+    unitBytes: unit.bytes,
+    maxUnit,
+    ticks: [0, maxUnit / 2, maxUnit],
+    formatTick: (value) => `${fmt.number(value)} ${unit.label}`,
+  };
+}
+
 export interface TimelineSegment {
   key: string;
   leftPct: number;
@@ -205,13 +259,9 @@ export function splitSeriesRuns(values: Array<number | null>): SeriesRun[] {
   return runs;
 }
 
-export function extractBucketValues(
-  buckets: StatsMetricBucket[],
-  metric: 'cpu' | 'memory',
-  kind: 'host' | 'instances',
-): Array<number | null> {
-  if (metric === 'cpu') {
-    return buckets.map((bucket) => (kind === 'host' ? bucket.hostCpuPercent : bucket.instancesCpuPercent));
-  }
-  return buckets.map((bucket) => (kind === 'host' ? bucket.hostMemoryBytes : bucket.instancesMemoryBytes));
+/** Bucket fields that make up one line on the trend chart. */
+export type TrendSeriesField = Exclude<keyof StatsMetricBucket, 'timestamp'>;
+
+export function extractBucketValues(buckets: StatsMetricBucket[], field: TrendSeriesField): Array<number | null> {
+  return buckets.map((bucket) => bucket[field]);
 }

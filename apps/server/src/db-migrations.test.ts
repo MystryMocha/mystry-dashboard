@@ -574,6 +574,42 @@ test('a dump-rebuilt database with overview stats tables at version 0 replays mi
   assert.equal(JSON.stringify(db.prepare('SELECT * FROM metric_samples ORDER BY id').all()), samplesBefore);
 });
 
+test('migration v4 adds nullable I/O rate columns to existing metric samples and replays as a no-op at version 0', async (t) => {
+  const s = scratch(t, 'overview-io');
+  useDataDir(s);
+  const { initDb, getDb, closeDb, PANEL_DB_MIGRATIONS } = await import('./db.js');
+  const index = PANEL_DB_MIGRATIONS.findIndex((migration) => migration.name === 'overview network and disk io samples');
+  assert.equal(PANEL_DB_MIGRATIONS[index]?.version, 4);
+  const ioColumns = ['disk_read_bytes_per_sec', 'disk_write_bytes_per_sec', 'net_rx_bytes_per_sec', 'net_tx_bytes_per_sec'];
+
+  const before = openWal(s);
+  migrateDatabase(before, PANEL_DB_MIGRATIONS.slice(0, index), runnerOptions(s));
+  for (const column of ioColumns) assert.ok(!columns(before, 'metric_samples').includes(column));
+  before.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').run('u1', 'admin', '$2a$04$hash', now);
+  before.prepare('INSERT INTO metric_samples (sampled_at, instance_id, cpu_percent, memory_bytes) VALUES (?, NULL, 30, 8000000000)').run(now);
+  before.close();
+
+  initDb();
+  const db = getDb();
+  assert.equal(pragmaNumber(db, 'user_version'), PANEL_DB_MIGRATIONS.length);
+  for (const column of ioColumns) assert.ok(columns(db, 'metric_samples').includes(column), column);
+  assert.deepEqual(
+    { ...(db.prepare('SELECT cpu_percent, net_rx_bytes_per_sec, disk_write_bytes_per_sec FROM metric_samples').get() as object) },
+    { cpu_percent: 30, net_rx_bytes_per_sec: null, disk_write_bytes_per_sec: null },
+    'rows sampled before the upgrade keep their values and read as unknown I/O',
+  );
+  db.prepare('UPDATE metric_samples SET net_rx_bytes_per_sec = 1234.5').run();
+  const schema = schemaDump(db);
+  const samples = JSON.stringify(db.prepare('SELECT * FROM metric_samples ORDER BY id').all());
+
+  db.exec('PRAGMA user_version = 0');
+  closeDb();
+  initDb();
+  assert.equal(pragmaNumber(getDb(), 'user_version'), PANEL_DB_MIGRATIONS.length);
+  assert.equal(schemaDump(getDb()), schema);
+  assert.equal(JSON.stringify(getDb().prepare('SELECT * FROM metric_samples ORDER BY id').all()), samples);
+});
+
 const tree: DbMigration = {
   version: 1,
   name: 'tree',
