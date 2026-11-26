@@ -155,3 +155,36 @@ test('an unknown top-level route redirects to the overview', async () => {
   expect(screen.getByTestId('location').textContent).toBe('/');
   await waitFor(() => expect(document.title).toBe('Instances · Mystry Dashboard'));
 });
+
+test('collapsing the sidebar keeps accessible names on every nav item including the workspace link and updates on language switch', async () => {
+  const user = userEvent.setup();
+  mountApp('/instances/test');
+  await screen.findByRole('heading', { level: 1, name: 'Survival' });
+
+  const toggle = screen.getByRole('button', { name: 'Collapse Sidebar' });
+  expect(toggle.getAttribute('aria-controls')).toBe('app-sidebar');
+  expect(toggle.hasAttribute('aria-pressed')).toBe(false);
+
+  await user.click(toggle);
+  expect(screen.getByRole('button', { name: 'Expand Sidebar' })).toBe(toggle);
+  expect(document.querySelector('.app-shell')?.classList.contains('is-sidebar-collapsed')).toBe(true);
+
+  const sidebar = document.querySelector<HTMLElement>('.sidebar')!;
+  const navLinks = [...sidebar.querySelectorAll<HTMLAnchorElement>('.nav-item')];
+  const expectedLabels = ['Instances', 'Current Workspace', 'Quick Deploy', 'Import Server', 'Multiplayer', 'This Machine'];
+  expect(navLinks.map((link) => link.getAttribute('data-label'))).toEqual(expectedLabels);
+  expect(navLinks.map((link) => link.textContent)).toEqual(expectedLabels);
+
+  act(() => setLocalePreference('zh-CN'));
+  expect(screen.getByRole('button', { name: '展开侧栏' })).toBe(toggle);
+  expect(sidebar.querySelector('.nav-item.active')?.getAttribute('data-label')).toBe('当前工作台');
+
+  act(() => setLocalePreference('zh-TW'));
+  expect(screen.getByRole('button', { name: '展開側欄' })).toBe(toggle);
+  expect(sidebar.querySelector('.nav-item.active')?.getAttribute('data-label')).toBe('目前工作台');
+
+  act(() => setLocalePreference('en'));
+  await user.click(toggle);
+  expect(screen.getByRole('button', { name: 'Collapse Sidebar' })).toBe(toggle);
+  expect(document.querySelector('.app-shell')?.classList.contains('is-sidebar-collapsed')).toBe(false);
+});
