@@ -12,7 +12,7 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ### Changed
 
-- The interface takes a calmer look modeled on macOS. Lists and forms sit on solid panels, buttons have square corners while status pills and badges stay round, and the accent is now clay orange, used only for the main action, controls that are switched on, focus and progress. Warnings and in-between states such as **Starting** are amber, and the dark appearance is graphite rather than near black.
+- The interface takes a calmer, sharper look. Every surface is solid: lists and forms sit on panels with a 1px edge, the sidebar is docked to the window edge, and the top bar sits flush with the page, drawing a line beneath it only once content scrolls under it. Frosted glass is gone, so text keeps the sharp rendering of Windows and macOS, and Chinese text at body size and smaller uses a medium weight instead of semibold, which Microsoft YaHei draws as bold. Buttons have square corners while status pills and badges stay round, and the accent is now clay orange, used only for the main action, controls that are switched on, focus and progress. Warnings and in-between states such as **Starting** are amber, and the dark appearance is a deep graphite rather than near black.
 - **Instances** lists the servers that need attention first, no longer adds "Players can join now" after **Running**, and on wide screens draws **Start**, **Stop** and **Invite Players** without a fill. The sidebar drops its group titles, and the **Properties** tab no longer opens with a note about `server.properties`.
 
 ### Fixed
