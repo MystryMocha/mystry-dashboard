@@ -62,6 +62,118 @@ function terminateSocketLater(socket: ConsoleSocket): void {
   timer.unref?.();
 }
 
+/** UTF-8 byte length of a single Unicode code point (or lone surrogate) after JSON string escaping, excluding outer quotes. */
+export function jsonEscapedCharBytes(codePoint: number): number {
+  if (
+    codePoint === 0x08
+    || codePoint === 0x09
+    || codePoint === 0x0A
+    || codePoint === 0x0C
+    || codePoint === 0x0D
+    || codePoint === 0x22
+    || codePoint === 0x5C
+  ) {
+    return 2;
+  }
+  // Control characters and lone surrogates are escaped as \uXXXX by JSON.stringify.
+  if (codePoint < 0x20 || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
+    return 6;
+  }
+  if (codePoint <= 0x7F) return 1;
+  if (codePoint <= 0x7FF) return 2;
+  if (codePoint <= 0xFFFF) return 3;
+  return 4;
+}
+
+/** Trims oldest characters from console history so the JSON-serialized history frame fits within maxFrameBytes. */
+export function fitConsoleHistory(
+  history: string,
+  status: InstanceStatus,
+  maxFrameBytes: number,
+): string {
+  if (maxFrameBytes <= 0 || history.length === 0) return '';
+  const fullBytes = Buffer.byteLength(
+    JSON.stringify({ type: 'history', data: history, status }),
+    'utf8',
+  );
+  if (fullBytes <= maxFrameBytes) return history;
+
+  const emptyBytes = Buffer.byteLength(
+    JSON.stringify({ type: 'history', data: '', status }),
+    'utf8',
+  );
+  const dataBudget = maxFrameBytes - emptyBytes;
+  if (dataBudget <= 0) return '';
+
+  let usedBytes = 0;
+  let startIndex = history.length;
+  while (startIndex > 0) {
+    let step = 1;
+    const tailCode = history.charCodeAt(startIndex - 1);
+    let codePoint = tailCode;
+    if (tailCode >= 0xDC00 && tailCode <= 0xDFFF && startIndex >= 2) {
+      const leadCode = history.charCodeAt(startIndex - 2);
+      if (leadCode >= 0xD800 && leadCode <= 0xDBFF) {
+        codePoint = ((leadCode - 0xD800) << 10) + (tailCode - 0xDC00) + 0x10000;
+        step = 2;
+      }
+    }
+    const charBytes = jsonEscapedCharBytes(codePoint);
+    if (usedBytes + charBytes > dataBudget) break;
+    usedBytes += charBytes;
+    startIndex -= step;
+  }
+  return history.slice(startIndex);
+}
+
+/** Splits an output chunk into pieces whose JSON-serialized output frames each fit within maxFrameBytes. */
+export function splitOutputForJsonBudget(
+  text: string,
+  maxFrameBytes: number,
+): string[] {
+  if (!text) return [];
+  const fullBytes = Buffer.byteLength(
+    JSON.stringify({ type: 'output', data: text }),
+    'utf8',
+  );
+  if (fullBytes <= maxFrameBytes) return [text];
+
+  const emptyBytes = Buffer.byteLength(
+    JSON.stringify({ type: 'output', data: '' }),
+    'utf8',
+  );
+  const dataBudget = maxFrameBytes - emptyBytes;
+  if (dataBudget <= 0) return [];
+
+  const chunks: string[] = [];
+  let chunkStart = 0;
+  let chunkBytes = 0;
+  let index = 0;
+  while (index < text.length) {
+    const codePoint = text.codePointAt(index)!;
+    const unitLength = codePoint > 0xFFFF ? 2 : 1;
+    const charBytes = jsonEscapedCharBytes(codePoint);
+    if (charBytes > dataBudget) {
+      if (index > chunkStart) chunks.push(text.slice(chunkStart, index));
+      index += unitLength;
+      chunkStart = index;
+      chunkBytes = 0;
+      continue;
+    }
+    if (chunkBytes + charBytes > dataBudget) {
+      chunks.push(text.slice(chunkStart, index));
+      chunkStart = index;
+      chunkBytes = 0;
+    }
+    chunkBytes += charBytes;
+    index += unitLength;
+  }
+  if (chunkStart < text.length) {
+    chunks.push(text.slice(chunkStart));
+  }
+  return chunks;
+}
+
 function sendSocketMessage(
   socket: {
     readyState: number;
@@ -197,20 +309,21 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
 
       let commandWindowStartedAt = Date.now();
       let commandCount = 0;
-      const history = processManager.getHistory(instanceId);
+      const status = processManager.getStatus(instanceId);
+      const statusPayload: ConsoleMessage = { type: 'status', data: '', status };
+      const statusBytes = Buffer.byteLength(JSON.stringify(statusPayload), 'utf8');
+      // Reserve space for the synchronous status frame so history + status never exceed maxSocketBufferedBytes.
+      const maxHistoryBytes = Math.max(0, maxOutgoingMessageBytes - statusBytes - 1024);
+      const history = fitConsoleHistory(processManager.getHistory(instanceId), status, maxHistoryBytes);
       if (!sendSocketMessage(socket, {
         type: 'history',
         data: history,
-        status: processManager.getStatus(instanceId),
+        status,
       })) {
         terminateSocketLater(socket);
         return;
       }
-      if (!sendSocketMessage(socket, {
-        type: 'status',
-        data: '',
-        status: processManager.getStatus(instanceId),
-      })) {
+      if (!sendSocketMessage(socket, statusPayload)) {
         terminateSocketLater(socket);
         return;
       }
@@ -221,7 +334,9 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
           closeSocket(socket, 1009, 'Console output message too large');
           return;
         }
-        sendSocketMessage(socket, { type: 'output', data: text });
+        for (const chunk of splitOutputForJsonBudget(text, maxOutgoingMessageBytes)) {
+          if (!sendSocketMessage(socket, { type: 'output', data: chunk })) return;
+        }
       };
       const onStatus = (id: string, status: InstanceStatus) => {
         if (id !== instanceId) return;

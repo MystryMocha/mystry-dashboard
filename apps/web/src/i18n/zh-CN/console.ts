@@ -11,13 +11,18 @@ export default {
   'console.system.reconnecting_other': '{prefix} {reason}，{count} 秒后重连…',
   'console.system.reconnected': '{prefix} 控制台已重新连接',
   'console.system.disconnected': '控制台连接已断开',
+  'console.system.closedPolicy': '{prefix} 连接已被服务端关闭（限制或认证原因），可点击「重新连接」重试。',
+  'console.system.closedTooLarge': '{prefix} 控制台消息超出单帧大小限制，连接已关闭，可点击「重新连接」重试。',
+  'console.system.closedTooMany': '{prefix} 控制台连接数已达上限，请关闭其他控制台标签页后点击「重新连接」。',
 
   // 连接状态
   'console.status.connected': '实时日志已连接',
   'console.status.connecting': '控制台正在连接…',
+  'console.status.disconnected': '连接已断开',
   'console.status.offline': '实例未运行',
 
   // 工具按钮与复制
+  'console.tool.reconnect': '重新连接',
   'console.tool.clear': '清空屏幕',
   'console.tool.copyTitle': '复制全部输出',
   'console.tool.copy': '复制日志',
@@ -35,6 +40,7 @@ export default {
   'console.input.label': '控制台命令',
   'console.input.placeholder': '输入控制台命令（如 list、say Hello、op 玩家名），按回车发送',
   'console.input.placeholderConnecting': '连接中…',
+  'console.input.placeholderDisconnected': '控制台已断开，重新连接后可发送命令。',
   'console.input.placeholderStopped': '实例已停止，启动后可发送命令',
 
   // 常用命令

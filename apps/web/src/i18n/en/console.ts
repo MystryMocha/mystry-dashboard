@@ -9,13 +9,18 @@ export default {
   'console.system.reconnecting_other': '{prefix} {reason}. Reconnecting in {count} seconds…',
   'console.system.reconnected': '{prefix} Console reconnected',
   'console.system.disconnected': 'Console connection lost',
+  'console.system.closedPolicy': '{prefix} Connection closed by the server (policy or rate limit). Select Reconnect to try again.',
+  'console.system.closedTooLarge': '{prefix} Console output exceeded the frame size limit. Select Reconnect to try again.',
+  'console.system.closedTooMany': '{prefix} Too many open console connections. Close unused console tabs, then select Reconnect.',
 
   // Connection status
   'console.status.connected': 'Live log connected',
   'console.status.connecting': 'Connecting to console…',
+  'console.status.disconnected': 'Disconnected',
   'console.status.offline': 'Instance not running',
 
   // Tool buttons and copy
+  'console.tool.reconnect': 'Reconnect',
   'console.tool.clear': 'Clear Screen',
   'console.tool.copyTitle': 'Copy All Output',
   'console.tool.copy': 'Copy Log',
@@ -33,6 +38,7 @@ export default {
   'console.input.label': 'Console Command',
   'console.input.placeholder': 'Enter a console command (such as list, say Hello, or op <player>) and press Enter to send',
   'console.input.placeholderConnecting': 'Connecting…',
+  'console.input.placeholderDisconnected': 'Console disconnected. Reconnect to send commands.',
   'console.input.placeholderStopped': 'The instance is stopped. Start it to send commands.',
 
   // Common commands

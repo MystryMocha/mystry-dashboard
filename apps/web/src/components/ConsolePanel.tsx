@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import { Accessibility, Copy, Eraser, Send } from 'lucide-react';
+import { Accessibility, Copy, Eraser, RefreshCw, Send } from 'lucide-react';
 import { isServerMessageKey, type ConsoleMessage, type PanelMessageParam } from '@mystry/shared';
 import { createConsoleTicket } from '../api';
 import { copyText } from '../clipboard';
@@ -35,6 +35,13 @@ const PROCESS_EXITED_RE = /^(?:\[Panel\] Process exited \(exit code (.*?), signa
 
 // Screen reader mode is a personal preference per browser; when reading or writing it fails (private mode, etc.) it is treated as off.
 const SCREEN_READER_KEY = 'mystry_console_screen_reader';
+
+// WebSocket close codes that indicate a hard limit or policy rejection rather than a transient drop.
+const NON_RETRYABLE_CLOSE_MESSAGES: Record<number, MessageKey> = {
+  1008: 'console.system.closedPolicy',
+  1009: 'console.system.closedTooLarge',
+  1013: 'console.system.closedTooMany',
+};
 
 function readScreenReaderPreference(): boolean {
   try {
@@ -102,12 +109,14 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
 
   const [command, setCommand] = useState('');
   const [connected, setConnected] = useState(false);
+  const [reconnectStopped, setReconnectStopped] = useState(false);
   const [copyMessage, setCopyMessage] = useState('');
   const [screenReaderMode, setScreenReaderMode] = useState(readScreenReaderPreference);
   // The terminal is rebuilt only with the instance; the current switch state is read from a ref at creation, so the switch does not go into the dependencies and cause a disconnect and reconnect.
   const screenReaderModeRef = useRef(screenReaderMode);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyRequestRef = useRef(0);
+  const reconnectRef = useRef<(() => void) | null>(null);
 
   useEffect(() => () => {
     copyRequestRef.current += 1;
@@ -161,7 +170,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
 
     let disposed = false;
     let ws: WebSocket | null = null;
-    const ticketRequest = new AbortController();
+    let ticketController: AbortController | null = null;
     const colorState = createConsoleColorizeState();
     let retryAttempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -189,41 +198,49 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
 
     const scheduleReconnect = (reason: string) => {
       if (disposed) return;
+      if (retryTimer) clearTimeout(retryTimer);
       const delay = RETRY_DELAYS_MS[Math.min(retryAttempt, RETRY_DELAYS_MS.length - 1)];
       retryAttempt += 1;
       writeSystemLine(translatePluralNow('console.system.reconnecting', Math.round(delay / 1000), {
         prefix: panelPrefix(),
         reason,
       }));
-      retryTimer = setTimeout(() => void connect(), delay);
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        void connect();
+      }, delay);
     };
 
     const connect = async () => {
+      ticketController?.abort();
+      const controller = new AbortController();
+      ticketController = controller;
       try {
-        const { ticket } = await createConsoleTicket(instanceId, ticketRequest.signal);
-        if (disposed) return;
+        const { ticket } = await createConsoleTicket(instanceId, controller.signal);
+        if (disposed || controller.signal.aborted) return;
 
         const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-        ws = new WebSocket(
+        const currentSocket = new WebSocket(
           `${proto}://${location.host}/ws/console/${encodeURIComponent(instanceId)}?ticket=${encodeURIComponent(ticket)}`,
         );
-        wsRef.current = ws;
+        ws = currentSocket;
+        wsRef.current = currentSocket;
 
-        // After a reconnect the server resends the full history buffer; the "reconnected" notice is held until the history is written, so the clear does not wipe it.
-        let reconnectNoticePending = false;
-
-        ws.onopen = () => {
-          if (disposed) return;
-          reconnectNoticePending = retryAttempt > 0;
-          retryAttempt = 0;
+        currentSocket.onopen = () => {
+          if (disposed || ws !== currentSocket) return;
           setConnected(true);
+          setReconnectStopped(false);
         };
 
-        ws.onmessage = (ev) => {
-          if (disposed) return;
+        currentSocket.onmessage = (ev) => {
+          if (disposed || ws !== currentSocket) return;
           try {
             const msg = JSON.parse(String(ev.data)) as ConsoleMessage;
             if (msg.type === 'history') {
+              // Reset reconnect backoff only after the server has actually delivered the history snapshot,
+              // so a socket that opens and fails immediately still backs off exponentially.
+              const reconnected = retryAttempt > 0;
+              retryAttempt = 0;
               // A history frame is the full snapshot buffered by the server: clear the terminal and any unfinished half line first, then write it whole, so logs are not duplicated after a reconnect.
               term.reset();
               colorState.pending = '';
@@ -233,8 +250,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
               term.write('', () => {
                 if (!disposed) resetScreenReaderAnnouncements(term);
               });
-              if (reconnectNoticePending) {
-                reconnectNoticePending = false;
+              if (reconnected) {
                 writeSystemLine(translateNow('console.system.reconnected', { prefix: panelPrefix() }));
               }
             } else if (msg.type === 'output') {
@@ -248,18 +264,42 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
           }
         };
 
-        ws.onclose = () => {
-          if (disposed) return;
+        currentSocket.onclose = (ev: CloseEvent) => {
+          if (disposed || ws !== currentSocket) return;
           setConnected(false);
+          const closeCode = typeof ev?.code === 'number' ? ev.code : undefined;
+          const stopKey = closeCode !== undefined ? NON_RETRYABLE_CLOSE_MESSAGES[closeCode] : undefined;
+          if (stopKey) {
+            setReconnectStopped(true);
+            writeSystemLine(translateNow(stopKey, { prefix: panelPrefix() }));
+            return;
+          }
           scheduleReconnect(translateNow('console.system.disconnected'));
         };
       } catch (err) {
-        if (disposed || isAbortError(err)) return;
+        if (disposed || controller.signal.aborted || isAbortError(err)) return;
         setConnected(false);
         scheduleReconnect(errorMessage(err));
       }
     };
 
+    reconnectRef.current = () => {
+      if (disposed) return;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      ticketController?.abort();
+      ws?.close();
+      ws = null;
+      wsRef.current = null;
+      retryAttempt = 0;
+      setConnected(false);
+      setReconnectStopped(false);
+      void connect();
+    };
+
+    setReconnectStopped(false);
     void connect();
 
     const onResize = () => fit.fit();
@@ -267,7 +307,8 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
 
     return () => {
       disposed = true;
-      ticketRequest.abort();
+      reconnectRef.current = null;
+      ticketController?.abort();
       if (retryTimer) clearTimeout(retryTimer);
       window.removeEventListener('resize', onResize);
       flushConsoleColorize(colorState);
@@ -276,6 +317,7 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
       termRef.current = null;
       wsRef.current = null;
       setConnected(false);
+      setReconnectStopped(false);
     };
   }, [instanceId]);
 
@@ -368,7 +410,14 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
     copyTimerRef.current = setTimeout(() => setCopyMessage(''), 6000);
   }
 
-  const connectionTone = connected ? 'is-online' : canSend ? 'is-connecting' : 'is-offline';
+  const connectionTone = connected ? 'is-online' : reconnectStopped ? 'is-offline' : canSend ? 'is-connecting' : 'is-offline';
+  const statusLabel = connected
+    ? t('console.status.connected')
+    : reconnectStopped
+      ? t('console.status.disconnected')
+      : canSend
+        ? t('console.status.connecting')
+        : t('console.status.offline');
 
   return (
     <div className="console-panel">
@@ -376,9 +425,19 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
         <div className="console-header-bar">
           <span className={`console-status ${connectionTone}`}>
             <span className="status-dot" aria-hidden="true" />
-            <span>{connected ? t('console.status.connected') : canSend ? t('console.status.connecting') : t('console.status.offline')}</span>
+            <span>{statusLabel}</span>
           </span>
           <div className="console-tools">
+            {reconnectStopped && (
+              <button
+                className="console-tool"
+                type="button"
+                onClick={() => reconnectRef.current?.()}
+              >
+                <RefreshCw size={13} aria-hidden="true" />
+                {t('console.tool.reconnect')}
+              </button>
+            )}
             <button
               className="console-tool"
               type="button"
@@ -424,7 +483,9 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
             disabled={!inputEnabled}
             placeholder={inputEnabled
               ? t('console.input.placeholder')
-              : canSend ? t('console.input.placeholderConnecting') : t('console.input.placeholderStopped')}
+              : reconnectStopped
+                ? t('console.input.placeholderDisconnected')
+                : canSend ? t('console.input.placeholderConnecting') : t('console.input.placeholderStopped')}
             autoComplete="off"
             spellCheck={false}
             aria-label={t('console.input.label')}

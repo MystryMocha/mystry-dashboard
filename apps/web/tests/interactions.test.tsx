@@ -862,6 +862,52 @@ test('after a console reconnect the history snapshot replaces the old log, witho
   expect(terminal.written).toContain('已重新连接');
 });
 
+test('console backs off exponentially when closing before receiving history, and stops auto-reconnect on 1008/1009/1013', async () => {
+  const sockets: Array<{ onopen?: () => void; onmessage?: (ev: { data: string }) => void; onclose?: (ev: { code?: number }) => void }> = [];
+  vi.stubGlobal('WebSocket', class { constructor() { sockets.push(this); } close() {} });
+  vi.useFakeTimers();
+  mount(<ConsolePanel instanceId="test" />);
+
+  // Opening and immediately closing without a history frame must increase delay: 1s -> 2s -> 5s.
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(sockets).toHaveLength(1);
+  act(() => { sockets[0].onopen?.(); sockets[0].onclose?.({ code: 1006 }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(999); });
+  expect(sockets).toHaveLength(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(sockets).toHaveLength(2);
+
+  act(() => { sockets[1].onopen?.(); sockets[1].onclose?.({ code: 1006 }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(1999); });
+  expect(sockets).toHaveLength(2);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(sockets).toHaveLength(3);
+
+  act(() => { sockets[2].onopen?.(); sockets[2].onclose?.({ code: 1006 }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(4999); });
+  expect(sockets).toHaveLength(3);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(sockets).toHaveLength(4);
+
+  // Non-retryable close codes stop auto-reconnect and surface a manual Reconnect button.
+  for (const [code, fragment] of [
+    [1009, '超出单帧大小限制'],
+    [1013, '连接数已达上限'],
+    [1008, '连接已被服务端关闭'],
+  ] as const) {
+    const beforeCount = sockets.length;
+    act(() => { sockets[beforeCount - 1].onclose?.({ code }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(sockets).toHaveLength(beforeCount);
+    expect(terminal.written).toContain(fragment);
+    expect(screen.getByText('连接已断开')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(sockets).toHaveLength(beforeCount + 1);
+  }
+});
+
 test('the copy notice timer is cleared when the console unmounts', async () => {
   vi.useFakeTimers();
   const view = mount(<ConsolePanel instanceId="test" />);
