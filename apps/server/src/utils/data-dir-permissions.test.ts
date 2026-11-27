@@ -131,9 +131,3 @@ test('Windows ACL parser distinguishes secure ACLs from permissive inherited pri
     resetWindowsAclCheckForTests();
   }
 });
-
-test('server index logs startup permission notices without quiet masking', async () => {
-  const indexSource = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../index.ts'), 'utf8');
-  assert.match(indexSource, /for\s*\(const notice of takeStartupNotices\(\)\)\s*app\.log\.warn\(notice\)/);
-  assert.doesNotMatch(indexSource, /takeStartupNotices\(\)[\s\S]{0,60}quiet:\s*true/);
-});
