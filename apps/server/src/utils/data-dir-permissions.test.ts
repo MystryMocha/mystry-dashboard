@@ -54,3 +54,86 @@ test('Unix owner mismatch error explains both uids and how to recover with chown
   assert.match(message, /\/opt\/mystry\/data/);
   assert.match(message, /chown/);
 });
+
+test('Windows ACL parser distinguishes secure ACLs from permissive inherited principals', async () => {
+  const {
+    findPermissiveWindowsPrincipals,
+    inspectWindowsDirectoryAcl,
+    parseIcaclsOutput,
+    parseWindowsUserIdentity,
+    resetWindowsAclCheckForTests,
+    takeStartupNotices,
+    warnWindowsAclBoundary,
+  } = await import('./data-dir-permissions.js');
+
+  const identity = parseWindowsUserIdentity('"MYSTRYHOST\\player","S-1-5-21-100-200-300-1001"\r\n');
+  assert.deepEqual(identity, { account: 'MYSTRYHOST\\player', sid: 'S-1-5-21-100-200-300-1001' });
+
+  const target = 'D:\\mystry\\data';
+  const tightOutput = [
+    `${target} MYSTRYHOST\\player:(OI)(CI)(F)`,
+    '               NT AUTHORITY\\SYSTEM:(OI)(CI)(F)',
+    '               BUILTIN\\Administrators:(OI)(CI)(F)',
+    '               Mandatory Label\\High Mandatory Level:(OI)(NP)(IO)(NW)',
+    '',
+    'Successfully processed 1 files; Failed processing 0 files',
+  ].join('\r\n');
+  assert.deepEqual(
+    findPermissiveWindowsPrincipals(parseIcaclsOutput(tightOutput, target), identity),
+    [],
+  );
+
+  const permissiveOutput = [
+    `${target} BUILTIN\\Administrators:(I)(OI)(CI)(F)`,
+    '               NT AUTHORITY\\SYSTEM:(I)(OI)(CI)(F)',
+    '               BUILTIN\\Users:(I)(OI)(CI)(RX)',
+    '               NT AUTHORITY\\Authenticated Users:(I)(OI)(CI)(M)',
+    '               S-1-5-21-100-200-300-1002:(OI)(CI)(M)',
+    '',
+    'Successfully processed 1 files; Failed processing 0 files',
+  ].join('\r\n');
+  assert.deepEqual(
+    findPermissiveWindowsPrincipals(parseIcaclsOutput(permissiveOutput, target), identity),
+    ['BUILTIN\\Users', 'NT AUTHORITY\\Authenticated Users', 'S-1-5-21-100-200-300-1002'],
+  );
+
+  const makeRunner = (icaclsOut: string, status = 0) => (executable: string) => {
+    if (executable.toLowerCase().endsWith('whoami.exe')) {
+      return { status: 0, stdout: '"MYSTRYHOST\\player","S-1-5-21-100-200-300-1001"\r\n', stderr: '' };
+    }
+    return { status, stdout: icaclsOut, stderr: status === 0 ? '' : 'Access is denied' };
+  };
+
+  assert.deepEqual(inspectWindowsDirectoryAcl(target, makeRunner(tightOutput)), { status: 'secure' });
+  assert.deepEqual(inspectWindowsDirectoryAcl(target, makeRunner(permissiveOutput)), {
+    status: 'permissive',
+    principals: ['BUILTIN\\Users', 'NT AUTHORITY\\Authenticated Users', 'S-1-5-21-100-200-300-1002'],
+  });
+  assert.equal(inspectWindowsDirectoryAcl(target, makeRunner('', 5)).status, 'unverified');
+
+  if (process.platform === 'win32') {
+    resetWindowsAclCheckForTests();
+    warnWindowsAclBoundary(target, makeRunner(tightOutput));
+    assert.deepEqual(takeStartupNotices(), []);
+
+    resetWindowsAclCheckForTests();
+    warnWindowsAclBoundary(target, makeRunner(permissiveOutput));
+    const notices = takeStartupNotices();
+    assert.equal(notices.length, 1);
+    assert.match(notices[0]!, /BUILTIN\\Users/);
+    assert.match(notices[0]!, /Authenticated Users/);
+
+    resetWindowsAclCheckForTests();
+    warnWindowsAclBoundary(target, makeRunner('', 5));
+    const unverifiedNotices = takeStartupNotices();
+    assert.equal(unverifiedNotices.length, 1);
+    assert.match(unverifiedNotices[0]!, /无法在 Windows 上自动验证/);
+    resetWindowsAclCheckForTests();
+  }
+});
+
+test('server index logs startup permission notices without quiet masking', async () => {
+  const indexSource = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '../index.ts'), 'utf8');
+  assert.match(indexSource, /for\s*\(const notice of takeStartupNotices\(\)\)\s*app\.log\.warn\(notice\)/);
+  assert.doesNotMatch(indexSource, /takeStartupNotices\(\)[\s\S]{0,60}quiet:\s*true/);
+});

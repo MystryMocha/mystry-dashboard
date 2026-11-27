@@ -131,7 +131,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     ajv: { customOptions: { removeAdditional: false } },
   });
   app.server.headersTimeout = Math.min(config.httpConnectionTimeoutMs, 60_000);
-  for (const notice of takeStartupNotices()) app.log.warn({ quiet: true }, notice);
+  for (const notice of takeStartupNotices()) app.log.warn(notice);
   if (
     backupRecovery.restoresRolledBack > 0
     || backupRecovery.restoresCompleted > 0

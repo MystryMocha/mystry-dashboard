@@ -1511,3 +1511,29 @@ test('status, open and restart follow the running panel URL recorded in state.js
   const stopped = await runController('stop', updatedEnv);
   assert.equal(stopped.code, 0, stopped.output);
 });
+
+test('Windows launcher strips inherited permissions and restricts config, data and logs to the current user', {
+  skip: process.platform !== 'win32',
+}, async (t) => {
+  const { home, env } = await fakePanelHome(t, 'mystry-ctl-win-acl-');
+  const started = await runController('start', env);
+  assert.equal(started.code, 0, started.output);
+  t.after(async () => {
+    await runController('stop', env).catch(() => {});
+  });
+
+  const icaclsExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'icacls.exe');
+  for (const dir of [
+    path.join(home, 'config'),
+    path.join(home, 'data'),
+    path.join(home, 'logs'),
+  ]) {
+    const result = spawnSync(icaclsExe, [dir], { encoding: 'utf8', windowsHide: true });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.doesNotMatch(result.stdout, /BUILTIN\\Users|Authenticated Users|Everyone/i, `${dir}\n${result.stdout}`);
+    assert.doesNotMatch(result.stdout, /[:)]\(I\)/i, `inheritance must be disabled on ${dir}\n${result.stdout}`);
+  }
+  const envAcl = spawnSync(icaclsExe, [path.join(home, 'config', 'panel.env')], { encoding: 'utf8', windowsHide: true });
+  assert.equal(envAcl.status, 0, envAcl.stderr || envAcl.stdout);
+  assert.doesNotMatch(envAcl.stdout, /BUILTIN\\Users|Authenticated Users|Everyone/i, envAcl.stdout);
+});

@@ -121,6 +121,117 @@ function setEnvLine(lines, name, value) {
   return true;
 }
 
+const BOOT_TIME_SKEW_MS = 5_000;
+let cachedBootId;
+let cachedWindowsUserSid;
+
+function resolveWindowsUserSid() {
+  if (cachedWindowsUserSid !== undefined) return cachedWindowsUserSid;
+  if (process.platform !== 'win32') {
+    cachedWindowsUserSid = null;
+    return null;
+  }
+  const whoami = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'whoami.exe');
+  const result = spawnSync(whoami, ['/user', '/fo', 'csv', '/nh'], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 5_000,
+  });
+  if (result.error || result.status !== 0) {
+    cachedWindowsUserSid = null;
+    return null;
+  }
+  const match = /\b(S-1-\d+(?:-\d+)+)\b/.exec(result.stdout);
+  cachedWindowsUserSid = match?.[1] ?? null;
+  return cachedWindowsUserSid;
+}
+
+function tightenWindowsAcl(targetPath, isDirectory, userSid) {
+  const icacls = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'icacls.exe');
+  const grants = isDirectory
+    ? [`*${userSid}:(OI)(CI)F`, '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F']
+    : [`*${userSid}:F`, '*S-1-5-18:F', '*S-1-5-32-544:F'];
+  const result = spawnSync(icacls, [targetPath, '/inheritance:r', '/grant:r', ...grants], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 10_000,
+  });
+  if (result.error || result.status !== 0) {
+    return result.error?.message || result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status ?? 'unknown'}`;
+  }
+  return null;
+}
+
+function warnWindowsAclFailure(failures) {
+  if (failures.length === 0) return;
+  console.warn(text(
+    `警告：无法收紧以下 Windows 路径的访问权限：${failures.join('、')}。`
+      + '若所在磁盘不是 NTFS 或权限不足，其他本机账户可能读取配置密钥或数据目录，请手动限制 NTFS 权限。',
+    `Warning: could not restrict Windows permissions on: ${failures.join(', ')}. `
+      + 'On non-NTFS drives or with insufficient rights, other local accounts may read config secrets or data; restrict NTFS permissions manually.',
+  ));
+}
+
+function tightenWindowsFileIfNeeded(filePath, userSid) {
+  if (!fs.existsSync(filePath)) return null;
+  const err = tightenWindowsAcl(filePath, false, userSid);
+  return err ? `${filePath} (${err})` : null;
+}
+
+/**
+ * Restricts panel config, data, logs and existing secret/DB files on Windows to the current user,
+ * SYSTEM and Administrators so directories extracted outside the user profile do not keep inherited broad ACLs.
+ */
+function tightenWindowsPanelPaths() {
+  if (process.platform !== 'win32') return;
+  const userSid = resolveWindowsUserSid();
+  if (!userSid) {
+    console.warn(text(
+      '警告：无法获取当前 Windows 用户 SID，未自动收紧配置与数据目录权限；请确保 config、data 与 logs 仅当前用户可访问。',
+      'Warning: could not resolve the current Windows user SID; config and data directory permissions were not tightened. Ensure config, data and logs are readable only by your user.',
+    ));
+    return;
+  }
+
+  const resolvedHome = path.resolve(homeDir);
+  const candidateDirs = [path.dirname(configPath), dataDir, logDir, launcherDir];
+  const configBackupDir = path.join(launcherDir, 'config-backups');
+  if (fs.existsSync(configBackupDir)) candidateDirs.push(configBackupDir);
+
+  const seenDirs = new Set();
+  const failures = [];
+  for (const dir of candidateDirs) {
+    const resolved = path.resolve(dir);
+    // Source mode places .env directly under the repository root; never strip inheritance from the repo root itself.
+    if (resolved === resolvedHome || seenDirs.has(resolved) || !fs.existsSync(resolved)) continue;
+    seenDirs.add(resolved);
+    const err = tightenWindowsAcl(resolved, true, userSid);
+    if (err) failures.push(`${resolved} (${err})`);
+  }
+
+  const sensitiveFiles = [
+    configPath,
+    path.join(dataDir, 'panel.db'),
+    path.join(dataDir, 'panel.db-wal'),
+    path.join(dataDir, 'panel.db-shm'),
+    statePath,
+  ];
+  if (fs.existsSync(configBackupDir)) {
+    try {
+      for (const name of fs.readdirSync(configBackupDir)) {
+        sensitiveFiles.push(path.join(configBackupDir, name));
+      }
+    } catch {
+      // Ignore unreadable backup directory; directory tightening failure above will already report it.
+    }
+  }
+  for (const file of sensitiveFiles) {
+    const failure = tightenWindowsFileIfNeeded(file, userSid);
+    if (failure) failures.push(failure);
+  }
+  warnWindowsAclFailure(failures);
+}
+
 async function writeAtomic(filePath, content) {
   await fsp.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
   const temporary = path.join(
@@ -129,7 +240,18 @@ async function writeAtomic(filePath, content) {
   );
   await fsp.writeFile(temporary, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
   await fsp.rename(temporary, filePath);
-  if (process.platform !== 'win32') await fsp.chmod(filePath, 0o600);
+  if (process.platform !== 'win32') {
+    await fsp.chmod(filePath, 0o600);
+  } else if (
+    path.resolve(filePath) === path.resolve(configPath)
+    && path.resolve(path.dirname(filePath)) === path.resolve(homeDir)
+  ) {
+    const userSid = resolveWindowsUserSid();
+    if (userSid) {
+      const failure = tightenWindowsFileIfNeeded(filePath, userSid);
+      if (failure) warnWindowsAclFailure([failure]);
+    }
+  }
 }
 
 async function databaseNeedsSetup() {
@@ -183,6 +305,7 @@ async function ensureConfiguration() {
     fsp.mkdir(logDir, { recursive: true, mode: 0o700 }),
     fsp.mkdir(launcherDir, { recursive: true, mode: 0o700 }),
   ]);
+  tightenWindowsPanelPaths();
 
   const existed = fs.existsSync(configPath);
   const original = existed
@@ -422,9 +545,6 @@ function isManagerProcessAlive(pid) {
     return false;
   }
 }
-
-const BOOT_TIME_SKEW_MS = 5_000;
-let cachedBootId;
 
 function readBootId() {
   if (cachedBootId !== undefined) return cachedBootId;
