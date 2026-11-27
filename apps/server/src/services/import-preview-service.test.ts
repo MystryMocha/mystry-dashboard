@@ -213,4 +213,25 @@ test('ZIP import preview enforces the owner, capacity, expiry, restart and confi
     assert.equal(previewService.getImportPreview(preview.id, 'queue-full').id, preview.id);
     await taskService.shutdownTasks();
   });
+
+  await t.test('rejects ZIP archives containing a panel ownership marker at root or single wrapper folder', async () => {
+    const { OWNERSHIP_MARKER_FILE } = await import('../utils/path.js');
+    const { PanelError } = await import('../utils/errors.js');
+    for (const [label, markerPath] of [
+      ['root', OWNERSHIP_MARKER_FILE],
+      ['wrapped', `My Server/${OWNERSHIP_MARKER_FILE}`],
+    ] as const) {
+      const zipPath = path.join(dataRoot, 'uploads', `.tmp-import-preview-marker-${label}.zip`);
+      fs.writeFileSync(zipPath, createStoredZip([
+        { name: label === 'root' ? 'server.jar' : 'My Server/server.jar', contents: 'server-jar' },
+        { name: markerPath, contents: '{"version":1,"instanceId":"old","marker":"abc"}' },
+      ]));
+      await assert.rejects(
+        () => previewService.createImportPreview({ userId: 'marker', fileName: `${label}.zip`, zipPath }),
+        (error: unknown) => error instanceof PanelError && error.messageKey === 'server.files.zip.reservedName',
+        label,
+      );
+      fs.rmSync(zipPath, { force: true });
+    }
+  });
 });

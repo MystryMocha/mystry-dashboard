@@ -56,7 +56,7 @@ The sign-in duration is no longer set with `JWT_EXPIRES_IN`; if the variable is 
 
 | Variable | Default | Description |
 |------|--------|------|
-| `HTTP_REQUEST_TIMEOUT_MS` | `900000` | HTTP request lifecycle timeout, 15 minutes |
+| `HTTP_REQUEST_TIMEOUT_MS` | `900000` | HTTP request receive timeout for regular endpoints, 15 minutes. Authenticated streaming uploads use `UPLOAD_IDLE_TIMEOUT_MS` instead |
 | `HTTP_CONNECTION_TIMEOUT_MS` | `300000` | HTTP connection timeout, 5 minutes |
 | `HTTP_KEEP_ALIVE_TIMEOUT_MS` | `72000` | HTTP keep-alive idle timeout, 72 seconds |
 | `UPLOAD_IDLE_TIMEOUT_MS` | `30000` | Upload idle timeout, 30 seconds. An upload that stops sending data is cancelled |
@@ -85,7 +85,7 @@ File downloads are limited by `MAX_CONCURRENT_FILE_DOWNLOADS`; when all slots ar
 | Variable | Default | Description |
 |------|--------|------|
 | `MAX_CORE_DOWNLOAD_BYTES` | `536870912` | Limit for a single core download, 512 MiB |
-| `CORE_DOWNLOAD_TIMEOUT_MS` | `300000` | Core download timeout, 5 minutes |
+| `CORE_DOWNLOAD_TIMEOUT_MS` | `60000` | Core and runtime download stall timeout, 60 seconds. Resets whenever data continues arriving |
 | `MAX_CORE_METADATA_BYTES` | `2097152` | Limit for core metadata responses such as versions and builds, 2 MiB |
 | `CORE_METADATA_TIMEOUT_MS` | `15000` | Core metadata request timeout, 15 seconds |
 | `MAX_INSTALLER_OUTPUT_BYTES` | `65536` | Limit on retained installer output, 64 KiB |
@@ -107,7 +107,7 @@ When the connection limit or buffer capacity is exceeded, new connections are re
 | Variable | Default | Description |
 |------|--------|------|
 | `MAX_UPLOAD_BYTES` | `536870912` | Limit for a single uploaded file, 512 MiB |
-| `MAX_BACKUP_UPLOAD_BYTES` | `10737418240` | Limit for an uploaded backup file, 10 GiB. Backups are usually larger than regular uploads, so they have their own setting |
+| `MAX_BACKUP_UPLOAD_BYTES` | `107374182400` | Limit for an uploaded backup file, 100 GiB (aligned with `MAX_EXISTING_IMPORT_BYTES` so panel-created backups can be uploaded back) |
 | `MAX_ZIP_ENTRIES` | `10000` | Limit on the number of ZIP entries |
 | `MAX_ZIP_ENTRY_BYTES` | `1073741824` | Limit for a single extracted entry, 1 GiB |
 | `MAX_ZIP_UNCOMPRESSED_BYTES` | `2147483648` | Limit on the total size after ZIP extraction, 2 GiB |

@@ -79,6 +79,8 @@ export type DownloadOptions = {
   maxBytes?: number;
   /** Time limit for waiting for response headers; used when fallback sources remain, so a stalled mirror does not use up the whole download timeout. */
   responseTimeoutMs?: number;
+  /** Stall/idle timeout for body transfer (resets on every chunk); defaults to CORE_DOWNLOAD_TIMEOUT_MS. */
+  idleTimeoutMs?: number;
 };
 
 /** Requests the file and waits for response headers; the time limit covers only this part, and the body is still bound by the outer download timeout. */
@@ -104,7 +106,8 @@ export async function downloadToFile(
 ): Promise<void> {
   if (signal?.aborted) throw abortError(signal);
   const maxBytes = options.maxBytes ?? config.maxCoreDownloadBytes;
-  const timeout = createTimeoutAbort(signal, config.coreDownloadTimeoutMs, 'server.deploy.downloadTimeout');
+  const idleTimeoutMs = options.idleTimeoutMs ?? config.coreDownloadTimeoutMs;
+  const timeout = createTimeoutAbort(signal, idleTimeoutMs, 'server.deploy.downloadTimeout');
   const part = path.join(
     path.dirname(dest),
     `.part-${path.basename(dest)}-${Date.now()}-${randomBytes(12).toString('hex')}`,
@@ -114,6 +117,7 @@ export async function downloadToFile(
   try {
     fs.mkdirSync(path.dirname(dest), { recursive: true, mode: 0o700 });
     const res = await fetchDownload(url, timeout.signal, options.responseTimeoutMs);
+    timeout.reset();
     await rejectInsecureRedirect(url, res);
     if (!res.ok || !res.body) {
       throw new PanelError('server.deploy.downloadHttpFailed', { status: res.status, url });
@@ -125,6 +129,8 @@ export async function downloadToFile(
     const digest = options.expected ? createHash(options.expected.algorithm) : null;
     const nodeStream = Readable.fromWeb(res.body as import('stream/web').ReadableStream);
     const counter = createByteCounter((chunkBytes, chunk) => {
+      // Reset the stall timer on every arriving chunk so slow but steady transfers complete while stalled mirrors fail promptly.
+      if (chunkBytes > 0) timeout.reset();
       downloaded += chunkBytes;
       if (downloaded > maxBytes) return new PanelError('server.deploy.downloadTooLarge');
       digest?.update(chunk);

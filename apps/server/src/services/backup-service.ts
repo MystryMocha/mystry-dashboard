@@ -34,6 +34,7 @@ import {
 } from './backup-archive.js';
 import { getInstanceRow, updateInstanceServerFiles } from './instance-service.js';
 import { processManager } from './process-manager.js';
+import { findModLoaderArgsFile, resolvePlatformModLoaderArgsFile } from './server-launch-detect.js';
 import { recordTaskStaging, runBackgroundTask } from './task-service.js';
 import {
   prepareTaskStaging,
@@ -41,7 +42,7 @@ import {
   STAGING_MARKER_FILE,
   STAGING_ROOT_DIR,
 } from './task-staging-service.js';
-import { isUploadTooLargeError, removeUploadTemp, streamToUploadTemp } from './upload-service.js';
+import { isUploadTooLargeError, streamToUploadTemp } from './upload-service.js';
 
 /** Backup ID: UTC time + a 6-character random suffix, also the file name stem. */
 const BACKUP_ID_PATTERN = /^\d{8}-\d{6}-[A-Za-z0-9_-]{6}$/;
@@ -733,24 +734,58 @@ function launchTargetOf(jarFile: string): string | null {
   return jarFile.startsWith('@args:') ? jarFile.slice('@args:'.length) : jarFile;
 }
 
+function inferModLoaderKind(argsRelPath: string, coreType: string): 'forge' | 'neoforge' | null {
+  if (coreType === 'forge' || coreType === 'neoforge') return coreType;
+  const normalized = argsRelPath.replace(/\\/g, '/').toLowerCase();
+  if (normalized.includes('libraries/net/neoforged/neoforge/')) return 'neoforge';
+  if (normalized.includes('libraries/net/minecraftforge/forge/')) return 'forge';
+  return null;
+}
+
 /**
  * After a restore, makes the launch file, core type and version recorded by the panel follow the backup manifest, so the directory is not switched to an old version
- * while still launching with the new jar. When the manifest's launch file is not in the restored directory, the existing record is kept. Returns whether anything changed.
+ * while still launching with the new jar. For Forge/NeoForge `@args:` targets, resolves the current platform's args file (`win_args.txt` vs `unix_args.txt`)
+ * so backups restored across Windows and Linux boot cleanly. When the launch file is not in the restored directory, the existing record is kept. Returns whether anything changed.
  */
-function syncInstanceRecordWithManifest(instanceId: string, manifest: BackupManifest): boolean {
+export async function syncInstanceRecordWithManifest(
+  instanceId: string,
+  manifest: BackupManifest,
+  platform: NodeJS.Platform = process.platform,
+): Promise<boolean> {
   const row = getInstanceRow(instanceId);
-  const jarFile = manifest.instance.jarFile;
-  if (!row || typeof jarFile !== 'string' || jarFile === '') return false;
-  const target = launchTargetOf(jarFile);
+  const rawJarFile = manifest.instance.jarFile;
+  if (!row || typeof rawJarFile !== 'string' || rawJarFile === '') return false;
+  const target = launchTargetOf(rawJarFile);
   if (target === null) return false;
-  let stat: fs.Stats | undefined;
-  try {
-    stat = fs.lstatSync(resolveSafePath(getInstanceDir(instanceId), target), { throwIfNoEntry: false });
-  } catch {
-    return false;
-  }
-  if (!stat?.isFile()) return false;
+  const instanceDir = getInstanceDir(instanceId);
   const coreType = toCoreType(manifest.instance.coreType) ?? row.core_type;
+
+  let jarFile = rawJarFile;
+  if (rawJarFile.startsWith('@args:')) {
+    let resolvedArgs = resolvePlatformModLoaderArgsFile(instanceDir, target, platform);
+    if (!resolvedArgs) {
+      const loaderKind = inferModLoaderKind(target, coreType);
+      if (loaderKind) {
+        resolvedArgs = await findModLoaderArgsFile(instanceDir, loaderKind, {
+          maxDepth: config.modLoaderScanMaxDepth,
+          maxEntries: config.modLoaderScanMaxEntries,
+          deadlineMs: config.modLoaderScanTimeoutMs,
+          platform,
+        });
+      }
+    }
+    if (!resolvedArgs) return false;
+    jarFile = `@args:${resolvedArgs}`;
+  } else {
+    let stat: fs.Stats | undefined;
+    try {
+      stat = fs.lstatSync(resolveSafePath(instanceDir, target), { throwIfNoEntry: false });
+    } catch {
+      return false;
+    }
+    if (!stat?.isFile()) return false;
+  }
+
   const mcVersion = typeof manifest.instance.mcVersion === 'string' ? manifest.instance.mcVersion : null;
   if (jarFile === row.jar_file && coreType === row.core_type && mcVersion === row.mc_version) return false;
   updateInstanceServerFiles(instanceId, { jarFile, coreType, mcVersion });
@@ -798,7 +833,7 @@ async function restoreBackup(
       // The files were already replaced successfully: a failure to sync the record should not make the whole restore show as failed, and the user can still change it manually in settings.
       let instanceRecordUpdated = false;
       try {
-        instanceRecordUpdated = syncInstanceRecordWithManifest(instanceId, manifest);
+        instanceRecordUpdated = await syncInstanceRecordWithManifest(instanceId, manifest);
       } catch (error) {
         console.warn(`还原已完成，但未能按备份更新实例 ${instanceId} 的启动文件记录`, error);
       }
@@ -837,28 +872,38 @@ export async function startRestoreTask(
   }
 }
 
-function moveIntoPlace(source: string, target: string): void {
+export async function moveBackupArchiveIntoPlace(source: string, target: string): Promise<void> {
   try {
-    fs.renameSync(source, target);
+    await fs.promises.rename(source, target);
+    return;
   } catch (error) {
     if (!hasErrorCode(error, 'EXDEV')) throw error;
-    // The backup directory is on another disk: copy to a temp file in the same directory first, then rename atomically.
-    const temp = `${path.join(path.dirname(target), TEMP_PREFIX)}${path.basename(target)}`;
-    try {
-      fs.copyFileSync(source, temp, fs.constants.COPYFILE_EXCL);
-      fs.renameSync(temp, target);
-    } finally {
-      fs.rmSync(temp, { force: true });
-    }
+  }
+  // Cross-volume fallback: copy asynchronously to a temp file in the target directory so large archives never block
+  // the event loop, then rename atomically into place.
+  const temp = `${path.join(path.dirname(target), TEMP_PREFIX)}${path.basename(target)}`;
+  try {
+    await fs.promises.copyFile(source, temp, fs.constants.COPYFILE_EXCL);
+    await fs.promises.rename(temp, target);
+    await fs.promises.rm(source, { force: true }).catch(() => undefined);
+  } finally {
+    await fs.promises.rm(temp, { force: true }).catch(() => undefined);
   }
 }
 
 /** Saves an uploaded backup file: it appears in the list only after full verification passes. */
 export async function saveUploadedBackup(instanceId: string, input: Readable): Promise<BackupInfo> {
   requireManagedInstance(instanceId);
+  // Stage directly inside the instance backup directory with the .tmp-*.tar.gz naming convention so BACKUP_DIR on another
+  // volume finishes with a same-volume rename (no multi-gigabyte copy) and interrupted uploads are cleaned up at startup.
+  const dir = instanceBackupDir(instanceId, true)!;
   let temp: string;
   try {
-    temp = await streamToUploadTemp(input, 'backup', { maxBytes: config.maxBackupUploadBytes });
+    temp = await streamToUploadTemp(input, 'upload', {
+      maxBytes: config.maxBackupUploadBytes,
+      targetDir: dir,
+      suffix: ARCHIVE_SUFFIX,
+    });
   } catch (error) {
     if (isUploadTooLargeError(error)) {
       throw new PanelError('server.backups.upload.tooLarge', { limit: config.maxBackupUploadBytes }, { statusCode: 413 });
@@ -872,9 +917,8 @@ export async function saveUploadedBackup(instanceId: string, input: Readable): P
       limits: archiveLimits(),
       signal: new AbortController().signal,
     });
-    const dir = instanceBackupDir(instanceId, true)!;
     const backupId = newBackupId();
-    moveIntoPlace(temp, archiveFile(dir, backupId));
+    await moveBackupArchiveIntoPlace(temp, archiveFile(dir, backupId));
     const { manifest } = verified;
     const info: BackupInfo = {
       id: backupId,
@@ -898,7 +942,9 @@ export async function saveUploadedBackup(instanceId: string, input: Readable): P
     }
     return info;
   } finally {
-    if (fs.existsSync(temp)) removeUploadTemp(temp);
+    if (fs.existsSync(temp)) {
+      await fs.promises.rm(temp, { force: true }).catch(() => undefined);
+    }
   }
 }
 

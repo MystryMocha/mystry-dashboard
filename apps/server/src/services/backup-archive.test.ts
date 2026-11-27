@@ -173,3 +173,156 @@ test('exceeding the entry count limit is rejected', async (t) => {
     hasKey('server.backups.archive.tooManyEntries'),
   );
 });
+
+test('files that grow between scan and read (including 0-byte files) abort the backup instead of being truncated', async (t) => {
+  const root = tempRoot(t);
+  const { writeBackupArchive } = await import('./backup-archive.js');
+  const source = path.join(root, 'source');
+  fs.mkdirSync(source, { recursive: true });
+
+  // Case 1: non-empty file grows after scan.
+  const propFile = path.join(source, 'server.properties');
+  fs.writeFileSync(propFile, 'motd=old\n');
+  const propScan = fs.statSync(propFile);
+  fs.appendFileSync(propFile, 'max-players=50\n');
+  await assert.rejects(
+    writeBackupArchive({
+      output: path.join(root, 'grown.tar.gz'),
+      entries: [{ kind: 'file', path: 'server.properties', absolute: propFile, size: propScan.size, mtimeMs: propScan.mtimeMs }],
+      header,
+      signal: new AbortController().signal,
+    }),
+    hasKey('server.backups.fileChanged'),
+  );
+
+  // Case 2: 0-byte file at scan time receives data before archiving.
+  const emptyFile = path.join(source, 'empty.txt');
+  fs.writeFileSync(emptyFile, '');
+  const emptyScan = fs.statSync(emptyFile);
+  fs.writeFileSync(emptyFile, 'written-later\n');
+  await assert.rejects(
+    writeBackupArchive({
+      output: path.join(root, 'grown-from-empty.tar.gz'),
+      entries: [{ kind: 'file', path: 'empty.txt', absolute: emptyFile, size: emptyScan.size, mtimeMs: emptyScan.mtimeMs }],
+      header,
+      signal: new AbortController().signal,
+    }),
+    hasKey('server.backups.fileChanged'),
+  );
+});
+
+test('files appended or atomically replaced while being read abort the backup with fileChanged', async (t) => {
+  const root = tempRoot(t);
+  const { writeBackupArchive } = await import('./backup-archive.js');
+  const source = path.join(root, 'source');
+  fs.mkdirSync(source, { recursive: true });
+
+  // Case 1: multi-chunk file grows after the first chunk is read.
+  const growing = path.join(source, 'region.mca');
+  fs.writeFileSync(growing, Buffer.alloc(140 * 1024, 1));
+  const growingScan = fs.statSync(growing);
+  const originalOpen = fs.promises.open.bind(fs.promises);
+  let appended = false;
+  const openMock = t.mock.method(fs.promises, 'open', async (...args: Parameters<typeof fs.promises.open>) => {
+    const handle = await originalOpen(...args);
+    if (path.resolve(String(args[0])) === path.resolve(growing)) {
+      const originalRead = handle.read.bind(handle);
+      handle.read = (async (...readArgs: Parameters<typeof handle.read>) => {
+        const result = await originalRead(...readArgs);
+        if (!appended) {
+          appended = true;
+          fs.appendFileSync(growing, 'extra-tail-bytes');
+        }
+        return result;
+      }) as typeof handle.read;
+    }
+    return handle;
+  });
+  try {
+    await assert.rejects(
+      writeBackupArchive({
+        output: path.join(root, 'grown-mid-read.tar.gz'),
+        entries: [{ kind: 'file', path: 'region.mca', absolute: growing, size: growingScan.size, mtimeMs: growingScan.mtimeMs }],
+        header,
+        signal: new AbortController().signal,
+      }),
+      hasKey('server.backups.fileChanged'),
+    );
+  } finally {
+    openMock.mock.restore();
+  }
+
+  // Case 2: file is overwritten in place with same-length different content while open (e.g. writeTextFile).
+  const overwritten = path.join(source, 'config.yml');
+  fs.writeFileSync(overwritten, 'mode: safe\n');
+  const overwrittenScan = fs.statSync(overwritten);
+  let didOverwrite = false;
+  const overwriteMock = t.mock.method(fs.promises, 'open', async (...args: Parameters<typeof fs.promises.open>) => {
+    const handle = await originalOpen(...args);
+    if (path.resolve(String(args[0])) === path.resolve(overwritten)) {
+      const originalRead = handle.read.bind(handle);
+      handle.read = (async (...readArgs: Parameters<typeof handle.read>) => {
+        const result = await originalRead(...readArgs);
+        if (!didOverwrite) {
+          didOverwrite = true;
+          fs.writeFileSync(overwritten, 'mode: new!\n');
+          const bumped = new Date(overwrittenScan.mtimeMs + 2_000);
+          fs.utimesSync(overwritten, bumped, bumped);
+        }
+        return result;
+      }) as typeof handle.read;
+    }
+    return handle;
+  });
+  try {
+    await assert.rejects(
+      writeBackupArchive({
+        output: path.join(root, 'overwritten-mid-read.tar.gz'),
+        entries: [{ kind: 'file', path: 'config.yml', absolute: overwritten, size: overwrittenScan.size, mtimeMs: overwrittenScan.mtimeMs }],
+        header,
+        signal: new AbortController().signal,
+      }),
+      hasKey('server.backups.fileChanged'),
+    );
+  } finally {
+    overwriteMock.mock.restore();
+  }
+
+  // Case 3 (Unix): file is atomically replaced via rename with a new inode while open (Windows forbids renaming over an open handle).
+  if (process.platform !== 'win32') {
+    const replaced = path.join(source, 'replaced.yml');
+    fs.writeFileSync(replaced, 'mode: safe\n');
+    const replacedScan = fs.statSync(replaced);
+    let didReplace = false;
+    const replaceMock = t.mock.method(fs.promises, 'open', async (...args: Parameters<typeof fs.promises.open>) => {
+      const handle = await originalOpen(...args);
+      if (path.resolve(String(args[0])) === path.resolve(replaced)) {
+        const originalRead = handle.read.bind(handle);
+        handle.read = (async (...readArgs: Parameters<typeof handle.read>) => {
+          const result = await originalRead(...readArgs);
+          if (!didReplace) {
+            didReplace = true;
+            const temp = path.join(source, 'replaced.yml.tmp');
+            fs.writeFileSync(temp, 'mode: new!\n');
+            fs.renameSync(temp, replaced);
+          }
+          return result;
+        }) as typeof handle.read;
+      }
+      return handle;
+    });
+    try {
+      await assert.rejects(
+        writeBackupArchive({
+          output: path.join(root, 'replaced-mid-read.tar.gz'),
+          entries: [{ kind: 'file', path: 'replaced.yml', absolute: replaced, size: replacedScan.size, mtimeMs: replacedScan.mtimeMs }],
+          header,
+          signal: new AbortController().signal,
+        }),
+        hasKey('server.backups.fileChanged'),
+      );
+    } finally {
+      replaceMock.mock.restore();
+    }
+  }
+});

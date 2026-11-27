@@ -49,7 +49,7 @@ export const BACKUPS_MESSAGES = {
 
   // Upload
   'server.backups.upload.missing': 'Choose a backup file to upload.',
-  'server.backups.upload.tooLarge': 'The backup file exceeds the upload limit ({limit} bytes).',
+  'server.backups.upload.tooLarge': 'The backup file exceeds the upload limit ({limit} bytes). Raise MAX_BACKUP_UPLOAD_BYTES to upload larger backups.',
 
   // Archive validation
   'server.backups.archive.corrupted': "The backup file is damaged or isn't a Mystry Dashboard backup.",

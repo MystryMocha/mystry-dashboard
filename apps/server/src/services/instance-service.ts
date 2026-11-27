@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { nanoid } from 'nanoid';
 import type {
   CreateInstanceInput,
@@ -7,8 +8,10 @@ import type {
   UpdateInstanceInput,
 } from '@mystry/shared';
 import { LOCAL_NODE_ID } from '@mystry/shared';
+import { config } from '../config.js';
 import { getDb, type InstanceRow } from '../db.js';
 import {
+  OWNERSHIP_MARKER_FILE,
   defaultInstanceDir,
   assertSafeDirectoryPath,
   assertSafeInstanceRoot,
@@ -24,6 +27,11 @@ import { processManager } from './process-manager.js';
 import { nodeExists } from './node-service.js';
 import { getJavaRuntime } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
+import {
+  STAGING_MARKER_FILE,
+  removeEmptyStagingParents,
+  taskStagingDir,
+} from './task-staging-service.js';
 import { errorParam, PanelError } from '../utils/errors.js';
 
 const DEFAULT_JVM_ARGS = '-Xms1G -Xmx2G';
@@ -228,6 +236,77 @@ export function registerPromotedInstance(id: string, input: CreateInstanceInput)
   }
 
   return getInstance(id)!;
+}
+
+/**
+ * Validates input, prepares ownership/EULA files in staging, promotes the staging directory into instances/<id>,
+ * and inserts the database row as one synchronous commit step. If the database write fails after rename, the directory
+ * is moved back into staging (with the staging marker still intact) so the task's cleanup removes it instead of leaving
+ * an orphaned directory under instances/.
+ */
+export function commitStagedInstance(
+  taskId: string,
+  instanceId: string,
+  input: CreateInstanceInput,
+  options: { dataDir?: string; writeEulaIfAccepted?: boolean } = {},
+): InstanceInfo {
+  const dataDir = options.dataDir ?? config.dataDir;
+  const prepared = prepareInstanceInput(input);
+  const staging = taskStagingDir(taskId, instanceId, dataDir);
+  if (!fs.existsSync(staging)) {
+    throw new PanelError('server.imports.staging.lost');
+  }
+  assertSafeInstanceRoot(staging);
+
+  const entries = fs.readdirSync(staging);
+  const hasContent = entries.some((name) => name !== STAGING_MARKER_FILE);
+  if (!hasContent) {
+    throw new PanelError('server.instance.registerDirEmpty');
+  }
+  if (entries.some((name) => name.toLowerCase() === OWNERSHIP_MARKER_FILE.toLowerCase())) {
+    throw new PanelError('server.imports.existing.markerRefused');
+  }
+
+  const instanceDir = defaultInstanceDir(instanceId);
+  if (fs.existsSync(instanceDir)) {
+    throw new PanelError('server.imports.staging.instanceDirExists');
+  }
+
+  fs.accessSync(staging, fs.constants.W_OK);
+  if (options.writeEulaIfAccepted && input.acceptEula) {
+    fs.writeFileSync(resolveSafePath(staging, 'eula.txt'), 'eula=true\n', 'utf8');
+  }
+
+  const ownershipMarker = nanoid(32);
+  writeOwnershipMarker(instanceId, staging, ownershipMarker);
+
+  // Once promoted into instances/<id>, database registration follows synchronously without awaiting or checking cancellation.
+  // Keep STAGING_MARKER_FILE until the insert succeeds so a rollback back to staging remains identifiable by startup recovery.
+  fs.renameSync(staging, instanceDir);
+  try {
+    insertInstanceRow(instanceId, input, prepared, ownershipMarker);
+  } catch (err) {
+    try {
+      fs.mkdirSync(path.dirname(staging), { recursive: true, mode: 0o700 });
+      fs.renameSync(instanceDir, staging);
+      removeOwnershipMarker(instanceId, staging, ownershipMarker);
+    } catch (rollbackErr) {
+      console.error(`实例 ${instanceId} 入库失败后回滚暂存目录失败`, rollbackErr);
+      removeOwnershipMarker(instanceId, instanceDir, ownershipMarker);
+    }
+    throw err;
+  }
+
+  const stagingMarkerPath = path.join(instanceDir, STAGING_MARKER_FILE);
+  if (fs.existsSync(stagingMarkerPath)) {
+    try {
+      fs.unlinkSync(stagingMarkerPath);
+    } catch {
+      /* The instance is already registered; failing to unlink the staging marker must not turn a committed instance into an error. */
+    }
+  }
+  removeEmptyStagingParents(staging, dataDir);
+  return getInstance(instanceId)!;
 }
 
 export function updateInstance(id: string, input: UpdateInstanceInput): InstanceInfo {

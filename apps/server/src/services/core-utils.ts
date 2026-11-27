@@ -8,6 +8,8 @@ export type TimeoutAbort = {
   signal: AbortSignal;
   /** The error to throw when a request fails: checks parent signal cancellation, timeout and this controller's abort in turn, and returns the original when it is none of them. */
   errorFor(error: unknown): unknown;
+  /** Resets the timer from now when progress arrives, turning the aborter into a stall/idle timeout. */
+  reset(): void;
   dispose(): void;
 };
 
@@ -19,15 +21,22 @@ export function createTimeoutAbort(
 ): TimeoutAbort {
   const controller = new AbortController();
   let timedOut = false;
+  let disposed = false;
+  let timer: NodeJS.Timeout | null = null;
   const abortFromParent = () => controller.abort(parent?.reason);
   if (parent) {
     parent.addEventListener('abort', abortFromParent, { once: true });
     if (parent.aborted) abortFromParent();
   }
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort(new PanelError(timeoutKey));
-  }, timeoutMs);
+  const arm = () => {
+    if (disposed || controller.signal.aborted) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new PanelError(timeoutKey));
+    }, timeoutMs);
+  };
+  arm();
   return {
     signal: controller.signal,
     errorFor(error) {
@@ -36,8 +45,15 @@ export function createTimeoutAbort(
       if (controller.signal.aborted) return abortError(controller.signal);
       return error;
     },
+    reset() {
+      arm();
+    },
     dispose() {
-      clearTimeout(timer);
+      disposed = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
       parent?.removeEventListener('abort', abortFromParent);
     },
   };

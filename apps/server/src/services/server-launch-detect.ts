@@ -16,6 +16,8 @@ export type ModLoaderScanBudget = {
   maxEntries: number;
   deadlineMs: number;
   signal?: AbortSignal;
+  /** Target platform for choosing win_args.txt vs unix_args.txt; defaults to process.platform. */
+  platform?: NodeJS.Platform;
 };
 
 class ModLoaderScanLimitError extends PanelError {
@@ -72,7 +74,7 @@ export async function findModLoaderArgsFile(
   if (!fs.existsSync(base)) return null;
   assertSafeInstanceRoot(base);
 
-  const preferredName = process.platform === 'win32' ? 'win_args.txt' : 'unix_args.txt';
+  const preferredName = (budget.platform ?? process.platform) === 'win32' ? 'win_args.txt' : 'unix_args.txt';
   const fallback: string[] = [];
   let visited = 0;
 
@@ -126,6 +128,28 @@ export async function findModLoaderArgsFile(
   }
 
   return fallback[0] ?? null;
+}
+
+/**
+ * Resolves a Forge/NeoForge args file path for the target platform: modern installers ship both win_args.txt
+ * and unix_args.txt side by side, so a backup restored (or data directory moved) across Windows and Linux must
+ * switch to the current platform's sibling instead of keeping the source OS's args file.
+ */
+export function resolvePlatformModLoaderArgsFile(
+  instanceDir: string,
+  argsRelPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  const normalized = argsRelPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!normalized) return null;
+  const base = path.posix.basename(normalized);
+  const preferredName = platform === 'win32' ? 'win_args.txt' : 'unix_args.txt';
+  if (base === 'win_args.txt' || base === 'unix_args.txt') {
+    const dir = path.posix.dirname(normalized);
+    const preferredRel = dir === '.' ? preferredName : `${dir}/${preferredName}`;
+    if (isRegularFile(instanceDir, preferredRel)) return preferredRel;
+  }
+  return isRegularFile(instanceDir, normalized) ? normalized : null;
 }
 
 function inferJarCoreType(jarFile: string): CoreType {

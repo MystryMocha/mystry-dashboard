@@ -7,6 +7,7 @@ import {
 } from '@mystry/shared';
 import { sendRouteError } from '../http-errors.js';
 import { panelErrorBody } from '../utils/errors.js';
+import { switchToStreamingUploadTimeout } from '../utils/request-timeout.js';
 import { removeUploadTemp, streamToUploadTemp } from '../services/upload-service.js';
 import { getInstanceRow } from '../services/instance-service.js';
 import {
@@ -61,6 +62,7 @@ export async function lanRoutes(app: FastifyInstance): Promise<void> {
     let temp: string | null = null;
     try {
       if (!lanPlatformSupported()) return reply.code(400).send(panelErrorBody('server.lan.platformUnsupported'));
+      switchToStreamingUploadTimeout(req, reply);
       const file = await req.file({ limits: { fileSize: LAN_ARCHIVE_BYTE_LIMIT } });
       if (!file) return reply.code(400).send(panelErrorBody('server.lan.uploadMissing'));
       temp = await streamToUploadTemp(file.file, 'lan-runtime', { maxBytes: LAN_ARCHIVE_BYTE_LIMIT });

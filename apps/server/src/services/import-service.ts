@@ -3,16 +3,11 @@ import path from 'node:path';
 import { nanoid } from 'nanoid';
 import type { CoreType } from '@mystry/shared';
 import { config } from '../config.js';
-import { registerPromotedInstance } from './instance-service.js';
+import { commitStagedInstance } from './instance-service.js';
 import { detectServerLaunchTarget, resolveImportedCoreType } from './server-launch-detect.js';
-import {
-  assertSafeInstanceRoot,
-  resolveSafePath,
-} from '../utils/path.js';
 import { recordTaskStaging, runBackgroundTask } from './task-service.js';
 import {
   prepareTaskStaging,
-  promoteTaskStagingToInstance,
   removeTaskStagingTree,
   stagingMarkerMatches,
   STAGING_MARKER_FILE,
@@ -20,7 +15,7 @@ import {
 } from './task-staging-service.js';
 import { assertUploadPath, removeUploadTemp } from './upload-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
-import { safeExtract } from './zip-service.js';
+import { assertZipImportSafe, safeExtract } from './zip-service.js';
 import { PanelError, throwIfAborted } from '../utils/errors.js';
 
 /** If there is only a single directory level after extraction, moves its content up into the instance root. */
@@ -84,6 +79,7 @@ export async function importZipPackage(options: {
         recordTaskStaging(taskId, instanceId, stagingToken);
         const staging = prepareTaskStaging(taskId, instanceId, stagingToken);
         throwIfAborted(signal);
+        assertZipImportSafe(zipPath, signal);
         report(20, { key: 'server.imports.zip.progress.extracting' });
         await safeExtract(zipPath, staging, signal);
         flattenSingleRoot(staging, signal, stagingMarker);
@@ -102,26 +98,22 @@ export async function importZipPackage(options: {
 
         throwIfAborted(signal);
         report(85, { key: 'server.imports.progress.writingInstance' });
-        promoteTaskStagingToInstance(taskId, instanceId);
-        // After promote the directory is already in instances/<id>; it must no longer be aborted by timeout/shutdown, and registration must continue.
-        const dir = path.join(config.instancesDir, instanceId);
-        assertSafeInstanceRoot(dir);
-
         report(90, { key: 'server.imports.progress.registering' });
-        registerPromotedInstance(instanceId, {
-          name: options.name,
-          coreType: resolveImportedCoreType(options.coreType, launchTarget.coreType),
-          mcVersion: options.mcVersion?.trim() || launchTarget.mcVersion || undefined,
-          jarFile: launchTarget.value,
-          jvmArgs: options.jvmArgs,
-          acceptEula: options.acceptEula,
-          javaRuntimeId: options.javaRuntimeId ?? null,
-        });
+        commitStagedInstance(
+          taskId,
+          instanceId,
+          {
+            name: options.name,
+            coreType: resolveImportedCoreType(options.coreType, launchTarget.coreType),
+            mcVersion: options.mcVersion?.trim() || launchTarget.mcVersion || undefined,
+            jarFile: launchTarget.value,
+            jvmArgs: options.jvmArgs,
+            acceptEula: options.acceptEula,
+            javaRuntimeId: options.javaRuntimeId ?? null,
+          },
+          { writeEulaIfAccepted: true },
+        );
         completed = true;
-
-        if (options.acceptEula) {
-          fs.writeFileSync(resolveSafePath(dir, 'eula.txt'), 'eula=true\n', 'utf8');
-        }
 
         report(100, { key: 'server.imports.zip.progress.done' });
         return { instanceId };

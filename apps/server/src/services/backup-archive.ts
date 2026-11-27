@@ -8,7 +8,7 @@ import { constants as zlibConstants, createGunzip, createGzip } from 'node:zlib'
 import type { CoreType } from '@mystry/shared';
 import { OWNERSHIP_MARKER_FILE, resolveSafePath } from '../utils/path.js';
 import { STAGING_MARKER_FILE } from './task-staging-service.js';
-import { abortError, isPanelError, PanelError, throwIfAborted } from '../utils/errors.js';
+import { abortError, hasErrorCode, isPanelError, PanelError, throwIfAborted } from '../utils/errors.js';
 
 /**
  * Instance backup archive: a gzip-compressed POSIX tar (ustar + pax extended headers), whose last entry is the manifest
@@ -143,13 +143,29 @@ function entryHeaders(relativePath: string, size: number, type: '0' | '5', mtime
   return headers;
 }
 
-async function openRegularFile(absolute: string): Promise<FileHandle> {
+const READ_CHUNK_BYTES = 64 * 1024;
+
+async function openRegularFile(
+  absolute: string,
+  entryPath: string,
+): Promise<{ handle: FileHandle; stat: fs.Stats }> {
   const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0);
-  const handle = await fsp.open(absolute, flags);
+  let handle: FileHandle;
+  try {
+    handle = await fsp.open(absolute, flags);
+  } catch (error) {
+    if (hasErrorCode(error, 'ELOOP')) {
+      throw new PanelError('server.backups.sourceHasLink', { name: entryPath });
+    }
+    if (hasErrorCode(error, 'ENOENT')) {
+      throw new PanelError('server.backups.fileChanged', { name: entryPath });
+    }
+    throw error;
+  }
   try {
     const stat = await handle.stat();
-    if (!stat.isFile()) throw new PanelError('server.backups.fileChanged', { name: path.basename(absolute) });
-    return handle;
+    if (!stat.isFile()) throw new PanelError('server.backups.fileChanged', { name: entryPath });
+    return { handle, stat };
   } catch (error) {
     await handle.close();
     throw error;
@@ -173,29 +189,74 @@ async function* archiveChunks(
       yield* entryHeaders(entry.path, 0, '5', entry.mtimeMs);
       continue;
     }
-    yield* entryHeaders(entry.path, entry.size, '0', entry.mtimeMs);
+    // Always open and fstat the file before emitting its tar header (even when scanned size was 0) so files modified
+    // between scan and read, or while being read, are rejected instead of being silently truncated with a matching manifest hash.
+    const { handle, stat: beforeStat } = await openRegularFile(entry.absolute, entry.path);
     const hash = createHash('sha256');
     let read = 0;
-    if (entry.size > 0) {
-      const handle = await openRegularFile(entry.absolute);
-      const stream = handle.createReadStream({ start: 0, end: entry.size - 1, autoClose: true });
-      try {
-        for await (const chunk of stream as AsyncIterable<Buffer>) {
-          throwIfAborted(signal);
-          hash.update(chunk);
-          read += chunk.length;
-          yield chunk;
-        }
-      } finally {
-        stream.destroy();
+    try {
+      if (beforeStat.size !== entry.size || beforeStat.mtimeMs !== entry.mtimeMs) {
+        throw new PanelError('server.backups.fileChanged', { name: entry.path });
       }
+      yield* entryHeaders(entry.path, beforeStat.size, '0', beforeStat.mtimeMs);
+
+      let position = 0;
+      for (;;) {
+        throwIfAborted(signal);
+        const remaining = beforeStat.size - read;
+        // Read up to 1 byte past the expected size so concurrent appends are caught before EOF.
+        const toRead = Math.min(READ_CHUNK_BYTES, remaining + 1);
+        const buffer = Buffer.allocUnsafe(toRead);
+        const { bytesRead } = await handle.read(buffer, 0, toRead, position);
+        if (bytesRead === 0) break;
+        if (read + bytesRead > beforeStat.size) {
+          throw new PanelError('server.backups.fileChanged', { name: entry.path });
+        }
+        const chunk = bytesRead === toRead ? buffer : buffer.subarray(0, bytesRead);
+        hash.update(chunk);
+        read += bytesRead;
+        position += bytesRead;
+        yield chunk;
+      }
+
+      if (read !== beforeStat.size) {
+        // The file shrank while reading: the header size was already emitted, so this backup must be abandoned.
+        throw new PanelError('server.backups.fileChanged', { name: entry.path });
+      }
+
+      const afterStat = await handle.stat();
+      if (
+        afterStat.size !== beforeStat.size
+        || afterStat.mtimeMs !== beforeStat.mtimeMs
+        || afterStat.ctimeMs !== beforeStat.ctimeMs
+        || afterStat.ino !== beforeStat.ino
+      ) {
+        throw new PanelError('server.backups.fileChanged', { name: entry.path });
+      }
+
+      let pathStat: fs.Stats;
+      try {
+        pathStat = await fsp.lstat(entry.absolute);
+      } catch (error) {
+        if (hasErrorCode(error, 'ENOENT')) {
+          throw new PanelError('server.backups.fileChanged', { name: entry.path });
+        }
+        throw error;
+      }
+      if (
+        pathStat.isSymbolicLink()
+        || !pathStat.isFile()
+        || pathStat.ino !== beforeStat.ino
+        || pathStat.size !== beforeStat.size
+        || pathStat.mtimeMs !== beforeStat.mtimeMs
+      ) {
+        throw new PanelError('server.backups.fileChanged', { name: entry.path });
+      }
+    } finally {
+      await handle.close();
     }
-    if (read !== entry.size) {
-      // The file was truncated after the scan: the header size is already written, so this backup can only be abandoned.
-      throw new PanelError('server.backups.fileChanged', { name: entry.path });
-    }
-    yield paddingFor(entry.size);
-    files.push({ path: entry.path, size: entry.size, sha256: hash.digest('hex') });
+    yield paddingFor(beforeStat.size);
+    files.push({ path: entry.path, size: beforeStat.size, sha256: hash.digest('hex') });
     onProgress(files.length, totalFiles);
   }
 

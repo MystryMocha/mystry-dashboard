@@ -41,6 +41,7 @@ import {
 } from '../services/config-service.js';
 import { sendRouteError } from '../http-errors.js';
 import { errorBody, errorMessage, isPanelError, PanelError, panelErrorBody, toPanelMessage } from '../utils/errors.js';
+import { switchToStreamingUploadTimeout } from '../utils/request-timeout.js';
 
 const { maxTextFileBytes } = config;
 const maxPathLength = 1_024;
@@ -467,6 +468,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
         rejectWhileRestoring(req.params.id);
+        switchToStreamingUploadTimeout(req, reply);
         const file = await req.file();
         if (!file) return reply.code(400).send(panelErrorBody('server.files.upload.missing'));
         const saved = await saveUploadedFile(

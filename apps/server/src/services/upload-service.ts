@@ -38,10 +38,10 @@ export function isUploadTooLargeError(error: unknown): error is UploadTooLargeEr
 
 let activeUploads = 0;
 
-function tempPath(prefix: string): string {
+function tempPath(prefix: string, targetDir: string, suffix: string): string {
   return path.join(
-    config.uploadDir,
-    `.tmp-${prefix}-${Date.now()}-${randomBytes(12).toString('hex')}`,
+    targetDir,
+    `.tmp-${prefix}-${Date.now()}-${randomBytes(12).toString('hex')}${suffix}`,
   );
 }
 
@@ -49,9 +49,11 @@ function tempPath(prefix: string): string {
 export async function streamToUploadTemp(
   input: Readable,
   prefix: string,
-  options: { maxBytes?: number } = {},
+  options: { maxBytes?: number; targetDir?: string; suffix?: string } = {},
 ): Promise<string> {
   const maxBytes = options.maxBytes ?? config.maxUploadBytes;
+  const targetDir = options.targetDir ?? config.uploadDir;
+  const suffix = options.suffix ?? '';
   if (activeUploads >= config.maxConcurrentUploads) throw new UploadCapacityError();
   activeUploads += 1;
   let target: string | null = null;
@@ -75,8 +77,8 @@ export async function streamToUploadTemp(
   };
 
   try {
-    fs.mkdirSync(config.uploadDir, { recursive: true, mode: 0o700 });
-    target = tempPath(prefix);
+    fs.mkdirSync(targetDir, { recursive: true, mode: 0o700 });
+    target = tempPath(prefix, targetDir, suffix);
     let bytes = 0;
     const counter = createByteCounter((chunkBytes) => {
       armIdleTimer();

@@ -3,11 +3,11 @@ import path from 'node:path';
 import type { DeployCoreInput } from '@mystry/shared';
 import { nanoid } from 'nanoid';
 import { config } from '../config.js';
-import { registerPromotedInstance } from './instance-service.js';
+import { commitStagedInstance } from './instance-service.js';
 import { detectJarFile, findModLoaderArgsFile } from './server-launch-detect.js';
 import { resolveSafePath } from '../utils/path.js';
 import { recordTaskStaging, runBackgroundTask } from './task-service.js';
-import { prepareTaskStaging, promoteTaskStagingToInstance, removeTaskStagingTree } from './task-staging-service.js';
+import { prepareTaskStaging, removeTaskStagingTree } from './task-staging-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { PanelError, throwIfAborted } from '../utils/errors.js';
@@ -46,11 +46,6 @@ export async function deployCore(input: DeployCoreInput) {
         stagingToken = nanoid(32);
         recordTaskStaging(taskId, instanceId, stagingToken);
         const dir = prepareTaskStaging(taskId, instanceId, stagingToken);
-        const writeEulaIfNeeded = () => {
-          if (input.acceptEula) {
-            fs.writeFileSync(resolveSafePath(dir, 'eula.txt'), 'eula=true\n', 'utf8');
-          }
-        };
 
         let jarFile: string;
         const usesInstaller = input.coreType === 'forge' || input.coreType === 'neoforge';
@@ -142,7 +137,6 @@ export async function deployCore(input: DeployCoreInput) {
             jarFile = jar;
           }
 
-          writeEulaIfNeeded();
           throwIfAborted(signal);
           report(95, { key: 'server.deploy.progress.writingInstance' });
         } else {
@@ -197,22 +191,25 @@ export async function deployCore(input: DeployCoreInput) {
 
           throwIfAborted(signal);
           report(95, { key: 'server.deploy.progress.writingConfig' });
-          writeEulaIfNeeded();
           report(97, { key: 'server.deploy.progress.writingInstance' });
           jarFile = 'server.jar';
         }
 
-        // Once the directory has landed, registration must follow; no await or cancellation check may be added here.
-        promoteTaskStagingToInstance(taskId, instanceId);
-        registerPromotedInstance(instanceId, {
-          name: input.name,
-          coreType: input.coreType,
-          mcVersion: input.mcVersion,
-          jarFile,
-          jvmArgs: input.jvmArgs,
-          acceptEula: input.acceptEula,
-          javaRuntimeId: input.javaRuntimeId ?? null,
-        });
+        // Validate inputs and write ownership/EULA files in staging before renaming, then register synchronously.
+        commitStagedInstance(
+          taskId,
+          instanceId,
+          {
+            name: input.name,
+            coreType: input.coreType,
+            mcVersion: input.mcVersion,
+            jarFile,
+            jvmArgs: input.jvmArgs,
+            acceptEula: input.acceptEula,
+            javaRuntimeId: input.javaRuntimeId ?? null,
+          },
+          { writeEulaIfAccepted: true },
+        );
         completed = true;
         if (usesInstaller) report(100, { key: 'server.deploy.progress.completed' });
         return { instanceId };

@@ -347,6 +347,69 @@ test('an uploaded backup enters the list only after verification passes, and cor
   assert.equal(listBackups(id).length, 2);
 });
 
+test('backup upload stages directly in the target backup directory and EXDEV fallback copies asynchronously', async (t) => {
+  const { id } = await setup();
+  const {
+    backupRoot,
+    getBackupWithArchive,
+    listBackups,
+    moveBackupArchiveIntoPlace,
+    saveUploadedBackup,
+    startBackupTask,
+  } = await import('./backup-service.js');
+  const { config } = await import('../config.js');
+  const created = await waitForTask(await startBackupTask(id));
+  assert.equal(created.status, 'completed', created.error);
+  const [original] = listBackups(id);
+  const bytes = fs.readFileSync(getBackupWithArchive(id, original!.id).archive);
+
+  // Confirm backup upload writes its temp file inside BACKUP_DIR/<instanceId>/ rather than DATA_DIR/uploads/.
+  const targetBackupDir = path.join(backupRoot(), id);
+  const renamedSources: string[] = [];
+  const originalPromiseRename = fs.promises.rename.bind(fs.promises);
+  const renameSpy = t.mock.method(fs.promises, 'rename', async (src: fs.PathLike, dest: fs.PathLike) => {
+    renamedSources.push(path.resolve(String(src)));
+    return originalPromiseRename(src, dest);
+  });
+  try {
+    await saveUploadedBackup(id, Readable.from([bytes]));
+  } finally {
+    renameSpy.mock.restore();
+  }
+  assert.equal(renamedSources.length, 1);
+  assert.equal(path.dirname(renamedSources[0]!), path.resolve(targetBackupDir));
+  assert.match(path.basename(renamedSources[0]!), /^\.tmp-upload-.*\.tar\.gz$/);
+  assert.notEqual(path.dirname(renamedSources[0]!), path.resolve(config.uploadDir));
+
+  // Confirm EXDEV fallback uses async fs.promises.copyFile rather than blocking fs.copyFileSync.
+  const crossDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-exdev-test-'));
+  t.after(() => fs.rmSync(crossDir, { recursive: true, force: true }));
+  const srcFile = path.join(crossDir, 'source.tar.gz');
+  const dstFile = path.join(crossDir, 'dest.tar.gz');
+  fs.writeFileSync(srcFile, bytes);
+
+  let firstRename = true;
+  const exdevRename = t.mock.method(fs.promises, 'rename', async (src: fs.PathLike, dest: fs.PathLike) => {
+    if (firstRename) {
+      firstRename = false;
+      throw Object.assign(new Error('EXDEV: cross-device link not permitted'), { code: 'EXDEV' });
+    }
+    return originalPromiseRename(src, dest);
+  });
+  const syncCopySpy = t.mock.method(fs, 'copyFileSync', () => {
+    assert.fail('moveBackupArchiveIntoPlace must not call synchronous fs.copyFileSync');
+  });
+  try {
+    await moveBackupArchiveIntoPlace(srcFile, dstFile);
+  } finally {
+    exdevRename.mock.restore();
+    syncCopySpy.mock.restore();
+  }
+  assert.deepEqual(fs.readFileSync(dstFile), bytes);
+  assert.equal(fs.existsSync(srcFile), false);
+  assert.deepEqual(fs.readdirSync(crossDir), ['dest.tar.gz']);
+});
+
 test('startup recovery after an interrupted directory swap: the old directory is moved back when not in place, and unfinished backup temp files are cleaned up', async () => {
   const { id, dir } = await setup();
   const { backupRoot, recoverInterruptedBackups } = await import('./backup-service.js');
@@ -497,6 +560,53 @@ test('the instance record is kept when the launch file in the manifest is not in
   assert.equal(restored.status, 'completed', restored.error);
   assert.equal(restored.result?.instanceRecordUpdated, false);
   assert.equal(getInstanceRow(id)!.jar_file, 'server-1.21.jar');
+});
+
+test('cross-platform Forge/NeoForge restore re-resolves @args: for the current platform instead of copying foreign OS args', async () => {
+  const { id, dir } = await setup();
+  const { getInstanceRow, updateInstanceServerFiles } = await import('./instance-service.js');
+  const { startBackupTask, startRestoreTask, syncInstanceRecordWithManifest } = await import('./backup-service.js');
+  const { BACKUP_FORMAT, BACKUP_FORMAT_VERSION } = await import('./backup-archive.js');
+
+  const forgeRelDir = 'libraries/net/minecraftforge/forge/1.20.1-47.2.0';
+  const winArgs = `@args:${forgeRelDir}/win_args.txt`;
+  const unixArgs = `@args:${forgeRelDir}/unix_args.txt`;
+  fs.mkdirSync(path.join(dir, ...forgeRelDir.split('/')), { recursive: true });
+  fs.writeFileSync(path.join(dir, ...forgeRelDir.split('/'), 'win_args.txt'), '-cp a;b\n');
+  fs.writeFileSync(path.join(dir, ...forgeRelDir.split('/'), 'unix_args.txt'), '-cp a:b\n');
+
+  // Record the opposite platform's args file before backing up to simulate a backup uploaded from another OS.
+  const foreignArgs = process.platform === 'win32' ? unixArgs : winArgs;
+  const nativeArgs = process.platform === 'win32' ? winArgs : unixArgs;
+  updateInstanceServerFiles(id, { jarFile: foreignArgs, coreType: 'forge', mcVersion: '1.20.1' });
+  const backupTask = await waitForTask(await startBackupTask(id));
+  assert.equal(backupTask.status, 'completed', backupTask.error);
+
+  const restored = await waitForTask(await startRestoreTask(id, backupTask.result!.backupId!, { backupCurrent: false }));
+  assert.equal(restored.status, 'completed', restored.error);
+  assert.equal(restored.result?.instanceRecordUpdated, true);
+  assert.equal(getInstanceRow(id)!.jar_file, nativeArgs, 'restore must switch @args: to the current platform');
+
+  // Also verify both cross-platform directions directly via syncInstanceRecordWithManifest.
+  const winManifest: import('./backup-archive.js').BackupManifest = {
+    format: BACKUP_FORMAT,
+    version: BACKUP_FORMAT_VERSION,
+    createdAt: new Date().toISOString(),
+    instance: { id, name: 'forge', coreType: 'forge', mcVersion: '1.20.1', jarFile: winArgs },
+    wasRunning: false,
+    directories: [],
+    files: [],
+  };
+  updateInstanceServerFiles(id, { jarFile: 'server.jar', coreType: 'custom', mcVersion: null });
+  assert.equal(await syncInstanceRecordWithManifest(id, winManifest, 'linux'), true);
+  assert.equal(getInstanceRow(id)!.jar_file, unixArgs);
+
+  const unixManifest: import('./backup-archive.js').BackupManifest = {
+    ...winManifest,
+    instance: { ...winManifest.instance, jarFile: unixArgs },
+  };
+  assert.equal(await syncInstanceRecordWithManifest(id, unixManifest, 'win32'), true);
+  assert.equal(getInstanceRow(id)!.jar_file, winArgs);
 });
 
 test('deleting a backup leaves no files; deleting the instance backup directory removes all backups', async () => {

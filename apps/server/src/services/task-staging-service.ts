@@ -64,7 +64,7 @@ export function stagingMarkerMatches(dir: string, marker: TaskStagingMarker): bo
   );
 }
 
-function removeEmptyParents(dir: string, dataDir: string): void {
+export function removeEmptyStagingParents(dir: string, dataDir = config.dataDir): void {
   const stagingRoot = path.join(dataDir, STAGING_ROOT_DIR);
   let current = path.dirname(dir);
   while (current.startsWith(stagingRoot) && current !== stagingRoot) {
@@ -93,7 +93,7 @@ export async function removeTaskStagingTree(
   const dir = taskStagingDir(taskId, instanceId, dataDir);
   if (!fs.existsSync(dir)) return false;
   await fs.promises.rm(dir, { recursive: true, force: true });
-  removeEmptyParents(dir, dataDir);
+  removeEmptyStagingParents(dir, dataDir);
   return true;
 }
 
@@ -106,7 +106,7 @@ export function removeTaskStagingTreeSync(
   const dir = taskStagingDir(taskId, instanceId, dataDir);
   if (!fs.existsSync(dir)) return false;
   fs.rmSync(dir, { recursive: true, force: true });
-  removeEmptyParents(dir, dataDir);
+  removeEmptyStagingParents(dir, dataDir);
   return true;
 }
 
@@ -125,7 +125,7 @@ export function promoteTaskStagingToInstance(
     throw new PanelError('server.imports.staging.instanceDirExists');
   }
   fs.renameSync(staging, instanceDir);
-  removeEmptyParents(staging, dataDir);
+  removeEmptyStagingParents(staging, dataDir);
   const markerPath = path.join(instanceDir, STAGING_MARKER_FILE);
   if (fs.existsSync(markerPath)) {
     fs.unlinkSync(markerPath);

@@ -152,8 +152,8 @@ export const config = {
   maxConsoleChunkBytes: parsePositiveInt('MAX_CONSOLE_CHUNK_BYTES', 65536),
   /** Per-file upload limit, 512MB by default */
   maxUploadBytes: parsePositiveInt('MAX_UPLOAD_BYTES', 512 * 1024 * 1024),
-  /** Backup upload limit, 10 GiB by default (world saves are usually far larger than ordinary uploads). */
-  maxBackupUploadBytes: parsePositiveInt('MAX_BACKUP_UPLOAD_BYTES', 10 * 1024 * 1024 * 1024),
+  /** Backup upload limit, 100 GiB by default (matches the backup content limit so backups created by the panel can be uploaded back). */
+  maxBackupUploadBytes: parsePositiveInt('MAX_BACKUP_UPLOAD_BYTES', 100 * 1024 * 1024 * 1024),
   uploadIdleTimeoutMs: parsePositiveInt('UPLOAD_IDLE_TIMEOUT_MS', 30_000),
   maxConcurrentUploads: parsePositiveInt('MAX_CONCURRENT_UPLOADS', 1),
   /** ZIP import preview lifetime and global capacity. */
@@ -167,7 +167,8 @@ export const config = {
   /** Time limit for backup and restore tasks, 6 hours by default: packing a large world, the pre-restore backup and extraction all count within one task. */
   backupTaskTimeoutMs: parsePositiveInt('BACKUP_TASK_TIMEOUT_MS', 6 * 60 * 60 * 1000),
   maxCoreDownloadBytes: parsePositiveInt('MAX_CORE_DOWNLOAD_BYTES', 536870912),
-  coreDownloadTimeoutMs: parsePositiveInt('CORE_DOWNLOAD_TIMEOUT_MS', 300000),
+  /** Idle/stall timeout for core and runtime downloads: resets whenever data chunks arrive, 60s by default. */
+  coreDownloadTimeoutMs: parsePositiveInt('CORE_DOWNLOAD_TIMEOUT_MS', 60_000),
   httpRequestTimeoutMs: parsePositiveInt('HTTP_REQUEST_TIMEOUT_MS', 900_000),
   httpConnectionTimeoutMs: parsePositiveInt('HTTP_CONNECTION_TIMEOUT_MS', 300_000),
   httpKeepAliveTimeoutMs: parsePositiveInt('HTTP_KEEP_ALIVE_TIMEOUT_MS', 72_000),
