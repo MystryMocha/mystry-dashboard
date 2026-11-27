@@ -5,6 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 import { Accessibility, Copy, Eraser, RefreshCw, Send } from 'lucide-react';
 import {
   CONSOLE_CLOSE_RATE_LIMITED,
+  CONSOLE_CLOSE_SEND_BACKLOG,
   CONSOLE_CLOSE_SESSION_REVOKED,
   isServerMessageKey,
   type ConsoleMessage,
@@ -47,13 +48,15 @@ const SCREEN_READER_KEY = 'mystry_console_screen_reader';
 const RETRYABLE_CLOSE_REASONS: Record<number, MessageKey> = {
   [CONSOLE_CLOSE_SESSION_REVOKED]: 'console.system.sessionChanged',
   [CONSOLE_CLOSE_RATE_LIMITED]: 'console.system.rateLimited',
+  [CONSOLE_CLOSE_SEND_BACKLOG]: 'console.system.sendBacklog',
+  // "Try again later": the global connection limit frees up as other consoles close or time out.
+  1013: 'console.system.tooManyConnections',
 };
 
 // WebSocket close codes that indicate a hard limit or policy rejection rather than a transient drop.
 const NON_RETRYABLE_CLOSE_MESSAGES: Record<number, MessageKey> = {
   1008: 'console.system.closedPolicy',
   1009: 'console.system.closedTooLarge',
-  1013: 'console.system.closedTooMany',
 };
 
 function readScreenReaderPreference(): boolean {

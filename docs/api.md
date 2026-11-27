@@ -450,7 +450,7 @@ Authorization: Bearer <token>
 
 Then connect: `ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`. A ticket is valid for 60 seconds by default and can establish only one connection. After a password change or reset, unused tickets are voided and established connections are closed with close code 4401; see [Token Invalidation](#token-invalidation).
 
-Limits on connection count, inbound message size, command length and send rate are set by `MAX_CONSOLE_*` and related variables in [Configuration](configuration.md); when a limit is exceeded, the server does not write to the instance's stdin. A connection that sends commands faster than the allowed rate is closed with close code 4429.
+Limits on connection count, inbound message size, command length and send rate are set by `MAX_CONSOLE_*` and related variables in [Configuration](configuration.md); when a limit is exceeded, the server does not write to the instance's stdin. A connection that sends commands faster than the allowed rate is closed with close code 4429. A client that falls so far behind the output that the send buffer fills is closed with 4503; the browser reconnects and receives a fresh history snapshot.
 
 ### Server → Client Messages (JSON)
 

@@ -700,10 +700,12 @@ export interface ChangePasswordResult {
 
 /**
  * Application close codes of the console WebSocket (4000-4999 is the range reserved for applications). The standard
- * 1008 cannot tell these two apart, and the client reacts differently to each.
+ * 1008 and 1009 cannot tell these apart from a permanent rejection, and the client reconnects after each of them.
  */
 export const CONSOLE_CLOSE_SESSION_REVOKED = 4401;
 export const CONSOLE_CLOSE_RATE_LIMITED = 4429;
+/** The client fell behind the output and the send buffer filled up; a fresh connection starts from a new snapshot. */
+export const CONSOLE_CLOSE_SEND_BACKLOG = 4503;
 
 export interface ConsoleMessage {
   type: 'output' | 'status' | 'error' | 'history';

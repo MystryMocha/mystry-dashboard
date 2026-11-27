@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   CONSOLE_CLOSE_RATE_LIMITED,
+  CONSOLE_CLOSE_SEND_BACKLOG,
   CONSOLE_CLOSE_SESSION_REVOKED,
   renderPanelMessage,
   type ConsoleMessage,
@@ -196,7 +197,7 @@ export function splitOutputForJsonBudget(
   return chunks;
 }
 
-function sendSocketMessage(
+export function sendSocketMessage(
   socket: {
     readyState: number;
     bufferedAmount: number;
@@ -208,8 +209,14 @@ function sendSocketMessage(
   if (socket.readyState !== 1) return false;
   const message = JSON.stringify(payload);
   const messageBytes = Buffer.byteLength(message, 'utf8');
-  if (messageBytes > maxOutgoingMessageBytes || socket.bufferedAmount + messageBytes > maxSocketBufferedBytes) {
-    closeSocket(socket, 1009, 'Console send buffer too large');
+  if (messageBytes > maxOutgoingMessageBytes) {
+    closeSocket(socket, 1009, 'Console message too large');
+    terminateSocketLater(socket);
+    return false;
+  }
+  // A slow client is a passing condition, unlike an oversized frame: it gets its own code so the browser reconnects.
+  if (socket.bufferedAmount + messageBytes > maxSocketBufferedBytes) {
+    closeSocket(socket, CONSOLE_CLOSE_SEND_BACKLOG, 'Console send buffer full');
     terminateSocketLater(socket);
     return false;
   }

@@ -11,9 +11,10 @@ export default {
   'console.system.disconnected': 'Console connection lost',
   'console.system.sessionChanged': 'Your sign-in session changed',
   'console.system.rateLimited': 'Commands were sent too often',
+  'console.system.sendBacklog': 'The connection could not keep up with the console output',
+  'console.system.tooManyConnections': 'Too many console connections are open',
   'console.system.closedPolicy': '{prefix} Connection closed by the server. Select Reconnect to try again.',
   'console.system.closedTooLarge': '{prefix} Console output exceeded the frame size limit. Select Reconnect to try again.',
-  'console.system.closedTooMany': '{prefix} Too many open console connections. Close unused console tabs, then select Reconnect.',
 
   // Connection status
   'console.status.connected': 'Live log connected',

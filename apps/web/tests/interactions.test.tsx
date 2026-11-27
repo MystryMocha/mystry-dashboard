@@ -862,7 +862,7 @@ test('after a console reconnect the history snapshot replaces the old log, witho
   expect(terminal.written).toContain('已重新连接');
 });
 
-test('console backs off exponentially when closing before receiving history, and stops auto-reconnect on 1008/1009/1013', async () => {
+test('console backs off exponentially when closing before receiving history, and stops auto-reconnect only on 1008/1009', async () => {
   const sockets: Array<{ onopen?: () => void; onmessage?: (ev: { data: string }) => void; onclose?: (ev: { code?: number }) => void }> = [];
   vi.stubGlobal('WebSocket', class { constructor() { sockets.push(this); } close() {} });
   vi.useFakeTimers();
@@ -889,10 +889,12 @@ test('console backs off exponentially when closing before receiving history, and
   await act(async () => { await vi.advanceTimersByTimeAsync(1); });
   expect(sockets).toHaveLength(4);
 
-  // A revoked session and a command rate limit have their own codes: the console says why and reconnects by itself.
+  // Passing conditions (revoked session, rate limit, full send buffer, full connection pool): the console says why and reconnects by itself.
   for (const [code, fragment] of [
     [4401, '登录会话已变更'],
     [4429, '命令发送过于频繁'],
+    [4503, '网络传输跟不上控制台输出'],
+    [1013, '控制台连接数已达上限'],
   ] as const) {
     const beforeCount = sockets.length;
     act(() => { sockets[beforeCount - 1].onclose?.({ code }); });
@@ -904,7 +906,6 @@ test('console backs off exponentially when closing before receiving history, and
   // Non-retryable close codes stop auto-reconnect and surface a manual Reconnect button.
   for (const [code, fragment] of [
     [1009, '超出单帧大小限制'],
-    [1013, '连接数已达上限'],
     [1008, '连接已被服务端关闭'],
   ] as const) {
     const beforeCount = sockets.length;

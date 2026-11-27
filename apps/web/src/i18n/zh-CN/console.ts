@@ -13,9 +13,10 @@ export default {
   'console.system.disconnected': '控制台连接已断开',
   'console.system.sessionChanged': '登录会话已变更',
   'console.system.rateLimited': '命令发送过于频繁',
+  'console.system.sendBacklog': '网络传输跟不上控制台输出',
+  'console.system.tooManyConnections': '控制台连接数已达上限',
   'console.system.closedPolicy': '{prefix} 连接已被服务端关闭，可点击「重新连接」重试。',
   'console.system.closedTooLarge': '{prefix} 控制台消息超出单帧大小限制，连接已关闭，可点击「重新连接」重试。',
-  'console.system.closedTooMany': '{prefix} 控制台连接数已达上限，请关闭其他控制台标签页后点击「重新连接」。',
 
   // 连接状态
   'console.status.connected': '实时日志已连接',

@@ -99,6 +99,39 @@ test('splitOutputForJsonBudget breaks ANSI-heavy output chunks cleanly without c
   }
 });
 
+test('a full send buffer closes with the retryable backlog code, an oversized frame with 1009', async () => {
+  const { sendSocketMessage } = await import('./console.js');
+  const { CONSOLE_CLOSE_SEND_BACKLOG } = await import('@mystry/shared');
+  const { config } = await import('../config.js');
+  const budget = config.maxConsoleBufferBytes + config.maxConsoleChunkBytes;
+  const socket = (bufferedAmount: number) => {
+    const closes: number[] = [];
+    const sent: string[] = [];
+    return {
+      closes,
+      sent,
+      readyState: 1,
+      bufferedAmount,
+      send: (data: string) => { sent.push(data); },
+      close: (code?: number) => { closes.push(code ?? 1005); },
+      terminate: () => {},
+    };
+  };
+
+  const backlogged = socket(budget - 10);
+  assert.equal(sendSocketMessage(backlogged, { type: 'output', data: 'x'.repeat(100) }), false);
+  assert.deepEqual(backlogged.closes, [CONSOLE_CLOSE_SEND_BACKLOG]);
+  assert.equal(backlogged.sent.length, 0);
+
+  const oversized = socket(0);
+  assert.equal(sendSocketMessage(oversized, { type: 'output', data: 'x'.repeat(budget) }), false);
+  assert.deepEqual(oversized.closes, [1009]);
+
+  const fine = socket(0);
+  assert.equal(sendSocketMessage(fine, { type: 'output', data: 'ok' }), true);
+  assert.deepEqual(fine.closes, []);
+});
+
 test('console WebSocket sends a full-1MiB ANSI-heavy history snapshot without closing with 1009', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-console-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;

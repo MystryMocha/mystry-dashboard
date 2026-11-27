@@ -13,9 +13,10 @@ export default {
   'console.system.disconnected': '主控台連線已中斷',
   'console.system.sessionChanged': '登入工作階段已變更',
   'console.system.rateLimited': '指令傳送過於頻繁',
+  'console.system.sendBacklog': '網路傳輸跟不上主控台輸出',
+  'console.system.tooManyConnections': '主控台連線數已達上限',
   'console.system.closedPolicy': '{prefix} 連線已被伺服器關閉，請點選「重新連線」重試。',
   'console.system.closedTooLarge': '{prefix} 主控台訊息超出單訊框大小限制，連線已關閉，請點選「重新連線」重試。',
-  'console.system.closedTooMany': '{prefix} 主控台連線數已達上限，請關閉其他主控台分頁後點選「重新連線」。',
 
   // 连接状态
   'console.status.connected': '即時日誌已連線',
