@@ -24,7 +24,7 @@ function prepareTempDataRoot(t: test.TestContext): string {
   return dataRoot;
 }
 
-function writeLeftoverOwner(dataRoot: string, owner: { pid: number; createdAt: string }): void {
+function writeLeftoverOwner(dataRoot: string, owner: { pid: number; createdAt: string; lock?: 'sqlite' }): void {
   const lockDir = path.join(dataRoot, LOCK_DIR);
   fs.mkdirSync(lockDir, { recursive: true });
   fs.writeFileSync(
@@ -89,7 +89,7 @@ test('the lock directory should be 0700, owner.json and the lock database 0600',
 test('a leftover owner record never blocks startup, even when its PID is alive and its timestamp is fresh', async (t) => {
   const dataRoot = prepareTempDataRoot(t);
   // The parent test runner is alive and is not this process: exactly what a recycled PID looks like after a crash.
-  writeLeftoverOwner(dataRoot, { pid: process.ppid, createdAt: new Date().toISOString() });
+  writeLeftoverOwner(dataRoot, { pid: process.ppid, createdAt: new Date().toISOString(), lock: 'sqlite' });
 
   const { acquirePanelDataLock } = await import('./data-lock-service.js');
   const lock = acquirePanelDataLock(dataRoot);
@@ -97,6 +97,29 @@ test('a leftover owner record never blocks startup, even when its PID is alive a
   assert.equal(owner.pid, process.pid);
   assert.equal(lock.owner.pid, process.pid);
   lock.release();
+});
+
+test('a live panel from a release that only held the lock directory still keeps the data directory', async (t) => {
+  const dataRoot = prepareTempDataRoot(t);
+  const { acquirePanelDataLock } = await import('./data-lock-service.js');
+
+  // Alive in this boot (the parent test runner stands in for the older panel): refused, and its record is left alone.
+  writeLeftoverOwner(dataRoot, { pid: process.ppid, createdAt: new Date().toISOString() });
+  assert.throws(() => acquirePanelDataLock(dataRoot), /旧版面板进程占用[\s\S]*记录 PID/);
+  const kept = JSON.parse(fs.readFileSync(path.join(dataRoot, LOCK_DIR, 'owner.json'), 'utf8')) as { pid: number };
+  assert.equal(kept.pid, process.ppid);
+
+  // Its PID is gone, or the record predates this boot: the directory is stale and is taken over.
+  for (const leftover of [
+    { pid: 9_999_999, createdAt: new Date().toISOString() },
+    { pid: process.ppid, createdAt: new Date(0).toISOString() },
+  ]) {
+    writeLeftoverOwner(dataRoot, leftover);
+    const lock = acquirePanelDataLock(dataRoot);
+    const owner = JSON.parse(fs.readFileSync(path.join(dataRoot, LOCK_DIR, 'owner.json'), 'utf8')) as { pid: number; lock?: string };
+    assert.deepEqual({ pid: owner.pid, lock: owner.lock }, { pid: process.pid, lock: 'sqlite' });
+    lock.release();
+  }
 });
 
 test('a lock held by another live process is refused whatever the owner record says, and is free once that process dies', async (t) => {

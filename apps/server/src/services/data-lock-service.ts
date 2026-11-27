@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { nanoid } from 'nanoid';
 import { config } from '../config.js';
 import { writeFileAtomic } from '../utils/atomic-write.js';
+import { isProcessAliveSync, isTimestampBeforeBoot } from '../utils/process-inspect.js';
 
 const require = createRequire(import.meta.url);
 const panelVersion: string = (require('../../package.json') as { version: string }).version;
@@ -16,12 +17,17 @@ const OWNER_FILE = 'owner.json';
 const LOCK_BUSY_TIMEOUT_MS = 1_000;
 const SQLITE_BUSY = 5;
 
-/** Diagnostic record of the lock holder. It names the process in messages and is never used to decide liveness. */
+/**
+ * Diagnostic record of the lock holder. It names the process in messages; liveness comes from the SQLite lock, except
+ * for a record written by a release that predates it (see acquirePanelDataLock).
+ */
 export type PanelLockOwner = {
   pid: number;
   fingerprint: string;
   version: string;
   createdAt: string;
+  /** Written by panels that hold the SQLite lock. A record without it came from a release that held the directory alone. */
+  lock?: 'sqlite';
 };
 
 export type PanelDataLock = {
@@ -78,6 +84,15 @@ function lockConflictError(dataDir: string, owner: PanelLockOwner | null): Error
   );
 }
 
+function legacyLockConflictError(dataDir: string, lockDir: string, owner: PanelLockOwner): Error {
+  return new Error(
+    `数据目录仍被旧版面板进程占用（${dataDir}）。`
+      + `记录 PID：${owner.pid}，版本：${owner.version}。`
+      + '请先关闭旧版面板，等它启动的 Minecraft 服务器退出后再启动；'
+      + `若确认该 PID 已不是面板进程，删除 ${lockDir} 后重试。勿删除实例或世界目录。`,
+  );
+}
+
 function isSqliteBusy(error: unknown): boolean {
   return typeof error === 'object' && error !== null && (error as { errcode?: unknown }).errcode === SQLITE_BUSY;
 }
@@ -87,7 +102,8 @@ function isSqliteBusy(error: unknown): boolean {
  *
  * The lock is an exclusive SQLite transaction on a dedicated database, kept open for the life of the process. The
  * operating system drops it when the holder exits, however it exits, so no PID, clock or boot-time reasoning is needed
- * to tell a live holder from a vanished one.
+ * to tell a live holder from a vanished one. The one exception is a record left by an older release, which never took
+ * this lock: its PID is checked once, before the record is replaced.
  *
  * Two rules keep it sound on POSIX, where file locks belong to the process rather than the handle: nothing in this
  * process may open the lock database except this connection (closing any other handle would drop the lock), and the
@@ -111,7 +127,19 @@ export function acquirePanelDataLock(dataDir: string = config.dataDir): PanelDat
     }
     if (process.platform !== 'win32') fs.chmodSync(lockDbPath, 0o600);
 
-    // Whatever is in the lock directory now was left by a holder that is gone.
+    // A panel from a release before this lock held only the directory, so taking the SQLite lock says nothing about it.
+    // While its PID is alive in this boot it may still be writing (for instance waiting for its servers during an upgrade).
+    const previous = readOwner(lockDir);
+    if (
+      previous
+      && previous.lock !== 'sqlite'
+      && previous.pid !== process.pid
+      && isProcessAliveSync(previous.pid)
+      && !isTimestampBeforeBoot(previous.createdAt)
+    ) {
+      throw legacyLockConflictError(dataDir, lockDir, previous);
+    }
+    // Anything else in the lock directory was left by a holder that is gone.
     fs.rmSync(lockDir, { recursive: true, force: true });
     fs.mkdirSync(lockDir, { mode: 0o700 });
     owner = {
@@ -119,6 +147,7 @@ export function acquirePanelDataLock(dataDir: string = config.dataDir): PanelDat
       fingerprint: config.processFingerprint ?? nanoid(16),
       version: panelVersion,
       createdAt: new Date().toISOString(),
+      lock: 'sqlite',
     };
     writeFileAtomic(path.join(lockDir, OWNER_FILE), `${JSON.stringify(owner)}\n`);
   } catch (error) {
