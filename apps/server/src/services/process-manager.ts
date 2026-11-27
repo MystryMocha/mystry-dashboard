@@ -115,6 +115,8 @@ const defaultProcessInspectTools: ProcessInspectTools = {
   signalProcess,
 };
 
+const ORPHAN_REINSPECT_INTERVAL_MS = 30_000;
+
 export type StdinSafetyState = Pick<ManagedProcess, 'stdinAvailable' | 'stdinBackpressured'>;
 
 /** Registers a permanent listener on stdin, so asynchronous write errors do not become unhandled exceptions. */
@@ -179,6 +181,8 @@ export class ProcessManager extends EventEmitter {
   private processes = new Map<string, ManagedProcess>();
   private snapshots = new Map<string, ProcessSnapshot>();
   private orphans = new Map<string, OrphanProcessRecord>();
+  /** When each detached process last went through full identity inspection (a pending one counts from its start). */
+  private orphanInspectedAt = new WeakMap<OrphanProcessRecord, number>();
   private operationTails = new Map<string, Promise<void>>();
   /** Instance maintenance flag during backup/restore: the value is the message key returned when operations such as start are refused. */
   private maintenance = new Map<string, ServerMessageKey>();
@@ -195,6 +199,7 @@ export class ProcessManager extends EventEmitter {
 
   registerOrphanProcess(instanceId: string, record: OrphanProcessRecord): void {
     this.orphans.set(instanceId, record);
+    this.orphanInspectedAt.set(record, Date.now());
   }
 
   clearOrphanProcesses(): void {
@@ -212,11 +217,29 @@ export class ProcessManager extends EventEmitter {
       this.releaseOrphan(instanceId, orphan);
       return null;
     }
+    this.reinspectOrphanIfDue(instanceId, orphan);
     return {
       pid: orphan.pid,
       startedAt: orphan.startedAt,
       canGracefulStop: orphan.canGracefulStop,
     };
+  }
+
+  /**
+   * The synchronous check above cannot see a recycled PID on Windows and macOS, where reading a start time needs a
+   * subprocess. Status reads therefore start a full inspection in the background, at most once per interval, so a
+   * detached marker left on someone else's PID clears without waiting for the user to attempt an operation.
+   */
+  private reinspectOrphanIfDue(instanceId: string, orphan: OrphanProcessRecord): void {
+    const now = Date.now();
+    if (now - (this.orphanInspectedAt.get(orphan) ?? 0) < ORPHAN_REINSPECT_INTERVAL_MS) return;
+    this.orphanInspectedAt.set(orphan, now);
+    void this.processTools.inspectTrackedProcess(orphan).then(
+      (state) => {
+        if (state === 'dead') this.releaseOrphan(instanceId, orphan);
+      },
+      () => { /* An inspection that throws proves nothing; the next interval tries again. */ },
+    );
   }
 
   private releaseOrphan(instanceId: string, orphan: OrphanProcessRecord): void {

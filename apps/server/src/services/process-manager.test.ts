@@ -915,6 +915,61 @@ test('an orphan that cannot be inspected stays tracked, blocks operations, and i
   assert.equal(readRun().end_reason, 'stopped');
 });
 
+test('status reads re-inspect a detached process in the background and drop it once its PID belongs to something else', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-11-27T09:00:00.000Z') });
+
+  let inspections = 0;
+  let state: 'alive' | 'dead' | 'unknown' = 'alive';
+  const manager = new ProcessManager(
+    () => fakeChild(),
+    async () => 'java',
+    {
+      captureIdentitySync: () => null,
+      captureIdentityAsync: async () => null,
+      inspectTrackedProcess: async () => { inspections += 1; return state; },
+      // What Windows and macOS report for a recycled PID: something with that PID exists.
+      isTrackedProcessPresentSync: () => true,
+      signalProcess: () => {},
+    },
+  );
+  const exited: string[] = [];
+  manager.on('orphan-exited', (id: string) => exited.push(id));
+  manager.registerOrphanProcess('inst', {
+    pid: 73001,
+    startedAt: '2026-11-27T08:59:00.000Z',
+    canGracefulStop: false,
+    runId: 1,
+    processIdentity: 'win32:1',
+  });
+  const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+  // Frequent polling right after registration does not spawn inspections.
+  for (let i = 0; i < 5; i += 1) assert.equal(manager.getOrphanProcess('inst')?.pid, 73001);
+  await settle();
+  assert.equal(inspections, 0);
+
+  // One inspection per interval, however many reads arrive; alive and unknown both keep the process tracked.
+  t.mock.timers.tick(30_000);
+  for (let i = 0; i < 5; i += 1) assert.equal(manager.getOrphanProcess('inst')?.pid, 73001);
+  await settle();
+  assert.equal(inspections, 1);
+  state = 'unknown';
+  t.mock.timers.tick(30_000);
+  manager.getOrphanProcess('inst');
+  await settle();
+  assert.equal(manager.getOrphanProcess('inst')?.pid, 73001);
+  assert.deepEqual(exited, []);
+
+  state = 'dead';
+  t.mock.timers.tick(30_000);
+  assert.equal(manager.getOrphanProcess('inst')?.pid, 73001);
+  await settle();
+  assert.equal(manager.getOrphanProcess('inst'), null);
+  assert.deepEqual(exited, ['inst']);
+});
+
 test('real verified orphan blocks start, restart, delete, adopt, and backup until force stopped', async (t) => {
   prepareTempDataRoot(t);
   const { processManager, InstanceOperationConflictError } = await import('./process-manager.js');
