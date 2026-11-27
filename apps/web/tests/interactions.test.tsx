@@ -1618,6 +1618,8 @@ test('the multiplayer page defaults to "Direct Connection": copyable addresses a
   }));
   const writeText = vi.fn(async () => {});
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  // React reports sibling elements that share a key through console.error; the whitelist notice sits beside each method's section.
+  const consoleError = vi.spyOn(console, 'error');
   mount(<MultiplayerPage />);
   expect(await screen.findByRole('button', { name: '直接连接', pressed: true })).toBeTruthy();
   expect(await screen.findByText('192.168.1.23:25565')).toBeTruthy();
@@ -1635,6 +1637,7 @@ test('the multiplayer page defaults to "Direct Connection": copyable addresses a
   expect(writeText).toHaveBeenCalledWith('[2408:8207:ab::10]:25565');
   await user.click(screen.getByRole('button', { name: '改用虚拟局域网' }));
   expect(await screen.findByRole('button', { name: '虚拟局域网', pressed: true })).toBeTruthy();
+  expect(consoleError.mock.calls.filter((args) => args.map(String).join(' ').includes('the same key'))).toEqual([]);
 });
 
 test('the multiplayer guide column can be closed and is remembered; manual install is collapsed by default when the client is not installed', async () => {
