@@ -618,13 +618,16 @@ export class ProcessManager extends EventEmitter {
 
       const onChunk = (stream: keyof typeof decoders) => (chunk: Buffer) => {
         if (this.processes.get(instance.id) !== managed) return;
-        this.appendOutput(instance.id, decodeChunk(stream, chunk));
+        // The marker line may be split across two adjacent output chunks, so it is checked together with the end of the previous output.
+        // That end is read before appending, because one chunk can take several buffer entries.
+        const previous = managed.buffer[managed.buffer.length - 1] ?? '';
+        const text = decodeChunk(stream, chunk);
+        this.appendOutput(instance.id, text);
         if (managed.status === 'starting') {
           managed.status = 'running';
           this.emitStatus(instance.id, 'running');
         }
-        // The marker line may be split across two adjacent output chunks, so it is checked together with the previous chunk.
-        if (!managed.ready && hasFinishedStarting(managed.buffer.slice(-2).join(''))) {
+        if (!managed.ready && hasFinishedStarting(previous + text)) {
           managed.ready = true;
           this.emit('ready', instance.id);
         }
@@ -797,26 +800,34 @@ export class ProcessManager extends EventEmitter {
     const managed = this.processes.get(instanceId);
     if (!managed) return;
 
-    const output = takeUtf8Prefix(text, maxConsoleChunkBytes);
-    const outputBytes = Buffer.byteLength(output, 'utf8');
-    if (outputBytes === 0) return;
+    // Decoded text can be larger than the chunk limit: a partial character carried over from the previous chunk adds up to 3 bytes,
+    // and invalid bytes decode to 3-byte replacement characters. The console route closes the connection on a larger output
+    // message, and cutting would drop delivered text such as a newline, so the text is appended in pieces at character boundaries.
+    let rest = text;
+    while (rest) {
+      const output = takeUtf8Prefix(rest, maxConsoleChunkBytes);
+      // A configured limit smaller than one character admits nothing more.
+      if (!output) return;
+      rest = rest.slice(output.length);
+      const outputBytes = Buffer.byteLength(output, 'utf8');
 
-    managed.buffer.push(output);
-    managed.bufferBytes += outputBytes;
-    while (managed.bufferBytes > maxConsoleBufferBytes && managed.buffer.length > 0) {
-      const excess = managed.bufferBytes - maxConsoleBufferBytes;
-      const oldest = managed.buffer[0];
-      const oldestBytes = Buffer.byteLength(oldest, 'utf8');
-      if (oldestBytes <= excess) {
-        managed.buffer.shift();
-        managed.bufferBytes -= oldestBytes;
-      } else {
-        const retained = takeUtf8Suffix(oldest, oldestBytes - excess);
-        managed.buffer[0] = retained;
-        managed.bufferBytes -= oldestBytes - Buffer.byteLength(retained, 'utf8');
+      managed.buffer.push(output);
+      managed.bufferBytes += outputBytes;
+      while (managed.bufferBytes > maxConsoleBufferBytes && managed.buffer.length > 0) {
+        const excess = managed.bufferBytes - maxConsoleBufferBytes;
+        const oldest = managed.buffer[0];
+        const oldestBytes = Buffer.byteLength(oldest, 'utf8');
+        if (oldestBytes <= excess) {
+          managed.buffer.shift();
+          managed.bufferBytes -= oldestBytes;
+        } else {
+          const retained = takeUtf8Suffix(oldest, oldestBytes - excess);
+          managed.buffer[0] = retained;
+          managed.bufferBytes -= oldestBytes - Buffer.byteLength(retained, 'utf8');
+        }
       }
+      this.emit('output', instanceId, output);
     }
-    this.emit('output', instanceId, output);
   }
 
   private emitStatus(instanceId: string, status: InstanceStatus): void {
