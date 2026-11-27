@@ -70,7 +70,7 @@ async function main(): Promise<void> {
 
   const { assertDistinctSecrets, config } = await import('./config.js');
   const { getDb } = await import('./db.js');
-  const { buildApp } = await import('./index.js');
+  const { buildApp, releasePanelDataLock } = await import('./index.js');
   const { consumeConsoleTicket, issueConsoleTicket } = await import('./services/console-ticket-service.js');
   const { safeExtract } = await import('./services/zip-service.js');
   const {
@@ -830,6 +830,8 @@ async function main(): Promise<void> {
   } finally {
     await app.close();
     getDb().close();
+    // The lock database keeps an open handle on Windows; release it before deleting the data directory.
+    releasePanelDataLock();
     fs.rmSync(testRoot, { recursive: true, force: true });
     fs.rmSync(dataRoot, { recursive: true, force: true });
   }
