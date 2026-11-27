@@ -65,6 +65,7 @@ export const FILES_MESSAGES = {
   'server.files.zip.corrupted': 'The ZIP file is corrupted.',
   'server.files.zip.entryNameInvalid': 'A ZIP entry has an invalid name.',
   'server.files.zip.entryNameEmpty': 'A ZIP entry has an empty name.',
+  'server.files.zip.nonUtf8EntryName': "A ZIP entry name isn't encoded in UTF-8. Repack the archive with UTF-8 file names or use folder upload instead.",
   'server.files.zip.unsafePath': 'Unsafe ZIP path detected: {name}',
   'server.files.zip.reservedName': 'The ZIP file contains a file name reserved by the panel: {name}',
   'server.files.zip.tooLarge': 'The ZIP file exceeds the size limit.',

@@ -22,6 +22,76 @@ type ZipEntry = {
   directory: boolean;
 };
 
+const ZIP_FLAG_UTF8 = 1 << 11;
+const ZIP_EXTRA_INFOZIP_UNICODE_PATH = 0x7075;
+const strictUtf8Decoder = new TextDecoder('utf-8', { fatal: true });
+
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i += 1) {
+    let c = i;
+    for (let bit = 0; bit < 8; bit += 1) {
+      c = (c & 1) !== 0 ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    }
+    table[i] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i += 1) {
+    crc = CRC32_TABLE[(crc ^ bytes[i]!) & 0xff]! ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * Reads the Info-ZIP Unicode Path extra field (0x7075) when present and its CRC-32 matches the raw name bytes.
+ * Matching the CRC-32 is required by the spec so stale extra fields left after an archive rename are ignored.
+ */
+function readInfoZipUnicodePath(rawNameBytes: Buffer, extraBytes: Buffer): string | null {
+  let pos = 0;
+  while (pos + 4 <= extraBytes.length) {
+    const headerId = extraBytes.readUInt16LE(pos);
+    const dataSize = extraBytes.readUInt16LE(pos + 2);
+    const dataStart = pos + 4;
+    const dataEnd = dataStart + dataSize;
+    if (dataEnd > extraBytes.length) break;
+    if (headerId === ZIP_EXTRA_INFOZIP_UNICODE_PATH && dataSize >= 5) {
+      const version = extraBytes[dataStart]!;
+      const expectedCrc = extraBytes.readUInt32LE(dataStart + 1);
+      if (version === 1 && crc32(rawNameBytes) === expectedCrc) {
+        try {
+          return strictUtf8Decoder.decode(extraBytes.subarray(dataStart + 5, dataEnd));
+        } catch {
+          throw new PanelError('server.files.zip.entryNameInvalid');
+        }
+      }
+    }
+    pos = dataEnd;
+  }
+  return null;
+}
+
+/**
+ * Decodes a ZIP entry name without silently turning legacy code-page bytes (such as GBK from Windows Explorer) into U+FFFD:
+ * prefers a verified Info-ZIP 0x7075 Unicode Path field, then accepts strictly valid UTF-8 (whether or not bit 11 is set),
+ * and rejects invalid non-UTF-8 byte sequences with an actionable error.
+ */
+function decodeZipEntryName(rawNameBytes: Buffer, extraBytes: Buffer, flags: number): string {
+  const unicodePath = readInfoZipUnicodePath(rawNameBytes, extraBytes);
+  if (unicodePath !== null) return unicodePath;
+  try {
+    return strictUtf8Decoder.decode(rawNameBytes);
+  } catch {
+    if ((flags & ZIP_FLAG_UTF8) !== 0) {
+      throw new PanelError('server.files.zip.entryNameInvalid');
+    }
+    throw new PanelError('server.files.zip.nonUtf8EntryName');
+  }
+}
+
 function readAt(fd: number, position: number, length: number): Buffer {
   const buffer = Buffer.alloc(length);
   const bytes = fs.readSync(fd, buffer, 0, length, position);
@@ -107,7 +177,9 @@ function readZipEntries(zipPath: string, signal: AbortSignal, maxArchiveBytes?: 
       const end = offset + 46 + nameLength + extraLength + commentLength;
       if (end > central.length) throw new PanelError('server.files.zip.entryMetadataCorrupted');
 
-      const name = central.subarray(offset + 46, offset + 46 + nameLength).toString('utf8');
+      const rawNameBytes = central.subarray(offset + 46, offset + 46 + nameLength);
+      const extraBytes = central.subarray(offset + 46 + nameLength, offset + 46 + nameLength + extraLength);
+      const name = decodeZipEntryName(rawNameBytes, extraBytes, flags);
       const normalizedName = zipPathFromEntry(name);
       const unixMode = (externalAttributes >>> 16) & 0xffff;
       const fileType = unixMode & 0xf000;

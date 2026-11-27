@@ -12,9 +12,12 @@ process.env.LAUNCHER_TOKEN = 'c'.repeat(64);
 
 type ZipTestEntry = {
   name: string;
+  rawName?: Buffer;
   contents: string;
   compression?: 0 | 8;
+  flags?: number;
   localExtra?: Buffer;
+  centralExtra?: Buffer;
 };
 
 function createZip(entries: readonly ZipTestEntry[]): Buffer {
@@ -23,14 +26,17 @@ function createZip(entries: readonly ZipTestEntry[]): Buffer {
   let localOffset = 0;
 
   for (const entry of entries) {
-    const name = Buffer.from(entry.name, 'utf8');
+    const name = entry.rawName ?? Buffer.from(entry.name, 'utf8');
     const contents = Buffer.from(entry.contents, 'utf8');
     const compression = entry.compression ?? 0;
+    const flags = entry.flags ?? 0;
     const compressed = compression === 8 ? deflateRawSync(contents) : contents;
     const localExtra = entry.localExtra ?? Buffer.alloc(0);
+    const centralExtra = entry.centralExtra ?? Buffer.alloc(0);
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(flags, 6);
     local.writeUInt16LE(compression, 8);
     local.writeUInt32LE(compressed.length, 18);
     local.writeUInt32LE(contents.length, 22);
@@ -41,14 +47,16 @@ function createZip(entries: readonly ZipTestEntry[]): Buffer {
     central.writeUInt32LE(0x02014b50, 0);
     central.writeUInt16LE(20, 4);
     central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(flags, 8);
     central.writeUInt16LE(compression, 10);
     central.writeUInt32LE(compressed.length, 20);
     central.writeUInt32LE(contents.length, 24);
     central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(centralExtra.length, 30);
     central.writeUInt32LE(localOffset, 42);
 
     localEntries.push(local, name, localExtra, compressed);
-    centralEntries.push(central, name);
+    centralEntries.push(central, name, centralExtra);
     localOffset += local.length + name.length + localExtra.length + compressed.length;
   }
 
@@ -374,4 +382,95 @@ test('commit failure during validation or DB insert rolls back and leaves no orp
   } finally {
     getDb().exec('DROP TRIGGER fail_instance_insert');
   }
+});
+
+test('ZIP entry name decoding supports UTF-8 flag and Info-ZIP 0x7075, and rejects invalid non-UTF-8 legacy names', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-zip-encoding-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { listZipEntryNames, safeExtract } = await import('./zip-service.js');
+  const { PanelError } = await import('../utils/errors.js');
+  const { crc32 } = await import('node:zlib');
+
+  const buildUnicodePathExtra = (rawName: Buffer, unicodeName: string, overrideCrc?: number): Buffer => {
+    const unicodeBytes = Buffer.from(unicodeName, 'utf8');
+    const dataSize = 1 + 4 + unicodeBytes.length;
+    const extra = Buffer.alloc(4 + dataSize);
+    extra.writeUInt16LE(0x7075, 0);
+    extra.writeUInt16LE(dataSize, 2);
+    extra[4] = 1;
+    extra.writeUInt32LE(overrideCrc ?? (crc32(rawName) >>> 0), 5);
+    unicodeBytes.copy(extra, 9);
+    return extra;
+  };
+
+  // GBK bytes for "配置.yml" and "语言.yml" (not valid UTF-8; previously both decoded to "\ufffd\ufffd\ufffd\ufffd.yml" and collided as duplicateEntry).
+  const gbkConfig = Buffer.from([0xc5, 0xe4, 0xd6, 0xc3, 0x2e, 0x79, 0x6d, 0x6c]);
+  const gbkLang = Buffer.from([0xd3, 0xef, 0xd1, 0xd4, 0x2e, 0x79, 0x6d, 0x6c]);
+
+  // 1. UTF-8 flag (bit 11) with Chinese entry names succeeds.
+  const utf8Zip = path.join(root, 'utf8.zip');
+  const utf8Dest = path.join(root, 'utf8-out');
+  fs.writeFileSync(utf8Zip, createZip([
+    { name: 'plugins/配置.yml', contents: 'a: 1\n', flags: 1 << 11 },
+    { name: 'plugins/语言.yml', contents: 'b: 2\n', flags: 1 << 11 },
+  ]));
+  assert.deepEqual(listZipEntryNames(utf8Zip), ['plugins/配置.yml', 'plugins/语言.yml']);
+  await safeExtract(utf8Zip, utf8Dest);
+  assert.equal(fs.readFileSync(path.join(utf8Dest, 'plugins', '配置.yml'), 'utf8'), 'a: 1\n');
+  assert.equal(fs.readFileSync(path.join(utf8Dest, 'plugins', '语言.yml'), 'utf8'), 'b: 2\n');
+
+  // 2. Legacy GBK raw name paired with a valid Info-ZIP 0x7075 Unicode Path field decodes to the Unicode name.
+  const extraZip = path.join(root, 'infozip-0x7075.zip');
+  const extraDest = path.join(root, 'infozip-out');
+  fs.writeFileSync(extraZip, createZip([
+    {
+      name: '',
+      rawName: gbkConfig,
+      centralExtra: buildUnicodePathExtra(gbkConfig, '配置.yml'),
+      contents: 'ok: true\n',
+    },
+  ]));
+  assert.deepEqual(listZipEntryNames(extraZip), ['配置.yml']);
+  await safeExtract(extraZip, extraDest);
+  assert.equal(fs.readFileSync(path.join(extraDest, '配置.yml'), 'utf8'), 'ok: true\n');
+
+  // 3. Stale 0x7075 with mismatched CRC-32 is ignored, falling back to raw bytes which are rejected as non-UTF-8.
+  const staleExtraZip = path.join(root, 'stale-0x7075.zip');
+  fs.writeFileSync(staleExtraZip, createZip([
+    {
+      name: '',
+      rawName: gbkConfig,
+      centralExtra: buildUnicodePathExtra(gbkConfig, '配置.yml', 0x12345678),
+      contents: 'ok: true\n',
+    },
+  ]));
+  assert.throws(
+    () => listZipEntryNames(staleExtraZip),
+    (error: unknown) => error instanceof PanelError && error.messageKey === 'server.files.zip.nonUtf8EntryName',
+  );
+
+  // 4. Two distinct legacy GBK names without bit 11 or 0x7075 are rejected cleanly as nonUtf8EntryName, not duplicateEntry or U+FFFD corruption.
+  const gbkZip = path.join(root, 'gbk.zip');
+  fs.writeFileSync(gbkZip, createZip([
+    { name: '', rawName: gbkConfig, contents: 'a: 1\n' },
+    { name: '', rawName: gbkLang, contents: 'b: 2\n' },
+  ]));
+  assert.throws(
+    () => listZipEntryNames(gbkZip),
+    (error: unknown) => error instanceof PanelError && error.messageKey === 'server.files.zip.nonUtf8EntryName',
+  );
+  await assert.rejects(
+    () => safeExtract(gbkZip, path.join(root, 'gbk-out')),
+    (error: unknown) => error instanceof PanelError && error.messageKey === 'server.files.zip.nonUtf8EntryName',
+  );
+
+  // 5. Invalid UTF-8 bytes when bit 11 IS set are rejected as entryNameInvalid.
+  const badUtf8FlagZip = path.join(root, 'bad-utf8-flag.zip');
+  fs.writeFileSync(badUtf8FlagZip, createZip([
+    { name: '', rawName: gbkConfig, flags: 1 << 11, contents: 'x' },
+  ]));
+  assert.throws(
+    () => listZipEntryNames(badUtf8FlagZip),
+    (error: unknown) => error instanceof PanelError && error.messageKey === 'server.files.zip.entryNameInvalid',
+  );
 });

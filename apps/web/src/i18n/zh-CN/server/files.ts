@@ -67,6 +67,7 @@ export default {
   'server.files.zip.corrupted': 'ZIP 文件已损坏',
   'server.files.zip.entryNameInvalid': 'ZIP 条目名称非法',
   'server.files.zip.entryNameEmpty': 'ZIP 条目名称为空',
+  'server.files.zip.nonUtf8EntryName': 'ZIP 条目文件名不是 UTF-8 编码。请以 UTF-8 重新打包，或改用文件夹上传',
   'server.files.zip.unsafePath': '检测到不安全的 ZIP 路径：{name}',
   'server.files.zip.reservedName': 'ZIP 包含面板自己保留的文件名：{name}',
   'server.files.zip.tooLarge': 'ZIP 文件超过大小限制',
