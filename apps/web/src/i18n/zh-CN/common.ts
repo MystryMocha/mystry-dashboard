@@ -7,6 +7,7 @@ export default {
   'instance.status.running': '运行中',
   'instance.status.stopping': '停止中',
   'instance.status.crashed': '已崩溃',
+  'instance.status.detached': '独立运行中',
   'instance.status.migration': '待迁移',
 
   'task.status.pending': '排队中',

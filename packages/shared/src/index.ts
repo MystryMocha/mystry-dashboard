@@ -260,6 +260,14 @@ export interface InstanceLocalNetwork {
   platform: string;
 }
 
+/** Detached Minecraft server process detected from a previous panel session. */
+export interface OrphanProcessInfo {
+  pid: number;
+  startedAt: string;
+  /** True on Unix where SIGTERM triggers graceful shutdown; false on Windows where only force termination is available without stdin. */
+  canGracefulStop: boolean;
+}
+
 export interface InstanceInfo {
   id: string;
   name: string;
@@ -286,6 +294,8 @@ export interface InstanceInfo {
   startIssue?: InstanceStartIssue | null;
   /** In this run the server has finished starting (it printed Done) and players can join; false when not running or still loading. */
   ready?: boolean;
+  /** Set when a live server process from a prior panel session is still attached to this instance's open run. */
+  orphanProcess?: OrphanProcessInfo | null;
 }
 
 /** Prefix for a Forge / NeoForge args file in `InstanceInfo.jarFile`, followed by the path relative to the instance directory. */

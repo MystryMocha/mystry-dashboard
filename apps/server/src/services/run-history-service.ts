@@ -2,12 +2,34 @@ import type { EventEmitter } from 'node:events';
 import type { DatabaseSync } from 'node:sqlite';
 import type { InstanceStatus } from '@mystry/shared';
 import { getDb, type InstanceRunRow } from '../db.js';
-import { processManager } from './process-manager.js';
+import { defaultInstanceDir } from '../utils/path.js';
+import {
+  canGracefullyStopOrphan,
+  type TrackedProcessCandidate,
+  verifyTrackedProcessAlive,
+} from '../utils/process-inspect.js';
+import { processManager, type OrphanProcessRecord } from './process-manager.js';
 
-type ProcessEventSource = Pick<EventEmitter, 'on' | 'off'>;
+type ProcessEventSource = Pick<EventEmitter, 'on' | 'off'> & {
+  registerOrphanProcess?: (instanceId: string, record: OrphanProcessRecord) => void;
+  clearOrphanProcesses?: () => void;
+};
+
+type OrphanRegistry = {
+  registerOrphanProcess(instanceId: string, record: OrphanProcessRecord): void;
+  clearOrphanProcesses(): void;
+};
+
+export type OrphanRecoveryResult = {
+  orphans: Array<{ instanceId: string; pid: number; runId: number }>;
+  activeRunIds: Set<number>;
+};
 
 export type RunHistoryTrackerOptions = {
   events?: ProcessEventSource;
+  orphanRegistry?: OrphanRegistry;
+  verifyAlive?: (candidate: TrackedProcessCandidate) => Promise<boolean>;
+  canGracefulStop?: () => boolean;
   now?: () => Date;
   db?: () => DatabaseSync;
 };
@@ -15,7 +37,8 @@ export type RunHistoryTrackerOptions = {
 export type RunHistoryTracker = {
   attach(): void;
   detach(): void;
-  recoverInterrupted(): { recovered: number };
+  recoverOrphanProcesses(): Promise<OrphanRecoveryResult>;
+  recoverInterrupted(excludeRunIds?: ReadonlySet<number>): { recovered: number };
 };
 
 function maxIso(...values: Array<string | null | undefined>): string {
@@ -33,6 +56,9 @@ function maxIso(...values: Array<string | null | undefined>): string {
  */
 export function createRunHistoryTracker(options: RunHistoryTrackerOptions = {}): RunHistoryTracker {
   const events = options.events ?? processManager;
+  const orphanRegistry: Partial<OrphanRegistry> = options.orphanRegistry ?? events;
+  const verifyAlive = options.verifyAlive ?? verifyTrackedProcessAlive;
+  const canGracefulStop = options.canGracefulStop ?? canGracefullyStopOrphan;
   const now = options.now ?? (() => new Date());
   const db = options.db ?? getDb;
 
@@ -109,6 +135,49 @@ export function createRunHistoryTracker(options: RunHistoryTrackerOptions = {}):
     }
   };
 
+  const onSpawned = (instanceId: string, pid: number, processIdentity: string | null): void => {
+    try {
+      const open = findOpenRun(instanceId);
+      if (!open) return;
+      db()
+        .prepare('UPDATE instance_runs SET pid = ?, process_identity = ? WHERE id = ?')
+        .run(pid, processIdentity, open.id);
+    } catch (error) {
+      console.warn(`Failed to record spawned process identity for instance ${instanceId}`, error);
+    }
+  };
+
+  const onProcessIdentity = (instanceId: string, pid: number, processIdentity: string): void => {
+    if (!attached) return;
+    try {
+      db()
+        .prepare(
+          'UPDATE instance_runs SET process_identity = ? WHERE instance_id = ? AND ended_at IS NULL AND pid = ? AND process_identity IS NULL',
+        )
+        .run(processIdentity, instanceId, pid);
+    } catch (error) {
+      console.warn(`Failed to record async process identity for instance ${instanceId}`, error);
+    }
+  };
+
+  const onOrphanExited = (instanceId: string, runId?: number): void => {
+    try {
+      const target = db();
+      const open = runId !== undefined
+        ? (target
+            .prepare('SELECT id, started_at, ready_at FROM instance_runs WHERE id = ? AND instance_id = ? AND ended_at IS NULL')
+            .get(runId, instanceId) as Pick<InstanceRunRow, 'id' | 'started_at' | 'ready_at'> | undefined)
+        : findOpenRun(instanceId);
+      if (!open) return;
+      const endedAt = maxIso(now().toISOString(), open.started_at, open.ready_at);
+      target
+        .prepare("UPDATE instance_runs SET ended_at = ?, end_reason = 'stopped' WHERE id = ? AND ended_at IS NULL")
+        .run(endedAt, open.id);
+    } catch (error) {
+      console.warn(`Failed to close exited detached run for instance ${instanceId}`, error);
+    }
+  };
+
   return {
     attach() {
       if (attached) return;
@@ -116,6 +185,9 @@ export function createRunHistoryTracker(options: RunHistoryTrackerOptions = {}):
       sawRunning.clear();
       events.on('status', onStatus);
       events.on('ready', onReady);
+      events.on('spawned', onSpawned);
+      events.on('process-identity', onProcessIdentity);
+      events.on('orphan-exited', onOrphanExited);
     },
     detach() {
       if (!attached) {
@@ -125,24 +197,77 @@ export function createRunHistoryTracker(options: RunHistoryTrackerOptions = {}):
       attached = false;
       events.off('status', onStatus);
       events.off('ready', onReady);
+      events.off('spawned', onSpawned);
+      events.off('process-identity', onProcessIdentity);
+      events.off('orphan-exited', onOrphanExited);
       sawRunning.clear();
     },
-    recoverInterrupted() {
+    async recoverOrphanProcesses() {
+      orphanRegistry.clearOrphanProcesses?.();
+      const rows = db()
+        .prepare(
+          `SELECT r.id, r.instance_id, r.started_at, r.pid, r.process_identity, i.install_path
+           FROM instance_runs r
+           INNER JOIN instances i ON i.id = r.instance_id
+           WHERE r.ended_at IS NULL AND r.pid IS NOT NULL
+           ORDER BY r.id DESC`,
+        )
+        .all() as Array<{
+          id: number;
+          instance_id: string;
+          started_at: string;
+          pid: number;
+          process_identity: string | null;
+          install_path: string | null;
+        }>;
+      const seenInstances = new Set<string>();
+      const orphans: Array<{ instanceId: string; pid: number; runId: number }> = [];
+      const activeRunIds = new Set<number>();
+      for (const row of rows) {
+        if (seenInstances.has(row.instance_id)) continue;
+        seenInstances.add(row.instance_id);
+        if (!Number.isSafeInteger(row.pid) || row.pid <= 0) continue;
+        const cwd = row.install_path ?? defaultInstanceDir(row.instance_id);
+        const alive = await verifyAlive({
+          pid: row.pid,
+          startedAt: row.started_at,
+          processIdentity: row.process_identity,
+          cwd,
+        });
+        if (!alive) continue;
+        orphanRegistry.registerOrphanProcess?.(row.instance_id, {
+          pid: row.pid,
+          startedAt: row.started_at,
+          canGracefulStop: canGracefulStop(),
+          runId: row.id,
+          processIdentity: row.process_identity,
+          cwd,
+        });
+        orphans.push({ instanceId: row.instance_id, pid: row.pid, runId: row.id });
+        activeRunIds.add(row.id);
+      }
+      return { orphans, activeRunIds };
+    },
+    recoverInterrupted(excludeRunIds?: ReadonlySet<number>) {
       sawRunning.clear();
       const target = db();
       const latestHost = target
         .prepare('SELECT MAX(sampled_at) AS sampled_at FROM metric_samples WHERE instance_id IS NULL')
         .get() as { sampled_at: string | null } | undefined;
       const lastHostSampleAt = latestHost?.sampled_at ?? null;
+      const excluded = excludeRunIds
+        ? [...excludeRunIds].filter((id) => Number.isSafeInteger(id) && id > 0)
+        : [];
+      const exclusionSql = excluded.length > 0 ? ` AND id NOT IN (${excluded.map(() => '?').join(', ')})` : '';
       // SQLite scalar MAX returns NULL if any argument is NULL, so every optional timestamp coalesces to started_at.
       const result = target
         .prepare(
           `UPDATE instance_runs
            SET ended_at = MAX(started_at, COALESCE(ready_at, started_at), COALESCE(?, started_at)),
                end_reason = 'panel-exit'
-           WHERE ended_at IS NULL`,
+           WHERE ended_at IS NULL${exclusionSql}`,
         )
-        .run(lastHostSampleAt);
+        .run(lastHostSampleAt, ...excluded);
       return { recovered: Number(result.changes) };
     },
   };
@@ -158,6 +283,10 @@ export function detachRunHistoryLifecycle(): void {
   defaultRunHistory.detach();
 }
 
-export function recoverInterruptedInstanceRuns(): { recovered: number } {
-  return defaultRunHistory.recoverInterrupted();
+export async function recoverOrphanInstanceProcesses(): Promise<OrphanRecoveryResult> {
+  return defaultRunHistory.recoverOrphanProcesses();
+}
+
+export function recoverInterruptedInstanceRuns(excludeRunIds?: ReadonlySet<number>): { recovered: number } {
+  return defaultRunHistory.recoverInterrupted(excludeRunIds);
 }

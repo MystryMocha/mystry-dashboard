@@ -2693,3 +2693,85 @@ test('files: a binary file opens read-only with a warning and no Save, while a t
   await user.type(textarea, '!');
   expect(save.disabled).toBe(false);
 });
+
+test('detached orphan process: dashboard, instance console, and backups reflect detached state and enforce force stop flow', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const calls: string[] = [];
+  let canGracefulStop = false;
+  const orphanInstance = () => ({
+    ...instance,
+    name: '测试服',
+    status: 'stopped' as const,
+    orphanProcess: { pid: 4567, startedAt: '2026-11-27T08:00:00.000Z', canGracefulStop },
+  });
+
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const method = options?.method ?? 'GET';
+    if (url === '/api/instances') {
+      return new Response(JSON.stringify([orphanInstance()]));
+    }
+    if (url === '/api/instances/test' && method === 'GET') {
+      return new Response(JSON.stringify(orphanInstance()));
+    }
+    if (url === '/api/instances/test/backups' && method === 'GET') {
+      return new Response(JSON.stringify({ backups: [] }));
+    }
+    if (url === '/api/instances/test/backup-schedule' && method === 'GET') {
+      return new Response(JSON.stringify({ enabled: false, time: '04:00', keep: 7, utcOffsetMinutes: 480, lastBackupAt: null, lastFailure: null }));
+    }
+    if (method === 'POST' && String(url).startsWith('/api/instances/test/')) {
+      calls.push(`${method} ${url}`);
+      return new Response(JSON.stringify(orphanInstance()));
+    }
+    return baseFetch(url, options);
+  }));
+
+  // 1. Dashboard shows Detached pill, hides Start, enables Force Stop, and disables Restart / Delete.
+  const dash = mount(<DashboardPage />);
+  expect(await screen.findByText('独立运行中')).toBeTruthy();
+  expect(screen.getByText('上次启动的进程（PID 4567）在面板重启后仍在运行')).toBeTruthy();
+  expect(screen.getByRole('link', { name: '处理进程' }).getAttribute('href')).toBe('/instances/test');
+  expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
+  await user.click(screen.getByRole('button', { name: '更多操作' }));
+  expect(screen.getByRole<HTMLMenuElement>('menuitem', { name: '重启实例' }).hasAttribute('disabled')).toBe(true);
+  expect(screen.getByRole<HTMLMenuElement>('menuitem', { name: '删除实例' }).hasAttribute('disabled')).toBe(true);
+  expect(screen.getByRole<HTMLMenuElement>('menuitem', { name: '强制停止' }).hasAttribute('disabled')).toBe(false);
+  dash.unmount();
+
+  // 2. Backups tab blocks creating backups when a detached process is running.
+  const backupsView = mount(<BackupsTab instance={orphanInstance() as never} onRestored={() => {}} />);
+  expect(await screen.findByText('需先停止残留进程')).toBeTruthy();
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: '立即备份' }).disabled).toBe(true);
+  backupsView.unmount();
+
+  // 3. Instance page (Windows mode: canGracefulStop = false) shows Force Stop confirmation flow.
+  const winRouter = createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  );
+  const winView = render(<RouterProvider router={winRouter} />);
+  const winBanner = await screen.findByRole('alert');
+  expect(winBanner.textContent).toContain('上次启动的服务器进程仍在运行（PID 4567）');
+  expect(winBanner.textContent).toContain('在 Windows 上无法发送停服命令');
+  expect(within(winBanner).queryByRole('button', { name: '停止' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
+
+  await user.click(within(winBanner).getByRole('button', { name: '强制停止' }));
+  const confirm = await screen.findByRole('dialog');
+  await user.click(within(confirm).getByRole('button', { name: '确认强制停止' }));
+  await waitFor(() => expect(calls).toContain('POST /api/instances/test/stop?force=1'));
+  winView.unmount();
+
+  // 4. Instance page (Unix mode: canGracefulStop = true) exposes graceful Stop directly.
+  canGracefulStop = true;
+  const unixRouter = createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  );
+  render(<RouterProvider router={unixRouter} />);
+  const unixBanner = await screen.findByRole('alert');
+  expect(unixBanner.textContent).toContain('当前无法查看实时日志或发送命令');
+  await user.click(within(unixBanner).getByRole('button', { name: '停止' }));
+  await waitFor(() => expect(calls).toContain('POST /api/instances/test/stop'));
+});

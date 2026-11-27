@@ -610,6 +610,43 @@ test('migration v4 adds nullable I/O rate columns to existing metric samples and
   assert.equal(JSON.stringify(getDb().prepare('SELECT * FROM metric_samples ORDER BY id').all()), samples);
 });
 
+test('migration v5 adds nullable PID and process identity columns to instance_runs and replays as a no-op at version 0', async (t) => {
+  const s = scratch(t, 'instance-run-process-tracking');
+  useDataDir(s);
+  const { initDb, getDb, closeDb, PANEL_DB_MIGRATIONS } = await import('./db.js');
+  const index = PANEL_DB_MIGRATIONS.findIndex((migration) => migration.name === 'instance run process tracking');
+  assert.equal(PANEL_DB_MIGRATIONS[index]?.version, 5);
+
+  const before = openWal(s);
+  migrateDatabase(before, PANEL_DB_MIGRATIONS.slice(0, index), runnerOptions(s));
+  assert.ok(!columns(before, 'instance_runs').includes('pid'));
+  assert.ok(!columns(before, 'instance_runs').includes('process_identity'));
+  before.prepare('INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)').run('u1', 'admin', '$2a$04$hash', now);
+  before.prepare('INSERT INTO instances (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)').run('i1', 'Survival', now, now);
+  before.prepare('INSERT INTO instance_runs (instance_id, started_at, ready_at, ended_at, end_reason) VALUES (?, ?, ?, NULL, NULL)').run('i1', now, now);
+  before.close();
+
+  initDb();
+  const db = getDb();
+  assert.equal(pragmaNumber(db, 'user_version'), PANEL_DB_MIGRATIONS.length);
+  assert.ok(columns(db, 'instance_runs').includes('pid'));
+  assert.ok(columns(db, 'instance_runs').includes('process_identity'));
+  assert.deepEqual(
+    { ...(db.prepare('SELECT instance_id, pid, process_identity FROM instance_runs').get() as object) },
+    { instance_id: 'i1', pid: null, process_identity: null },
+  );
+  db.prepare('UPDATE instance_runs SET pid = 4242, process_identity = ?').run('linux:boot-1:99');
+  const schema = schemaDump(db);
+  const runs = JSON.stringify(db.prepare('SELECT * FROM instance_runs ORDER BY id').all());
+
+  db.exec('PRAGMA user_version = 0');
+  closeDb();
+  initDb();
+  assert.equal(pragmaNumber(getDb(), 'user_version'), PANEL_DB_MIGRATIONS.length);
+  assert.equal(schemaDump(getDb()), schema);
+  assert.equal(JSON.stringify(getDb().prepare('SELECT * FROM instance_runs ORDER BY id').all()), runs);
+});
+
 const tree: DbMigration = {
   version: 1,
   name: 'tree',

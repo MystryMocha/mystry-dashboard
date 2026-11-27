@@ -45,6 +45,10 @@ export default {
   'instance.settings.unsaved.description': '离开设置页会丢失尚未保存的实例设置。',
 
   // 启动失败原因提示（控制台上方）
+  'instance.detached.title': '上次启动的服务器进程仍在运行（PID {pid}）',
+  'instance.detached.bodyUnix': '面板上次退出后已失去对该进程的控制台连接，当前无法查看实时日志或发送命令。请先停止或强制停止它，再启动、备份或删除此实例。',
+  'instance.detached.bodyWindows': '面板上次退出后已失去对该进程的控制台连接，在 Windows 上无法发送停服命令。请先强制停止它，再启动、备份或删除此实例。',
+  'instance.detached.refresh': '刷新状态',
   'instance.startIssue.eula.title': '同意 Minecraft EULA 后才能启动这个服务器',
   'instance.startIssue.eula.body': 'Minecraft 服务器必须先同意 <link>Minecraft EULA</link> 才能运行。点「同意并启动」表示你已阅读并同意该协议，面板会写入 eula.txt 并启动服务器。',
   'instance.startIssue.eula.action': '同意并启动',

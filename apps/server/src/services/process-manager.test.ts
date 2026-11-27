@@ -2,7 +2,7 @@
  * Process mutual exclusion and stop semantics regression.
  */
 import assert from 'node:assert/strict';
-import type { ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -10,6 +10,10 @@ import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import test from 'node:test';
 import type { InstanceRow } from '../db.js';
+import {
+  captureProcessIdentityAsync,
+  verifyTrackedProcessAlive,
+} from '../utils/process-inspect.js';
 
 function prepareTempDataRoot(t: test.TestContext): string {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-process-mgr-test-'));
@@ -636,4 +640,293 @@ test('when the bound Java is unavailable or no longer in the registry, the insta
 
   db.prepare('UPDATE instances SET java_runtime_id = NULL WHERE id = ?').run(info.id);
   assert.equal(getInstance(info.id)?.startIssue, null, '改回系统默认 Java 后提示消失');
+});
+
+test('run history persists spawned PID and process identity, keeps verified orphans open, and closes dead or stale runs', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  const { initDb, getDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { createRunHistoryTracker } = await import('./run-history-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const aliveInst = createInstance({ name: 'orphan-alive' });
+  const staleInst = createInstance({ name: 'orphan-stale' });
+  fs.writeFileSync(path.join(defaultInstanceDir(aliveInst.id), 'server.jar'), 'stub-jar');
+
+  const child = fakeChild();
+  Object.assign(child, { pid: 55123 });
+  let resolveIdentity!: (value: string | null) => void;
+  const identityPromise = new Promise<string | null>((resolve) => {
+    resolveIdentity = resolve;
+  });
+
+  const manager = new ProcessManager(
+    () => child,
+    async () => 'java',
+    {
+      captureIdentitySync: () => null,
+      captureIdentityAsync: () => identityPromise,
+      verifyTrackedProcessAlive: async () => true,
+      isTrackedProcessPresentSync: () => true,
+      signalProcess: () => {},
+    },
+  );
+  const tracker = createRunHistoryTracker({
+    events: manager,
+    now: () => new Date('2026-11-27T08:00:00.000Z'),
+  });
+  tracker.attach();
+  t.after(() => tracker.detach());
+
+  await manager.start(getInstanceRow(aliveInst.id)! as InstanceRow);
+  const rowAfterSpawn = getDb()
+    .prepare('SELECT id, pid, process_identity FROM instance_runs WHERE instance_id = ?')
+    .get(aliveInst.id) as { id: number; pid: number | null; process_identity: string | null };
+  assert.equal(rowAfterSpawn.pid, 55123);
+  assert.equal(rowAfterSpawn.process_identity, null);
+
+  resolveIdentity('win32:999888777');
+  await new Promise<void>((resolve) => setTimeout(resolve, 20));
+  const rowAfterAsync = getDb()
+    .prepare('SELECT pid, process_identity FROM instance_runs WHERE id = ?')
+    .get(rowAfterSpawn.id) as { pid: number | null; process_identity: string | null };
+  assert.equal(rowAfterAsync.process_identity, 'win32:999888777');
+
+  // Seed an exited/recycled open run and a no-PID open run for the second instance before simulating panel recovery.
+  getDb()
+    .prepare('INSERT INTO instance_runs (instance_id, started_at, pid, process_identity) VALUES (?, ?, ?, ?)')
+    .run(staleInst.id, '2026-11-27T07:50:00.000Z', 888002, 'linux:boot-old:1');
+  getDb()
+    .prepare('INSERT INTO instance_runs (instance_id, started_at, pid, process_identity) VALUES (?, ?, NULL, NULL)')
+    .run(staleInst.id, '2026-11-27T07:40:00.000Z');
+  tracker.detach();
+
+  const registered: Array<[string, number]> = [];
+  const nextTracker = createRunHistoryTracker({
+    orphanRegistry: {
+      clearOrphanProcesses: () => { registered.length = 0; },
+      registerOrphanProcess: (id, rec) => { registered.push([id, rec.pid]); },
+    },
+    verifyAlive: async (candidate) => candidate.pid === 55123,
+    canGracefulStop: () => false,
+    now: () => new Date('2026-11-27T08:05:00.000Z'),
+  });
+  const recovery = await nextTracker.recoverOrphanProcesses();
+  assert.deepEqual(recovery.orphans, [{ instanceId: aliveInst.id, pid: 55123, runId: rowAfterSpawn.id }]);
+  assert.deepEqual([...recovery.activeRunIds], [rowAfterSpawn.id]);
+  assert.deepEqual(registered, [[aliveInst.id, 55123]]);
+
+  const interrupted = nextTracker.recoverInterrupted(recovery.activeRunIds);
+  assert.equal(interrupted.recovered, 2);
+
+  const aliveRow = getDb()
+    .prepare('SELECT ended_at, end_reason FROM instance_runs WHERE id = ?')
+    .get(rowAfterSpawn.id) as { ended_at: string | null; end_reason: string | null };
+  assert.deepEqual({ ...aliveRow }, { ended_at: null, end_reason: null });
+
+  const staleRows = getDb()
+    .prepare('SELECT ended_at, end_reason FROM instance_runs WHERE instance_id = ?')
+    .all(staleInst.id) as Array<{ ended_at: string | null; end_reason: string | null }>;
+  assert.ok(staleRows.every((r) => r.ended_at !== null && r.end_reason === 'panel-exit'));
+});
+
+test('orphan stop respects Windows Force Stop requirement and Unix SIGTERM graceful shutdown', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager, InstanceOperationConflictError, InstanceStopPendingError } = await import('./process-manager.js');
+  const { initDb, getDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { createRunHistoryTracker } = await import('./run-history-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const prevGrace = process.env.MYSTRY_TEST_STOP_GRACE_MS;
+  process.env.MYSTRY_TEST_STOP_GRACE_MS = '250';
+  t.after(() => {
+    if (prevGrace === undefined) delete process.env.MYSTRY_TEST_STOP_GRACE_MS;
+    else process.env.MYSTRY_TEST_STOP_GRACE_MS = prevGrace;
+  });
+
+  const winInst = createInstance({ name: 'win-orphan' });
+  const unixInst = createInstance({ name: 'unix-orphan' });
+  fs.writeFileSync(path.join(defaultInstanceDir(winInst.id), 'server.jar'), 'stub-jar');
+  fs.writeFileSync(path.join(defaultInstanceDir(unixInst.id), 'server.jar'), 'stub-jar');
+
+  const alivePids = new Set([71001, 71002]);
+  const signals: Array<[number, string]> = [];
+  const spawned: string[] = [];
+
+  const manager = new ProcessManager(
+    (_cmd, _args, opts) => {
+      spawned.push(opts.cwd);
+      return fakeChild();
+    },
+    async () => 'java',
+    {
+      captureIdentitySync: () => 'test:boot:1',
+      captureIdentityAsync: async () => 'test:boot:1',
+      verifyTrackedProcessAlive: async (candidate) => alivePids.has(candidate.pid),
+      isTrackedProcessPresentSync: (candidate) => alivePids.has(candidate.pid),
+      signalProcess: (pid, sig) => {
+        signals.push([pid, sig]);
+        if (pid === 71001 && sig === 'SIGKILL') alivePids.delete(pid);
+        if (pid === 71002 && sig === 'SIGTERM') alivePids.delete(pid);
+      },
+    },
+  );
+  const tracker = createRunHistoryTracker({
+    events: manager,
+    now: () => new Date('2026-11-27T09:05:00.000Z'),
+  });
+  tracker.attach();
+  t.after(() => tracker.detach());
+
+  getDb()
+    .prepare('INSERT INTO instance_runs (instance_id, started_at, pid, process_identity) VALUES (?, ?, ?, ?)')
+    .run(winInst.id, '2026-11-27T09:00:00.000Z', 71001, 'win32:1');
+  const winRun = getDb().prepare('SELECT last_insert_rowid() AS id').get() as { id: number };
+  getDb()
+    .prepare('INSERT INTO instance_runs (instance_id, started_at, pid, process_identity) VALUES (?, ?, ?, ?)')
+    .run(unixInst.id, '2026-11-27T09:00:00.000Z', 71002, 'linux:boot:2');
+  const unixRun = getDb().prepare('SELECT last_insert_rowid() AS id').get() as { id: number };
+
+  manager.registerOrphanProcess(winInst.id, {
+    pid: 71001,
+    startedAt: '2026-11-27T09:00:00.000Z',
+    canGracefulStop: false,
+    runId: winRun.id,
+    processIdentity: 'win32:1',
+  });
+  manager.registerOrphanProcess(unixInst.id, {
+    pid: 71002,
+    startedAt: '2026-11-27T09:00:00.000Z',
+    canGracefulStop: true,
+    runId: unixRun.id,
+    processIdentity: 'linux:boot:2',
+  });
+
+  await assert.rejects(
+    () => manager.stop(winInst.id, false),
+    (err: unknown) => err instanceof InstanceOperationConflictError
+      && err.messageKey === 'server.instance.orphanStopRequiresForce'
+      && err.statusCode === 409,
+  );
+  assert.deepEqual(signals, []);
+
+  await manager.stop(winInst.id, true);
+  assert.deepEqual(signals, [[71001, 'SIGKILL']]);
+  assert.equal(manager.getOrphanProcess(winInst.id), null);
+
+  await manager.stop(unixInst.id, false);
+  assert.deepEqual(signals, [[71001, 'SIGKILL'], [71002, 'SIGTERM']]);
+  assert.equal(manager.getOrphanProcess(unixInst.id), null);
+
+  const closedWinRun = getDb()
+    .prepare('SELECT ended_at, end_reason FROM instance_runs WHERE id = ?')
+    .get(winRun.id) as { ended_at: string | null; end_reason: string | null };
+  assert.equal(closedWinRun.end_reason, 'stopped');
+  assert.ok(closedWinRun.ended_at !== null);
+
+  // Starting works again once the detached process has exited.
+  await manager.start(getInstanceRow(winInst.id)! as InstanceRow);
+  assert.equal(spawned.length, 1);
+
+  // If an orphan ignores SIGTERM past stop grace, stop rejects with InstanceStopPendingError (202).
+  alivePids.add(71003);
+  manager.registerOrphanProcess(unixInst.id, {
+    pid: 71003,
+    startedAt: '2026-11-27T09:00:00.000Z',
+    canGracefulStop: true,
+    runId: unixRun.id,
+    processIdentity: 'linux:boot:3',
+  });
+  await assert.rejects(
+    () => manager.stop(unixInst.id, false),
+    (err: unknown) => err instanceof InstanceStopPendingError
+      && err.messageKey === 'server.instance.orphanStopPending',
+  );
+});
+
+test('real verified orphan blocks start, restart, delete, adopt, and backup until force stopped', async (t) => {
+  prepareTempDataRoot(t);
+  const { processManager, InstanceOperationConflictError } = await import('./process-manager.js');
+  const { initDb, getDb } = await import('../db.js');
+  const { adoptManagedDirectory, createInstance, deleteInstance, getInstance, getInstanceRow } = await import('./instance-service.js');
+  const { startBackupTask } = await import('./backup-service.js');
+  const { attachRunHistoryLifecycle, detachRunHistoryLifecycle, recoverOrphanInstanceProcesses } = await import('./run-history-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  attachRunHistoryLifecycle();
+  t.after(() => {
+    detachRunHistoryLifecycle();
+    processManager.clearOrphanProcesses();
+  });
+
+  const info = createInstance({ name: 'real-orphan' });
+  const dir = defaultInstanceDir(info.id);
+  fs.writeFileSync(path.join(dir, 'server.jar'), 'stub-jar');
+
+  const liveChild = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', windowsHide: true });
+  t.after(() => {
+    try { liveChild.kill('SIGKILL'); } catch { /* already exited */ }
+  });
+  assert.ok(liveChild.pid && liveChild.pid > 0);
+  const pid = liveChild.pid;
+  const startedAt = new Date().toISOString();
+  const identity = await captureProcessIdentityAsync(pid);
+  assert.ok(identity, 'expected platform process identity for live test subprocess');
+
+  // Verify anti-PID-reuse guards against self-PID, pre-boot timestamp, and mismatched identity.
+  assert.equal(await verifyTrackedProcessAlive({ pid: process.pid, startedAt, processIdentity: null }), false);
+  assert.equal(await verifyTrackedProcessAlive({ pid, startedAt: '2000-01-01T00:00:00.000Z', processIdentity: identity }), false);
+  assert.equal(await verifyTrackedProcessAlive({ pid, startedAt, processIdentity: `${identity}-mismatch` }), false);
+  assert.equal(await verifyTrackedProcessAlive({ pid, startedAt, processIdentity: identity, cwd: dir }), true);
+
+  getDb()
+    .prepare('INSERT INTO instance_runs (instance_id, started_at, pid, process_identity) VALUES (?, ?, ?, ?)')
+    .run(info.id, startedAt, pid, identity);
+  const recovery = await recoverOrphanInstanceProcesses();
+  assert.equal(recovery.orphans.length, 1);
+  assert.equal(recovery.orphans[0]!.pid, pid);
+
+  const fetched = getInstance(info.id);
+  assert.equal(fetched?.orphanProcess?.pid, pid);
+  assert.equal(fetched?.orphanProcess?.canGracefulStop, process.platform !== 'win32');
+
+  const row = getInstanceRow(info.id)! as InstanceRow;
+  for (const blocked of [
+    () => processManager.start(row),
+    () => processManager.restart(row),
+    () => deleteInstance(info.id),
+    () => startBackupTask(info.id),
+  ]) {
+    await assert.rejects(
+      blocked,
+      (err: unknown) => err instanceof InstanceOperationConflictError
+        && err.messageKey === 'server.instance.orphanProcessRunning'
+        && err.statusCode === 409,
+    );
+  }
+
+  // Temporarily mark the instance as needing migration to verify adoptManagedDirectory also refuses while an orphan lives.
+  getDb().prepare('UPDATE instances SET install_path = ? WHERE id = ?').run('/tmp/legacy-source', info.id);
+  await assert.rejects(
+    () => adoptManagedDirectory(info.id),
+    (err: unknown) => err instanceof InstanceOperationConflictError
+      && err.messageKey === 'server.instance.orphanProcessRunning',
+  );
+  getDb().prepare('UPDATE instances SET install_path = NULL WHERE id = ?').run(info.id);
+
+  await processManager.stop(info.id, true);
+  assert.equal(getInstance(info.id)?.orphanProcess, null);
+  const closed = getDb()
+    .prepare('SELECT ended_at, end_reason FROM instance_runs WHERE instance_id = ?')
+    .get(info.id) as { ended_at: string | null; end_reason: string | null };
+  assert.equal(closed.end_reason, 'stopped');
+  assert.ok(closed.ended_at !== null);
+
+  await deleteInstance(info.id);
+  assert.equal(getInstance(info.id), null);
 });

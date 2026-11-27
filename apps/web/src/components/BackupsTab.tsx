@@ -71,6 +71,8 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
   const controllersRef = useRef(new Set<AbortController>());
 
   const running = isProcessAlive(instance.status);
+  const hasOrphan = Boolean(instance.orphanProcess);
+  const restoreBlocked = running || hasOrphan;
   const busy = task !== null || starting || uploading || deleting;
 
   const load = useCallback(async () => {
@@ -216,8 +218,8 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
           key: 'restore',
           label: t('backups.menu.restore'),
           icon: <History size={14} />,
-          disabled: busy || running,
-          title: running ? t('backups.restore.stopFirst') : undefined,
+          disabled: busy || restoreBlocked,
+          title: restoreBlocked ? t(hasOrphan ? 'backups.status.stopDetached' : 'backups.restore.stopFirst') : undefined,
           onSelect: () => {
             setBackupCurrent(true);
             setRestoreTarget(backup);
@@ -240,8 +242,10 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
 
   return (
     <div className="files-workspace backups-workspace">
-      <div className={`files-toolbar backups-toolbar${running ? '' : ' is-actions-only'}`}>
-        {running && <StatusPill tone="warning">{t('backups.status.stopToRestore')}</StatusPill>}
+      <div className={`files-toolbar backups-toolbar${restoreBlocked ? '' : ' is-actions-only'}`}>
+        {restoreBlocked && (
+          <StatusPill tone="warning">{t(hasOrphan ? 'backups.status.stopDetached' : 'backups.status.stopToRestore')}</StatusPill>
+        )}
         <div className="files-actions">
           <button
             className="btn btn-icon"
@@ -272,7 +276,8 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
           <button
             className="btn btn-primary"
             type="button"
-            disabled={busy || isLifecycleBusy(instance.status)}
+            disabled={busy || isLifecycleBusy(instance.status) || hasOrphan}
+            title={hasOrphan ? t('backups.status.stopDetached') : undefined}
             onClick={() => void follow(() => createBackup(instanceId), 'backups.notice.created')}
           >
             <Archive size={15} aria-hidden="true" />
@@ -359,8 +364,8 @@ export function BackupsTab({ instance, onRestored }: { instance: InstanceInfo; o
                           <button
                             type="button"
                             className="btn btn-sm"
-                            disabled={busy || running}
-                            title={running ? t('backups.restore.stopFirst') : undefined}
+                            disabled={busy || restoreBlocked}
+                            title={restoreBlocked ? t(hasOrphan ? 'backups.status.stopDetached' : 'backups.restore.stopFirst') : undefined}
                             onClick={() => {
                               setBackupCurrent(true);
                               setRestoreTarget(backup);

@@ -44,6 +44,7 @@ import {
   attachRunHistoryLifecycle,
   detachRunHistoryLifecycle,
   recoverInterruptedInstanceRuns,
+  recoverOrphanInstanceProcesses,
 } from './services/run-history-service.js';
 import {
   diskUsageScanner,
@@ -95,9 +96,11 @@ export async function buildApp(options: BuildAppOptions = {}) {
     // Recovering an interrupted restore directory swap must come before task recovery: task recovery cleans up the staging directory.
     const backupRecovery = recoverInterruptedBackups();
     const taskRecovery = recoverInterruptedTasks();
+    // Check for surviving server processes before closing interrupted runs so still-alive runs remain open until exit.
+    const orphanRecovery = await recoverOrphanInstanceProcesses();
     // Run-history recovery must finish before background metric sampling starts in main(), so open runs
     // use the last host sample from the previous process rather than a fresh sample from this startup.
-    const runHistoryRecovery = recoverInterruptedInstanceRuns();
+    const runHistoryRecovery = recoverInterruptedInstanceRuns(orphanRecovery.activeRunIds);
     attachFrpLifecycle();
     attachLanLifecycle();
     attachBackupScheduleLifecycle();
@@ -146,6 +149,12 @@ export async function buildApp(options: BuildAppOptions = {}) {
   if (runHistoryRecovery.recovered > 0) {
     app.log.warn(runHistoryRecovery, '已补全上次面板进程遗留的实例运行记录');
   }
+  if (orphanRecovery.orphans.length > 0) {
+    app.log.warn(
+      { orphans: orphanRecovery.orphans },
+      '检测到上次面板进程遗留的仍在运行的服务器进程；在面板停止它们前，这些实例将禁止重复启动、备份、还原或删除',
+    );
+  }
   if (previewRecovery.purged > 0) {
     app.log.info(previewRecovery, '已清理上次面板进程遗留的 ZIP 导入预览');
   }
@@ -157,6 +166,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
   }
   app.addHook('onClose', async () => {
     detachRunHistoryLifecycle();
+    processManager.clearOrphanProcesses();
     resetStatsRuntime();
     shutdownImportPreviews();
     shutdownFolderUploads();

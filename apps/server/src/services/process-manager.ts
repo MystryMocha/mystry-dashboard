@@ -7,19 +7,29 @@ import {
   renderPanelMessage,
   type InstanceStartIssue,
   type InstanceStatus,
+  type OrphanProcessInfo,
+  type PanelMessageParams,
   type ServerMessageKey,
 } from '@mystry/shared';
 import type { InstanceRow } from '../db.js';
 import { config } from '../config.js';
 import { assertSafeInstanceRoot, resolveDirFromRow, resolveSafePath } from '../utils/path.js';
 import { getMinecraftChildEnv } from '../utils/child-env.js';
+import {
+  captureProcessIdentityAsync,
+  captureProcessIdentitySync,
+  isTrackedProcessPresentSync,
+  signalProcess,
+  type TrackedProcessCandidate,
+  verifyTrackedProcessAlive,
+} from '../utils/process-inspect.js';
 import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
 import { ensureServerPropertiesDefaults } from './config-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { resolvePlatformModLoaderArgsFile } from './server-launch-detect.js';
 import { diagnoseStartFailure, hasFinishedStarting } from './start-diagnosis.js';
-import { errorMessage, PanelError } from '../utils/errors.js';
+import { errorMessage, hasErrorCode, PanelError } from '../utils/errors.js';
 
 const { maxCommandBytes, maxConsoleBufferBytes, maxConsoleChunkBytes, maxConsoleStdinBytes } = config;
 
@@ -35,8 +45,8 @@ function getStopGraceMs(): number {
 export class InstanceOperationConflictError extends PanelError {
   readonly code = 'INSTANCE_OPERATION_CONFLICT' as const;
 
-  constructor(key: ServerMessageKey) {
-    super(key);
+  constructor(key: ServerMessageKey, params?: PanelMessageParams) {
+    super(key, params, { statusCode: 409 });
     this.name = 'InstanceOperationConflictError';
   }
 }
@@ -44,8 +54,8 @@ export class InstanceOperationConflictError extends PanelError {
 export class InstanceStopPendingError extends PanelError {
   readonly code = 'INSTANCE_STOP_PENDING' as const;
 
-  constructor(key: ServerMessageKey = 'server.instance.stopPending') {
-    super(key);
+  constructor(key: ServerMessageKey = 'server.instance.stopPending', params?: PanelMessageParams) {
+    super(key, params);
     this.name = 'InstanceStopPendingError';
   }
 }
@@ -81,6 +91,28 @@ export type MinecraftProcessSpawner = (
 ) => ChildProcessWithoutNullStreams;
 
 export type JavaRuntimeResolver = (javaRuntimeId: string | null) => Promise<string>;
+
+export type OrphanProcessRecord = OrphanProcessInfo & {
+  runId: number;
+  processIdentity: string | null;
+  cwd?: string;
+};
+
+export type ProcessInspectTools = {
+  captureIdentitySync: (pid: number) => string | null;
+  captureIdentityAsync: (pid: number) => Promise<string | null>;
+  verifyTrackedProcessAlive: (candidate: TrackedProcessCandidate) => Promise<boolean>;
+  isTrackedProcessPresentSync: (candidate: TrackedProcessCandidate) => boolean;
+  signalProcess: (pid: number, signal: 'SIGTERM' | 'SIGKILL') => void;
+};
+
+const defaultProcessInspectTools: ProcessInspectTools = {
+  captureIdentitySync: captureProcessIdentitySync,
+  captureIdentityAsync: captureProcessIdentityAsync,
+  verifyTrackedProcessAlive,
+  isTrackedProcessPresentSync,
+  signalProcess,
+};
 
 export type StdinSafetyState = Pick<ManagedProcess, 'stdinAvailable' | 'stdinBackpressured'>;
 
@@ -145,6 +177,7 @@ function waitForChildExit(
 export class ProcessManager extends EventEmitter {
   private processes = new Map<string, ManagedProcess>();
   private snapshots = new Map<string, ProcessSnapshot>();
+  private orphans = new Map<string, OrphanProcessRecord>();
   private operationTails = new Map<string, Promise<void>>();
   /** Instance maintenance flag during backup/restore: the value is the message key returned when operations such as start are refused. */
   private maintenance = new Map<string, ServerMessageKey>();
@@ -154,8 +187,50 @@ export class ProcessManager extends EventEmitter {
     private readonly spawnMinecraft: MinecraftProcessSpawner = (command, args, options) =>
       spawn(command, args, options),
     private readonly resolveJavaCommand: JavaRuntimeResolver = resolveJavaRuntimeCommand,
+    private readonly processTools: ProcessInspectTools = defaultProcessInspectTools,
   ) {
     super();
+  }
+
+  registerOrphanProcess(instanceId: string, record: OrphanProcessRecord): void {
+    this.orphans.set(instanceId, record);
+  }
+
+  clearOrphanProcesses(): void {
+    this.orphans.clear();
+  }
+
+  /**
+   * Returns active detached-process metadata if still alive; clears and closes the run record
+   * synchronously if the OS process has exited since startup recovery.
+   */
+  getOrphanProcess(instanceId: string): OrphanProcessInfo | null {
+    const orphan = this.orphans.get(instanceId);
+    if (!orphan) return null;
+    if (!this.processTools.isTrackedProcessPresentSync(orphan)) {
+      this.orphans.delete(instanceId);
+      this.emit('orphan-exited', instanceId, orphan.runId);
+      return null;
+    }
+    return {
+      pid: orphan.pid,
+      startedAt: orphan.startedAt,
+      canGracefulStop: orphan.canGracefulStop,
+    };
+  }
+
+  /** Refuses mutating instance operations while a verified detached server process is still alive. */
+  async assertNoOrphanProcess(instanceId: string): Promise<void> {
+    const orphan = this.orphans.get(instanceId);
+    if (!orphan) return;
+    if (!(await this.processTools.verifyTrackedProcessAlive(orphan))) {
+      if (this.orphans.get(instanceId) === orphan) {
+        this.orphans.delete(instanceId);
+        this.emit('orphan-exited', instanceId, orphan.runId);
+      }
+      return;
+    }
+    throw new InstanceOperationConflictError('server.instance.orphanProcessRunning', { pid: orphan.pid });
   }
 
   getStatus(instanceId: string): InstanceStatus {
@@ -220,6 +295,7 @@ export class ProcessManager extends EventEmitter {
     return this.withInstanceOperation(instance.id, async () => {
       // Check the maintenance flag first: otherwise a restart would stop the server first and then refuse to start because of the backup/restore.
       this.assertNotInMaintenance(instance.id);
+      await this.assertNoOrphanProcess(instance.id);
       if (this.isRunning(instance.id)) {
         await this.stopWithinLock(instance.id, false);
       }
@@ -317,7 +393,7 @@ export class ProcessManager extends EventEmitter {
 
   /** After the instance record is deleted, also clears the final state and console history kept in the current process. */
   forget(instanceId: string): void {
-    if (this.processes.has(instanceId)) {
+    if (this.processes.has(instanceId) || this.getOrphanProcess(instanceId)) {
       throw new PanelError('server.instance.forgetRunning');
     }
     this.snapshots.delete(instanceId);
@@ -380,6 +456,7 @@ export class ProcessManager extends EventEmitter {
     if (this.isRunning(instance.id)) {
       throw new InstanceOperationConflictError('server.instance.alreadyRunning');
     }
+    await this.assertNoOrphanProcess(instance.id);
     this.assertNotInMaintenance(instance.id);
 
     const cwd = resolveDirFromRow(instance);
@@ -447,6 +524,18 @@ export class ProcessManager extends EventEmitter {
       });
       managed.child = child;
       registerStdinSafetyHandlers(child.stdin, managed);
+      if (typeof child.pid === 'number' && child.pid > 0) {
+        const pid = child.pid;
+        const syncIdentity = this.processTools.captureIdentitySync(pid);
+        this.emit('spawned', instance.id, pid, syncIdentity);
+        if (!syncIdentity) {
+          void this.processTools.captureIdentityAsync(pid).then((identity) => {
+            if (identity && this.processes.get(instance.id) === managed && managed.child?.pid === pid) {
+              this.emit('process-identity', instance.id, pid, identity);
+            }
+          }, () => {});
+        }
+      }
 
       const onChunk = (chunk: Buffer) => {
         if (this.processes.get(instance.id) !== managed) return;
@@ -511,6 +600,10 @@ export class ProcessManager extends EventEmitter {
   private async stopWithinLock(instanceId: string, force: boolean): Promise<void> {
     const managed = this.processes.get(instanceId);
     if (!managed) {
+      if (this.orphans.has(instanceId)) {
+        await this.stopOrphanWithinLock(instanceId, force);
+        return;
+      }
       throw new PanelError('server.instance.notRunning');
     }
     if (!managed.child) {
@@ -553,6 +646,64 @@ export class ProcessManager extends EventEmitter {
     if (outcome === 'timeout' && this.processes.get(instanceId) === managed) {
       throw new InstanceStopPendingError();
     }
+  }
+
+  private async stopOrphanWithinLock(instanceId: string, force: boolean): Promise<void> {
+    const orphan = this.orphans.get(instanceId);
+    if (!orphan) {
+      throw new PanelError('server.instance.notRunning');
+    }
+    if (!(await this.processTools.verifyTrackedProcessAlive(orphan))) {
+      if (this.orphans.get(instanceId) === orphan) {
+        this.orphans.delete(instanceId);
+        this.emit('orphan-exited', instanceId, orphan.runId);
+      }
+      return;
+    }
+    if (!force && !orphan.canGracefulStop) {
+      throw new InstanceOperationConflictError('server.instance.orphanStopRequiresForce', { pid: orphan.pid });
+    }
+    const signal: 'SIGTERM' | 'SIGKILL' = force ? 'SIGKILL' : 'SIGTERM';
+    try {
+      this.processTools.signalProcess(orphan.pid, signal);
+    } catch (error) {
+      if (hasErrorCode(error, 'ESRCH')) {
+        if (this.orphans.get(instanceId) === orphan) {
+          this.orphans.delete(instanceId);
+          this.emit('orphan-exited', instanceId, orphan.runId);
+        }
+        return;
+      }
+      throw new PanelError('server.instance.orphanSignalFailed', {
+        pid: orphan.pid,
+        reason: errorMessage(error),
+      });
+    }
+
+    const deadline = Date.now() + getStopGraceMs();
+    while (Date.now() < deadline) {
+      if (!this.processTools.isTrackedProcessPresentSync(orphan)) {
+        if (this.orphans.get(instanceId) === orphan) {
+          this.orphans.delete(instanceId);
+          this.emit('orphan-exited', instanceId, orphan.runId);
+        }
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    if (!(await this.processTools.verifyTrackedProcessAlive(orphan))) {
+      if (this.orphans.get(instanceId) === orphan) {
+        this.orphans.delete(instanceId);
+        this.emit('orphan-exited', instanceId, orphan.runId);
+      }
+      return;
+    }
+
+    throw new InstanceStopPendingError(
+      force ? 'server.instance.orphanForceStopPending' : 'server.instance.orphanStopPending',
+      { pid: orphan.pid },
+    );
   }
 
   private archiveProcess(

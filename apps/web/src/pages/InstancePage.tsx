@@ -6,6 +6,7 @@ import {
   Folder,
   Play,
   Power,
+  RefreshCw,
   RotateCcw,
   Settings,
   Sliders,
@@ -52,15 +53,53 @@ function ConsoleTab({
   instance,
   busy,
   onAgreeEulaAndStart,
+  onStop,
+  onForceStop,
+  onRefresh,
 }: {
   instance: InstanceInfo;
   busy: boolean;
   onAgreeEulaAndStart: () => void;
+  onStop: () => void;
+  onForceStop: () => void;
+  onRefresh: () => void;
 }) {
+  const { t } = useI18n();
+  const orphan = instance.orphanProcess ?? null;
   // The notice is only on the console page: the instance settings page has its own EULA checkbox draft, and changing both at once would overwrite each other.
-  const issue = canStartInstance(instance.status) ? instance.startIssue ?? null : null;
+  const issue = !orphan && canStartInstance(instance.status) ? instance.startIssue ?? null : null;
   return (
     <>
+      {orphan && (
+        <div className="callout callout-warning start-issue" role="alert">
+          <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
+          <div>
+            <p><strong>{t('instance.detached.title', { pid: orphan.pid })}</strong></p>
+            <p>{t(orphan.canGracefulStop ? 'instance.detached.bodyUnix' : 'instance.detached.bodyWindows')}</p>
+            <div className="start-issue-actions">
+              {orphan.canGracefulStop && (
+                <button className="btn btn-danger" type="button" disabled={busy} onClick={onStop}>
+                  <Power size={14} aria-hidden="true" />
+                  {t('action.stop')}
+                </button>
+              )}
+              <button
+                className={orphan.canGracefulStop ? 'btn' : 'btn btn-danger'}
+                type="button"
+                disabled={busy}
+                onClick={onForceStop}
+              >
+                <Power size={14} aria-hidden="true" />
+                {t('action.forceStop')}
+              </button>
+              <button className="btn" type="button" disabled={busy} onClick={onRefresh}>
+                <RefreshCw size={14} aria-hidden="true" />
+                {t('instance.detached.refresh')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {issue && (
         <StartIssueBanner
           issue={issue}
@@ -135,7 +174,7 @@ function SettingsTab({
 }) {
   const { t } = useI18n();
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const alive = isProcessAlive(instance.status);
+  const alive = isProcessAlive(instance.status) || Boolean(instance.orphanProcess);
   const [name, setName] = useState(instance.name);
   const [jarFile, setJarFile] = useState(instance.jarFile);
   const [jvmArgs, setJvmArgs] = useState(instance.jvmArgs);
@@ -489,10 +528,12 @@ export function InstancePage() {
     );
   }
 
+  const orphan = instance.orphanProcess ?? null;
+
   // The restart entry used by the save bars of the config editor and instance settings: the same confirmation dialog and the same disabling conditions as the restart button in the page header.
   const restart: RestartControl = {
     running: instance.status === 'running',
-    disabled: busy || instance.requiresMigration || isLifecycleBusy(instance.status),
+    disabled: busy || instance.requiresMigration || Boolean(orphan) || isLifecycleBusy(instance.status),
     signal: restartSignal,
     request: () => setConfirmRestart(true),
   };
@@ -522,41 +563,71 @@ export function InstancePage() {
               For an instance pending migration, handle the migration notice below first; no buttons go here. */}
           {!instance.requiresMigration && (
             <div className="instance-actions">
-              {canStartInstance(instance.status) && (
-                <button className="btn btn-ok" type="button" disabled={busy} onClick={() => act('start')}>
-                  <Play size={14} aria-hidden="true" />
-                  {t('action.start')}
-                </button>
-              )}
-              {canStopInstance(instance.status) && (
-                <button className="btn btn-danger" type="button" disabled={busy} onClick={() => act('stop')}>
-                  <Power size={14} aria-hidden="true" />
-                  {t('action.stop')}
-                </button>
-              )}
-              {isProcessAlive(instance.status) && (
-                <>
-                  <button
-                    className="btn"
-                    type="button"
-                    disabled={busy || isLifecycleBusy(instance.status)}
-                    onClick={() => setConfirmRestart(true)}
-                  >
-                    <RotateCcw size={14} aria-hidden="true" />
-                    {t('action.restart')}
+              {orphan ? (
+                orphan.canGracefulStop ? (
+                  <>
+                    <button className="btn btn-danger" type="button" disabled={busy} onClick={() => act('stop')}>
+                      <Power size={14} aria-hidden="true" />
+                      {t('action.stop')}
+                    </button>
+                    <ActionMenu
+                      items={[
+                        {
+                          key: 'force-stop',
+                          label: t('action.forceStop'),
+                          icon: <Power size={14} />,
+                          danger: true,
+                          disabled: busy,
+                          onSelect: () => setConfirmForceStop(true),
+                        },
+                      ]}
+                    />
+                  </>
+                ) : (
+                  <button className="btn btn-danger" type="button" disabled={busy} onClick={() => setConfirmForceStop(true)}>
+                    <Power size={14} aria-hidden="true" />
+                    {t('action.forceStop')}
                   </button>
-                  <ActionMenu
-                    items={[
-                      {
-                        key: 'force-stop',
-                        label: t('action.forceStop'),
-                        icon: <Power size={14} />,
-                        danger: true,
-                        disabled: busy,
-                        onSelect: () => setConfirmForceStop(true),
-                      },
-                    ]}
-                  />
+                )
+              ) : (
+                <>
+                  {canStartInstance(instance.status) && (
+                    <button className="btn btn-ok" type="button" disabled={busy} onClick={() => act('start')}>
+                      <Play size={14} aria-hidden="true" />
+                      {t('action.start')}
+                    </button>
+                  )}
+                  {canStopInstance(instance.status) && (
+                    <button className="btn btn-danger" type="button" disabled={busy} onClick={() => act('stop')}>
+                      <Power size={14} aria-hidden="true" />
+                      {t('action.stop')}
+                    </button>
+                  )}
+                  {isProcessAlive(instance.status) && (
+                    <>
+                      <button
+                        className="btn"
+                        type="button"
+                        disabled={busy || isLifecycleBusy(instance.status)}
+                        onClick={() => setConfirmRestart(true)}
+                      >
+                        <RotateCcw size={14} aria-hidden="true" />
+                        {t('action.restart')}
+                      </button>
+                      <ActionMenu
+                        items={[
+                          {
+                            key: 'force-stop',
+                            label: t('action.forceStop'),
+                            icon: <Power size={14} />,
+                            danger: true,
+                            disabled: busy,
+                            onSelect: () => setConfirmForceStop(true),
+                          },
+                        ]}
+                      />
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -599,7 +670,16 @@ export function InstancePage() {
           <Routes>
             <Route
               index
-              element={<ConsoleTab instance={instance} busy={busy} onAgreeEulaAndStart={agreeEulaAndStart} />}
+              element={(
+                <ConsoleTab
+                  instance={instance}
+                  busy={busy}
+                  onAgreeEulaAndStart={agreeEulaAndStart}
+                  onStop={() => act('stop')}
+                  onForceStop={() => setConfirmForceStop(true)}
+                  onRefresh={() => void load()}
+                />
+              )}
             />
             <Route path="files" element={<FilesTab instanceId={instance.id} />} />
             <Route path="config" element={<ConfigTab instanceId={instance.id} mcVersion={instance.mcVersion} restart={restart} />} />

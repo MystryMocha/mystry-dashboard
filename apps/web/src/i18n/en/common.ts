@@ -5,6 +5,7 @@ export default {
   'instance.status.running': 'Running',
   'instance.status.stopping': 'Stopping',
   'instance.status.crashed': 'Crashed',
+  'instance.status.detached': 'Detached',
   'instance.status.migration': 'Needs Migration',
 
   'task.status.pending': 'Queued',

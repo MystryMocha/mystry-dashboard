@@ -3,9 +3,9 @@ import type { InstanceInfo } from '@mystry/shared';
 import type { I18n } from './i18n';
 import { canStartInstance } from './instance-status';
 
-/** Instances that need the user's attention: crashed, pending migration, last start failed for a recognizable reason, or the chosen Java is no longer available. */
+/** Instances that need the user's attention: crashed, pending migration, detached live process, last start failed for a recognizable reason, or the chosen Java is no longer available. */
 export function hasIssue(inst: InstanceInfo): boolean {
-  return inst.requiresMigration || inst.status === 'crashed' || (canStartInstance(inst.status) && !!inst.startIssue);
+  return inst.requiresMigration || !!inst.orphanProcess || inst.status === 'crashed' || (canStartInstance(inst.status) && !!inst.startIssue);
 }
 
 export type RowState = {
@@ -23,6 +23,13 @@ export function rowState(inst: InstanceInfo, t: I18n['t']): RowState {
       sentence: t('dashboard.row.migration'),
       tone: 'warn',
       fix: { to: page, label: t('dashboard.row.action.migrate'), icon: PackageOpen },
+    };
+  }
+  if (inst.orphanProcess) {
+    return {
+      sentence: t('dashboard.row.detached', { pid: inst.orphanProcess.pid }),
+      tone: 'warn',
+      fix: { to: page, label: t('dashboard.row.action.manageDetached'), icon: TriangleAlert },
     };
   }
   const issue = canStartInstance(inst.status) ? inst.startIssue ?? null : null;

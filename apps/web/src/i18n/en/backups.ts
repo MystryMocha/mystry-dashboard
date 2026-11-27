@@ -1,6 +1,7 @@
 /** Instance backup strings (English primary table). */
 export default {
   'backups.status.stopToRestore': 'Stop server to restore',
+  'backups.status.stopDetached': 'Stop detached process first',
   'backups.toolbar.refreshLabel': 'Refresh backups',
   'backups.toolbar.upload': 'Upload Backup',
   'backups.toolbar.uploading': 'Uploading…',

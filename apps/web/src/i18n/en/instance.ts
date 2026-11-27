@@ -43,6 +43,10 @@ export default {
   'instance.settings.unsaved.description': 'If you leave Settings, your unsaved instance settings will be lost.',
 
   // Start failure reason notice (above the console)
+  'instance.detached.title': 'Previous server process is still running (PID {pid})',
+  'instance.detached.bodyUnix': 'The panel lost console control after a previous exit, so this page cannot stream logs or send commands. Stop or force stop it before starting, backing up, or deleting this instance.',
+  'instance.detached.bodyWindows': 'The panel lost console control after a previous exit, so it can no longer send the "stop" command. Force stop it before starting, backing up, or deleting this instance.',
+  'instance.detached.refresh': 'Refresh Status',
   'instance.startIssue.eula.title': 'Agree to the Minecraft EULA to start this server',
   'instance.startIssue.eula.body': 'A Minecraft server runs only after you accept the <link>Minecraft EULA</link>. Selecting "Agree and Start" means you have read and agree to it. The panel then writes eula.txt and starts the server.',
   'instance.startIssue.eula.action': 'Agree and Start',
