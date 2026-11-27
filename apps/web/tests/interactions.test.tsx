@@ -2959,7 +2959,8 @@ test('files editor: clean close exits immediately; dirty edits confirm on Close,
   await user.click(screen.getByTitle('编辑 notes.txt'));
   expect((await editScope().findByRole<HTMLTextAreaElement>('textbox', { name: '文件内容：notes.txt' })).value).toBe('hello');
   await user.type(editScope().getByRole('textbox', { name: '文件内容：notes.txt' }), '-leave');
-  // Keep this navigation outside act: when the guard blocks it, React reports the act call was not awaited even though act itself is awaited.
+  // Kept outside act: inside an awaited act, this navigation made React warn that a component suspended in an act call that was
+  // not awaited, while the blocked navigation above does not. The cause is not known; move that one out as well if it starts warning.
   await router.navigate('/other');
   const leaveConfirm = await screen.findByRole('dialog', { name: '放弃未保存的文件修改？' });
   await user.click(within(leaveConfirm).getByRole('button', { name: '放弃修改并离开' }));
