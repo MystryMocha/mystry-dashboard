@@ -12,6 +12,7 @@ import {
   assertLogsShowLine,
   assertNoCredentialsShown,
   assertRequestNotLogged,
+  assertTarEntriesOwnedByRoot,
   lastLogLine,
 } from './smoke-checks.mjs';
 
@@ -179,6 +180,9 @@ async function main() {
   let controlEnv = null;
   try {
     await fsp.mkdir(extractDir);
+    if (process.platform !== 'win32' && archivePath.endsWith('.tar.gz')) {
+      assertTarEntriesOwnedByRoot(run('tar', ['--numeric-owner', '-tvzf', archivePath]));
+    }
     run('tar', ['-xf', archivePath, '-C', extractDir]);
     portableRoot = path.join(extractDir, 'mystry-dashboard');
     const manifest = JSON.parse(
