@@ -31,7 +31,7 @@ export default {
   'server.imports.existing.invalidSourceId': '匯入資料夾名稱無效',
   'server.imports.existing.outsideImportDir': '匯入資料夾必須位於面板資料目錄的 imports 資料夾下',
   'server.imports.existing.managedMarker': '此資料夾包含面板實例標記，不能作為匯入來源',
-  'server.imports.existing.precheckIncomplete': '快速預檢未找到啟動檔；提交後會在匯入任務中進行完整檢查',
+  'server.imports.existing.precheckIncomplete': '快速預檢未找到啟動檔；提交後會在匯入任務中做完整檢查',
   'server.imports.existing.noLaunchTarget': '找不到伺服器 jar 或 Forge/NeoForge 啟動參數檔',
 
   'server.imports.existing.task.queued': '等待複製既有伺服器…',
