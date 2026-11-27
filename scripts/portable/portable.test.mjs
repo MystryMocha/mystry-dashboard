@@ -828,6 +828,12 @@ import fs from 'node:fs';
 import http from 'node:http';
 const marker = process.env.FAKE_PANEL_MARKER;
 const fingerprint = process.env.MYSTRY_PROCESS_FINGERPRINT;
+const configuredPort = Number(
+  process.env.PORT
+  || (process.env.MYSTRY_CONFIG_PATH && fs.existsSync(process.env.MYSTRY_CONFIG_PATH)
+    ? fs.readFileSync(process.env.MYSTRY_CONFIG_PATH, 'utf8').match(/^PORT=(\\d+)/m)?.[1]
+    : undefined),
+);
 const server = http.createServer((req, res) => {
   res.setHeader('content-type', 'application/json');
   if (req.url === '/__exit') {
@@ -864,7 +870,7 @@ const server = http.createServer((req, res) => {
         return;
       }
       const enabled = req.method === 'PUT';
-      const port = Number(process.env.PORT);
+      const port = configuredPort;
       res.end(JSON.stringify({
         managedByConfig: false, configuredHost: null, port, interfaces: [],
         certificate: enabled ? { fingerprint256: 'FA:KE', notAfter: '2029-01-25T08:00:00.000Z', addresses: [] } : null,
@@ -883,7 +889,7 @@ const server = http.createServer((req, res) => {
     res.end('{}');
   }
 });
-server.listen(Number(process.env.PORT), '127.0.0.1');
+server.listen(configuredPort, '127.0.0.1');
 if (process.env.FAKE_PANEL_DATA_LOCK) {
   const lockDir = process.env.MYSTRY_DATA_DIR + '/.mystry-panel-lock';
   fs.mkdirSync(lockDir, { recursive: true });
@@ -1455,4 +1461,53 @@ test('a stale panel data lock from before OS boot does not make status report sh
   assert.equal(status.code, 0, status.output);
   assert.match(status.output, /状态：未运行/);
   assert.doesNotMatch(status.output, /正在关闭/);
+});
+
+test('status, open and restart follow the running panel URL recorded in state.json after PORT changes in panel.env', async (t) => {
+  const port1 = await reservePort();
+  const port2 = await reservePort();
+  const { home, env, statePid } = await fakePanelHome(t, 'mystry-ctl-port-change-', {
+    FAKE_PANEL_DATA_LOCK: '1',
+    PORT: String(port1),
+  });
+
+  const started = await runController('start', env);
+  assert.equal(started.code, 0, started.output);
+  const oldPid = statePid();
+  assert.ok(oldPid);
+
+  // Edit panel.env to switch to port2 while the panel is still running on port1, and run subsequent commands without env PORT.
+  const configPath = env.MYSTRY_CONFIG_PATH;
+  const currentConfig = await fsp.readFile(configPath, 'utf8');
+  const nextConfig = currentConfig.replace(/^PORT=.*$/m, `PORT=${port2}`);
+  await fsp.writeFile(configPath, nextConfig, 'utf8');
+  const updatedEnv = { ...env };
+  delete updatedEnv.PORT;
+
+  const status = await runController('status', updatedEnv);
+  assert.equal(status.code, 0, status.output);
+  assert.match(status.output, new RegExp(`状态：运行中\\s+http://127\\.0\\.0\\.1:${port1}`));
+  assert.match(status.output, new RegExp(`http://127\\.0\\.0\\.1:${port2}`));
+  assert.doesNotMatch(status.output, /正在关闭/);
+
+  const opened = await runController('open', updatedEnv);
+  assert.equal(opened.code, 0, opened.output);
+  assert.match(opened.output, new RegExp(`面板地址：http://127\\.0\\.0\\.1:${port1}`));
+
+  // Track second health check after restart via explicit cleanup hook.
+  t.after(async () => {
+    await fetch(`http://127.0.0.1:${port2}/__exit`).catch(() => {});
+  });
+
+  const restarted = await runController('restart', updatedEnv);
+  assert.equal(restarted.code, 0, restarted.output);
+  assert.doesNotMatch(restarted.output, /java\.exe|kill java|正在等它启动的 Minecraft 服务器退出/);
+  assert.match(restarted.output, new RegExp(`面板已启动：http://127\\.0\\.0\\.1:${port2}`));
+
+  const stateAfter = JSON.parse(await fsp.readFile(path.join(home, 'data', 'launcher', 'state.json'), 'utf8'));
+  assert.equal(stateAfter.url, `http://127.0.0.1:${port2}`);
+  assert.notEqual(stateAfter.pid, oldPid);
+
+  const stopped = await runController('stop', updatedEnv);
+  assert.equal(stopped.code, 0, stopped.output);
 });

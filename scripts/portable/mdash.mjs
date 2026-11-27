@@ -273,18 +273,38 @@ function parsePort(values) {
   return port;
 }
 
-function getConnection(values) {
-  const host = process.env.HOST?.trim() || values?.get('HOST') || '127.0.0.1';
-  const port = parsePort(values);
-  const browserHost = ['0.0.0.0', '::', '[::]'].includes(host) ? '127.0.0.1' : host;
+function connectionForHostPort(host, port) {
+  const normalizedHost = !host || ['0.0.0.0', '::', '[::]'].includes(host) ? '127.0.0.1' : host;
+  const formattedHost = normalizedHost.includes(':') && !normalizedHost.startsWith('[')
+    ? `[${normalizedHost}]`
+    : normalizedHost;
   return {
     port,
-    url: `http://${browserHost}:${port}`,
-    healthUrl: `http://${browserHost}:${port}/api/health`,
-    setupUrl: `http://${browserHost}:${port}/api/auth/setup`,
+    url: `http://${formattedHost}:${port}`,
+    healthUrl: `http://${formattedHost}:${port}/api/health`,
+    setupUrl: `http://${formattedHost}:${port}/api/auth/setup`,
     shutdownUrl: `http://127.0.0.1:${port}/api/launcher/shutdown`,
     resetPasswordUrl: `http://127.0.0.1:${port}/api/launcher/reset-password`,
   };
+}
+
+function getConnection(values) {
+  const host = process.env.HOST?.trim() || values?.get('HOST') || '127.0.0.1';
+  const port = parsePort(values);
+  return connectionForHostPort(host, port);
+}
+
+function connectionFromState(state) {
+  if (typeof state?.url !== 'string' || !state.url) return null;
+  try {
+    const parsed = new URL(state.url);
+    if (parsed.protocol !== 'http:') return null;
+    const port = parsed.port ? Number(parsed.port) : 80;
+    if (!Number.isSafeInteger(port) || port < 1 || port > 65535) return null;
+    return connectionForHostPort(parsed.hostname, port);
+  } catch {
+    return null;
+  }
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 2_000) {
@@ -297,9 +317,9 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 2_000) {
   }
 }
 
-async function getHealth(values, expectedFingerprint = null) {
+async function getHealthForConnection(connection, expectedFingerprint = null) {
+  if (!connection) return null;
   try {
-    const connection = getConnection(values);
     const response = await fetchWithTimeout(connection.healthUrl);
     if (!response.ok) return null;
     const body = await response.json();
@@ -314,6 +334,10 @@ async function getHealth(values, expectedFingerprint = null) {
   } catch {
     return null;
   }
+}
+
+async function getHealth(values, expectedFingerprint = null) {
+  return values ? await getHealthForConnection(getConnection(values), expectedFingerprint) : null;
 }
 
 async function isPortOpen(port) {
@@ -460,8 +484,18 @@ function serversStillStoppingMessage(pid) {
  * The PID of a panel that is shutting down but still waiting for its servers: it has closed its port yet still holds the data directory.
  * A panel that is only slow to answer still has its port open, and must not be reported this way: the advice is to end its servers.
  */
-async function panelStillShuttingDown(values) {
-  if (!values || await getHealth(values) || await isPortOpen(getConnection(values).port)) return null;
+async function panelStillShuttingDown(values, state = null) {
+  const candidates = [];
+  const fromState = connectionFromState(state);
+  if (fromState) candidates.push(fromState);
+  if (values) {
+    const configured = getConnection(values);
+    if (!candidates.some((c) => c.url === configured.url)) candidates.push(configured);
+  }
+  if (candidates.length === 0) return null;
+  for (const candidate of candidates) {
+    if (await getHealthForConnection(candidate) || await isPortOpen(candidate.port)) return null;
+  }
   return panelDataLockHolder();
 }
 
@@ -506,14 +540,35 @@ async function releaseCurrentManagerLock() {
   await unlinkIfExists(lockPath);
 }
 
+/**
+ * Resolves the active connection of a panel started by this manager, preferring state.json's URL
+ * so port/host edits while running still route stop/status/open/reset-password/remote cleanly.
+ */
+async function findManagedPanel(values, state) {
+  if (!isProcessAlive(state?.pid) || !state?.fingerprint) return null;
+  const fromState = connectionFromState(state);
+  const configured = values ? getConnection(values) : null;
+  const candidates = [];
+  if (fromState) candidates.push(fromState);
+  if (configured && !candidates.some((c) => c.url === configured.url)) {
+    candidates.push(configured);
+  }
+  for (const candidate of candidates) {
+    if (await getHealthForConnection(candidate, state.fingerprint)) {
+      return {
+        connection: candidate,
+        configured,
+        portChanged: Boolean(configured && candidate.port !== configured.port),
+        urlChanged: Boolean(configured && candidate.url !== configured.url),
+      };
+    }
+  }
+  return null;
+}
+
 /** Only when the process recorded in state.json is still alive, and the health check returns the same fingerprint, does it count as a panel started by this manager. */
 async function isManagedPanelRunning(values, state) {
-  return Boolean(
-    values
-    && isProcessAlive(state?.pid)
-    && state?.fingerprint
-    && await getHealth(values, state.fingerprint),
-  );
+  return Boolean(await findManagedPanel(values, state));
 }
 
 function checkJava() {
@@ -562,8 +617,10 @@ async function waitForHealth(
 }
 
 const OPEN_URL_COMMANDS = { win32: 'explorer.exe', darwin: 'open' };
-async function openBrowser(values, { announce = true } = {}) {
-  const url = getConnection(values).url;
+async function openBrowser(target, { announce = true } = {}) {
+  const url = target && typeof target === 'object' && 'url' in target
+    ? target.url
+    : getConnection(target).url;
   if (announce) console.log(text(`面板地址：${url}`, `Panel URL: ${url}`));
   if (process.env.MYSTRY_NO_BROWSER === '1') return;
   // Under SSH login the browser would open on the server where the user cannot see it; showRemoteAccessOnStart explains how to open it from outside instead.
@@ -658,13 +715,14 @@ async function resetPassword() {
     ));
   }
   const values = await loadConfiguration();
-  if (!(await isManagedPanelRunning(values, await readState()))) {
+  const managed = await findManagedPanel(values, await readState());
+  if (!managed) {
     throw new Error(text('面板未运行。请先启动面板，再重置密码。', 'The panel is not running. Start it first, then reset the password.'));
   }
   const password = randomPassword();
-  const response = await fetchWithTimeout(getConnection(values).resetPasswordUrl, {
+  const response = await fetchWithTimeout(managed.connection.resetPasswordUrl, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-launcher-token': values.get('LAUNCHER_TOKEN') },
+    headers: { 'content-type': 'application/json', 'x-launcher-token': values?.get('LAUNCHER_TOKEN') ?? '' },
     body: JSON.stringify({ password }),
   }, 15_000);
   if (!response.ok) {
@@ -692,12 +750,19 @@ async function prepareStart() {
     throw new Error(text(`找不到服务端构建产物：${serverEntry}`, `Server build not found: ${serverEntry}`));
   }
   const configuration = await ensureConfiguration();
-  if (await getHealth(configuration.values)) {
-    if (await isManagedPanelRunning(configuration.values, await readState())) {
-      console.log(text('面板已经在运行。', 'The panel is already running.'));
-      await openBrowser(configuration.values);
-      return null;
+  const managed = await findManagedPanel(configuration.values, await readState());
+  if (managed) {
+    console.log(text('面板已经在运行。', 'The panel is already running.'));
+    if (managed.urlChanged && managed.configured) {
+      console.log(text(
+        `当前面板运行在 ${managed.connection.url}，新配置（${managed.configured.url}）将在重启后生效。`,
+        `The panel is currently running at ${managed.connection.url}; the configured address (${managed.configured.url}) will take effect after restart.`,
+      ));
     }
+    await openBrowser(managed.connection);
+    return null;
+  }
+  if (await getHealth(configuration.values)) {
     throw new Error(text(
       '端口上已有无法由当前 mdash 指纹确认的面板，拒绝接管。',
       'A panel on this port does not match the fingerprint recorded by mdash; refusing to take it over.',
@@ -758,11 +823,12 @@ const REMOTE_ERROR_TEXT = {
 };
 
 /** Calls the launcher endpoints that accept only this machine and LAUNCHER_TOKEN; the token does not go into output. */
-async function launcherRequest(values, method, pathname, body) {
-  const response = await fetchWithTimeout(`http://127.0.0.1:${parsePort(values)}${pathname}`, {
+async function launcherRequest(values, method, pathname, body, connection = null) {
+  const targetPort = (connection ?? getConnection(values)).port;
+  const response = await fetchWithTimeout(`http://127.0.0.1:${targetPort}${pathname}`, {
     method,
     headers: {
-      'x-launcher-token': values.get('LAUNCHER_TOKEN') ?? '',
+      'x-launcher-token': values?.get('LAUNCHER_TOKEN') ?? '',
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -780,8 +846,8 @@ async function launcherRequest(values, method, pathname, body) {
   return payload;
 }
 
-const getRemoteStatus = (values) => launcherRequest(values, 'GET', '/api/launcher/remote-access');
-const setDirectAccess = (values, body) => launcherRequest(values, 'PUT', '/api/launcher/remote-access/direct', body);
+const getRemoteStatus = (values, connection = null) => launcherRequest(values, 'GET', '/api/launcher/remote-access', undefined, connection);
+const setDirectAccess = (values, body, connection = null) => launcherRequest(values, 'PUT', '/api/launcher/remote-access/direct', body, connection);
 
 /** Same defaults as the UI: all interfaces, HTTPS, no source restriction; existing settings keep their security options. */
 function directAccessRequest(status, overrides) {
@@ -940,21 +1006,22 @@ function remoteUsage() {
 async function remoteCommand(args) {
   const [action = '', argument] = args;
   const values = await loadConfiguration();
-  const running = await isManagedPanelRunning(values, await readState());
-  if (!running) {
+  const managed = await findManagedPanel(values, await readState());
+  if (!managed) {
     if (action === 'status') {
       console.log(text('状态：未运行', 'Status: stopped'));
       return;
     }
     throw new Error(text('面板未运行。请先启动面板。', 'The panel is not running. Start it first.'));
   }
+  const connection = managed.connection;
   if (action === 'status') {
-    printRemoteStatus(await getRemoteStatus(values));
+    printRemoteStatus(await getRemoteStatus(values, connection));
     return;
   }
   if (action === '') {
     // "Access from other devices" in the menu: shows the status, and can toggle it directly in a terminal.
-    const status = await getRemoteStatus(values);
+    const status = await getRemoteStatus(values, connection);
     printRemoteStatus(status);
     if (status.managedByConfig || !process.stdin.isTTY || !process.stdout.isTTY) return;
     const enable = !status.direct.enabled;
@@ -962,25 +1029,25 @@ async function remoteCommand(args) {
       ? text('\n现在开启吗？[y/N] ', '\nTurn it on now? [y/N] ')
       : text('\n现在关闭吗？[y/N] ', '\nTurn it off now? [y/N] '), false);
     if (!confirmed) return;
-    const next = await setDirectAccess(values, directAccessRequest(status, { enabled: enable }));
+    const next = await setDirectAccess(values, directAccessRequest(status, { enabled: enable }), connection);
     console.log(enable ? remoteAccessLines(next).join('\n') : text('已关闭从其他设备访问。', 'Access from other devices is off.'));
     return;
   }
   if (action === 'on') {
-    const status = await getRemoteStatus(values);
-    const next = await setDirectAccess(values, directAccessRequest(status, { enabled: true, interfaceName: argument ?? null }));
+    const status = await getRemoteStatus(values, connection);
+    const next = await setDirectAccess(values, directAccessRequest(status, { enabled: true, interfaceName: argument ?? null }), connection);
     console.log(remoteAccessLines(next).join('\n'));
     return;
   }
   if (action === 'off') {
-    const status = await getRemoteStatus(values);
-    await setDirectAccess(values, directAccessRequest(status, { enabled: false }));
+    const status = await getRemoteStatus(values, connection);
+    await setDirectAccess(values, directAccessRequest(status, { enabled: false }), connection);
     console.log(text('已关闭从其他设备访问。', 'Access from other devices is off.'));
     return;
   }
   if (action === 'https' && (argument === 'on' || argument === 'off')) {
-    const status = await getRemoteStatus(values);
-    const next = await setDirectAccess(values, directAccessRequest(status, { https: argument === 'on' }));
+    const status = await getRemoteStatus(values, connection);
+    const next = await setDirectAccess(values, directAccessRequest(status, { https: argument === 'on' }), connection);
     console.log(argument === 'on'
       ? text('已开启 HTTPS。', 'HTTPS is on.')
       : text('已关闭 HTTPS，连接不再加密。', 'HTTPS is off. The connection is no longer encrypted.'));
@@ -988,7 +1055,7 @@ async function remoteCommand(args) {
     return;
   }
   if (action === 'renew-cert') {
-    const next = await launcherRequest(values, 'POST', '/api/launcher/remote-access/certificate');
+    const next = await launcherRequest(values, 'POST', '/api/launcher/remote-access/certificate', undefined, connection);
     console.log(text(
       `已重新生成证书，浏览器需要重新确认一次。新指纹（SHA-256）：${next.certificate?.fingerprint256 ?? ''}`,
       `The certificate was regenerated, and browsers will ask you to confirm again. New fingerprint (SHA-256): ${next.certificate?.fingerprint256 ?? ''}`,
@@ -1270,24 +1337,31 @@ async function startAndWatch() {
 async function stopPanel() {
   const values = await loadConfiguration();
   const state = await readState();
-  if (!(await isManagedPanelRunning(values, state))) {
+  const managed = await findManagedPanel(values, state);
+  if (!managed) {
     if (values && await getHealth(values)) {
       throw new Error(text(
         '检测到面板服务，但 PID 或进程指纹不匹配；拒绝停止未知进程。',
         'A panel is responding, but its PID or process fingerprint does not match; refusing to stop an unknown process.',
       ));
     }
-    const holder = await panelStillShuttingDown(values);
+    const holder = await panelStillShuttingDown(values, state);
     if (holder !== null) throw new Error(serversStillStoppingMessage(holder));
     if (!isProcessAlive(state?.pid)) await clearState();
     console.log(text('面板未运行。', 'The panel is not running.'));
     return;
   }
-  const launcherToken = values.get('LAUNCHER_TOKEN');
+  const launcherToken = values?.get('LAUNCHER_TOKEN');
   if (!launcherToken || !SECRET_PATTERN.test(launcherToken)) {
     throw new Error(text('LAUNCHER_TOKEN 缺失或格式无效，无法安全停止面板。', 'LAUNCHER_TOKEN is missing or invalid; cannot stop the panel safely.'));
   }
-  const connection = getConnection(values);
+  if (managed.portChanged && managed.configured) {
+    console.log(text(
+      `当前配置端口（${managed.configured.port}）与运行中的面板（${managed.connection.url}）不同，将停止运行中的面板。`,
+      `Configured port (${managed.configured.port}) differs from the running panel (${managed.connection.url}); stopping the running panel.`,
+    ));
+  }
+  const connection = managed.connection;
   const response = await fetchWithTimeout(
     connection.shutdownUrl,
     {
@@ -1321,7 +1395,7 @@ async function stopPanel() {
   let waitingForServers = false;
   let heldSince = null;
   while (Date.now() < deadline) {
-    if (!(await getHealth(values, state.fingerprint))) {
+    if (!(await getHealthForConnection(connection, state.fingerprint))) {
       // The panel stops answering before its servers are sure to be gone; while one is still running it keeps the data directory.
       if (panelDataLockHolder() === null) {
         await clearState();
@@ -1352,13 +1426,19 @@ async function stopPanel() {
 async function showStatus() {
   const values = await loadConfiguration();
   const state = await readState();
-  if (await isManagedPanelRunning(values, state)) {
-    const connection = getConnection(values);
-    console.log(text(`状态：运行中  ${connection.url}`, `Status: running  ${connection.url}`));
+  const managed = await findManagedPanel(values, state);
+  if (managed) {
+    console.log(text(`状态：运行中  ${managed.connection.url}`, `Status: running  ${managed.connection.url}`));
+    if (managed.urlChanged && managed.configured) {
+      console.log(text(
+        `当前配置已改为 ${managed.configured.url}，重启面板后生效。`,
+        `Configuration now specifies ${managed.configured.url}; restart the panel to apply it.`,
+      ));
+    }
     if (state?.pid) console.log(text(`PID：${state.pid}`, `PID: ${state.pid}`));
     return;
   }
-  const holder = await panelStillShuttingDown(values);
+  const holder = await panelStillShuttingDown(values, state);
   if (holder !== null) {
     console.log(text(`状态：正在关闭（PID ${holder}）`, `Status: shutting down (PID ${holder})`));
     console.warn(serversStillStoppingMessage(holder));
@@ -1456,10 +1536,11 @@ const STOPPED_MENU = [
 
 async function interactiveMenu() {
   const values = await loadConfiguration();
-  const running = await isManagedPanelRunning(values, await readState());
+  const state = await readState();
+  const running = await isManagedPanelRunning(values, state);
   const menu = running ? RUNNING_MENU : STOPPED_MENU;
   console.log(text(`Mystry Dashboard ${managerLabel}`, `Mystry Dashboard (${managerLabel})`));
-  const holder = running ? null : await panelStillShuttingDown(values);
+  const holder = running ? null : await panelStillShuttingDown(values, state);
   if (running) console.log(text('状态：运行中', 'Status: running'));
   else if (holder !== null) console.log(text(`状态：正在关闭（PID ${holder} 在等 Minecraft 服务器退出）`, `Status: shutting down (PID ${holder} is waiting for Minecraft servers to exit)`));
   else console.log(text('状态：未运行', 'Status: stopped'));
@@ -1500,7 +1581,9 @@ async function runCommand(command, args = []) {
     return;
   }
   if (command === 'open') {
-    await openBrowser(await loadConfiguration());
+    const values = await loadConfiguration();
+    const managed = await findManagedPanel(values, await readState());
+    await openBrowser(managed ? managed.connection : values);
     return;
   }
   if (command === 'reset-password') {
