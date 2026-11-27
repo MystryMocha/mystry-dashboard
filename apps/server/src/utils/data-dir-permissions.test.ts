@@ -45,3 +45,12 @@ test('overly permissive permissions should refuse startup', { skip: process.plat
   const mode = fs.statSync(root).mode & 0o777;
   assert.equal(mode, 0o700);
 });
+
+test('Unix owner mismatch error explains both uids and how to recover with chown', async () => {
+  const { formatUnixOwnerMismatch } = await import('./data-dir-permissions.js');
+  const message = formatUnixOwnerMismatch('/opt/mystry/data', 0, 1001);
+  assert.match(message, /uid 0/);
+  assert.match(message, /1001/);
+  assert.match(message, /\/opt\/mystry\/data/);
+  assert.match(message, /chown/);
+});

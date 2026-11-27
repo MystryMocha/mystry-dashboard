@@ -82,7 +82,7 @@ export async function launcherRoutes(
         return reply.code(400).send(panelErrorBody('server.auth.invalidCredentialFormat'));
       }
       try {
-        return resetAdminPassword(req.body.password);
+        return await resetAdminPassword(req.body.password);
       } catch (err) {
         const noAdministrator = err instanceof PanelError && err.messageKey === 'server.auth.noAdministrator';
         return reply.code(noAdministrator ? 409 : 400).send(errorBody(err));

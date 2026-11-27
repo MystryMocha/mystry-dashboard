@@ -86,7 +86,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send(panelErrorBody('server.auth.invalidCredentialFormat'));
       }
       try {
-        return await signSession(reply, setupAdmin(req.body.username, req.body.password));
+        return await signSession(reply, await setupAdmin(req.body.username, req.body.password));
       } catch (err) {
         const alreadyInitialized = err instanceof PanelError && err.messageKey === 'server.auth.alreadyInitialized';
         return reply.code(alreadyInitialized ? 409 : 400).send(errorBody(err));
@@ -94,6 +94,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // Successful logins do not consume the failure quota so an admin is not locked out;
+  // loginFailureLimit enforces both per-(IP, username) and per-IP failure ceilings, while verifyLogin caps concurrent worker checks.
   app.post<{ Body: LoginInput }>(
     '/api/auth/login',
     {
@@ -105,7 +107,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send(panelErrorBody('server.auth.invalidCredentialFormat'));
       }
       if (loginFailureLimit.isBlocked(req, reply, req.body.username)) return reply;
-      const user = verifyLogin(req.body.username, req.body.password);
+      let user: SessionUser | null;
+      try {
+        user = await verifyLogin(req.body.username, req.body.password);
+      } catch (err) {
+        if (err instanceof PanelError && err.statusCode === 429) {
+          return reply.code(429).send(errorBody(err));
+        }
+        throw err;
+      }
       if (!user) {
         loginFailureLimit.recordFailure(req, reply, req.body.username);
         return reply.code(401).send(panelErrorBody('server.auth.invalidCredentials'));
@@ -128,9 +138,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       }
       let user: SessionUser;
       try {
-        user = changePassword(req.user.id, req.body.currentPassword, req.body.newPassword);
+        user = await changePassword(req.user.id, req.body.currentPassword, req.body.newPassword);
       } catch (err) {
-        return reply.code(400).send(errorBody(err));
+        const status = err instanceof PanelError && err.statusCode ? err.statusCode : 400;
+        return reply.code(status).send(errorBody(err));
       }
       // The old tokens (including the one used for this request) are all invalid now; the current session stays signed in with a reissued token.
       const result: ChangePasswordResult = { ok: true, ...(await signSession(reply, user)) };

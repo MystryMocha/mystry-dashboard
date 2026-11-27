@@ -347,3 +347,121 @@ test('task messages are stored as key and params, old databases get the columns 
   assert.equal(raw.error, 'ENOSPC: no space left on device');
   assert.equal(raw.errorI18n, undefined);
 });
+
+test('terminal task persistence failures do not become unhandled rejections or wedge the queue', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb, getDb } = await import('../db.js');
+  const {
+    runBackgroundTask,
+    getTask,
+    isTaskQueueIdle,
+    shutdownTasks,
+    resetTaskRuntimeForTests,
+  } = await import('./task-service.js');
+  t.after(() => {
+    resetTaskRuntimeForTests();
+  });
+  initDb();
+
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => {
+    unhandled.push(reason);
+  };
+  process.on('unhandledRejection', onUnhandled);
+  t.after(() => {
+    process.off('unhandledRejection', onUnhandled);
+  });
+
+  getDb().exec(`CREATE TRIGGER refuse_terminal BEFORE UPDATE ON tasks
+    WHEN NEW.status IN ('completed', 'failed')
+    BEGIN SELECT RAISE(ABORT, 'simulated disk full'); END`);
+
+  const settled: string[] = [];
+  try {
+    await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {}, {
+      onSettled: () => settled.push('completed'),
+    });
+    await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {
+      throw new Error('worker failed');
+    }, {
+      onSettled: () => settled.push('failed'),
+    });
+
+    for (let attempt = 0; attempt < 200 && settled.length < 2; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(settled, ['completed', 'failed']);
+    assert.equal(isTaskQueueIdle(), true);
+    assert.deepEqual(unhandled, [], 'terminal updateTask failures must never become unhandled rejections');
+
+    // Also verify shutdownTasks settles queued tasks without throwing if SQLite refuses writes during shutdown.
+    let releaseBlocker!: () => void;
+    const blockerGate = new Promise<void>((resolve) => { releaseBlocker = resolve; });
+    await runBackgroundTask('download', { key: 'server.tasks.queued' }, () => blockerGate);
+    let queuedSettled = false;
+    await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {}, {
+      onSettled: () => { queuedSettled = true; },
+    });
+    const shutdownPromise = shutdownTasks();
+    releaseBlocker();
+    await shutdownPromise;
+    assert.equal(queuedSettled, true);
+  } finally {
+    getDb().exec('DROP TRIGGER refuse_terminal');
+  }
+
+  resetTaskRuntimeForTests();
+  const after = await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {});
+  for (let attempt = 0; attempt < 200 && getTask(after.id)?.status !== 'completed'; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(getTask(after.id)?.status, 'completed');
+});
+
+test('high-frequency progress reports are throttled and deduplicated while flushing stage changes and trailing updates', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb, getDb } = await import('../db.js');
+  const { runBackgroundTask, getTask, resetTaskRuntimeForTests } = await import('./task-service.js');
+  t.after(() => {
+    resetTaskRuntimeForTests();
+  });
+  initDb();
+
+  getDb().exec(`
+    CREATE TABLE task_update_log (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT NOT NULL);
+    CREATE TRIGGER count_task_updates AFTER UPDATE ON tasks
+    BEGIN
+      INSERT INTO task_update_log (task_id) VALUES (NEW.id);
+    END;
+  `);
+
+  let observedAfterFlush: number | undefined;
+  const task = await runBackgroundTask('download', { key: 'server.tasks.queued' }, async (taskId, _signal, report) => {
+    // Burst of 200 per-chunk progress callbacks within a single stage (including duplicate values).
+    for (let i = 1; i <= 200; i += 1) {
+      report(10 + Math.floor(i / 4), {
+        key: 'server.deploy.progress.downloadingFrom',
+        params: { source: 'PaperMC', percent: Math.floor(i / 2) },
+      });
+    }
+    // Wait slightly beyond the throttle interval so the trailing progress update flushes to SQLite.
+    await new Promise((resolve) => setTimeout(resolve, 320));
+    observedAfterFlush = getTask(taskId)?.progress;
+
+    // A stage change must write immediately without waiting for another throttle interval.
+    report(95, { key: 'server.deploy.progress.writingConfig' });
+    assert.equal(getTask(taskId)?.messageI18n?.key, 'server.deploy.progress.writingConfig');
+  });
+
+  for (let attempt = 0; attempt < 200 && getTask(task.id)?.status !== 'completed'; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(getTask(task.id)?.status, 'completed');
+  assert.equal(observedAfterFlush, 60, 'latest progress from the burst must flush within the throttle window');
+
+  const row = getDb()
+    .prepare('SELECT COUNT(*) AS c FROM task_update_log WHERE task_id = ?')
+    .get(task.id) as { c: number };
+  assert.ok(row.c <= 10, `expected throttled SQLite updates (<= 10), got ${row.c}`);
+});

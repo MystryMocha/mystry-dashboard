@@ -10,12 +10,13 @@ import test from 'node:test';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createChecksums } from './create-checksums.mjs';
-import { createPortableReadme, isArchiveSafeName } from './package-portable.mjs';
+import { buildTarArchiveArgs, createPortableReadme, isArchiveSafeName } from './package-portable.mjs';
 import { createReleaseMetadata } from './package-release.mjs';
 import {
   assertLogsShowLine,
   assertNoCredentialsShown,
   assertRequestNotLogged,
+  assertTarEntriesOwnedByRoot,
   lastLogLine,
 } from './smoke-checks.mjs';
 
@@ -39,6 +40,58 @@ test('portable package paths use only printable ASCII, so the tar shipped with W
   // The test fixture directory in @fastify/send is named exactly like this, and under a non-UTF-8 code page (verified under GBK) bsdtar skips it and exits with an error.
   for (const name of ['snow ☃', '中文.txt', 'café', '', 'tab	name']) {
     assert.equal(isArchiveSafeName(name), false, JSON.stringify(name));
+  }
+});
+
+test('Unix tar archive arguments force numeric root ownership and the ownership check catches foreign uids', async (t) => {
+  const linuxArgs = buildTarArchiveArgs('/tmp/out.tar.gz', 'mystry-dashboard', 'linux');
+  assert.deepEqual(linuxArgs, [
+    '--sort=name',
+    '--owner=0',
+    '--group=0',
+    '--numeric-owner',
+    '-czf',
+    '/tmp/out.tar.gz',
+    'mystry-dashboard',
+  ]);
+  const darwinArgs = buildTarArchiveArgs('/tmp/out.tar.gz', 'mystry-dashboard', 'darwin');
+  assert.deepEqual(darwinArgs, [
+    '--uid',
+    '0',
+    '--gid',
+    '0',
+    '--numeric-owner',
+    '-czf',
+    '/tmp/out.tar.gz',
+    'mystry-dashboard',
+  ]);
+
+  assert.doesNotThrow(() => assertTarEntriesOwnedByRoot([
+    'drwxr-xr-x 0/0               0 2026-11-27 06:00 mystry-dashboard/',
+    'drwx------ 0/0               0 2026-11-27 06:00 mystry-dashboard/data/',
+    '-rw-r--r-- 0/0              12 2026-11-27 06:00 mystry-dashboard/VERSION',
+  ].join('\n')));
+  assert.throws(
+    () => assertTarEntriesOwnedByRoot('drwx------ 1001/1001 0 2026-11-27 06:00 mystry-dashboard/data/\n'),
+    /0\/0/,
+  );
+  assert.throws(() => assertTarEntriesOwnedByRoot(''), /empty/);
+
+  if (process.platform === 'linux') {
+    const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-tar-owner-'));
+    t.after(() => fsp.rm(tempDir, { recursive: true, force: true }));
+    const stageDir = path.join(tempDir, 'mystry-dashboard');
+    await fsp.mkdir(path.join(stageDir, 'data'), { recursive: true, mode: 0o700 });
+    await fsp.writeFile(path.join(stageDir, 'VERSION'), '0.0.0\n', 'utf8');
+    const archivePath = path.join(tempDir, 'out.tar.gz');
+    const created = spawnSync('tar', buildTarArchiveArgs(archivePath, 'mystry-dashboard', 'linux'), {
+      cwd: tempDir,
+      encoding: 'utf8',
+    });
+    assert.equal(created.status, 0, created.stderr);
+    const listed = spawnSync('tar', ['--numeric-owner', '-tvzf', archivePath], { encoding: 'utf8' });
+    assert.equal(listed.status, 0, listed.stderr);
+    assertTarEntriesOwnedByRoot(listed.stdout);
   }
 });
 
@@ -1356,4 +1409,26 @@ test('pressing Ctrl+C twice in foreground mode still waits for the panel to shut
   const signals = await fsp.readFile(marker, 'utf8');
   assert.match(signals, /closed/, '面板应完成安全关闭');
   assert.equal(fs.existsSync(path.join(home, 'data', 'launcher', 'state.json')), false, '退出后应清除运行状态');
+});
+
+test('openBrowser handles missing browser launcher without crashing the controller', async (t) => {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-open-missing-'));
+  t.after(() => fsp.rm(home, { recursive: true, force: true }));
+  const keepAlive = path.join(home, 'keep-alive.mjs');
+  // Keep the event loop alive briefly so the asynchronous ENOENT error from spawn fires before process exit, as in start/foreground/watch.
+  await fsp.writeFile(keepAlive, 'setTimeout(() => {}, 250);\n', 'utf8');
+  const env = {
+    ...process.env,
+    PATH: '',
+    Path: '',
+    MYSTRY_HOME: home,
+    MYSTRY_CONFIG_PATH: path.join(home, 'config', 'panel.env'),
+    MYSTRY_DATA_DIR: path.join(home, 'data'),
+    MYSTRY_LANG: 'zh-CN',
+  };
+  for (const name of ['MYSTRY_NO_BROWSER', 'SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY']) delete env[name];
+  const result = await runController('open', env, ['--import', pathToFileURL(keepAlive).href]);
+  assert.equal(result.code, 0, result.output);
+  assert.match(result.output, /面板地址：/);
+  assert.match(result.output, /无法自动打开浏览器/);
 });

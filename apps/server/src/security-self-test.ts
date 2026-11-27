@@ -596,6 +596,25 @@ async function main(): Promise<void> {
     });
     assert.equal(anotherUser.statusCode, 401);
 
+    // Rotating distinct usernames from a single IP must still be blocked by the per-IP failure ceiling.
+    const rotatingIp = '198.51.100.42';
+    for (let attempt = 0; attempt < config.authRateLimitMax * 3; attempt += 1) {
+      const rotatingFailure = await app.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        remoteAddress: rotatingIp,
+        payload: { username: `rotating-user-${attempt}`, password: 'wrong-password' },
+      });
+      assert.equal(rotatingFailure.statusCode, 401);
+    }
+    const rotatingBlocked = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      remoteAddress: rotatingIp,
+      payload: { username: 'rotating-user-final', password: 'wrong-password' },
+    });
+    assert.equal(rotatingBlocked.statusCode, 429);
+
     const ticket = issueConsoleTicket('user', 'instance');
     assert.equal(consumeConsoleTicket(ticket.ticket, 'instance')?.userId, 'user');
     assert.equal(consumeConsoleTicket(ticket.ticket, 'instance'), null);

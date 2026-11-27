@@ -52,7 +52,7 @@ test('the real monitoring route rejects unauthenticated requests and returns a r
   const { initDb, closeDb } = await import('../db.js');
   const { setupAdmin } = await import('./auth-service.js');
   initDb();
-  const user = setupAdmin('metrics-test', 'metrics-test-password');
+  const user = await setupAdmin('metrics-test', 'metrics-test-password');
   const app = Fastify();
   await app.register(jwt, { secret: process.env.JWT_SECRET });
   registerAuthHooks(app);

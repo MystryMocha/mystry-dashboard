@@ -74,6 +74,7 @@ const runningControllers = new Map<string, AbortController>();
 const runningExecutions = new Map<string, Promise<void>>();
 /** Tasks the user asked to cancel that are waiting for the worker to finish up; on ending they are recorded as "you cancelled this task" based on this, not as ordinary failures. */
 const userCancelled = new Set<string>();
+const PROGRESS_WRITE_INTERVAL_MS = 250;
 
 type TaskResultPayload = {
   instanceId?: string;
@@ -169,12 +170,11 @@ export function updateTask(
   patch: TaskPatch,
   options?: { phase?: string | null },
 ): TaskInfo {
-  const existing = getTask(id);
-  if (!existing) throw new PanelError('server.tasks.notFound');
-  const row = getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id) as TaskRow;
+  const row = getDb().prepare('SELECT * FROM tasks WHERE id = ?').get(id) as TaskRow | undefined;
+  if (!row) throw new PanelError('server.tasks.notFound');
   const now = nowIso();
   const phase = options?.phase !== undefined ? options.phase : row.phase;
-  getDb()
+  const updated = getDb()
     .prepare(
       `UPDATE tasks SET
         status = ?,
@@ -186,18 +186,15 @@ export function updateTask(
         error = ?,
         error_i18n = ?,
         updated_at = ?
-      WHERE id = ?`,
+      WHERE id = ?
+      RETURNING *`,
     )
-    .run(
-      patch.status ?? existing.status,
+    .get(
+      patch.status ?? row.status,
       phase,
-      patch.progress ?? existing.progress,
+      patch.progress ?? row.progress,
       ...(patch.message !== undefined ? textColumns(patch.message) : [row.message, row.message_i18n]),
-      patch.result !== undefined
-        ? JSON.stringify(patch.result)
-        : existing.result
-          ? JSON.stringify(existing.result)
-          : null,
+      patch.result !== undefined ? JSON.stringify(patch.result) : row.result_json,
       ...(patch.error === null
         ? [null, null]
         : patch.error !== undefined
@@ -205,8 +202,8 @@ export function updateTask(
           : [row.error, row.error_i18n]),
       now,
       id,
-    );
-  return getTask(id)!;
+    ) as TaskRow;
+  return rowToTask(updated);
 }
 
 /** Records task staging resources, so only half-finished directories are cleaned up after a crash. */
@@ -324,13 +321,17 @@ function drainTaskQueue(): void {
     runningTasks += 1;
     const controller = new AbortController();
     runningControllers.set(item.task.id, controller);
-    const execution = executeTask(item, controller).finally(() => {
-      runningTasks -= 1;
-      runningControllers.delete(item.task.id);
-      runningExecutions.delete(item.task.id);
-      settle(item);
-      drainTaskQueue();
-    });
+    const execution = executeTask(item, controller)
+      .catch((error) => {
+        console.error(`任务 ${item.task.id} 执行出现未捕获异常`, error);
+      })
+      .finally(() => {
+        runningTasks -= 1;
+        runningControllers.delete(item.task.id);
+        runningExecutions.delete(item.task.id);
+        settle(item);
+        drainTaskQueue();
+      });
     runningExecutions.set(item.task.id, execution);
     void execution;
   }
@@ -343,6 +344,61 @@ async function executeTask(item: QueuedTask, controller: AbortController): Promi
   let failure: unknown;
   let failed = false;
 
+  let lastProgressWriteAt = 0;
+  let lastProgressValue: number | null = null;
+  let lastMessageKey: string | null = null;
+  let lastMessageJson: string | null = null;
+  let pendingProgress: { progress: number; msg: PanelMessage; msgJson: string } | null = null;
+  let progressTimer: NodeJS.Timeout | undefined;
+
+  const clearPendingProgress = () => {
+    if (progressTimer) {
+      clearTimeout(progressTimer);
+      progressTimer = undefined;
+    }
+    pendingProgress = null;
+  };
+
+  const writeProgress = (progress: number, msg: PanelMessage, msgJson: string, now: number) => {
+    clearPendingProgress();
+    lastProgressWriteAt = now;
+    lastProgressValue = progress;
+    lastMessageKey = msg.key;
+    lastMessageJson = msgJson;
+    try {
+      updateTask(item.task.id, { progress, message: msg, status: 'running' });
+    } catch (persistError) {
+      // Progress updates are non-critical telemetry; a transient SQLite failure must not abort the worker.
+      console.error(`写入任务 ${item.task.id} 进度失败`, persistError);
+    }
+  };
+
+  // Download streams call report() per network chunk; throttle same-stage updates so SQLite WAL fsyncs stay bounded while stage changes and trailing updates flush promptly.
+  const report = (progress: number, msg: PanelMessage) => {
+    if (ended || controller.signal.aborted) return;
+    const msgJson = JSON.stringify(msg);
+    if (progress === lastProgressValue && msgJson === lastMessageJson) return;
+    const now = Date.now();
+    const elapsed = now - lastProgressWriteAt;
+    if (msg.key !== lastMessageKey || progress >= 100 || elapsed >= PROGRESS_WRITE_INTERVAL_MS) {
+      writeProgress(progress, msg, msgJson, now);
+      return;
+    }
+    pendingProgress = { progress, msg, msgJson };
+    if (!progressTimer) {
+      progressTimer = setTimeout(() => {
+        progressTimer = undefined;
+        if (ended || controller.signal.aborted || !pendingProgress) {
+          pendingProgress = null;
+          return;
+        }
+        const next = pendingProgress;
+        pendingProgress = null;
+        writeProgress(next.progress, next.msg, next.msgJson, Date.now());
+      }, PROGRESS_WRITE_INTERVAL_MS - elapsed);
+    }
+  };
+
   try {
     updateTask(item.task.id, { status: 'running', message: item.task.messageI18n ?? item.task.message }, { phase: 'staging' });
     const timeout = setTimeout(() => {
@@ -351,17 +407,14 @@ async function executeTask(item: QueuedTask, controller: AbortController): Promi
     }, item.timeoutMs);
 
     try {
-      result = await item.worker(item.task.id, controller.signal, (progress, msg) => {
-        if (!ended && !controller.signal.aborted) {
-          updateTask(item.task.id, { progress, message: msg, status: 'running' });
-        }
-      });
+      result = await item.worker(item.task.id, controller.signal, report);
       // A normal return from the worker counts as success. If a timeout/shutdown lands after the return, an instance that has already landed must not be rewritten as failed.
     } catch (error) {
       failure = error;
       failed = true;
     } finally {
       clearTimeout(timeout);
+      clearPendingProgress();
       ended = true;
     }
   } catch (error) {
@@ -372,21 +425,26 @@ async function executeTask(item: QueuedTask, controller: AbortController): Promi
 
   // A cancel does not count once the worker has returned normally (see above), so the flag is cleared here too.
   const cancelledByUser = userCancelled.delete(item.task.id);
-  if (failed) {
-    const error: TaskText = timedOut
-      ? { key: 'server.tasks.timeout' }
-      : cancelledByUser ? { key: 'server.tasks.cancelledByUser' } : failureText(failure);
-    const message: TaskText = { key: cancelledByUser && !timedOut ? 'server.tasks.cancelled' : 'server.tasks.failed' };
-    updateTask(item.task.id, { status: 'failed', message, error }, { phase: 'failed' });
-    return;
-  }
+  // Persisting the terminal state can fail when the disk is full or SQLite is temporarily locked; never let it escape as an unhandled rejection and kill running servers.
+  try {
+    if (failed) {
+      const error: TaskText = timedOut
+        ? { key: 'server.tasks.timeout' }
+        : cancelledByUser ? { key: 'server.tasks.cancelledByUser' } : failureText(failure);
+      const message: TaskText = { key: cancelledByUser && !timedOut ? 'server.tasks.cancelled' : 'server.tasks.failed' };
+      updateTask(item.task.id, { status: 'failed', message, error }, { phase: 'failed' });
+      return;
+    }
 
-  updateTask(item.task.id, {
-    status: 'completed',
-    progress: 100,
-    message: { key: 'server.tasks.completed' },
-    result: result ?? undefined,
-  }, { phase: 'completed' });
+    updateTask(item.task.id, {
+      status: 'completed',
+      progress: 100,
+      message: { key: 'server.tasks.completed' },
+      result: result ?? undefined,
+    }, { phase: 'completed' });
+  } catch (persistError) {
+    console.error(`写入任务 ${item.task.id} 终态失败`, persistError);
+  }
 }
 
 export async function runBackgroundTask(
@@ -461,6 +519,9 @@ export async function shutdownTasks(): Promise<void> {
         message: { key: 'server.tasks.cancelled' },
         error: { key: 'server.tasks.cancelledByShutdown' },
       }, { phase: 'failed' });
+    } catch (persistError) {
+      // Shutdown must continue to stop running servers even when the database cannot be written.
+      console.error(`关闭面板时更新排队任务 ${item.task.id} 状态失败`, persistError);
     } finally {
       settle(item);
     }

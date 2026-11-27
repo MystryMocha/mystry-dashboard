@@ -287,9 +287,20 @@ Linux / macOS：
   await fsp.writeFile(destination, content, 'utf8');
 }
 
+/**
+ * Forces root (0/0) numeric ownership on tar archives so extracting as root on Linux does not preserve
+ * a CI runner's non-zero uid/gid, which would fail the panel's data directory ownership check at startup.
+ */
+export function buildTarArchiveArgs(archivePath, entryName, platform = process.platform) {
+  if (platform === 'darwin') {
+    return ['--uid', '0', '--gid', '0', '--numeric-owner', '-czf', archivePath, entryName];
+  }
+  return ['--sort=name', '--owner=0', '--group=0', '--numeric-owner', '-czf', archivePath, entryName];
+}
+
 async function archivePackage(stageRoot, packageDir, archivePath, platform) {
   if (platform !== 'win32') {
-    run('tar', ['-czf', archivePath, path.basename(packageDir)], { cwd: stageRoot });
+    run('tar', buildTarArchiveArgs(archivePath, path.basename(packageDir), platform), { cwd: stageRoot });
     return;
   }
 

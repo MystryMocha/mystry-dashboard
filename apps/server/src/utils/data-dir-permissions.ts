@@ -40,13 +40,18 @@ function warnWindowsAclBoundary(targetPath: string): void {
   );
 }
 
+export function formatUnixOwnerMismatch(targetPath: string, expectedUid: number, actualUid: number): string {
+  return (
+    `路径「${targetPath}」所有者不是当前用户（uid ${expectedUid}，实际 ${actualUid}），拒绝启动。`
+    + `请使用 chown 将归属改为当前用户后重试（例如：chown -R "$(id -u):$(id -g)" "${targetPath}"）。`
+  );
+}
+
 function assertUnixOwner(stat: fs.Stats, targetPath: string): void {
   if (!isUnix() || typeof process.getuid !== 'function') return;
   const uid = process.getuid();
   if (stat.uid !== uid) {
-    throw new DataDirPermissionError(
-      `路径「${targetPath}」所有者不是当前用户（uid ${uid}，实际 ${stat.uid}），拒绝启动。`,
-    );
+    throw new DataDirPermissionError(formatUnixOwnerMismatch(targetPath, uid, stat.uid));
   }
 }
 

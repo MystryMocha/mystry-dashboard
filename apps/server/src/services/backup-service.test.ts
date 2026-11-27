@@ -368,6 +368,69 @@ test('startup recovery after an interrupted directory swap: the old directory is
   assert.equal(fs.existsSync(path.join(taskDir, '.mystry-restore-swap.json')), false);
 });
 
+test('startup backup recovery ignores non-instance directories and survives unreadable directories or busy temp files', async () => {
+  await setup();
+  const { backupRoot, recoverInterruptedBackups } = await import('./backup-service.js');
+  const root = backupRoot();
+
+  const lostAndFound = path.join(root, 'lost+found');
+  const sysVolInfo = path.join(root, 'System Volume Information');
+  const unreadableDir = path.join(root, 'unreadable_inst');
+  const healthyDir = path.join(root, 'healthy_inst');
+  for (const dir of [lostAndFound, sysVolInfo, unreadableDir, healthyDir]) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  const ignoredFileA = path.join(lostAndFound, '.tmp-20261026-000000-aaaaaa.tar.gz');
+  const ignoredFileB = path.join(sysVolInfo, '.tmp-20261026-000000-bbbbbb.tar.gz');
+  const busyFile = path.join(healthyDir, '.tmp-20261026-000000-busy01.tar.gz');
+  const removableFile = path.join(healthyDir, '.tmp-20261026-000000-clean1.tar.gz');
+  for (const file of [ignoredFileA, ignoredFileB, busyFile, removableFile]) {
+    fs.writeFileSync(file, 'partial');
+  }
+
+  const originalReaddirSync = fs.readdirSync;
+  const originalRmSync = fs.rmSync;
+  fs.readdirSync = ((target: fs.PathLike, options?: unknown) => {
+    if (path.resolve(String(target)) === path.resolve(unreadableDir)) {
+      const error = Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+      throw error;
+    }
+    return originalReaddirSync(target, options as never);
+  }) as typeof fs.readdirSync;
+  fs.rmSync = ((target: fs.PathLike, options?: fs.RmOptions) => {
+    if (path.resolve(String(target)) === path.resolve(busyFile)) {
+      const error = Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' });
+      throw error;
+    }
+    return originalRmSync(target, options);
+  }) as typeof fs.rmSync;
+
+  let result;
+  let ignoredAStillExists = false;
+  let ignoredBStillExists = false;
+  let removableStillExists = true;
+  try {
+    result = recoverInterruptedBackups();
+    ignoredAStillExists = fs.existsSync(ignoredFileA);
+    ignoredBStillExists = fs.existsSync(ignoredFileB);
+    removableStillExists = fs.existsSync(removableFile);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+    fs.rmSync = originalRmSync;
+    for (const dir of [lostAndFound, sysVolInfo, unreadableDir, healthyDir]) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  assert.equal(ignoredAStillExists, true, 'lost+found must not be scanned or modified');
+  assert.equal(ignoredBStillExists, true, 'System Volume Information must not be scanned or modified');
+  assert.equal(removableStillExists, false, 'unlocked temp archive in healthy instance dir should be removed');
+  assert.equal(result.tempFilesRemoved, 1, 'unlocked temp archive in healthy instance dir should still be cleaned');
+  assert.equal(result.cleanupWarnings.length, 2, 'unreadable directory and busy temp file should be reported as warnings');
+  assert.ok(result.cleanupWarnings.some((entry) => entry.includes('unreadable_inst')));
+  assert.ok(result.cleanupWarnings.some((entry) => entry.includes('busy01')));
+});
+
 test('save-complete detection: recognizes server logs of each version, not player chat', async () => {
   const { isSaveConfirmationLine } = await import('./backup-service.js');
   const accepted = [

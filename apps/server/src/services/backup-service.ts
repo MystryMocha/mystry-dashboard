@@ -19,10 +19,11 @@ import {
   defaultInstanceDir,
   getInstanceDir,
   hasValidOwnershipMarker,
+  isValidInstanceId,
   resolveSafePath,
   writeOwnershipMarker,
 } from '../utils/path.js';
-import { abortError, errorParam, hasErrorCode, PanelError } from '../utils/errors.js';
+import { abortError, errorMessage, errorParam, hasErrorCode, PanelError } from '../utils/errors.js';
 import {
   isReservedArchivePath,
   readBackupArchive,
@@ -905,6 +906,7 @@ export type BackupRecovery = {
   restoresRolledBack: number;
   restoresCompleted: number;
   tempFilesRemoved: number;
+  cleanupWarnings: string[];
 };
 
 /**
@@ -912,7 +914,12 @@ export type BackupRecovery = {
  * when the old directory was moved away and the new one is not in place, the old one is moved back; when both exist the replacement had completed, so only finishing up is done.
  */
 export function recoverInterruptedBackups(): BackupRecovery {
-  const result: BackupRecovery = { restoresRolledBack: 0, restoresCompleted: 0, tempFilesRemoved: 0 };
+  const result: BackupRecovery = {
+    restoresRolledBack: 0,
+    restoresCompleted: 0,
+    tempFilesRemoved: 0,
+    cleanupWarnings: [],
+  };
   const stagingRoot = path.join(config.dataDir, STAGING_ROOT_DIR);
   if (fs.existsSync(stagingRoot)) {
     for (const taskId of fs.readdirSync(stagingRoot)) {
@@ -950,13 +957,33 @@ export function recoverInterruptedBackups(): BackupRecovery {
   } catch {
     return result;
   }
-  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
+  let topEntries: fs.Dirent[];
+  try {
+    topEntries = fs.readdirSync(root, { withFileTypes: true });
+  } catch (error) {
+    result.cleanupWarnings.push(`backup root: ${errorMessage(error)}`);
+    return result;
+  }
+  // Only scan subdirectories that match managed instance IDs (skipping mount metadata such as lost+found or System Volume Information),
+  // and keep temp-file cleanup non-fatal so an unreadable folder or briefly locked temp file never prevents the panel from starting.
+  for (const entry of topEntries) {
+    if (!entry.isDirectory() || entry.isSymbolicLink() || !isValidInstanceId(entry.name)) continue;
     const dir = path.join(root, entry.name);
-    for (const name of fs.readdirSync(dir)) {
+    let names: string[];
+    try {
+      names = fs.readdirSync(dir);
+    } catch (error) {
+      result.cleanupWarnings.push(`${entry.name}: ${errorMessage(error)}`);
+      continue;
+    }
+    for (const name of names) {
       if (name.startsWith(TEMP_PREFIX) && name.endsWith(ARCHIVE_SUFFIX)) {
-        fs.rmSync(path.join(dir, name), { force: true });
-        result.tempFilesRemoved += 1;
+        try {
+          fs.rmSync(path.join(dir, name), { force: true });
+          result.tempFilesRemoved += 1;
+        } catch (error) {
+          result.cleanupWarnings.push(`${entry.name}/${name}: ${errorMessage(error)}`);
+        }
       }
     }
   }

@@ -25,6 +25,7 @@ import {
   type ShutdownSummary,
 } from './routes/launcher.js';
 import { processManager } from './services/process-manager.js';
+import { shutdownPasswordWorkers } from './services/password-hash.js';
 import { createRateLimitHook } from './services/security-service.js';
 import { errorBody, PanelError, panelErrorBody } from './utils/errors.js';
 import { isMainModule } from './utils/real-path.js';
@@ -126,7 +127,12 @@ export async function buildApp(options: BuildAppOptions = {}) {
     ajv: { customOptions: { removeAdditional: false } },
   });
   for (const notice of takeStartupNotices()) app.log.warn({ quiet: true }, notice);
-  if (backupRecovery.restoresRolledBack > 0 || backupRecovery.restoresCompleted > 0 || backupRecovery.tempFilesRemoved > 0) {
+  if (
+    backupRecovery.restoresRolledBack > 0
+    || backupRecovery.restoresCompleted > 0
+    || backupRecovery.tempFilesRemoved > 0
+    || backupRecovery.cleanupWarnings.length > 0
+  ) {
     app.log.warn(backupRecovery, '已处理上次面板进程中断的备份或还原');
   }
   if (taskRecovery.interrupted > 0) {
@@ -149,6 +155,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     resetStatsRuntime();
     shutdownImportPreviews();
     shutdownFolderUploads();
+    await shutdownPasswordWorkers();
   });
 
   await app.register(cors, { origin: config.corsOrigins, credentials: true });
@@ -391,6 +398,18 @@ async function main() {
   process.on('SIGTERM', handleSignal);
   // Closing the console window on Windows, or the terminal on Linux, delivers SIGHUP, which must go through the safe shutdown too.
   process.on('SIGHUP', handleSignal);
+  // Route unexpected unhandled rejections through safe shutdown so running Minecraft servers still receive stop instead of being orphaned or killed.
+  process.on('unhandledRejection', (reason) => {
+    app?.log.fatal({ err: reason }, '捕获到未处理的异步异常，正在安全关闭面板');
+    if (shutdownCompleted) {
+      process.exit(1);
+    }
+    process.exitCode = 1;
+    if (!shutdownPromise) {
+      prepareShutdown();
+      void shutdown('unhandledRejection');
+    }
+  });
   try {
     await app.listen({ host: config.host, port: config.port });
     app.log.info(`面板已启动 http://${config.host}:${config.port}`);

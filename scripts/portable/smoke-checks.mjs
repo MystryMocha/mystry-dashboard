@@ -67,3 +67,17 @@ export function assertRequestNotLogged(content, forbiddenPath, controlPath) {
     throw new Error(`The panel log shows ${forbiddenPath} was requested`);
   }
 }
+
+/** Verifies every entry in `tar --numeric-owner -tvzf` output is owned by 0/0 (root). */
+export function assertTarEntriesOwnedByRoot(listing) {
+  const lines = listing.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) {
+    throw new Error('The tar archive listing is empty');
+  }
+  for (const line of lines) {
+    const fields = line.split(/\s+/);
+    if (fields.length < 2 || fields[1] !== '0/0') {
+      throw new Error(`Expected numeric owner 0/0 in tar archive, got: ${line}`);
+    }
+  }
+}
