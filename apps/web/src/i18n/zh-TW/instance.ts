@@ -22,6 +22,7 @@ export default {
   'instance.restart.confirm': '確認重新啟動',
   'instance.forceStop.title': '要強制停止實例「{name}」嗎？',
   'instance.forceStop.description': '強制停止會立即結束程序，可能導致世界損毀。建議先嘗試一般的「停止」。',
+  'instance.forceStop.descriptionDetached': '強制停止會立即結束程序，可能導致世界損毀。面板無法向此程序傳送停服指令；若有 OP 玩家在線上，可先在遊戲內執行 /stop 儲存世界。',
   'instance.forceStop.confirm': '確認強制停止',
 
   // 实例设置

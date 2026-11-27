@@ -7,7 +7,7 @@ import { CoreIcon } from '../CoreIcon';
 import { hasWarning } from '../DashboardMetrics';
 import { InstanceStatusPill } from '../StatusPill';
 import { useI18n } from '../../i18n';
-import { isProcessAlive } from '../../instance-status';
+import { isProcessAlive, isServerRunning } from '../../instance-status';
 import { formatCapacity, formatCapacityPair } from './format';
 
 type StatKey = 'running' | 'cpu' | 'memory' | 'disk';
@@ -173,8 +173,10 @@ export function StatusBlocks({
   }
 
   const stale = Boolean(metricsError && metrics);
-  const runningInstances = instances.filter((inst) => inst.status === 'running');
+  const runningInstances = instances.filter(isServerRunning);
+  // Per-instance figures exist only for processes the panel runs.
   const aliveInstances = instances.filter((inst) => isProcessAlive(inst.status));
+  const listedInstances = instances.filter((inst) => isProcessAlive(inst.status) || isServerRunning(inst));
 
   const runningValue = instancesLoadState === 'loaded'
     ? `${fmt.number(runningInstances.length)} / ${fmt.number(instances.length)}`
@@ -265,7 +267,7 @@ export function StatusBlocks({
       if (instancesLoadState === 'loading') {
         return <p className="home-pop-empty">{t('common.loading')}</p>;
       }
-      if (aliveInstances.length === 0) {
+      if (listedInstances.length === 0) {
         return (
           <div className="home-pop-empty-box">
             <p className="home-pop-empty">{t('dashboard.list.noRunning')}</p>
@@ -277,7 +279,7 @@ export function StatusBlocks({
       }
       return (
         <ul className="home-pop-list">
-          {aliveInstances.map((inst) => {
+          {listedInstances.map((inst) => {
             const sample = metrics?.instances[inst.id];
             const memBytes = processMetricsSupported ? sample?.memoryBytes ?? null : null;
             return (
@@ -285,7 +287,7 @@ export function StatusBlocks({
                 <Link to={`/instances/${inst.id}`} className="home-pop-row" onClick={() => close(false)}>
                   <CoreIcon coreType={inst.coreType} />
                   <span className="home-pop-name" title={inst.name}>{inst.name}</span>
-                  {inst.status === 'starting' || inst.status === 'stopping' ? (
+                  {inst.status === 'starting' || inst.status === 'stopping' || inst.orphanProcess ? (
                     <InstanceStatusPill instance={inst} />
                   ) : (
                     <span className="home-pop-figure">

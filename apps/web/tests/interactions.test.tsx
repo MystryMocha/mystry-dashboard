@@ -546,6 +546,44 @@ test('home: status blocks open portaled popovers, support Escape and Tab keyboar
   expect(within(pendingDiskPop).getByText('已用')).toBeTruthy();
 });
 
+test('home and instance list count a detached server confirmed alive as running, but not one the panel cannot verify', async () => {
+  const baseFetch = globalThis.fetch;
+  const detached = (id: string, name: string, state: 'alive' | 'unknown') => ({
+    ...instance,
+    id,
+    name,
+    status: 'stopped',
+    orphanProcess: { pid: 4567, startedAt: '2026-11-27T08:00:00.000Z', canGracefulStop: false, state },
+  });
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/metrics') return new Response(JSON.stringify(metricSample));
+    if (url === '/api/instances') {
+      return new Response(JSON.stringify([
+        detached('kept', '生存服', 'alive'),
+        detached('unsure', '模组服', 'unknown'),
+        { ...instance, id: 'idle', name: '旧存档', status: 'stopped' },
+      ]));
+    }
+    if (String(url).startsWith('/api/stats/overview')) return new Response(JSON.stringify(statsOverviewSample));
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  const home = mount(<HomePage />);
+  expect(await screen.findByText('1 / 3')).toBeTruthy();
+  expect(screen.getByText('1 个实例正在运行')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: /运行中/ }));
+  const runningPop = screen.getByRole('dialog', { name: '运行中的实例' });
+  const keptRow = within(runningPop).getByRole('link', { name: /生存服/ });
+  expect(within(keptRow).getByText('独立运行中')).toBeTruthy();
+  expect(within(runningPop).queryByText('模组服')).toBeNull();
+  home.unmount();
+
+  mount(<DashboardPage />);
+  await user.click(await screen.findByRole('button', { name: /运行中/ }));
+  expect(screen.getByRole('link', { name: '生存服' })).toBeTruthy();
+  expect(screen.queryByRole('link', { name: '模组服' })).toBeNull();
+});
+
 test('home: range switch persists, trend switches CPU and memory, machine omits null CPU model, and timeline sorts runs with crash markers and tiered durations', async () => {
   const baseFetch = globalThis.fetch;
   const overviewRequests: string[] = [];
@@ -2741,7 +2779,8 @@ test('detached orphan process: dashboard, instance console, and backups reflect 
     return baseFetch(url, options);
   }));
 
-  // 1. Dashboard shows Detached pill, hides Start, enables Force Stop, and disables Restart / Delete.
+  // 1. Dashboard shows Detached pill, hides Start, and disables Restart / Force Stop / Delete: the row links to the
+  // instance page, which offers the stop the platform allows.
   const dash = mount(<DashboardPage />);
   expect(await screen.findByText('独立运行中')).toBeTruthy();
   expect(screen.getByText('上次启动的进程（PID 4567）在面板重启后仍在运行')).toBeTruthy();
@@ -2750,7 +2789,7 @@ test('detached orphan process: dashboard, instance console, and backups reflect 
   await user.click(screen.getByRole('button', { name: '更多操作' }));
   expect(screen.getByRole<HTMLMenuElement>('menuitem', { name: '重启实例' }).hasAttribute('disabled')).toBe(true);
   expect(screen.getByRole<HTMLMenuElement>('menuitem', { name: '删除实例' }).hasAttribute('disabled')).toBe(true);
-  expect(screen.getByRole<HTMLMenuElement>('menuitem', { name: '强制停止' }).hasAttribute('disabled')).toBe(false);
+  expect(screen.getByRole<HTMLMenuElement>('menuitem', { name: '强制停止' }).hasAttribute('disabled')).toBe(true);
   dash.unmount();
 
   // 2. Backups tab blocks creating backups when a detached process is running.
@@ -2770,9 +2809,15 @@ test('detached orphan process: dashboard, instance console, and backups reflect 
   expect(winBanner.textContent).toContain('在 Windows 上无法发送停服命令');
   expect(within(winBanner).queryByRole('button', { name: '停止' })).toBeNull();
   expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
+  // The console says the process is out of reach, not that the instance is stopped and can be started.
+  expect(screen.getByText('独立运行中，无实时日志')).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: '控制台命令' }).getAttribute('placeholder')).toBe('面板无法向独立运行的进程发送命令');
 
   await user.click(within(winBanner).getByRole('button', { name: '强制停止' }));
   const confirm = await screen.findByRole('dialog');
+  // Windows offers no normal stop for a detached process, so the confirmation does not suggest one.
+  expect(confirm.textContent).toContain('面板无法向这个进程发送停服命令');
+  expect(confirm.textContent).not.toContain('建议先尝试普通「停止」');
   await user.click(within(confirm).getByRole('button', { name: '确认强制停止' }));
   await waitFor(() => expect(calls).toContain('POST /api/instances/test/stop?force=1'));
   winView.unmount();

@@ -25,6 +25,8 @@ import { t as translateNow, tm as translateMessageNow, tp as translatePluralNow,
 type Props = {
   instanceId: string;
   canSend?: boolean;
+  /** A server process left running by an earlier panel process: the panel neither streams its log nor sends it commands. */
+  detached?: boolean;
 };
 
 // The commands themselves are Minecraft commands and not translated; descriptions store string keys, resolved in the current language at render time.
@@ -114,7 +116,7 @@ function consoleErrorText(msg: ConsoleMessage): string {
     : msg.data;
 }
 
-export function ConsolePanel({ instanceId, canSend = true }: Props) {
+export function ConsolePanel({ instanceId, canSend = true, detached = false }: Props) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -427,14 +429,18 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
     copyTimerRef.current = setTimeout(() => setCopyMessage(''), 6000);
   }
 
-  const connectionTone = connected ? 'is-online' : reconnectStopped ? 'is-offline' : canSend ? 'is-connecting' : 'is-offline';
-  const statusLabel = connected
-    ? t('console.status.connected')
-    : reconnectStopped
-      ? t('console.status.disconnected')
-      : canSend
-        ? t('console.status.connecting')
-        : t('console.status.offline');
+  const connectionTone = detached
+    ? 'is-offline'
+    : connected ? 'is-online' : reconnectStopped ? 'is-offline' : canSend ? 'is-connecting' : 'is-offline';
+  const statusLabel = detached
+    ? t('console.status.detached')
+    : connected
+      ? t('console.status.connected')
+      : reconnectStopped
+        ? t('console.status.disconnected')
+        : canSend
+          ? t('console.status.connecting')
+          : t('console.status.offline');
 
   return (
     <div className="console-panel">
@@ -500,9 +506,11 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
             disabled={!inputEnabled}
             placeholder={inputEnabled
               ? t('console.input.placeholder')
-              : reconnectStopped
-                ? t('console.input.placeholderDisconnected')
-                : canSend ? t('console.input.placeholderConnecting') : t('console.input.placeholderStopped')}
+              : detached
+                ? t('console.input.placeholderDetached')
+                : reconnectStopped
+                  ? t('console.input.placeholderDisconnected')
+                  : canSend ? t('console.input.placeholderConnecting') : t('console.input.placeholderStopped')}
             autoComplete="off"
             spellCheck={false}
             aria-label={t('console.input.label')}

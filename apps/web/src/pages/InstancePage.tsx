@@ -130,7 +130,7 @@ function ConsoleTab({
       )}
       {instance.status === 'running' && instance.ready && <ReadyHint instanceId={instance.id} />}
       <WhitelistNotice instanceId={instance.id} status={instance.status} linkConsole={false} className="console-notice" />
-      <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} />
+      <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} detached={Boolean(orphan)} />
     </>
   );
 }
@@ -733,7 +733,7 @@ export function InstancePage() {
       <ConfirmDialog
         open={confirmForceStop}
         title={t('instance.forceStop.title', { name: instance.name })}
-        description={t('instance.forceStop.description')}
+        description={t(orphan && !orphan.canGracefulStop ? 'instance.forceStop.descriptionDetached' : 'instance.forceStop.description')}
         confirmLabel={t('instance.forceStop.confirm')}
         danger
         busy={busy}

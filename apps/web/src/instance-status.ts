@@ -27,6 +27,14 @@ export function isLifecycleBusy(status: InstanceStatus): boolean {
   return status === 'starting' || status === 'stopping';
 }
 
+/**
+ * Whether the server is up: run by the panel, or left running by an earlier panel process and confirmed to be the same
+ * server. Its status alone reads "stopped" in the second case, because the panel no longer holds the process.
+ */
+export function isServerRunning(instance: Pick<InstanceInfo, 'status' | 'orphanProcess'>): boolean {
+  return instance.status === 'running' || instance.orphanProcess?.state === 'alive';
+}
+
 /** The process may still be alive: force stop is allowed, delete is not. */
 export function isProcessAlive(status: InstanceStatus): boolean {
   return status === 'running' || status === 'starting' || status === 'stopping';

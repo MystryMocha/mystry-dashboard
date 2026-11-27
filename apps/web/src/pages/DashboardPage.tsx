@@ -39,6 +39,7 @@ import {
   canStopInstance,
   isLifecycleBusy,
   isProcessAlive,
+  isServerRunning,
 } from '../instance-status';
 
 type LoadState = 'loading' | 'loaded' | 'error';
@@ -175,7 +176,9 @@ function ServerRow({
               key: 'force-stop',
               label: t('action.forceStop'),
               icon: <Power size={14} />,
-              disabled: busy || inst.requiresMigration || (!isProcessAlive(inst.status) && !hasOrphan),
+              // A detached process is stopped from its instance page, which offers the stop the platform and the
+              // inspection allow; the row links there.
+              disabled: busy || inst.requiresMigration || !isProcessAlive(inst.status),
               onSelect: onForceStop,
             },
             {
@@ -291,12 +294,12 @@ export function DashboardPage() {
     }
   }
 
-  const runningCount = instances.filter((i) => i.status === 'running').length;
+  const runningCount = instances.filter(isServerRunning).length;
   const issueCount = instances.filter(hasIssue).length;
   const loaded = loadState === 'loaded';
   // Instances that need attention come first; the sort is stable, so the server's order holds within each group.
   const visibleInstances = instances
-    .filter((inst) => filter === 'all' || (filter === 'running' ? inst.status === 'running' : hasIssue(inst)))
+    .filter((inst) => filter === 'all' || (filter === 'running' ? isServerRunning(inst) : hasIssue(inst)))
     .sort((a, b) => Number(hasIssue(b)) - Number(hasIssue(a)));
   const filters: Array<{ key: ListFilter; label: string; count: number }> = [
     { key: 'all', label: t('dashboard.filter.all'), count: instances.length },

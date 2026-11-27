@@ -11,6 +11,7 @@ import { StatusBlocks } from '../components/home/StatusBlocks';
 import { errorMessage, isAbortError } from '../errors';
 import { usePolling } from '../hooks/usePolling';
 import { useI18n } from '../i18n';
+import { isServerRunning } from '../instance-status';
 
 // The dialog, together with the QR code library, is loaded only when opened.
 const RemoteAccessDialog = lazy(() =>
@@ -133,7 +134,7 @@ export function HomePage() {
     void loadOverview();
   }
 
-  const runningCount = instances.filter((inst) => inst.status === 'running').length;
+  const runningCount = instances.filter(isServerRunning).length;
   const activeOverview = overview?.range === range ? overview : null;
   const crashCount = activeOverview
     ? activeOverview.runs.filter((run) => run.endReason === 'crashed').length

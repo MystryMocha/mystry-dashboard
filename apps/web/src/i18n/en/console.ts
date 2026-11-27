@@ -21,6 +21,7 @@ export default {
   'console.status.connecting': 'Connecting to console…',
   'console.status.disconnected': 'Disconnected',
   'console.status.offline': 'Instance not running',
+  'console.status.detached': 'Detached, no live log',
 
   // Tool buttons and copy
   'console.tool.reconnect': 'Reconnect',
@@ -43,6 +44,7 @@ export default {
   'console.input.placeholderConnecting': 'Connecting…',
   'console.input.placeholderDisconnected': 'Console disconnected. Reconnect to send commands.',
   'console.input.placeholderStopped': 'The instance is stopped. Start it to send commands.',
+  'console.input.placeholderDetached': 'The panel cannot send commands to a detached process.',
 
   // Common commands
   'console.quick.label': 'Common Commands',

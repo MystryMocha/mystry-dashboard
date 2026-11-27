@@ -20,6 +20,7 @@ export default {
   'instance.restart.confirm': 'Restart',
   'instance.forceStop.title': 'Force stop instance "{name}"?',
   'instance.forceStop.description': 'Force stopping ends the process immediately and may corrupt the world. Try a normal "Stop" first.',
+  'instance.forceStop.descriptionDetached': 'Force stopping ends the process immediately and may corrupt the world. The panel cannot send this process the "stop" command; an OP player in the game can run /stop to save the world first.',
   'instance.forceStop.confirm': 'Force Stop',
 
   // Instance settings

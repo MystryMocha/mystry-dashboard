@@ -23,6 +23,7 @@ export default {
   'console.status.connecting': '主控台連線中…',
   'console.status.disconnected': '連線已中斷',
   'console.status.offline': '實例未執行',
+  'console.status.detached': '獨立執行中，無即時日誌',
 
   // 工具按钮与复制
   'console.tool.reconnect': '重新連線',
@@ -45,6 +46,7 @@ export default {
   'console.input.placeholderConnecting': '連線中…',
   'console.input.placeholderDisconnected': '主控台已中斷連線，重新連線後可傳送指令。',
   'console.input.placeholderStopped': '實例已停止，啟動後即可傳送指令',
+  'console.input.placeholderDetached': '面板無法向獨立執行的程序傳送指令',
 
   // 常用命令
   'console.quick.label': '常用指令',
