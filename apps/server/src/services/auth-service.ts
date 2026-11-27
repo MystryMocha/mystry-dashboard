@@ -1,8 +1,8 @@
-import bcrypt from 'bcryptjs';
 import { nanoid } from 'nanoid';
 import { getDb, type UserRow } from '../db.js';
 import { nowIso } from '../utils/path.js';
 import { PanelError } from '../utils/errors.js';
+import { hashPassword, verifyPassword } from './password-hash.js';
 import { revokeUserSessions } from './session-revocation-service.js';
 
 const USERNAME_MIN_LENGTH = 2;
@@ -13,8 +13,8 @@ const PASSWORD_MAX_LENGTH = 128;
 /** bcrypt uses only the first 72 bytes, and silently truncating the rest would let different passwords sign in as each other; overlong passwords are rejected at setup already. */
 const BCRYPT_MAX_BYTES = 72;
 
-/** Runs one bcrypt comparison even when the user does not exist, to even out the timing difference that reveals "whether the user exists". */
-const DUMMY_PASSWORD_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
+/** Precomputed cost-10 bcrypt hash compared against when the user does not exist, to even out timing without running synchronous bcrypt at startup. */
+const DUMMY_PASSWORD_HASH = '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
 
 /** User info needed to issue a JWT; tokenVersion is written into the token and compared with the database on verification. */
 export type SessionUser = { id: string; username: string; tokenVersion: number };
@@ -36,7 +36,7 @@ function assertValidPassword(password: string): void {
   }
 }
 
-export function setupAdmin(username: string, password: string): SessionUser {
+export async function setupAdmin(username: string, password: string): Promise<SessionUser> {
   const normalizedUsername = username.trim();
   if (normalizedUsername.length < USERNAME_MIN_LENGTH) {
     throw new PanelError('server.auth.usernameTooShort', { min: USERNAME_MIN_LENGTH });
@@ -47,7 +47,7 @@ export function setupAdmin(username: string, password: string): SessionUser {
   assertValidPassword(password);
 
   const id = nanoid(12);
-  const hash = bcrypt.hashSync(password, 10);
+  const hash = await hashPassword(password, 10);
   const result = getDb()
     .prepare(
       `INSERT INTO users (id, username, password_hash, created_at)
@@ -61,14 +61,14 @@ export function setupAdmin(username: string, password: string): SessionUser {
   return { id, username: normalizedUsername, tokenVersion: 0 };
 }
 
-export function verifyLogin(username: string, password: string): SessionUser | null {
+export async function verifyLogin(username: string, password: string): Promise<SessionUser | null> {
   // A password over 72 bytes can never match a valid hash, and rejecting it outright avoids a false match from truncation.
   if (Buffer.byteLength(password, 'utf8') > BCRYPT_MAX_BYTES) return null;
   const row = getDb().prepare('SELECT * FROM users WHERE username = ?').get(username.trim()) as
     | UserRow
     | undefined;
-  // Run one bcrypt comparison even when the user does not exist, so usernames cannot be enumerated through response time.
-  if (!bcrypt.compareSync(password, row ? row.password_hash : DUMMY_PASSWORD_HASH)) return null;
+  // Run one bcrypt comparison off the event loop even when the user does not exist, so usernames cannot be enumerated through response time.
+  if (!(await verifyPassword(password, row ? row.password_hash : DUMMY_PASSWORD_HASH))) return null;
   if (!row) return null;
   return { id: row.id, username: row.username, tokenVersion: row.token_version };
 }
@@ -77,42 +77,43 @@ export function verifyLogin(username: string, password: string): SessionUser | n
  * Writes the new password and increments the token version: previously issued JWTs no longer match the version, and the next request returns 401;
  * it also voids the console and download tickets issued by the old sign-in and drops console connections.
  */
-function updatePasswordHash(userId: string, password: string): SessionUser {
+async function updatePasswordHash(userId: string, password: string): Promise<SessionUser> {
+  const hash = await hashPassword(password, 10);
   const row = getDb()
     .prepare(
       `UPDATE users SET password_hash = ?, token_version = token_version + 1
        WHERE id = ? RETURNING id, username, token_version`,
     )
-    .get(bcrypt.hashSync(password, 10), userId) as Pick<UserRow, 'id' | 'username' | 'token_version'> | undefined;
+    .get(hash, userId) as Pick<UserRow, 'id' | 'username' | 'token_version'> | undefined;
   if (!row) throw new PanelError('server.common.unauthorized', undefined, { statusCode: 401 });
   revokeUserSessions(row.id);
   return { id: row.id, username: row.username, tokenVersion: row.token_version };
 }
 
 /** Returns the new token version on success, which the route uses to reissue a token for the current session. */
-export function changePassword(userId: string, currentPassword: string, newPassword: string): SessionUser {
+export async function changePassword(userId: string, currentPassword: string, newPassword: string): Promise<SessionUser> {
   const row = getDb().prepare('SELECT password_hash FROM users WHERE id = ?').get(userId) as
     | Pick<UserRow, 'password_hash'>
     | undefined;
   if (
     !row
     || Buffer.byteLength(currentPassword, 'utf8') > BCRYPT_MAX_BYTES
-    || !bcrypt.compareSync(currentPassword, row.password_hash)
+    || !(await verifyPassword(currentPassword, row.password_hash))
   ) {
     throw new PanelError('server.auth.currentPasswordIncorrect');
   }
   assertValidPassword(newPassword);
-  return updatePasswordHash(userId, newPassword);
+  return await updatePasswordHash(userId, newPassword);
 }
 
 /** Called by the local launcher when the password is forgotten; resets the earliest-created admin. */
-export function resetAdminPassword(password: string): { username: string } {
+export async function resetAdminPassword(password: string): Promise<{ username: string }> {
   assertValidPassword(password);
   const row = getDb().prepare('SELECT id, username FROM users ORDER BY created_at LIMIT 1').get() as
     | { id: string; username: string }
     | undefined;
   if (!row) throw new PanelError('server.auth.noAdministrator', undefined, { statusCode: 409 });
-  updatePasswordHash(row.id, password);
+  await updatePasswordHash(row.id, password);
   return { username: row.username };
 }
 

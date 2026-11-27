@@ -13,6 +13,11 @@ type RateLimitOptions = {
   maxBuckets?: number;
 };
 
+type LoginFailureLimitOptions = RateLimitOptions & {
+  /** Per-IP failure ceiling across all usernames in the same window; defaults to max * 3. */
+  ipMax?: number;
+};
+
 type Bucket = {
   count: number;
   resetAt: number;
@@ -113,21 +118,28 @@ export function createRateLimitHook(options: RateLimitOptions) {
   };
 }
 /**
- * Failed sign-in rate limiter: only password verification failures are counted; a successful sign-in clears the record, so normal admin activity is not locked out.
+ * Failed sign-in rate limiter: only password verification failures are counted; a successful sign-in clears the per-username record so normal admin activity is not locked out.
+ * A separate per-IP bucket caps total failures across all usernames so rotating random usernames cannot bypass rate limiting or evict IP blocks.
  */
-export function createLoginFailureLimiter(options: RateLimitOptions): LoginFailureLimiter {
-  const buckets = createBoundedBuckets(options.windowMs, options.maxBuckets);
+export function createLoginFailureLimiter(options: LoginFailureLimitOptions): LoginFailureLimiter {
+  const userBuckets = createBoundedBuckets(options.windowMs, options.maxBuckets);
+  const ipBuckets = createBoundedBuckets(options.windowMs, options.maxBuckets);
+  const ipMax = Math.max(options.max, Math.floor(options.ipMax ?? options.max * 3));
 
-  function getKey(request: FastifyRequest, username: string): string {
+  function getUserKey(request: FastifyRequest, username: string): string {
     // Username case must not be a way around the failure count; actual authentication keeps its original case semantics.
     return [options.name, clientKey(request), username.trim().toLowerCase()].join(':');
   }
 
-  function setHeaders(reply: FastifyReply, bucket: Bucket, now: number): void {
-    reply.header('X-RateLimit-Limit', String(options.max));
-    reply.header('X-RateLimit-Remaining', String(Math.max(0, options.max - bucket.count)));
+  function getIpKey(request: FastifyRequest): string {
+    return `${options.name}:ip:${clientKey(request)}`;
+  }
+
+  function setHeaders(reply: FastifyReply, bucket: Bucket, limit: number, now: number): void {
+    reply.header('X-RateLimit-Limit', String(limit));
+    reply.header('X-RateLimit-Remaining', String(Math.max(0, limit - bucket.count)));
     reply.header('X-RateLimit-Reset', String(Math.ceil(bucket.resetAt / 1000)));
-    if (bucket.count >= options.max) {
+    if (bucket.count >= limit) {
       reply.header('Retry-After', String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))));
     }
   }
@@ -135,25 +147,49 @@ export function createLoginFailureLimiter(options: RateLimitOptions): LoginFailu
   return {
     isBlocked(request, reply, username) {
       const now = Date.now();
-      buckets.cleanup(now);
-      const bucket = buckets.getActive(getKey(request, username), now);
-      if (!bucket) return false;
-      setHeaders(reply, bucket, now);
-      if (bucket.count < options.max) return false;
+      ipBuckets.cleanup(now);
+      userBuckets.cleanup(now);
+
+      const ipBucket = ipBuckets.getActive(getIpKey(request), now);
+      if (ipBucket && ipBucket.count >= ipMax) {
+        setHeaders(reply, ipBucket, ipMax, now);
+        reply.code(429).send(panelErrorBody('server.common.tooManyRequests'));
+        return true;
+      }
+
+      const userBucket = userBuckets.getActive(getUserKey(request, username), now);
+      if (!userBucket) {
+        if (ipBucket) setHeaders(reply, ipBucket, ipMax, now);
+        return false;
+      }
+      setHeaders(reply, userBucket, options.max, now);
+      if (userBucket.count < options.max) return false;
       reply.code(429).send(panelErrorBody('server.common.tooManyRequests'));
       return true;
     },
     recordFailure(request, reply, username) {
       const now = Date.now();
-      buckets.cleanup(now);
-      const key = getKey(request, username);
-      const bucket = buckets.getActive(key, now) ?? { count: 0, resetAt: now + options.windowMs };
-      bucket.count += 1;
-      buckets.set(key, bucket, now);
-      setHeaders(reply, bucket, now);
+      ipBuckets.cleanup(now);
+      userBuckets.cleanup(now);
+
+      const ipKey = getIpKey(request);
+      const ipBucket = ipBuckets.getActive(ipKey, now) ?? { count: 0, resetAt: now + options.windowMs };
+      ipBucket.count += 1;
+      ipBuckets.set(ipKey, ipBucket, now);
+
+      const userKey = getUserKey(request, username);
+      const userBucket = userBuckets.getActive(userKey, now) ?? { count: 0, resetAt: now + options.windowMs };
+      userBucket.count += 1;
+      userBuckets.set(userKey, userBucket, now);
+
+      if (ipBucket.count >= ipMax) {
+        setHeaders(reply, ipBucket, ipMax, now);
+      } else {
+        setHeaders(reply, userBucket, options.max, now);
+      }
     },
     reset(request, username) {
-      buckets.delete(getKey(request, username));
+      userBuckets.delete(getUserKey(request, username));
     },
   };
 }

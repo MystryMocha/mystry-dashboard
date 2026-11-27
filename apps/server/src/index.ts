@@ -25,6 +25,7 @@ import {
   type ShutdownSummary,
 } from './routes/launcher.js';
 import { processManager } from './services/process-manager.js';
+import { shutdownPasswordWorkers } from './services/password-hash.js';
 import { createRateLimitHook } from './services/security-service.js';
 import { errorBody, PanelError, panelErrorBody } from './utils/errors.js';
 import { isMainModule } from './utils/real-path.js';
@@ -149,6 +150,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     resetStatsRuntime();
     shutdownImportPreviews();
     shutdownFolderUploads();
+    await shutdownPasswordWorkers();
   });
 
   await app.register(cors, { origin: config.corsOrigins, credentials: true });
