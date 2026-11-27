@@ -29,12 +29,12 @@ test('recoverInterruptedTasks must not delete the final instance because of resu
   prepareTempDataRoot(t);
   const { initDb, getDb } = await import('../db.js');
   const { createInstance, getInstanceRow } = await import('./instance-service.js');
-  const { createTask, recordTaskInstance, recoverInterruptedTasks } = await import('./task-service.js');
+  const { createTask, updateTask, recoverInterruptedTasks } = await import('./task-service.js');
 
   initDb();
   const inst = createInstance({ name: 'recovery-stub' });
   const task = createTask('deploy', '模拟中断');
-  recordTaskInstance(task.id, inst.id);
+  updateTask(task.id, { result: { instanceId: inst.id } }, { phase: 'staging' });
   getDb().prepare("UPDATE tasks SET status = 'running' WHERE id = ?").run(task.id);
 
   const instanceDir = path.join(process.env.MYSTRY_DATA_DIR!, 'instances', inst.id);

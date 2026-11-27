@@ -212,33 +212,6 @@ export function createInstance(input: CreateInstanceInput): InstanceInfo {
   return getInstance(id)!;
 }
 
-/** Registers a directory already promoted to instances/<id> in the database (called when a deploy/import task completes). */
-export function registerPromotedInstance(id: string, input: CreateInstanceInput): InstanceInfo {
-  const prepared = prepareInstanceInput(input);
-  const dir = defaultInstanceDir(id);
-  if (!fs.existsSync(dir)) {
-    throw new PanelError('server.instance.registerDirMissing');
-  }
-  assertSafeInstanceRoot(dir);
-  const entries = fs.readdirSync(dir);
-  if (entries.length === 0) {
-    throw new PanelError('server.instance.registerDirEmpty');
-  }
-
-  const ownershipMarker = nanoid(32);
-  writeOwnershipMarker(id, dir, ownershipMarker);
-  fs.accessSync(dir, fs.constants.W_OK);
-
-  try {
-    insertInstanceRow(id, input, prepared, ownershipMarker);
-  } catch (err) {
-    removeOwnershipMarker(id, dir, ownershipMarker);
-    throw err;
-  }
-
-  return getInstance(id)!;
-}
-
 /**
  * Validates input, prepares ownership/EULA files in staging, promotes the staging directory into instances/<id>,
  * and inserts the database row as one synchronous commit step. If the database write fails after rename, the directory

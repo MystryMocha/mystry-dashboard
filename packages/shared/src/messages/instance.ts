@@ -13,7 +13,6 @@ export const INSTANCE_MESSAGES = {
   'server.instance.createDbFailed': 'Failed to create the instance: the database did not record it.',
   'server.instance.defaultDirNotEmpty': 'The default instance directory must be empty. Taking over an existing directory is not allowed.',
   'server.instance.createDirFailed': 'Cannot create or write to the install directory: {dir} ({reason}).',
-  'server.instance.registerDirMissing': 'The instance directory does not exist, so the instance cannot be registered.',
   'server.instance.registerDirEmpty': 'The instance directory is empty, so the instance cannot be registered.',
   'server.instance.deleteRunning': 'Stop the instance before deleting it.',
   'server.instance.deleteDbFailed': 'Failed to delete the instance: the database record was not removed.',

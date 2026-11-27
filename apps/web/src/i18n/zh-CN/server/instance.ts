@@ -15,7 +15,6 @@ export default {
   'server.instance.createDbFailed': '创建实例失败：数据库未写入实例记录',
   'server.instance.defaultDirNotEmpty': '默认实例目录必须为空，拒绝接管已有目录',
   'server.instance.createDirFailed': '无法创建或写入安装目录：{dir}（{reason}）',
-  'server.instance.registerDirMissing': '实例目录不存在，无法注册实例',
   'server.instance.registerDirEmpty': '实例目录为空，无法注册实例',
   'server.instance.deleteRunning': '请先停止实例再删除',
   'server.instance.deleteDbFailed': '删除实例失败：数据库记录未删除',
