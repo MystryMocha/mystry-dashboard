@@ -15,7 +15,6 @@ export default {
   'server.instance.createDbFailed': '建立實例失敗：資料庫未寫入實例記錄',
   'server.instance.defaultDirNotEmpty': '預設實例資料夾必須為空，拒絕接管既有資料夾',
   'server.instance.createDirFailed': '無法建立或寫入安裝資料夾：{dir}（{reason}）',
-  'server.instance.registerDirMissing': '實例資料夾不存在，無法註冊實例',
   'server.instance.registerDirEmpty': '實例資料夾為空，無法註冊實例',
   'server.instance.deleteRunning': '請先停止實例再刪除',
   'server.instance.deleteDbFailed': '刪除實例失敗：資料庫記錄未刪除',

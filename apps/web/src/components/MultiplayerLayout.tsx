@@ -27,7 +27,7 @@ export function useGuideOpen() {
 }
 
 /**
- * The master switch at the very top of the page, "Open this instance to players": it saves immediately on click, no longer the two steps of "check + save".
+ * The master switch at the very top of the page, "Open this instance to players": it saves immediately on click.
  * checked must come from server state, so on a save failure the switch naturally returns to its place. No status is shown while off, to avoid repeating the switch.
  */
 export function OpenSwitch({
