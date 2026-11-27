@@ -212,33 +212,6 @@ export function createInstance(input: CreateInstanceInput): InstanceInfo {
   return getInstance(id)!;
 }
 
-/** Registers a directory already promoted to instances/<id> in the database (called when a deploy/import task completes). */
-export function registerPromotedInstance(id: string, input: CreateInstanceInput): InstanceInfo {
-  const prepared = prepareInstanceInput(input);
-  const dir = defaultInstanceDir(id);
-  if (!fs.existsSync(dir)) {
-    throw new PanelError('server.instance.registerDirMissing');
-  }
-  assertSafeInstanceRoot(dir);
-  const entries = fs.readdirSync(dir);
-  if (entries.length === 0) {
-    throw new PanelError('server.instance.registerDirEmpty');
-  }
-
-  const ownershipMarker = nanoid(32);
-  writeOwnershipMarker(id, dir, ownershipMarker);
-  fs.accessSync(dir, fs.constants.W_OK);
-
-  try {
-    insertInstanceRow(id, input, prepared, ownershipMarker);
-  } catch (err) {
-    removeOwnershipMarker(id, dir, ownershipMarker);
-    throw err;
-  }
-
-  return getInstance(id)!;
-}
-
 /**
  * Validates input, prepares ownership/EULA files in staging, promotes the staging directory into instances/<id>,
  * and inserts the database row as one synchronous commit step. If the database write fails after rename, the directory
@@ -325,7 +298,7 @@ export function updateInstance(id: string, input: UpdateInstanceInput): Instance
 
   // On start, eula=true is written only when accepted. When acceptance is withdrawn the file has to be changed back, or the acceptance written earlier would stay in effect.
   // Only this change is considered: an instance where it was never checked (for example one imported with its own acceptance record) keeps its existing eula.txt untouched.
-  // A legacy instance bound to an external directory cannot start before migration and its instance directory cannot be resolved, so only the database is changed, and it can be saved as before.
+  // A legacy instance bound to an external directory cannot start before migration and its instance directory cannot be resolved, so only the database is changed, and the save still goes through.
   if (existing.accept_eula && input.acceptEula === false && existing.install_path === null) {
     // Restoring a backup replaces the whole directory, so files written now would be lost and the database and files would disagree.
     processManager.assertNotInMaintenance(id);

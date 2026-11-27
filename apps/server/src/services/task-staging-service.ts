@@ -2,8 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
 import { writeFileAtomic } from '../utils/atomic-write.js';
-import { defaultInstanceDir } from '../utils/path.js';
-import { PanelError } from '../utils/errors.js';
 
 export const STAGING_ROOT_DIR = '.mystry-staging';
 export const STAGING_MARKER_FILE = '.mystry-staging-marker.json';
@@ -108,27 +106,4 @@ export function removeTaskStagingTreeSync(
   fs.rmSync(dir, { recursive: true, force: true });
   removeEmptyStagingParents(dir, dataDir);
   return true;
-}
-
-/** Atomically moves the staging directory to the final instances/<id>, and removes the staging marker. */
-export function promoteTaskStagingToInstance(
-  taskId: string,
-  instanceId: string,
-  dataDir = config.dataDir,
-): string {
-  const staging = taskStagingDir(taskId, instanceId, dataDir);
-  const instanceDir = defaultInstanceDir(instanceId);
-  if (!fs.existsSync(staging)) {
-    throw new PanelError('server.imports.staging.lost');
-  }
-  if (fs.existsSync(instanceDir)) {
-    throw new PanelError('server.imports.staging.instanceDirExists');
-  }
-  fs.renameSync(staging, instanceDir);
-  removeEmptyStagingParents(staging, dataDir);
-  const markerPath = path.join(instanceDir, STAGING_MARKER_FILE);
-  if (fs.existsSync(markerPath)) {
-    fs.unlinkSync(markerPath);
-  }
-  return instanceDir;
 }

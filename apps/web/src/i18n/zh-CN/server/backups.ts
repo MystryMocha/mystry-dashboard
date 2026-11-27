@@ -5,7 +5,7 @@ export default {
   'server.backups.notFound': '找不到这个备份',
   'server.backups.idInvalid': '备份 ID 无效',
   'server.backups.invalidParams': '还原选项包含不支持的字段或格式不正确',
-  'server.backups.legacyInstance': '请先把这个旧实例迁移到面板管理的目录，再进行备份或还原',
+  'server.backups.legacyInstance': '请先把这个旧实例迁移到面板管理的目录，再备份或还原',
   'server.backups.markerInvalid': '实例目录的归属标记与面板记录不一致，无法自动替换文件',
   'server.backups.inUse': '这个备份正在被运行中的任务使用，请等任务结束后再试',
   'server.backups.dirInsideManaged': 'BACKUP_DIR 不能位于实例、导入、上传或任务临时目录之内',

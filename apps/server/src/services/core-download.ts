@@ -46,7 +46,7 @@ function isSameFile(a: fs.Stats, b: fs.Stats): boolean {
 /**
  * Whether a core cache can be used directly: a non-empty file whose content matches the checksum when the plan carries one. The cache is named only by core type and version, not by source,
  * and an older panel or another source may have left it, so before every use it is re-checked against this plan's checksum; a mismatch is deleted and left for the caller to download again.
- * When the plan has no checksum (for example the official checksum file cannot be fetched offline), only non-emptiness can be checked, same as before.
+ * When the plan has no checksum (for example the official checksum file cannot be fetched offline), only non-emptiness can be checked.
  */
 export async function verifyCoreCache(
   filePath: string,
@@ -181,7 +181,7 @@ export type PlanDownloadOptions = {
   maxBytes?: number;
 };
 
-/** Tries the sources in the plan in order and stops at the first success. With only one source its own error is kept, with the same wording as before source switching existed. */
+/** Tries the sources in the plan in order and stops at the first success. With only one source its own error is thrown as is, not a summary of failed sources. */
 export async function downloadFromPlan(plan: DownloadPlan, dest: string, options: PlanDownloadOptions): Promise<void> {
   const failures: SourceFailure[] = [];
   const { candidates, expected } = plan;

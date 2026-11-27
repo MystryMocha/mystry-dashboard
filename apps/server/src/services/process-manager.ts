@@ -132,7 +132,7 @@ export function registerStdinSafetyHandlers(stdin: Writable, state: StdinSafetyS
 }
 
 /**
- * ignoreBOM keeps a leading BOM in the text, matching what Buffer#toString('utf8') did before the streaming decoder.
+ * ignoreBOM keeps a leading BOM in the text, as Buffer#toString('utf8') does.
  * A new decoder per stream is required: stdout and stderr interleave, and one stream's half character must not merge with the other's bytes.
  */
 function createConsoleDecoder(): TextDecoder {
