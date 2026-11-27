@@ -3,6 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Writable } from 'node:stream';
+import { TextDecoder } from 'node:util';
 import {
   renderPanelMessage,
   type InstanceStartIssue,
@@ -128,6 +129,14 @@ export function registerStdinSafetyHandlers(stdin: Writable, state: StdinSafetyS
   stdin.on('error', markUnavailable);
   stdin.on('close', markUnavailable);
   stdin.on('finish', markUnavailable);
+}
+
+/**
+ * ignoreBOM keeps a leading BOM in the text, matching what Buffer#toString('utf8') did before the streaming decoder.
+ * A new decoder per stream is required: stdout and stderr interleave, and one stream's half character must not merge with the other's bytes.
+ */
+function createConsoleDecoder(): TextDecoder {
+  return new TextDecoder('utf-8', { ignoreBOM: true });
 }
 
 function takeUtf8Prefix(text: string, maxBytes: number): string {
@@ -589,9 +598,27 @@ export class ProcessManager extends EventEmitter {
         }
       }
 
-      const onChunk = (chunk: Buffer) => {
+      const decoders = { stdout: createConsoleDecoder(), stderr: createConsoleDecoder() };
+      const decodeChunk = (stream: keyof typeof decoders, chunk: Buffer): string => {
+        if (chunk.length <= maxConsoleChunkBytes) {
+          return decoders[stream].decode(chunk, { stream: true });
+        }
+        const retained = decoders[stream].decode(chunk.subarray(0, maxConsoleChunkBytes), { stream: true });
+        // The rest of an oversized chunk is discarded by design. Resetting the decoder also discards the partial character at the cut,
+        // so its remaining bytes cannot turn into a replacement character when they are never delivered.
+        decoders[stream] = createConsoleDecoder();
+        return retained;
+      };
+      const flushDecodedOutput = () => {
+        for (const stream of ['stdout', 'stderr'] as const) {
+          const tail = decoders[stream].decode();
+          if (tail) this.appendOutput(instance.id, tail);
+        }
+      };
+
+      const onChunk = (stream: keyof typeof decoders) => (chunk: Buffer) => {
         if (this.processes.get(instance.id) !== managed) return;
-        this.appendOutput(instance.id, chunk);
+        this.appendOutput(instance.id, decodeChunk(stream, chunk));
         if (managed.status === 'starting') {
           managed.status = 'running';
           this.emitStatus(instance.id, 'running');
@@ -603,8 +630,8 @@ export class ProcessManager extends EventEmitter {
         }
       };
 
-      child.stdout.on('data', onChunk);
-      child.stderr.on('data', onChunk);
+      child.stdout.on('data', onChunk('stdout'));
+      child.stderr.on('data', onChunk('stderr'));
       // A pipe stream error without a listener becomes an uncaught exception; EPIPE on the pipe when the child exits is normal.
       child.stdout.on('error', () => {});
       child.stderr.on('error', () => {});
@@ -616,6 +643,7 @@ export class ProcessManager extends EventEmitter {
 
       child.on('error', (err) => {
         if (this.processes.get(instance.id) !== managed) return;
+        flushDecodedOutput();
         // Console log lines are written whole in English; Web recognizes the sentence pattern and rewrites it in the current language for display.
         const line = renderPanelMessage({
           key: 'server.instance.consoleProcessStartFailed',
@@ -627,6 +655,8 @@ export class ProcessManager extends EventEmitter {
 
       child.on('exit', (code, signal) => {
         if (this.processes.get(instance.id) !== managed) return;
+        // Flush before diagnosing so a half character still held by the decoder appears in the output the diagnosis reads.
+        flushDecodedOutput();
         const wasStopping = managed.status === 'stopping';
         // The process ending on its own with exit code 0 (EULA not accepted, stop run in-game, etc.) is not a crash.
         const status = wasStopping || code === 0 ? 'stopped' : 'crashed';
@@ -763,14 +793,11 @@ export class ProcessManager extends EventEmitter {
     this.emitStatus(instanceId, status);
   }
 
-  private appendOutput(instanceId: string, text: string | Buffer): void {
+  private appendOutput(instanceId: string, text: string): void {
     const managed = this.processes.get(instanceId);
     if (!managed) return;
 
-    const chunkText = Buffer.isBuffer(text)
-      ? text.subarray(0, maxConsoleChunkBytes).toString('utf8')
-      : text;
-    const output = takeUtf8Prefix(chunkText, maxConsoleChunkBytes);
+    const output = takeUtf8Prefix(text, maxConsoleChunkBytes);
     const outputBytes = Buffer.byteLength(output, 'utf8');
     if (outputBytes === 0) return;
 

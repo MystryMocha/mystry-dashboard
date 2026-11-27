@@ -614,6 +614,114 @@ test('marked as joinable after the finished-startup marker line is printed; clea
   assert.equal(manager.isReady(info.id), false);
 });
 
+test('a multi-byte character split across two output chunks is decoded as one character', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const info = createInstance({ name: 'split-utf8' });
+  fs.writeFileSync(path.join(defaultInstanceDir(info.id), 'server.jar'), 'stub-jar');
+  const children: ChildProcessWithoutNullStreams[] = [];
+  const manager = new ProcessManager(() => {
+    const child = fakeChild();
+    children.push(child);
+    return child;
+  }, async () => 'java');
+
+  await manager.start(getInstanceRow(info.id)! as InstanceRow);
+  const characters = Buffer.from('中文');
+  children[0].stdout.emit('data', characters.subarray(0, 1));
+  children[0].stdout.emit('data', characters.subarray(1));
+
+  assert.equal(manager.getHistory(info.id), '中文');
+});
+
+test('stdout and stderr decode their partial characters independently', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const info = createInstance({ name: 'split-utf8-streams' });
+  fs.writeFileSync(path.join(defaultInstanceDir(info.id), 'server.jar'), 'stub-jar');
+  const children: ChildProcessWithoutNullStreams[] = [];
+  const manager = new ProcessManager(() => {
+    const child = fakeChild();
+    children.push(child);
+    return child;
+  }, async () => 'java');
+
+  await manager.start(getInstanceRow(info.id)! as InstanceRow);
+  const stdoutCharacters = Buffer.from('中');
+  const stderrCharacters = Buffer.from('安');
+  children[0].stdout.emit('data', stdoutCharacters.subarray(0, 1));
+  children[0].stderr.emit('data', stderrCharacters.subarray(0, 1));
+  children[0].stdout.emit('data', stdoutCharacters.subarray(1));
+  children[0].stderr.emit('data', stderrCharacters.subarray(1));
+
+  assert.equal(manager.getHistory(info.id), '中安');
+});
+
+test('an incomplete character left at exit is flushed instead of being dropped', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const info = createInstance({ name: 'exit-flush-utf8' });
+  fs.writeFileSync(path.join(defaultInstanceDir(info.id), 'server.jar'), 'stub-jar');
+  const children: ChildProcessWithoutNullStreams[] = [];
+  const manager = new ProcessManager(() => {
+    const child = fakeChild();
+    children.push(child);
+    return child;
+  }, async () => 'java');
+
+  await manager.start(getInstanceRow(info.id)! as InstanceRow);
+  children[0].stdout.emit('data', Buffer.from('中').subarray(0, 2));
+  assert.equal(manager.getHistory(info.id), '', 'the partial character is held until more bytes or the exit');
+  children[0].emit('exit', 1, null);
+
+  const history = manager.getHistory(info.id);
+  assert.ok(history.startsWith('\uFFFD'), history);
+  assert.equal(history.match(/\uFFFD/g)?.length, 1);
+  assert.match(history, /Process exited/);
+});
+
+test('an oversized chunk is cut at the chunk limit without carrying its partial character over', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  const { config } = await import('../config.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const info = createInstance({ name: 'oversized-chunk-utf8' });
+  fs.writeFileSync(path.join(defaultInstanceDir(info.id), 'server.jar'), 'stub-jar');
+  const children: ChildProcessWithoutNullStreams[] = [];
+  const manager = new ProcessManager(() => {
+    const child = fakeChild();
+    children.push(child);
+    return child;
+  }, async () => 'java');
+
+  await manager.start(getInstanceRow(info.id)! as InstanceRow);
+  const retained = Buffer.alloc(config.maxConsoleChunkBytes - 1, 0x61);
+  // A four-byte character starts in the last retained byte, so the cut leaves it incomplete.
+  children[0].stdout.emit('data', Buffer.concat([retained, Buffer.from([0xf0, 0x9f])]));
+  children[0].stdout.emit('data', Buffer.from('b'));
+
+  assert.equal(manager.getHistory(info.id), `${'a'.repeat(config.maxConsoleChunkBytes - 1)}b`);
+});
+
 test('when the bound Java is unavailable or no longer in the registry, the instance info reports java-unavailable without waiting for a start', async (t) => {
   prepareTempDataRoot(t);
   const { initDb, getDb } = await import('../db.js');
