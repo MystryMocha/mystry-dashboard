@@ -2959,9 +2959,9 @@ test('files editor: clean close exits immediately; dirty edits confirm on Close,
   await user.click(screen.getByTitle('编辑 notes.txt'));
   expect((await editScope().findByRole<HTMLTextAreaElement>('textbox', { name: '文件内容：notes.txt' })).value).toBe('hello');
   await user.type(editScope().getByRole('textbox', { name: '文件内容：notes.txt' }), '-leave');
-  await act(async () => {
-    await router.navigate('/other');
-  });
-  await user.click(within(screen.getByRole('dialog', { name: '放弃未保存的文件修改？' })).getByRole('button', { name: '放弃修改并离开' }));
+  // Keep this navigation outside act: when the guard blocks it, React reports the act call was not awaited even though act itself is awaited.
+  await router.navigate('/other');
+  const leaveConfirm = await screen.findByRole('dialog', { name: '放弃未保存的文件修改？' });
+  await user.click(within(leaveConfirm).getByRole('button', { name: '放弃修改并离开' }));
   expect(await screen.findByText('已离开文件页')).toBeTruthy();
 });
