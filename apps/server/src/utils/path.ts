@@ -94,9 +94,15 @@ export function resolveSafePath(instanceRoot: string, relativePath = ''): string
   return target;
 }
 
+const INSTANCE_ID_PATTERN = /^[A-Za-z0-9_-]{1,100}$/;
+
+export function isValidInstanceId(instanceId: string): boolean {
+  return INSTANCE_ID_PATTERN.test(instanceId);
+}
+
 /** Default install directory: data/instances/<id> */
 export function defaultInstanceDir(instanceId: string): string {
-  if (!/^[A-Za-z0-9_-]{1,100}$/.test(instanceId)) {
+  if (!isValidInstanceId(instanceId)) {
     throw new PanelError('server.files.instanceIdInvalid');
   }
   return path.join(config.instancesDir, instanceId);

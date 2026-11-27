@@ -127,7 +127,12 @@ export async function buildApp(options: BuildAppOptions = {}) {
     ajv: { customOptions: { removeAdditional: false } },
   });
   for (const notice of takeStartupNotices()) app.log.warn({ quiet: true }, notice);
-  if (backupRecovery.restoresRolledBack > 0 || backupRecovery.restoresCompleted > 0 || backupRecovery.tempFilesRemoved > 0) {
+  if (
+    backupRecovery.restoresRolledBack > 0
+    || backupRecovery.restoresCompleted > 0
+    || backupRecovery.tempFilesRemoved > 0
+    || backupRecovery.cleanupWarnings.length > 0
+  ) {
     app.log.warn(backupRecovery, '已处理上次面板进程中断的备份或还原');
   }
   if (taskRecovery.interrupted > 0) {
