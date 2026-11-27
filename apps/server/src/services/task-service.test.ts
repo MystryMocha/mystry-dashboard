@@ -347,3 +347,74 @@ test('task messages are stored as key and params, old databases get the columns 
   assert.equal(raw.error, 'ENOSPC: no space left on device');
   assert.equal(raw.errorI18n, undefined);
 });
+
+test('terminal task persistence failures do not become unhandled rejections or wedge the queue', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb, getDb } = await import('../db.js');
+  const {
+    runBackgroundTask,
+    getTask,
+    isTaskQueueIdle,
+    shutdownTasks,
+    resetTaskRuntimeForTests,
+  } = await import('./task-service.js');
+  t.after(() => {
+    resetTaskRuntimeForTests();
+  });
+  initDb();
+
+  const unhandled: unknown[] = [];
+  const onUnhandled = (reason: unknown) => {
+    unhandled.push(reason);
+  };
+  process.on('unhandledRejection', onUnhandled);
+  t.after(() => {
+    process.off('unhandledRejection', onUnhandled);
+  });
+
+  getDb().exec(`CREATE TRIGGER refuse_terminal BEFORE UPDATE ON tasks
+    WHEN NEW.status IN ('completed', 'failed')
+    BEGIN SELECT RAISE(ABORT, 'simulated disk full'); END`);
+
+  const settled: string[] = [];
+  try {
+    await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {}, {
+      onSettled: () => settled.push('completed'),
+    });
+    await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {
+      throw new Error('worker failed');
+    }, {
+      onSettled: () => settled.push('failed'),
+    });
+
+    for (let attempt = 0; attempt < 200 && settled.length < 2; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(settled, ['completed', 'failed']);
+    assert.equal(isTaskQueueIdle(), true);
+    assert.deepEqual(unhandled, [], 'terminal updateTask failures must never become unhandled rejections');
+
+    // Also verify shutdownTasks settles queued tasks without throwing if SQLite refuses writes during shutdown.
+    let releaseBlocker!: () => void;
+    const blockerGate = new Promise<void>((resolve) => { releaseBlocker = resolve; });
+    await runBackgroundTask('download', { key: 'server.tasks.queued' }, () => blockerGate);
+    let queuedSettled = false;
+    await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {}, {
+      onSettled: () => { queuedSettled = true; },
+    });
+    const shutdownPromise = shutdownTasks();
+    releaseBlocker();
+    await shutdownPromise;
+    assert.equal(queuedSettled, true);
+  } finally {
+    getDb().exec('DROP TRIGGER refuse_terminal');
+  }
+
+  resetTaskRuntimeForTests();
+  const after = await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => ({ ok: true }));
+  for (let attempt = 0; attempt < 200 && getTask(after.id)?.status !== 'completed'; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.equal(getTask(after.id)?.status, 'completed');
+});

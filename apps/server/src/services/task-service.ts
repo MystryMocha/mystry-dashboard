@@ -324,13 +324,17 @@ function drainTaskQueue(): void {
     runningTasks += 1;
     const controller = new AbortController();
     runningControllers.set(item.task.id, controller);
-    const execution = executeTask(item, controller).finally(() => {
-      runningTasks -= 1;
-      runningControllers.delete(item.task.id);
-      runningExecutions.delete(item.task.id);
-      settle(item);
-      drainTaskQueue();
-    });
+    const execution = executeTask(item, controller)
+      .catch((error) => {
+        console.error(`任务 ${item.task.id} 执行出现未捕获异常`, error);
+      })
+      .finally(() => {
+        runningTasks -= 1;
+        runningControllers.delete(item.task.id);
+        runningExecutions.delete(item.task.id);
+        settle(item);
+        drainTaskQueue();
+      });
     runningExecutions.set(item.task.id, execution);
     void execution;
   }
@@ -372,21 +376,26 @@ async function executeTask(item: QueuedTask, controller: AbortController): Promi
 
   // A cancel does not count once the worker has returned normally (see above), so the flag is cleared here too.
   const cancelledByUser = userCancelled.delete(item.task.id);
-  if (failed) {
-    const error: TaskText = timedOut
-      ? { key: 'server.tasks.timeout' }
-      : cancelledByUser ? { key: 'server.tasks.cancelledByUser' } : failureText(failure);
-    const message: TaskText = { key: cancelledByUser && !timedOut ? 'server.tasks.cancelled' : 'server.tasks.failed' };
-    updateTask(item.task.id, { status: 'failed', message, error }, { phase: 'failed' });
-    return;
-  }
+  // Persisting the terminal state can fail when the disk is full or SQLite is temporarily locked; never let it escape as an unhandled rejection and kill running servers.
+  try {
+    if (failed) {
+      const error: TaskText = timedOut
+        ? { key: 'server.tasks.timeout' }
+        : cancelledByUser ? { key: 'server.tasks.cancelledByUser' } : failureText(failure);
+      const message: TaskText = { key: cancelledByUser && !timedOut ? 'server.tasks.cancelled' : 'server.tasks.failed' };
+      updateTask(item.task.id, { status: 'failed', message, error }, { phase: 'failed' });
+      return;
+    }
 
-  updateTask(item.task.id, {
-    status: 'completed',
-    progress: 100,
-    message: { key: 'server.tasks.completed' },
-    result: result ?? undefined,
-  }, { phase: 'completed' });
+    updateTask(item.task.id, {
+      status: 'completed',
+      progress: 100,
+      message: { key: 'server.tasks.completed' },
+      result: result ?? undefined,
+    }, { phase: 'completed' });
+  } catch (persistError) {
+    console.error(`写入任务 ${item.task.id} 终态失败`, persistError);
+  }
 }
 
 export async function runBackgroundTask(
@@ -461,6 +470,9 @@ export async function shutdownTasks(): Promise<void> {
         message: { key: 'server.tasks.cancelled' },
         error: { key: 'server.tasks.cancelledByShutdown' },
       }, { phase: 'failed' });
+    } catch (persistError) {
+      // Shutdown must continue to stop running servers even when the database cannot be written.
+      console.error(`关闭面板时更新排队任务 ${item.task.id} 状态失败`, persistError);
     } finally {
       settle(item);
     }

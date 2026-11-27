@@ -393,6 +393,18 @@ async function main() {
   process.on('SIGTERM', handleSignal);
   // Closing the console window on Windows, or the terminal on Linux, delivers SIGHUP, which must go through the safe shutdown too.
   process.on('SIGHUP', handleSignal);
+  // Route unexpected unhandled rejections through safe shutdown so running Minecraft servers still receive stop instead of being orphaned or killed.
+  process.on('unhandledRejection', (reason) => {
+    app?.log.fatal({ err: reason }, '捕获到未处理的异步异常，正在安全关闭面板');
+    if (shutdownCompleted) {
+      process.exit(1);
+    }
+    process.exitCode = 1;
+    if (!shutdownPromise) {
+      prepareShutdown();
+      void shutdown('unhandledRejection');
+    }
+  });
   try {
     await app.listen({ host: config.host, port: config.port });
     app.log.info(`面板已启动 http://${config.host}:${config.port}`);
