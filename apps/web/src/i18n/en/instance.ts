@@ -43,6 +43,16 @@ export default {
   'instance.settings.unsaved.savingTitle': 'Saving settings…',
   'instance.settings.unsaved.description': 'If you leave Settings, your unsaved instance settings will be lost.',
 
+  // Restart after a crash: the countdown in place of Start, and the line inside the console window
+  'instance.autoRestart.countdown_one': 'Restarting in {count} Second',
+  'instance.autoRestart.countdown_other': 'Restarting in {count} Seconds',
+  'instance.autoRestart.now': 'Restarting',
+  'instance.autoRestart.cancelTitle': 'Cancel the automatic restart',
+  'instance.autoRestart.cancelLabel_one': 'Cancel the automatic restart, due in {count} second',
+  'instance.autoRestart.cancelLabel_other': 'Cancel the automatic restart, due in {count} seconds',
+  'instance.autoRestart.gaveUp': 'Restarted {max} times in a row, and the server crashed again within {minutes} minutes each time. Automatic restart has stopped.',
+  'instance.autoRestart.failed': 'Automatic restart failed: {reason}',
+
   // Start failure reason notice (above the console)
   'instance.detached.title': 'Previous server process is still running (PID {pid})',
   'instance.detached.bodyUnix': 'The panel lost console control after a previous exit, so this page cannot stream logs or send commands. Stop or force stop it before starting, backing up, or deleting this instance.',

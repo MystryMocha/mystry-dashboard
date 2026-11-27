@@ -13,9 +13,10 @@ import {
   Terminal,
   Trash2,
   TriangleAlert,
+  X,
 } from 'lucide-react';
 import { parseLaunchTarget, type InstanceInfo } from '@mystry/shared';
-import { api, controlInstance, dismissDetachedProcess, instanceApi, type InstanceAction } from '../api';
+import { api, cancelPendingRestart, controlInstance, dismissDetachedProcess, instanceApi, type InstanceAction } from '../api';
 import { ActionMenu } from '../components/ActionMenu';
 import { BackupsTab } from '../components/BackupsTab';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -39,6 +40,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useToolbarTitle } from '../hooks/useToolbarTitle';
 import { useInstanceAction } from '../hooks/useInstanceAction';
 import { usePolling } from '../hooks/usePolling';
+import { useRestartCountdown } from '../hooks/useRestartCountdown';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import { useI18n, type MessageKey } from '../i18n';
 import { instanceNameIssue, type Issue } from '../validation';
@@ -66,8 +68,15 @@ function ConsoleTab({
   onRefresh: () => void;
   onDismiss: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, tm } = useI18n();
   const orphan = instance.orphanProcess ?? null;
+  const restart = instance.autoRestartState ?? null;
+  // Why the panel is not restarting the crashed server, shown inside the console window until the user starts it.
+  const consoleNotice = restart?.state === 'gaveUp'
+    ? t('instance.autoRestart.gaveUp', { max: restart.max, minutes: restart.windowMinutes })
+    : restart?.state === 'failed'
+      ? t('instance.autoRestart.failed', { reason: typeof restart.reason === 'string' ? restart.reason : tm(restart.reason) })
+      : null;
   // The notice is only on the console page: the instance settings page has its own EULA checkbox draft, and changing both at once would overwrite each other.
   const issue = !orphan && canStartInstance(instance.status) ? instance.startIssue ?? null : null;
   return (
@@ -130,7 +139,7 @@ function ConsoleTab({
       )}
       {instance.status === 'running' && instance.ready && <ReadyHint instanceId={instance.id} />}
       <WhitelistNotice instanceId={instance.id} status={instance.status} linkConsole={false} className="console-notice" />
-      <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} detached={Boolean(orphan)} />
+      <ConsolePanel instanceId={instance.id} canSend={instance.status === 'running'} detached={Boolean(orphan)} notice={consoleNotice} onStatusChange={onRefresh} />
     </>
   );
 }
@@ -476,7 +485,7 @@ const TAB_TITLE_KEYS = new Map<string, MessageKey>([
 const hubTabClass = ({ isActive }: { isActive: boolean }) => `hub-tab${isActive ? ' active' : ''}`;
 
 export function InstancePage() {
-  const { t } = useI18n();
+  const { t, tp } = useI18n();
   const { id = '', '*': subPath = '' } = useParams();
   const [instance, setInstance] = useState<InstanceInfo | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -509,6 +518,8 @@ export function InstancePage() {
   );
 
   const { busyId, error: actionError, run } = useInstanceAction(load);
+  // The panel starts the server when the countdown ends, so the status is read again then instead of waiting for the next poll.
+  const restartSeconds = useRestartCountdown(instance?.autoRestartState, () => void load());
   const busy = busyId !== null;
   const error = actionError || loadError;
 
@@ -613,7 +624,23 @@ export function InstancePage() {
                 )
               ) : (
                 <>
-                  {canStartInstance(instance.status) && (
+                  {restartSeconds !== null ? (
+                    // The Start button's place while the panel is about to start the server itself: pressing it cancels that restart.
+                    <button
+                      className="btn btn-pending"
+                      type="button"
+                      disabled={busy || restartSeconds === 0}
+                      title={t('instance.autoRestart.cancelTitle')}
+                      aria-label={restartSeconds > 0 ? tp('instance.autoRestart.cancelLabel', restartSeconds) : undefined}
+                      onClick={() => void run(id, () => cancelPendingRestart(id))}
+                    >
+                      {/* role="timer" keeps screen readers from announcing every tick. */}
+                      <span role="timer">
+                        {restartSeconds > 0 ? tp('instance.autoRestart.countdown', restartSeconds) : t('instance.autoRestart.now')}
+                      </span>
+                      {restartSeconds > 0 && <X size={14} aria-hidden="true" />}
+                    </button>
+                  ) : canStartInstance(instance.status) && (
                     <button className="btn btn-ok" type="button" disabled={busy} onClick={() => act('start')}>
                       <Play size={14} aria-hidden="true" />
                       {t('action.start')}

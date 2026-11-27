@@ -774,6 +774,8 @@ h1[tabindex="-1"]:focus { outline: none; }
 .btn-primary { --btn-bg: var(--accent); --btn-fg: var(--on-accent); --btn-edge: none; font-weight: 500; }
 .btn-tinted { --btn-bg: var(--accent-soft); --btn-fg: var(--accent-text); --btn-edge: none; font-weight: 500; }
 .btn-ok { --btn-bg: color-mix(in srgb, var(--c-green) 16%, transparent); --btn-fg: var(--ok); --btn-edge: none; font-weight: 500; }
+/* A waiting state that pressing cancels, such as the countdown to an automatic restart; tabular digits keep the width still. */
+.btn-pending { --btn-bg: color-mix(in srgb, var(--c-yellow) 16%, transparent); --btn-fg: var(--warn); --btn-edge: none; font-weight: 500; font-variant-numeric: tabular-nums; }
 .btn-danger { --btn-bg: color-mix(in srgb, var(--c-red) 13%, transparent); --btn-fg: var(--danger); --btn-edge: none; font-weight: 500; }
 .btn-destructive { --btn-bg: var(--danger-fill); --btn-fg: #ffffff; --btn-edge: none; font-weight: 500; }
 .btn-plain { --btn-bg: transparent; --btn-fg: var(--label); --btn-edge: none; }
@@ -1179,6 +1181,9 @@ input[type='radio'] {
 .list-row-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 240px; min-width: 0; }
 .list-row-title { margin: 0; font-size: var(--text-body); font-weight: 500; color: var(--label); }
 .list-row-desc { margin: 0; font-size: var(--text-small); line-height: 1.45; color: var(--label-2); }
+/* Fields that belong to the switch in the row above take the row's whole width. */
+.list-row-fields { display: flex; flex-direction: column; gap: 12px; flex: 1 1 100%; min-width: 0; }
+.list-row-fields-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .list-row-control { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0; min-width: 0; }
 .list-row-value {
   margin: 0;
@@ -1842,6 +1847,22 @@ input[type='radio'] {
 }
 .console-tool:hover { background: rgba(255, 255, 255, 0.15); }
 .console-tool[aria-pressed='true'] { background: rgba(255, 255, 255, 0.18); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55); }
+
+/* Stays above the output instead of scrolling away with it. */
+.console-notice-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 16px;
+  background: #3a2a12;
+  color: #ffd18a;
+  font-size: var(--text-small);
+  line-height: 1.45;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  overflow-wrap: anywhere;
+}
+.console-notice-bar svg { flex-shrink: 0; }
 
 .console-copy-status {
   margin: 0;
