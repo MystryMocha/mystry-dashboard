@@ -58,6 +58,7 @@ import { initializeFolderUploads, shutdownFolderUploads } from './services/folde
 import { attachFrpLifecycle, shutdownFrp } from './services/frp-manager.js';
 import { attachLanLifecycle, shutdownLan } from './services/lan-manager.js';
 import { isLocalRequest } from './utils/request-origin.js';
+import { attachRequestTimeoutHook } from './utils/request-timeout.js';
 import {
   initRemoteAccess,
   shutdownRemoteAccess,
@@ -121,11 +122,16 @@ export async function buildApp(options: BuildAppOptions = {}) {
       },
     },
     bodyLimit: config.maxJsonBodyBytes,
-    requestTimeout: config.httpRequestTimeoutMs,
+    // Global Node requestTimeout is disabled so authenticated streaming uploads are governed by uploadIdleTimeoutMs;
+    // regular API routes still enforce config.httpRequestTimeoutMs via attachRequestTimeoutHook, and headersTimeout
+    // stays active against slowloris headers.
+    requestTimeout: 0,
     connectionTimeout: config.httpConnectionTimeoutMs,
     keepAliveTimeout: config.httpKeepAliveTimeoutMs,
     ajv: { customOptions: { removeAdditional: false } },
   });
+  app.server.headersTimeout = Math.min(config.httpConnectionTimeoutMs, 60_000);
+  attachRequestTimeoutHook(app, config.httpRequestTimeoutMs);
   for (const notice of takeStartupNotices()) app.log.warn({ quiet: true }, notice);
   if (
     backupRecovery.restoresRolledBack > 0

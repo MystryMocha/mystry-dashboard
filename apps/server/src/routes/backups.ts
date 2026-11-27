@@ -26,6 +26,7 @@ import { acquireFileDownloadSlot, isFileDownloadCapacityError } from '../service
 import { getInstance } from '../services/instance-service.js';
 import { sendRouteError } from '../http-errors.js';
 import { errorBody, errorMessage, panelErrorBody, toPanelMessage } from '../utils/errors.js';
+import { switchToStreamingUploadTimeout } from '../utils/request-timeout.js';
 import { sendFileStream } from './files.js';
 
 /** Backup downloads reuse file download tickets, told apart by a pseudo path so they are not confused with real file paths inside an instance. */
@@ -74,6 +75,7 @@ export async function backupRoutes(app: FastifyInstance): Promise<void> {
   app.post<{ Params: { id: string } }>('/api/instances/:id/backups/upload', async (req, reply) => {
     if (!requireInstance(reply, req.params.id)) return reply;
     try {
+      switchToStreamingUploadTimeout(req, reply);
       const file = await req.file({ limits: { fileSize: config.maxBackupUploadBytes } });
       if (!file) return reply.code(400).send(panelErrorBody('server.backups.upload.missing'));
       return await saveUploadedBackup(req.params.id, file.file);

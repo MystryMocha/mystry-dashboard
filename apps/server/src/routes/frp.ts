@@ -10,6 +10,7 @@ import {
 } from '@mystry/shared';
 import { sendRouteError } from '../http-errors.js';
 import { panelErrorBody } from '../utils/errors.js';
+import { switchToStreamingUploadTimeout } from '../utils/request-timeout.js';
 import { removeUploadTemp, streamToUploadTemp } from '../services/upload-service.js';
 import { getInstanceRow } from '../services/instance-service.js';
 import {
@@ -64,6 +65,7 @@ export async function frpRoutes(app: FastifyInstance): Promise<void> {
     let temp: string | null = null;
     try {
       if (!frpcPlatformSupported()) return reply.code(400).send(panelErrorBody('server.frp.platformUnsupported'));
+      switchToStreamingUploadTimeout(req, reply);
       const file = await req.file({ limits: { fileSize: FRPC_ARCHIVE_BYTE_LIMIT } });
       if (!file) return reply.code(400).send(panelErrorBody('server.frp.uploadMissing'));
       temp = await streamToUploadTemp(file.file, 'frp-runtime', { maxBytes: FRPC_ARCHIVE_BYTE_LIMIT });

@@ -38,7 +38,7 @@ export default {
   'server.backups.schedule.runFailed': '{name} 的定时备份失败：{reason}',
   'server.backups.schedule.diskSpace': '磁盘空间不足：定时备份约需 {needed} 字节，当前只剩 {available} 字节',
   'server.backups.upload.missing': '请选择要上传的备份文件',
-  'server.backups.upload.tooLarge': '备份文件超出上传上限（{limit} 字节）',
+  'server.backups.upload.tooLarge': '备份文件超出上传上限（{limit} 字节）。如需上传更大的备份，请调高 MAX_BACKUP_UPLOAD_BYTES',
   'server.backups.archive.corrupted': '备份文件已损坏，或不是 Mystry Dashboard 的备份',
   'server.backups.archive.manifestMissing': '备份文件缺少清单，无法校验',
   'server.backups.archive.manifestInvalid': '备份清单已损坏',

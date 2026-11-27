@@ -687,6 +687,59 @@ test('an unresponsive mirror is abandoned by the response time limit without usi
   );
 });
 
+test('download timeout tracks stall duration: steady slow chunks finish while mid-stream stalls abort cleanly', async (t) => {
+  const { downloadToFile } = await import('./core-download.js');
+  const dir = tempDir(t);
+  const server = createServer((req, res) => {
+    if (req.url === '/steady') {
+      res.writeHead(200, { 'Content-Length': 15 });
+      let sent = 0;
+      const timer = setInterval(() => {
+        if (res.destroyed) {
+          clearInterval(timer);
+          return;
+        }
+        res.write('abc');
+        sent += 1;
+        if (sent >= 5) {
+          clearInterval(timer);
+          res.end();
+        }
+      }, 45);
+      return;
+    }
+    if (req.url === '/stall') {
+      res.writeHead(200, { 'Content-Length': 100 });
+      res.write('first-chunk');
+      // Never sends remaining bytes.
+    }
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => {
+    server.closeAllConnections();
+    server.close();
+  });
+  const { port } = server.address() as { port: number };
+
+  // Total duration (~225ms) exceeds idleTimeoutMs (120ms), but each chunk resets the stall timer.
+  const steadyDest = path.join(dir, 'steady.jar');
+  await downloadToFile(`http://127.0.0.1:${port}/steady`, steadyDest, undefined, undefined, {
+    idleTimeoutMs: 120,
+  });
+  assert.equal(fs.readFileSync(steadyDest, 'utf8'), 'abc'.repeat(5));
+
+  // Stalling after the first chunk exceeds idleTimeoutMs (80ms), rejects with downloadTimeout, and leaves no part file.
+  const stallDest = path.join(dir, 'stall.jar');
+  await assert.rejects(
+    downloadToFile(`http://127.0.0.1:${port}/stall`, stallDest, undefined, undefined, {
+      idleTimeoutMs: 80,
+    }),
+    (error) => hasMessageKey(error, 'server.deploy.downloadTimeout'),
+  );
+  assert.deepEqual(fs.readdirSync(dir), ['steady.jar']);
+});
+
 test('the download source is saved to the database, and the official source is used when unset or invalid', async (t) => {
   const { getDb } = await tempDatabase(t);
   const { getDownloadSource, setDownloadSource } = await import('./download-sources.js');

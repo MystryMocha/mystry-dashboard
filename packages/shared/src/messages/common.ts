@@ -7,4 +7,5 @@ export const COMMON_MESSAGES = {
   'server.common.shuttingDown': 'The panel is shutting down.',
   'server.common.unauthorized': 'Your session has expired. Sign in again.',
   'server.common.tooManyRequests': 'Too many requests. Try again later.',
+  'server.common.requestTimeout': 'The request timed out.',
 } as const satisfies Record<string, string>;

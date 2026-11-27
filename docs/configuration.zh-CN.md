@@ -56,7 +56,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `HTTP_REQUEST_TIMEOUT_MS` | `900000` | HTTP 请求生命周期超时，15 分钟 |
+| `HTTP_REQUEST_TIMEOUT_MS` | `900000` | 普通接口的 HTTP 请求接收超时，15 分钟；已认证的流式上传改为受 `UPLOAD_IDLE_TIMEOUT_MS` 空闲超时约束 |
 | `HTTP_CONNECTION_TIMEOUT_MS` | `300000` | HTTP 连接超时，5 分钟 |
 | `HTTP_KEEP_ALIVE_TIMEOUT_MS` | `72000` | HTTP keep-alive 空闲超时，72 秒 |
 | `UPLOAD_IDLE_TIMEOUT_MS` | `30000` | 上传空闲超时，30 秒；持续无数据的上传将被取消 |
@@ -85,7 +85,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `MAX_CORE_DOWNLOAD_BYTES` | `536870912` | 单个核心下载上限，512 MiB |
-| `CORE_DOWNLOAD_TIMEOUT_MS` | `300000` | 核心下载超时，5 分钟 |
+| `CORE_DOWNLOAD_TIMEOUT_MS` | `60000` | 核心与运行时下载停滞超时，60 秒；只要数据持续流入就会重置计时 |
 | `MAX_CORE_METADATA_BYTES` | `2097152` | 核心版本、构建等元数据响应上限，2 MiB |
 | `CORE_METADATA_TIMEOUT_MS` | `15000` | 核心元数据请求超时，15 秒 |
 | `MAX_INSTALLER_OUTPUT_BYTES` | `65536` | 安装器输出的保留上限，64 KiB |
@@ -107,7 +107,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `MAX_UPLOAD_BYTES` | `536870912` | 单个上传文件上限，512 MiB |
-| `MAX_BACKUP_UPLOAD_BYTES` | `10737418240` | 上传备份文件的上限，10 GiB；备份通常大于普通上传，故单独设置 |
+| `MAX_BACKUP_UPLOAD_BYTES` | `107374182400` | 上传备份文件的上限，100 GiB（与 `MAX_EXISTING_IMPORT_BYTES` 对齐，确保面板创建的备份可直接回传） |
 | `MAX_ZIP_ENTRIES` | `10000` | ZIP 条目数上限 |
 | `MAX_ZIP_ENTRY_BYTES` | `1073741824` | 单个解压条目上限，1 GiB |
 | `MAX_ZIP_UNCOMPRESSED_BYTES` | `2147483648` | ZIP 解压后总大小上限，2 GiB |

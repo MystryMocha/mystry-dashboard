@@ -48,6 +48,7 @@ import {
 } from '../services/import-preview-service.js';
 import { sendRouteError } from '../http-errors.js';
 import { panelErrorBody } from '../utils/errors.js';
+import { switchToStreamingUploadTimeout } from '../utils/request-timeout.js';
 
 export async function coreRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate);
@@ -184,6 +185,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
   );
 
   app.post('/api/import/previews', async (req, reply) => {
+    switchToStreamingUploadTimeout(req, reply);
     const parts = req.parts();
     let zipPath: string | null = null;
     let fileName = 'server.zip';
@@ -280,6 +282,7 @@ export async function coreRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{ Params: { id: string } }>('/api/import/folder-uploads/:id/files', async (req, reply) => {
     try {
+      switchToStreamingUploadTimeout(req, reply);
       // The global multipart limit allows only one file; here it is relaxed to the number of files in a batch, with no single file exceeding the folder's total size limit.
       const parts = req.parts({
         limits: {
