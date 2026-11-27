@@ -151,6 +151,8 @@ function skipPartialCsiSequence(text: string, start: number): number {
   return Math.max(start, Math.min(index + 1, text.length));
 }
 
+const EMPTY_OUTPUT_FRAME_BYTES = Buffer.byteLength(JSON.stringify({ type: 'output', data: '' }), 'utf8');
+
 /**
  * Splits an output chunk into pieces whose JSON-serialized output frames each fit within maxFrameBytes.
  * Returns null when the budget cannot hold even a single character, so the caller closes the connection instead of
@@ -161,17 +163,16 @@ export function splitOutputForJsonBudget(
   maxFrameBytes: number,
 ): string[] | null {
   if (!text) return [];
+  // Runs for every chunk on every connection. Escaping at most sextuples a UTF-8 byte (a control character becomes
+  // \u00XX), so a chunk this short fits without being serialized; with the default limits that is every chunk.
+  if (Buffer.byteLength(text, 'utf8') * 6 + EMPTY_OUTPUT_FRAME_BYTES <= maxFrameBytes) return [text];
   const fullBytes = Buffer.byteLength(
     JSON.stringify({ type: 'output', data: text }),
     'utf8',
   );
   if (fullBytes <= maxFrameBytes) return [text];
 
-  const emptyBytes = Buffer.byteLength(
-    JSON.stringify({ type: 'output', data: '' }),
-    'utf8',
-  );
-  const dataBudget = maxFrameBytes - emptyBytes;
+  const dataBudget = maxFrameBytes - EMPTY_OUTPUT_FRAME_BYTES;
   if (dataBudget <= 0) return null;
 
   const chunks: string[] = [];

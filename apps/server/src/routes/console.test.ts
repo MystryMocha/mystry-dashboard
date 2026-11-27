@@ -87,6 +87,16 @@ test('splitOutputForJsonBudget reports a budget too small for one character inst
   assert.deepEqual(splitOutputForJsonBudget('abc', emptyBytes + 2), ['ab', 'c']);
 });
 
+test('splitOutputForJsonBudget keeps a chunk of control characters whole exactly up to the budget its escaping needs', async () => {
+  const { splitOutputForJsonBudget } = await import('./console.js');
+  const emptyBytes = Buffer.byteLength(JSON.stringify({ type: 'output', data: '' }), 'utf8');
+  // Each control character is one byte that JSON escapes to six, the most any byte grows.
+  const controls = '\u0001'.repeat(50);
+  assert.equal(Buffer.byteLength(JSON.stringify({ type: 'output', data: controls }), 'utf8'), emptyBytes + 300);
+  assert.deepEqual(splitOutputForJsonBudget(controls, emptyBytes + 300), [controls]);
+  assert.deepEqual(splitOutputForJsonBudget(controls, emptyBytes + 299), ['\u0001'.repeat(49), '\u0001']);
+});
+
 test('splitOutputForJsonBudget breaks ANSI-heavy output chunks cleanly without cutting surrogate pairs', async () => {
   const { splitOutputForJsonBudget } = await import('./console.js');
   const payload = '\x1b"😀\n'.repeat(100);
