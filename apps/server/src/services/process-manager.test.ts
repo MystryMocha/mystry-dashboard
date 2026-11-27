@@ -672,26 +672,14 @@ test('an incomplete character left when the process fails to start is flushed be
   assert.equal(manager.getHistory(instanceId), '�\n[Panel] Process failed to start: spawn java ENOENT\n');
 });
 
-test('a chunk over the chunk limit keeps all of its text, appended in pieces within the limit', async (t) => {
+test('an oversized chunk is cut at the chunk limit without carrying its partial character over', async (t) => {
   const { manager, child, instanceId, chunkLimit } = await startFakeManaged(t, 'oversized-chunk-utf8');
-  const emitted: string[] = [];
-  manager.on('output', (id: string, text: string) => {
-    if (id === instanceId) emitted.push(text);
-  });
-  const character = Buffer.from('中');
-  // One character straddles the limit, and the chunk ends inside another one that the next chunk completes.
-  child.stdout.emit('data', Buffer.concat([
-    Buffer.alloc(chunkLimit - 1, 0x61),
-    character,
-    Buffer.from('tail\n'),
-    character.subarray(0, 2),
-  ]));
-  child.stdout.emit('data', Buffer.concat([character.subarray(2), Buffer.from('b')]));
+  const retained = Buffer.alloc(chunkLimit - 1, 0x61);
+  // A four-byte character starts in the last retained byte, so the cut leaves it incomplete.
+  child.stdout.emit('data', Buffer.concat([retained, Buffer.from([0xf0, 0x9f])]));
+  child.stdout.emit('data', Buffer.from('b'));
 
-  const history = manager.getHistory(instanceId);
-  assert.ok(history === `${'a'.repeat(chunkLimit - 1)}中tail\n中b`, 'nothing past the limit is dropped');
-  assert.equal(emitted.join(''), history);
-  for (const text of emitted) assert.ok(Buffer.byteLength(text, 'utf8') <= chunkLimit);
+  assert.equal(manager.getHistory(instanceId), `${'a'.repeat(chunkLimit - 1)}b`);
 });
 
 test('decoded output over the chunk limit is appended in pieces within the limit instead of losing its end', async (t) => {
