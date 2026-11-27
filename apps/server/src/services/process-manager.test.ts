@@ -713,6 +713,41 @@ test('the finished-startup marker is recognized when the chunk completing it is 
   assert.equal(manager.isReady(instanceId), true);
 });
 
+test('the finished-startup marker is recognized when its first half ends in a piece of a single byte', async (t) => {
+  const { manager, child, instanceId, chunkLimit } = await startFakeManaged(t, 'ready-marker-short-piece');
+  const character = Buffer.from('中');
+  const firstHalf = '\n[13:23:09] [Server thread/INFO]: Do';
+  child.stdout.emit('data', Buffer.concat([Buffer.alloc(chunkLimit - 1, 0x61), character.subarray(0, 1)]));
+  // This chunk is exactly at the limit and also decodes the byte the first left over, so its last byte is appended on its own.
+  child.stdout.emit('data', Buffer.concat([
+    character.subarray(1),
+    Buffer.alloc(chunkLimit - 2 - firstHalf.length, 0x78),
+    Buffer.from(firstHalf),
+  ]));
+  child.stdout.emit('data', Buffer.from('ne (4.512s)! For help, type "help"\n'));
+
+  assert.equal(manager.getBuffer(instanceId).at(-2), 'o');
+  assert.equal(manager.isReady(instanceId), true);
+});
+
+test('the finished-startup marker is recognized when stderr output arrives between its two halves', async (t) => {
+  const { manager, child, instanceId } = await startFakeManaged(t, 'ready-marker-stderr-between');
+  child.stdout.emit('data', Buffer.from('[13:23:09] [Server thread/INFO]: Do'));
+  child.stderr.emit('data', Buffer.from('SLF4J: Defaulting to no-operation logger\n'));
+  child.stdout.emit('data', Buffer.from('ne (4.512s)! For help, type "help"\n'));
+
+  assert.equal(manager.isReady(instanceId), true);
+});
+
+test('the finished-startup marker is recognized when a command echo is appended between its two halves', async (t) => {
+  const { manager, child, instanceId } = await startFakeManaged(t, 'ready-marker-echo-between');
+  child.stdout.emit('data', Buffer.from('[13:23:09] [Server thread/INFO]: Do'));
+  manager.sendCommand(instanceId, 'list');
+  child.stdout.emit('data', Buffer.from('ne (4.512s)! For help, type "help"\n'));
+
+  assert.equal(manager.isReady(instanceId), true);
+});
+
 test('when the bound Java is unavailable or no longer in the registry, the instance info reports java-unavailable without waiting for a start', async (t) => {
   prepareTempDataRoot(t);
   const { initDb, getDb } = await import('../db.js');

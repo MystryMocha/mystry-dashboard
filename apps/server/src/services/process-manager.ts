@@ -30,7 +30,7 @@ import { ensureServerPropertiesDefaults } from './config-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { resolvePlatformModLoaderArgsFile } from './server-launch-detect.js';
-import { diagnoseStartFailure, hasFinishedStarting } from './start-diagnosis.js';
+import { createFinishedStartingScanner, diagnoseStartFailure } from './start-diagnosis.js';
 import { errorMessage, hasErrorCode, PanelError } from '../utils/errors.js';
 
 const { maxCommandBytes, maxConsoleBufferBytes, maxConsoleChunkBytes, maxConsoleStdinBytes } = config;
@@ -616,18 +616,17 @@ export class ProcessManager extends EventEmitter {
         }
       };
 
+      const hasFinishedStarting = { stdout: createFinishedStartingScanner(), stderr: createFinishedStartingScanner() };
+
       const onChunk = (stream: keyof typeof decoders) => (chunk: Buffer) => {
         if (this.processes.get(instance.id) !== managed) return;
-        // The marker line may be split across two adjacent output chunks, so it is checked together with the end of the previous output.
-        // That end is read before appending, because one chunk can take several buffer entries.
-        const previous = managed.buffer[managed.buffer.length - 1] ?? '';
         const text = decodeChunk(stream, chunk);
         this.appendOutput(instance.id, text);
         if (managed.status === 'starting') {
           managed.status = 'running';
           this.emitStatus(instance.id, 'running');
         }
-        if (!managed.ready && hasFinishedStarting(previous + text)) {
+        if (!managed.ready && hasFinishedStarting[stream](text)) {
           managed.ready = true;
           this.emit('ready', instance.id);
         }

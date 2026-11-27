@@ -3,7 +3,7 @@ import { recommendedJavaMajor, type InstanceStartIssue } from '@mystry/shared';
 /** The EULA notice printed by the server itself; it must come right after the "]: " of the log prefix, so player chat with <name> does not match. */
 const EULA_RE = /\]: You need to agree to the EULA in order to run the server/;
 /** The marker line for finished startup; once it has appeared, Java can run this server, and later exits are not attributed to the Java version. */
-const STARTED_RE = /\]: Done \(/;
+const STARTED_MARKER = ']: Done (';
 /** The class file version minus 44 is the Java major version (52 → 8, 61 → 17, 65 → 21). */
 const CLASS_VERSION_RE = /UnsupportedClassVersionError[^\n]*?class file version (\d+)(?:\.\d+)?/;
 const CLASS_VERSION_ERROR_RE = /java\.lang\.UnsupportedClassVersionError/;
@@ -18,8 +18,19 @@ function javaMajor(value: string | undefined): number | null {
   return Number.isInteger(major) && major >= 5 && major <= 99 ? major : null;
 }
 
-export function hasFinishedStarting(output: string): boolean {
-  return STARTED_RE.test(output);
+/**
+ * Returns a function that is fed one output stream piece by piece and reports whether the finished-startup marker has appeared.
+ * The marker can be split across pieces, so the end of the text fed so far is kept. The console buffer cannot serve for this:
+ * the other stream's output and command echoes are appended to it between two pieces of the same stream.
+ */
+export function createFinishedStartingScanner(): (text: string) => boolean {
+  let tail = '';
+  return (text) => {
+    const seen = tail + text;
+    if (seen.includes(STARTED_MARKER)) return true;
+    tail = seen.slice(1 - STARTED_MARKER.length);
+    return false;
+  };
 }
 
 /**
@@ -28,7 +39,7 @@ export function hasFinishedStarting(output: string): boolean {
  */
 export function diagnoseStartFailure(output: string, mcVersion: string | null): InstanceStartIssue | null {
   if (EULA_RE.test(output)) return { kind: 'eula', requiredJava: null };
-  if (STARTED_RE.test(output)) return null;
+  if (output.includes(STARTED_MARKER)) return null;
 
   const recommended = recommendedJavaMajor(mcVersion);
 
