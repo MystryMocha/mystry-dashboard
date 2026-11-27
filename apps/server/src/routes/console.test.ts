@@ -65,11 +65,33 @@ test('fitConsoleHistory trims dense ANSI escapes, quotes, newlines and surrogate
   );
 });
 
+test('fitConsoleHistory never starts the trimmed history inside a CSI escape sequence', async () => {
+  const { fitConsoleHistory } = await import('./console.js');
+  const history = '\x1b[31mX'.repeat(40);
+  const emptyBytes = Buffer.byteLength(JSON.stringify({ type: 'history', data: '', status: 'running' }), 'utf8');
+  for (let dataBudget = 1; dataBudget <= 40; dataBudget += 1) {
+    const fitted = fitConsoleHistory(history, 'running', emptyBytes + dataBudget);
+    assert.equal(history.endsWith(fitted), true);
+    assert.match(fitted, /^(?:X|\x1b\[31mX)*$/, `budget ${dataBudget} left a partial sequence: ${JSON.stringify(fitted)}`);
+  }
+  // A cut after a completed sequence, or after an ESC that does not open a CSI sequence, is left alone.
+  const plain = `${'a'.repeat(50)}\x1b[0mtail`;
+  assert.equal(fitConsoleHistory(plain, 'running', emptyBytes + 3), 'ail');
+});
+
+test('splitOutputForJsonBudget reports a budget too small for one character instead of dropping it', async () => {
+  const { splitOutputForJsonBudget } = await import('./console.js');
+  const emptyBytes = Buffer.byteLength(JSON.stringify({ type: 'output', data: '' }), 'utf8');
+  assert.equal(splitOutputForJsonBudget('a\u0002b', emptyBytes + 2), null);
+  assert.equal(splitOutputForJsonBudget('abc', emptyBytes), null);
+  assert.deepEqual(splitOutputForJsonBudget('abc', emptyBytes + 2), ['ab', 'c']);
+});
+
 test('splitOutputForJsonBudget breaks ANSI-heavy output chunks cleanly without cutting surrogate pairs', async () => {
   const { splitOutputForJsonBudget } = await import('./console.js');
   const payload = '\x1b"😀\n'.repeat(100);
   const parts = splitOutputForJsonBudget(payload, 200);
-  assert.ok(parts.length > 1);
+  assert.ok(parts && parts.length > 1);
   assert.equal(parts.join(''), payload);
   for (const part of parts) {
     assert.ok(Buffer.byteLength(JSON.stringify({ type: 'output', data: part }), 'utf8') <= 200);

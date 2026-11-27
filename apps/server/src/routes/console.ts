@@ -123,14 +123,40 @@ export function fitConsoleHistory(
     usedBytes += charBytes;
     startIndex -= step;
   }
-  return history.slice(startIndex);
+  return history.slice(skipPartialCsiSequence(history, startIndex));
 }
 
-/** Splits an output chunk into pieces whose JSON-serialized output frames each fit within maxFrameBytes. */
+/** Longest CSI sequence worth looking back for; real SGR and cursor sequences are far shorter. */
+const MAX_CSI_LOOKBACK = 64;
+
+/**
+ * When a cut lands inside a CSI escape sequence (`ESC [ params final`), returns the index just past that sequence so
+ * the client does not render a literal fragment such as `31m`. Moving the cut backwards is not an option because the
+ * preceding characters are exactly the ones that did not fit the budget.
+ */
+function skipPartialCsiSequence(text: string, start: number): number {
+  if (start <= 0 || start >= text.length) return start;
+  const escIndex = text.lastIndexOf('\x1b', start - 1);
+  if (escIndex === -1 || start - escIndex > MAX_CSI_LOOKBACK || text[escIndex + 1] !== '[') return start;
+  let index = escIndex + 2;
+  while (index < text.length) {
+    const code = text.charCodeAt(index);
+    if (code < 0x20 || code > 0x3F) break;
+    index += 1;
+  }
+  // `index` is now at the final byte; a sequence that already ended before the cut leaves the cut untouched.
+  return Math.max(start, Math.min(index + 1, text.length));
+}
+
+/**
+ * Splits an output chunk into pieces whose JSON-serialized output frames each fit within maxFrameBytes.
+ * Returns null when the budget cannot hold even a single character, so the caller closes the connection instead of
+ * silently dropping output.
+ */
 export function splitOutputForJsonBudget(
   text: string,
   maxFrameBytes: number,
-): string[] {
+): string[] | null {
   if (!text) return [];
   const fullBytes = Buffer.byteLength(
     JSON.stringify({ type: 'output', data: text }),
@@ -143,7 +169,7 @@ export function splitOutputForJsonBudget(
     'utf8',
   );
   const dataBudget = maxFrameBytes - emptyBytes;
-  if (dataBudget <= 0) return [];
+  if (dataBudget <= 0) return null;
 
   const chunks: string[] = [];
   let chunkStart = 0;
@@ -153,13 +179,7 @@ export function splitOutputForJsonBudget(
     const codePoint = text.codePointAt(index)!;
     const unitLength = codePoint > 0xFFFF ? 2 : 1;
     const charBytes = jsonEscapedCharBytes(codePoint);
-    if (charBytes > dataBudget) {
-      if (index > chunkStart) chunks.push(text.slice(chunkStart, index));
-      index += unitLength;
-      chunkStart = index;
-      chunkBytes = 0;
-      continue;
-    }
+    if (charBytes > dataBudget) return null;
     if (chunkBytes + charBytes > dataBudget) {
       chunks.push(text.slice(chunkStart, index));
       chunkStart = index;
@@ -334,7 +354,12 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
           closeSocket(socket, 1009, 'Console output message too large');
           return;
         }
-        for (const chunk of splitOutputForJsonBudget(text, maxOutgoingMessageBytes)) {
+        const chunks = splitOutputForJsonBudget(text, maxOutgoingMessageBytes);
+        if (!chunks) {
+          closeSocket(socket, 1009, 'Console output message too large');
+          return;
+        }
+        for (const chunk of chunks) {
           if (!sendSocketMessage(socket, { type: 'output', data: chunk })) return;
         }
       };
