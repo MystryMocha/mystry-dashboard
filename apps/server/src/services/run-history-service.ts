@@ -248,11 +248,13 @@ export function createRunHistoryTracker(options: RunHistoryTrackerOptions = {}):
       for (const [index, { row, cwd }] of candidates.entries()) {
         // An uninspectable PID is kept as a detached process with its run left open: treating it as exited would
         // let a second server start on the same world directory.
-        if (states[index] === 'dead') continue;
+        const state = states[index];
+        if (state === 'dead') continue;
         orphanRegistry.registerOrphanProcess?.(row.instance_id, {
           pid: row.pid,
           startedAt: row.started_at,
           canGracefulStop: canGracefulStop(),
+          state,
           runId: row.id,
           processIdentity: row.process_identity,
           cwd,

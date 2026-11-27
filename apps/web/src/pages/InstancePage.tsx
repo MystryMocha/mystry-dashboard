@@ -15,7 +15,7 @@ import {
   TriangleAlert,
 } from 'lucide-react';
 import { parseLaunchTarget, type InstanceInfo } from '@mystry/shared';
-import { api, controlInstance, instanceApi, type InstanceAction } from '../api';
+import { api, controlInstance, dismissDetachedProcess, instanceApi, type InstanceAction } from '../api';
 import { ActionMenu } from '../components/ActionMenu';
 import { BackupsTab } from '../components/BackupsTab';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -56,6 +56,7 @@ function ConsoleTab({
   onStop,
   onForceStop,
   onRefresh,
+  onDismiss,
 }: {
   instance: InstanceInfo;
   busy: boolean;
@@ -63,6 +64,7 @@ function ConsoleTab({
   onStop: () => void;
   onForceStop: () => void;
   onRefresh: () => void;
+  onDismiss: () => void;
 }) {
   const { t } = useI18n();
   const orphan = instance.orphanProcess ?? null;
@@ -70,7 +72,25 @@ function ConsoleTab({
   const issue = !orphan && canStartInstance(instance.status) ? instance.startIssue ?? null : null;
   return (
     <>
-      {orphan && (
+      {orphan?.state === 'unknown' && (
+        <div className="callout callout-warning start-issue" role="alert">
+          <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
+          <div>
+            <p><strong>{t('instance.detached.unverifiedTitle', { pid: orphan.pid })}</strong></p>
+            <p>{t('instance.detached.bodyUnverified', { pid: orphan.pid })}</p>
+            <div className="start-issue-actions">
+              <button className="btn" type="button" disabled={busy} onClick={onRefresh}>
+                <RefreshCw size={14} aria-hidden="true" />
+                {t('instance.detached.refresh')}
+              </button>
+              <button className="btn" type="button" disabled={busy} onClick={onDismiss}>
+                {t('instance.detached.dismiss')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {orphan?.state === 'alive' && (
         <div className="callout callout-warning start-issue" role="alert">
           <TriangleAlert size={18} aria-hidden="true" className="callout-icon" />
           <div>
@@ -462,6 +482,7 @@ export function InstancePage() {
   const [loadError, setLoadError] = useState('');
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [confirmForceStop, setConfirmForceStop] = useState(false);
+  const [confirmDismiss, setConfirmDismiss] = useState(false);
   const [deleted, setDeleted] = useState(false);
   // Incremented on each confirmed restart: the "takes effect after restarting the instance" notice in the save bar collapses based on it.
   const [restartSignal, setRestartSignal] = useState(0);
@@ -563,7 +584,8 @@ export function InstancePage() {
               For an instance pending migration, handle the migration notice below first; no buttons go here. */}
           {!instance.requiresMigration && (
             <div className="instance-actions">
-              {orphan ? (
+              {/* An unverified PID cannot be signalled; its only actions are in the console notice. */}
+              {orphan?.state === 'unknown' ? null : orphan ? (
                 orphan.canGracefulStop ? (
                   <>
                     <button className="btn btn-danger" type="button" disabled={busy} onClick={() => act('stop')}>
@@ -678,6 +700,7 @@ export function InstancePage() {
                   onStop={() => act('stop')}
                   onForceStop={() => setConfirmForceStop(true)}
                   onRefresh={() => void load()}
+                  onDismiss={() => setConfirmDismiss(true)}
                 />
               )}
             />
@@ -719,6 +742,19 @@ export function InstancePage() {
           act('stop', { force: true });
         }}
         onCancel={() => setConfirmForceStop(false)}
+      />
+      <ConfirmDialog
+        open={confirmDismiss && orphan !== null}
+        title={t('instance.detached.dismissConfirm.title', { pid: orphan?.pid ?? '' })}
+        description={t('instance.detached.dismissConfirm.body', { pid: orphan?.pid ?? '' })}
+        confirmLabel={t('instance.detached.dismissConfirm.confirm')}
+        danger
+        busy={busy}
+        onConfirm={() => {
+          setConfirmDismiss(false);
+          void run(id, () => dismissDetachedProcess(id));
+        }}
+        onCancel={() => setConfirmDismiss(false)}
       />
     </div>
   );

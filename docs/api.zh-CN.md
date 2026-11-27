@@ -177,6 +177,7 @@ Java 状态响应的确切结构：
 | POST | `/api/instances/:id/start` | 启动 |
 | POST | `/api/instances/:id/stop` | 停止；`?force=1` 强制终止进程。普通停止超时且仍在停止中时返回 **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
 | POST | `/api/instances/:id/restart` | 重启 |
+| POST | `/api/instances/:id/detached-process/dismiss` | 在 `orphanProcess.state` 为 `unknown`（面板无法确认该 PID 是否仍是该服务器）且用户确认其为其他程序后，清除 `orphanProcess`；同时结束对应的运行记录，不向任何进程发送信号。若已确认该 PID 仍是该服务器，返回 **409** `server.instance.orphanDismissAlive` |
 | POST | `/api/instances/:id/command` | Body：`{ command: string }`，发送控制台命令 |
 | GET | `/api/instances/:id/local-network` | 直连地址 `InstanceLocalNetwork`：`{ port, addresses, publicIpv4, publicIpv6, publicHost, serverIpBlocked, serverIpIsUnboundPublicHost, panelPort, platform }`。只读，不开放端口，也不修改配置 |
 

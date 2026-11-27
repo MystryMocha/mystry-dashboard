@@ -47,6 +47,7 @@ export default {
   'server.instance.orphanStopPending': '残留的服务器进程（PID {pid}）仍在停止中，请等待或选择强制停止',
   'server.instance.orphanForceStopPending': '残留的服务器进程（PID {pid}）仍在强制终止中，请稍候',
   'server.instance.orphanSignalFailed': '停止残留的服务器进程（PID {pid}）失败：{reason}',
+  'server.instance.orphanDismissAlive': '已确认 PID {pid} 仍是该实例上次启动的服务器进程，不能解除占用，请改为停止它',
 
   // 控制台命令
   'server.instance.commandNotRunning': '实例未在运行，无法发送命令',

@@ -222,7 +222,32 @@ export class ProcessManager extends EventEmitter {
       pid: orphan.pid,
       startedAt: orphan.startedAt,
       canGracefulStop: orphan.canGracefulStop,
+      state: orphan.state,
     };
+  }
+
+  /** Inspects the detached process, releasing it when gone and remembering whether it could be confirmed otherwise. */
+  private async inspectOrphan(instanceId: string, orphan: OrphanProcessRecord): Promise<TrackedProcessState> {
+    const state = await this.processTools.inspectTrackedProcess(orphan);
+    if (state === 'dead') this.releaseOrphan(instanceId, orphan);
+    else orphan.state = state;
+    return state;
+  }
+
+  /**
+   * Drops a detached process the panel cannot inspect, once the user has checked that its PID is not this server.
+   * Without it an instance whose recorded PID now belongs to a protected system process stays blocked until that
+   * process exits. A PID confirmed to still be this server is never dismissed: it has to be stopped.
+   */
+  async dismissOrphan(instanceId: string): Promise<void> {
+    return this.withInstanceOperation(instanceId, async () => {
+      const orphan = this.orphans.get(instanceId);
+      if (!orphan) return;
+      if ((await this.inspectOrphan(instanceId, orphan)) === 'alive') {
+        throw new InstanceOperationConflictError('server.instance.orphanDismissAlive', { pid: orphan.pid });
+      }
+      this.releaseOrphan(instanceId, orphan);
+    });
   }
 
   /**
@@ -234,10 +259,7 @@ export class ProcessManager extends EventEmitter {
     const now = Date.now();
     if (now - (this.orphanInspectedAt.get(orphan) ?? 0) < ORPHAN_REINSPECT_INTERVAL_MS) return;
     this.orphanInspectedAt.set(orphan, now);
-    void this.processTools.inspectTrackedProcess(orphan).then(
-      (state) => {
-        if (state === 'dead') this.releaseOrphan(instanceId, orphan);
-      },
+    void this.inspectOrphan(instanceId, orphan).catch(
       () => { /* An inspection that throws proves nothing; the next interval tries again. */ },
     );
   }
@@ -255,11 +277,8 @@ export class ProcessManager extends EventEmitter {
   async assertNoOrphanProcess(instanceId: string): Promise<void> {
     const orphan = this.orphans.get(instanceId);
     if (!orphan) return;
-    const state = await this.processTools.inspectTrackedProcess(orphan);
-    if (state === 'dead') {
-      this.releaseOrphan(instanceId, orphan);
-      return;
-    }
+    const state = await this.inspectOrphan(instanceId, orphan);
+    if (state === 'dead') return;
     throw new InstanceOperationConflictError(
       state === 'alive' ? 'server.instance.orphanProcessRunning' : 'server.instance.orphanProcessUnverified',
       { pid: orphan.pid },
@@ -686,11 +705,8 @@ export class ProcessManager extends EventEmitter {
     if (!orphan) {
       throw new PanelError('server.instance.notRunning');
     }
-    const state = await this.processTools.inspectTrackedProcess(orphan);
-    if (state === 'dead') {
-      this.releaseOrphan(instanceId, orphan);
-      return;
-    }
+    const state = await this.inspectOrphan(instanceId, orphan);
+    if (state === 'dead') return;
     // Never signal a PID whose owner cannot be confirmed: it may have been recycled by an unrelated process.
     if (state === 'unknown') {
       throw new InstanceOperationConflictError('server.instance.orphanProcessUnverified', { pid: orphan.pid });
@@ -721,10 +737,7 @@ export class ProcessManager extends EventEmitter {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    if ((await this.processTools.inspectTrackedProcess(orphan)) === 'dead') {
-      this.releaseOrphan(instanceId, orphan);
-      return;
-    }
+    if ((await this.inspectOrphan(instanceId, orphan)) === 'dead') return;
 
     throw new InstanceStopPendingError(
       force ? 'server.instance.orphanForceStopPending' : 'server.instance.orphanStopPending',

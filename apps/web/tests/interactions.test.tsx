@@ -2717,7 +2717,7 @@ test('detached orphan process: dashboard, instance console, and backups reflect 
     ...instance,
     name: '测试服',
     status: 'stopped' as const,
-    orphanProcess: { pid: 4567, startedAt: '2026-11-27T08:00:00.000Z', canGracefulStop },
+    orphanProcess: { pid: 4567, startedAt: '2026-11-27T08:00:00.000Z', canGracefulStop, state: 'alive' as const },
   });
 
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
@@ -2788,6 +2788,52 @@ test('detached orphan process: dashboard, instance console, and backups reflect 
   expect(unixBanner.textContent).toContain('当前无法查看实时日志或发送命令');
   await user.click(within(unixBanner).getByRole('button', { name: '停止' }));
   await waitFor(() => expect(calls).toContain('POST /api/instances/test/stop'));
+});
+
+test('a detached process the panel cannot verify offers no stop, only refresh and a confirmed dismiss', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const calls: string[] = [];
+  let dismissed = false;
+  const current = () => ({
+    ...instance,
+    name: '测试服',
+    status: 'stopped' as const,
+    orphanProcess: dismissed ? null : { pid: 4567, startedAt: '2026-11-27T08:00:00.000Z', canGracefulStop: false, state: 'unknown' as const },
+  });
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const method = options?.method ?? 'GET';
+    if (url === '/api/instances/test' && method === 'GET') return new Response(JSON.stringify(current()));
+    if (method === 'POST' && String(url).startsWith('/api/instances/test/') && !String(url).endsWith('/console-ticket')) {
+      calls.push(`${method} ${url}`);
+      if (String(url).endsWith('/detached-process/dismiss')) dismissed = true;
+      return new Response(JSON.stringify(current()));
+    }
+    return baseFetch(url, options);
+  }));
+
+  const router = createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  );
+  render(<RouterProvider router={router} />);
+  const banner = await screen.findByRole('alert');
+  expect(banner.textContent).toContain('无法确认 PID 4567 是否仍是该服务器进程');
+  expect(screen.queryByRole('button', { name: '停止' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '强制停止' })).toBeNull();
+
+  // Cancelling the confirmation sends nothing.
+  await user.click(within(banner).getByRole('button', { name: '不是该服务器' }));
+  const cancelDialog = await screen.findByRole('dialog');
+  expect(cancelDialog.textContent).toContain('两个服务器同时写入同一个世界');
+  await user.click(within(cancelDialog).getByRole('button', { name: '取消' }));
+  expect(calls).toEqual([]);
+
+  await user.click(within(banner).getByRole('button', { name: '不是该服务器' }));
+  await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '清除记录' }));
+  await waitFor(() => expect(calls).toEqual(['POST /api/instances/test/detached-process/dismiss']));
+  await waitFor(() => expect(screen.queryByText('无法确认 PID 4567 是否仍是该服务器进程')).toBeNull());
+  expect(screen.getByRole('button', { name: '启动' })).toBeTruthy();
 });
 
 test('files editor: clean close exits immediately; dirty edits confirm on Close, Cancel, Escape, backdrop, and route navigation', async () => {

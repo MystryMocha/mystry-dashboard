@@ -177,6 +177,7 @@ When Java is not found, it returns `{ "available": false, "version": null, "majo
 | POST | `/api/instances/:id/start` | Start |
 | POST | `/api/instances/:id/stop` | Stop; `?force=1` force-kills the process. When a normal stop times out and the instance is still stopping, returns **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
 | POST | `/api/instances/:id/restart` | Restart |
+| POST | `/api/instances/:id/detached-process/dismiss` | Clears `orphanProcess` when its `state` is `unknown` (the panel cannot tell whether the PID is still this server), after the user has checked it is another program; the run is closed and nothing is signalled. Returns **409** `server.instance.orphanDismissAlive` when the PID is confirmed to still be the server |
 | POST | `/api/instances/:id/command` | Body: `{ command: string }`; sends a console command |
 | GET | `/api/instances/:id/local-network` | Addresses for direct connection, `InstanceLocalNetwork`: `{ port, addresses, publicIpv4, publicIpv6, publicHost, serverIpBlocked, serverIpIsUnboundPublicHost, panelPort, platform }`. Read-only; opens no ports and changes no config |
 

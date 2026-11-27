@@ -45,6 +45,7 @@ export const INSTANCE_MESSAGES = {
   'server.instance.orphanStopPending': 'The previous server process (PID {pid}) is still stopping. Wait, or force stop it.',
   'server.instance.orphanForceStopPending': 'The previous server process (PID {pid}) is still exiting after force stop. Please wait.',
   'server.instance.orphanSignalFailed': 'Failed to stop the previous server process (PID {pid}): {reason}',
+  'server.instance.orphanDismissAlive': 'PID {pid} is confirmed to still be the previous server process of this instance, so it cannot be dismissed. Stop it instead.',
 
   // Console commands
   'server.instance.commandNotRunning': 'The instance is not running, so the command cannot be sent.',

@@ -266,6 +266,11 @@ export interface OrphanProcessInfo {
   startedAt: string;
   /** True on Unix where SIGTERM triggers graceful shutdown; false on Windows where only force termination is available without stdin. */
   canGracefulStop: boolean;
+  /**
+   * Result of the latest inspection: `alive` when the PID is confirmed to still be this server, `unknown` when the
+   * system would not say (the PID may since belong to another program). Only `unknown` can be dismissed by the user.
+   */
+  state: 'alive' | 'unknown';
 }
 
 export interface InstanceInfo {

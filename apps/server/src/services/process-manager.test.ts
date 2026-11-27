@@ -796,6 +796,7 @@ test('orphan stop respects Windows Force Stop requirement and Unix SIGTERM grace
     pid: 71001,
     startedAt: '2026-11-27T09:00:00.000Z',
     canGracefulStop: false,
+    state: 'alive',
     runId: winRun.id,
     processIdentity: 'win32:1',
   });
@@ -803,6 +804,7 @@ test('orphan stop respects Windows Force Stop requirement and Unix SIGTERM grace
     pid: 71002,
     startedAt: '2026-11-27T09:00:00.000Z',
     canGracefulStop: true,
+    state: 'alive',
     runId: unixRun.id,
     processIdentity: 'linux:boot:2',
   });
@@ -839,6 +841,7 @@ test('orphan stop respects Windows Force Stop requirement and Unix SIGTERM grace
     pid: 71003,
     startedAt: '2026-11-27T09:00:00.000Z',
     canGracefulStop: true,
+    state: 'alive',
     runId: unixRun.id,
     processIdentity: 'linux:boot:3',
   });
@@ -915,6 +918,66 @@ test('an orphan that cannot be inspected stays tracked, blocks operations, and i
   assert.equal(readRun().end_reason, 'stopped');
 });
 
+test('the user can dismiss a detached process the panel cannot inspect, but not one confirmed to be the server', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager, InstanceOperationConflictError } = await import('./process-manager.js');
+  const { initDb, getDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { createRunHistoryTracker } = await import('./run-history-service.js');
+
+  const { defaultInstanceDir } = await import('../utils/path.js');
+  initDb();
+  const inst = createInstance({ name: 'dismissable-orphan' });
+  fs.writeFileSync(path.join(defaultInstanceDir(inst.id), 'server.jar'), 'stub-jar');
+  let state: 'alive' | 'dead' | 'unknown' = 'unknown';
+  const signals: number[] = [];
+  const spawned: number[] = [];
+  const manager = new ProcessManager(
+    () => { spawned.push(1); return fakeChild(); },
+    async () => 'java',
+    {
+      captureIdentitySync: () => null,
+      captureIdentityAsync: async () => null,
+      inspectTrackedProcess: async () => state,
+      isTrackedProcessPresentSync: () => state !== 'dead',
+      signalProcess: (pid) => { signals.push(pid); },
+    },
+  );
+  getDb()
+    .prepare('INSERT INTO instance_runs (instance_id, started_at, pid, process_identity) VALUES (?, ?, ?, ?)')
+    .run(inst.id, '2026-11-27T09:00:00.000Z', 74001, 'win32:1');
+  const tracker = createRunHistoryTracker({ events: manager, inspectProcess: async () => state, canGracefulStop: () => false });
+  tracker.attach();
+  t.after(() => tracker.detach());
+  tracker.recoverInterrupted((await tracker.recoverOrphanProcesses()).activeRunIds);
+  const readRun = () => getDb()
+    .prepare('SELECT ended_at, end_reason FROM instance_runs WHERE instance_id = ?')
+    .get(inst.id) as { ended_at: string | null; end_reason: string | null };
+
+  assert.equal(manager.getOrphanProcess(inst.id)?.state, 'unknown');
+
+  // Confirmed to still be this server: it has to be stopped, and the record stays.
+  state = 'alive';
+  await assert.rejects(
+    () => manager.dismissOrphan(inst.id),
+    (err: unknown) => err instanceof InstanceOperationConflictError
+      && err.messageKey === 'server.instance.orphanDismissAlive'
+      && err.statusCode === 409,
+  );
+  assert.equal(manager.getOrphanProcess(inst.id)?.state, 'alive');
+  assert.equal(readRun().ended_at, null);
+
+  // Unverifiable again: dismissing clears it without signalling anything, closes the run, and the instance starts.
+  state = 'unknown';
+  await manager.dismissOrphan(inst.id);
+  assert.equal(manager.getOrphanProcess(inst.id), null);
+  assert.deepEqual(signals, []);
+  assert.equal(readRun().end_reason, 'stopped');
+  await manager.dismissOrphan(inst.id);
+  await manager.start(getInstanceRow(inst.id)! as InstanceRow);
+  assert.equal(spawned.length, 1);
+});
+
 test('status reads re-inspect a detached process in the background and drop it once its PID belongs to something else', async (t) => {
   prepareTempDataRoot(t);
   const { ProcessManager } = await import('./process-manager.js');
@@ -940,6 +1003,7 @@ test('status reads re-inspect a detached process in the background and drop it o
     pid: 73001,
     startedAt: '2026-11-27T08:59:00.000Z',
     canGracefulStop: false,
+    state: 'alive',
     runId: 1,
     processIdentity: 'win32:1',
   });
