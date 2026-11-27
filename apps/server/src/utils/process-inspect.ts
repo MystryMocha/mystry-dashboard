@@ -74,16 +74,23 @@ export function isProcessAliveSync(pid: number): boolean {
   }
 }
 
-/** Reads the start-time tick field (field 22) from `/proc/<pid>/stat` on Linux. */
+/**
+ * Returns the start-time tick field (field 22) of a `/proc/<pid>/stat` line. The command name in field 2 may itself
+ * contain spaces and `)`, so fields are counted from the last `)`.
+ */
+export function parseProcStatStartTicks(stat: string): string | null {
+  const rparen = stat.lastIndexOf(')');
+  if (rparen === -1) return null;
+  const fields = stat.slice(rparen + 2).trim().split(/\s+/);
+  const ticks = fields[19];
+  return ticks && /^\d+$/.test(ticks) ? ticks : null;
+}
+
+/** Reads the start-time tick field from `/proc/<pid>/stat` on Linux. */
 export function readLinuxProcStartTicksSync(pid: number): string | null {
   if (!Number.isSafeInteger(pid) || pid <= 0) return null;
   try {
-    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
-    const rparen = stat.lastIndexOf(')');
-    if (rparen === -1) return null;
-    const fields = stat.slice(rparen + 2).trim().split(/\s+/);
-    const ticks = fields[19];
-    return ticks && /^\d+$/.test(ticks) ? ticks : null;
+    return parseProcStatStartTicks(fs.readFileSync(`/proc/${pid}/stat`, 'utf8'));
   } catch {
     return null;
   }
@@ -215,7 +222,9 @@ export async function inspectTrackedProcess(
     return readLinuxProcStartTicksSync(candidate.pid) === null ? stateWhenUninspectable(candidate) : 'dead';
   }
   if (process.platform === 'win32') {
-    const script = `${WIN32_POWERSHELL_PREAMBLE} try { $p = Get-Process -Id ${candidate.pid} -ErrorAction Stop; [PSCustomObject]@{ name=$p.ProcessName; startMs=[int64](($p.StartTime.ToUniversalTime() - [datetime]'1970-01-01T00:00:00Z').TotalMilliseconds) } | ConvertTo-Json -Compress } catch {}`;
+    // PowerShell reads a literal such as [datetime]'1970-01-01T00:00:00Z' as local time, so subtracting an epoch built
+    // that way is off by the UTC offset; DateTimeOffset converts the local start time on its own.
+    const script = `${WIN32_POWERSHELL_PREAMBLE} try { $p = Get-Process -Id ${candidate.pid} -ErrorAction Stop; [PSCustomObject]@{ name=$p.ProcessName; startMs=([DateTimeOffset]$p.StartTime).ToUnixTimeMilliseconds() } | ConvertTo-Json -Compress } catch {}`;
     try {
       const { stdout } = await execFileAsync(
         powershellExecutable(),
