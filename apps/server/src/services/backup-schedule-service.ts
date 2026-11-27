@@ -5,7 +5,6 @@ import {
   type BackupInfo,
   type BackupScheduleInfo,
   type BackupScheduleInput,
-  type InstanceStatus,
   type PanelMessage,
 } from '@mystry/shared';
 import { getDb, type BackupScheduleRow } from '../db.js';
@@ -161,8 +160,8 @@ function noteCount(instanceId: string): number {
 /**
  * Records that the instance's files may no longer match its latest scheduled backup: they were changed through the
  * panel, or the server ran. The column keeps the name of the reason it was first made for. Never throws: it is called
- * after a change that has already been made, which must not be reported as failed, and from a process status event,
- * which is also emitted from inside the child's exit handler.
+ * after a change that has already been made, which must not be reported as failed, and from the spawn event, where a
+ * throw would fail a start whose server is already running.
  */
 export function noteInstanceFilesChanged(instanceId: string): void {
   // Counted even when the column is already set: a run under way would otherwise clear it when it ends.
@@ -176,16 +175,14 @@ export function noteInstanceFilesChanged(instanceId: string): void {
   }
 }
 
-export function noteInstanceStatus(instanceId: string, status: InstanceStatus): void {
-  if (status === 'running') noteInstanceFilesChanged(instanceId);
-}
-
 let lifecycleAttached = false;
 
 export function attachBackupScheduleLifecycle(): void {
   if (lifecycleAttached) return;
   lifecycleAttached = true;
-  processManager.on('status', noteInstanceStatus);
+  // Counted from the spawn, when the run is recorded with its PID, rather than from the first output line: a panel
+  // that dies in between leaves a detached server it never saw running.
+  processManager.on('spawned', (instanceId: string) => noteInstanceFilesChanged(instanceId));
 }
 
 /** Marks every slot up to `slot` as settled. Never moves backwards: the schedule may have been saved again while a backup ran. */
@@ -357,7 +354,7 @@ export function createBackupScheduler(options: BackupSchedulerOptions = {}): Bac
         continue;
       }
       // An instance in the middle of something is asked again at the next check, and before it is judged unchanged:
-      // a server on its way up does not count as having run yet, and a restore has not replaced the files yet.
+      // a server on its way up may not have been spawned yet, and a restore has not replaced the files yet.
       const status = processManager.getStatus(instanceId);
       if (status === 'starting' || status === 'stopping' || processManager.getMaintenance(instanceId) !== null) continue;
       // Another copy of files that have not changed would only push an older, different one out of the kept set.

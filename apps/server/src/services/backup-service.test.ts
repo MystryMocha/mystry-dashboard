@@ -716,7 +716,11 @@ async function scheduling(timeZone = 'UTC') {
     },
     info: (id: string) => service.getBackupSchedule(id),
     scheduled: (id: string) => listBackups(id).filter((backup) => backup.source === 'scheduled'),
-    serverRan: (id: string) => processManager.emit('status', id, 'running'),
+    /** A start as the process manager reports it: the spawn, then the first output line. */
+    serverRan(id: string) {
+      processManager.emit('spawned', id, 4321, null);
+      processManager.emit('status', id, 'running');
+    },
   };
 }
 
@@ -748,6 +752,20 @@ test('a scheduled backup is queued when its time of day comes, once a day, and n
   await s.checkAt('2026-06-02T04:01:00Z');
   await s.checkAt('2026-06-02T23:59:00Z');
   assert.equal(s.scheduled(id).length, 1, '同一天只备份一次');
+});
+
+test('a server counts as having run from its spawn, before its first line: a panel that dies in between leaves it detached', async () => {
+  const { id } = await setup();
+  const { processManager } = await import('./process-manager.js');
+  const s = await scheduling();
+  s.enable(id, '04:00', '2026-06-01T10:00:00Z');
+  await s.checkAt('2026-06-02T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 1);
+
+  // The run is recorded with its PID on spawn; the panel never sees the server running.
+  processManager.emit('spawned', id, 4321, null);
+  await s.checkAt('2026-06-03T04:00:00Z');
+  assert.equal(s.scheduled(id).length, 2, '已启动过的服务器即使面板没看到运行也算改动过');
 });
 
 test('a scheduled backup is skipped while the server has not run since the last one, unless that backup is gone', async () => {
