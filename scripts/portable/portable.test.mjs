@@ -1432,3 +1432,27 @@ test('openBrowser handles missing browser launcher without crashing the controll
   assert.match(result.output, /面板地址：/);
   assert.match(result.output, /无法自动打开浏览器/);
 });
+
+test('a stale panel data lock from before OS boot does not make status report shutting down when its PID is recycled', async (t) => {
+  const { home, env } = await fakePanelHome(t, 'mystry-ctl-preboot-panel-lock-');
+  const lockDir = path.join(home, 'data', '.mystry-panel-lock');
+  await fsp.mkdir(lockDir, { recursive: true });
+  // Choose a guaranteed live PID from a different process (PID 4 on Windows or 1 on POSIX).
+  const recycledLivePid = process.platform === 'win32' ? 4 : 1;
+  await fsp.writeFile(
+    path.join(lockDir, 'owner.json'),
+    JSON.stringify({
+      pid: recycledLivePid,
+      fingerprint: 'old-boot-fingerprint',
+      version: '0.0.0',
+      createdAt: new Date(Date.now() - os.uptime() * 1000 - 60_000).toISOString(),
+      ...(process.platform === 'linux' ? { bootId: 'previous-boot-id' } : {}),
+    }),
+    'utf8',
+  );
+
+  const status = await runController('status', env);
+  assert.equal(status.code, 0, status.output);
+  assert.match(status.output, /状态：未运行/);
+  assert.doesNotMatch(status.output, /正在关闭/);
+});

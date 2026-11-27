@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline/promises';
@@ -398,11 +399,46 @@ function isManagerProcessAlive(pid) {
   }
 }
 
+const BOOT_TIME_SKEW_MS = 5_000;
+let cachedBootId;
+
+function readBootId() {
+  if (cachedBootId !== undefined) return cachedBootId;
+  if (process.platform !== 'linux') {
+    cachedBootId = null;
+    return null;
+  }
+  try {
+    cachedBootId = fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim() || null;
+  } catch {
+    cachedBootId = null;
+  }
+  return cachedBootId;
+}
+
+function isLockOwnerFromPreviousBoot(owner) {
+  const currentBootId = readBootId();
+  if (typeof owner?.bootId === 'string' && currentBootId && owner.bootId !== currentBootId) {
+    return true;
+  }
+  if (typeof owner?.createdAt === 'string') {
+    const createdMs = Date.parse(owner.createdAt);
+    const uptimeSec = os.uptime();
+    if (Number.isFinite(createdMs) && Number.isFinite(uptimeSec) && uptimeSec >= 0) {
+      const bootTimeMs = Date.now() - uptimeSec * 1000;
+      if (createdMs < bootTimeMs - BOOT_TIME_SKEW_MS) return true;
+    }
+  }
+  return false;
+}
+
 /** The PID of a live panel process holding the data directory, or null. */
 function panelDataLockHolder() {
   try {
     const owner = JSON.parse(fs.readFileSync(panelDataLockOwnerPath, 'utf8'));
-    return Number.isSafeInteger(owner?.pid) && owner.pid !== process.pid && isProcessAlive(owner.pid) ? owner.pid : null;
+    if (!Number.isSafeInteger(owner?.pid) || owner.pid === process.pid) return null;
+    if (isLockOwnerFromPreviousBoot(owner)) return null;
+    return isProcessAlive(owner.pid) ? owner.pid : null;
   } catch {
     return null;
   }

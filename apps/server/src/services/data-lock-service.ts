@@ -1,10 +1,12 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { nanoid } from 'nanoid';
 import { config } from '../config.js';
 import { writeFileAtomic } from '../utils/atomic-write.js';
 import { hasErrorCode } from '../utils/errors.js';
+import { isTimestampBeforeBoot, readLinuxBootId } from '../utils/process-inspect.js';
 
 const require = createRequire(import.meta.url);
 const panelVersion: string = (require('../../package.json') as { version: string }).version;
@@ -17,7 +19,12 @@ export type PanelLockOwner = {
   fingerprint: string;
   version: string;
   createdAt: string;
+  /** Kernel boot UUID on Linux; lets a restarted OS reject a recycled PID even within clock skew. */
+  bootId?: string;
 };
+
+/** Fingerprints actively held by this Node process per resolved lock directory, used to tell in-process double-acquire apart from post-crash PID reuse. */
+const activeLocks = new Map<string, Set<string>>();
 
 export type PanelDataLock = {
   dataDir: string;
@@ -107,6 +114,64 @@ function lockConflictError(dataDir: string, owner: PanelLockOwner | null): Error
   );
 }
 
+export type LockStalenessOptions = {
+  now?: () => number;
+  uptimeSeconds?: () => number;
+  bootId?: string | null;
+  isAlive?: (pid: number) => boolean;
+  currentPid?: number;
+};
+
+/**
+ * Determines whether an existing lock owner file belongs to a vanished run (dead PID, pre-boot run,
+ * or our own PID reused after an earlier panel crash).
+ */
+export function isPanelLockOwnerStale(
+  owner: PanelLockOwner,
+  lockDir: string,
+  options?: LockStalenessOptions,
+): boolean {
+  const resolvedLockDir = path.resolve(lockDir);
+  if (activeLocks.get(resolvedLockDir)?.has(owner.fingerprint)) {
+    return false;
+  }
+  const currentPid = options?.currentPid ?? process.pid;
+  // Since the current process is starting up and does not hold this lock fingerprint in memory,
+  // matching PIDs on disk come from a recycled PID assigned after an earlier panel exited abnormally.
+  if (owner.pid === currentPid) {
+    return true;
+  }
+  const currentBootId = options && 'bootId' in options ? (options.bootId ?? null) : readLinuxBootId();
+  if (owner.bootId && currentBootId && owner.bootId !== currentBootId) {
+    return true;
+  }
+  const nowMs = options?.now ? options.now() : Date.now();
+  const uptimeSec = options?.uptimeSeconds ? options.uptimeSeconds() : os.uptime();
+  if (isTimestampBeforeBoot(owner.createdAt, nowMs, uptimeSec)) {
+    return true;
+  }
+  const aliveFn = options?.isAlive ?? isProcessAlive;
+  return !aliveFn(owner.pid);
+}
+
+function registerActiveLock(lockDir: string, fingerprint: string): void {
+  const resolvedLockDir = path.resolve(lockDir);
+  let set = activeLocks.get(resolvedLockDir);
+  if (!set) {
+    set = new Set<string>();
+    activeLocks.set(resolvedLockDir, set);
+  }
+  set.add(fingerprint);
+}
+
+function unregisterActiveLock(lockDir: string, fingerprint: string): void {
+  const resolvedLockDir = path.resolve(lockDir);
+  const set = activeLocks.get(resolvedLockDir);
+  if (!set) return;
+  set.delete(fingerprint);
+  if (set.size === 0) activeLocks.delete(resolvedLockDir);
+}
+
 function tryAcquireOnce(dataDir: string): PanelDataLock | 'exists' {
   fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const lockDir = lockDirPath(dataDir);
@@ -119,11 +184,13 @@ function tryAcquireOnce(dataDir: string): PanelDataLock | 'exists' {
     throw error;
   }
 
+  const bootId = readLinuxBootId();
   const owner: PanelLockOwner = {
     pid: process.pid,
     fingerprint: config.processFingerprint ?? nanoid(16),
     version: panelVersion,
     createdAt: new Date().toISOString(),
+    ...(bootId ? { bootId } : {}),
   };
   try {
     writeOwner(lockDir, owner);
@@ -136,6 +203,7 @@ function tryAcquireOnce(dataDir: string): PanelDataLock | 'exists' {
     throw error;
   }
 
+  registerActiveLock(lockDir, owner.fingerprint);
   let released = false;
   return {
     dataDir,
@@ -144,6 +212,7 @@ function tryAcquireOnce(dataDir: string): PanelDataLock | 'exists' {
     release: () => {
       if (released) return;
       released = true;
+      unregisterActiveLock(lockDir, owner.fingerprint);
       try {
         const current = readOwner(lockDir);
         if (current?.pid === owner.pid && current.fingerprint === owner.fingerprint) {
@@ -159,18 +228,17 @@ function tryAcquireOnce(dataDir: string): PanelDataLock | 'exists' {
 /**
  * Acquires the data directory lifecycle lock; startup is refused when a live PID holds the lock.
  */
-export function acquirePanelDataLock(dataDir: string = config.dataDir): PanelDataLock {
+export function acquirePanelDataLock(
+  dataDir: string = config.dataDir,
+  options?: LockStalenessOptions,
+): PanelDataLock {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const result = tryAcquireOnce(dataDir);
     if (result !== 'exists') return result;
 
     const lockDir = lockDirPath(dataDir);
     const owner = readOwner(lockDir);
-    if (owner && isProcessAlive(owner.pid)) {
-      throw lockConflictError(dataDir, owner);
-    }
-    if (!owner) {
-      // When the owner cannot be parsed, do not risk deleting; treat it as still held
+    if (!owner || !isPanelLockOwnerStale(owner, lockDir, options)) {
       throw lockConflictError(dataDir, owner);
     }
 

@@ -65,3 +65,65 @@ test('a stale lock can be quarantined and taken over only when the original PID 
   assert.ok(quarantined, '陈旧锁应移入 quarantine 目录');
   lock.release();
 });
+
+test('a lock whose PID was recycled by the new process itself or predates OS boot is quarantined and taken over', async (t) => {
+  const { acquirePanelDataLock, isPanelLockOwnerStale } = await import('./data-lock-service.js');
+
+  // Case 1: owner.json carries process.pid from an earlier process that did not unlock (not in activeLocks).
+  const rootSelfPid = prepareTempDataRoot(t);
+  const lockDirSelf = path.join(rootSelfPid, '.mystry-panel-lock');
+  fs.mkdirSync(lockDirSelf, { recursive: true });
+  fs.writeFileSync(
+    path.join(lockDirSelf, 'owner.json'),
+    `${JSON.stringify({
+      pid: process.pid,
+      fingerprint: 'prior-process-fingerprint',
+      version: '0.0.0',
+      createdAt: new Date().toISOString(),
+    })}\n`,
+    'utf8',
+  );
+  const acquiredSelf = acquirePanelDataLock(rootSelfPid);
+  assert.equal(acquiredSelf.owner.pid, process.pid);
+  assert.notEqual(acquiredSelf.owner.fingerprint, 'prior-process-fingerprint');
+  acquiredSelf.release();
+
+  // Case 2: owner.pid belongs to a live PID (e.g. a system process returning EPERM), but lock createdAt predates boot.
+  const rootPreBoot = prepareTempDataRoot(t);
+  const lockDirPreBoot = path.join(rootPreBoot, '.mystry-panel-lock');
+  fs.mkdirSync(lockDirPreBoot, { recursive: true });
+  fs.writeFileSync(
+    path.join(lockDirPreBoot, 'owner.json'),
+    `${JSON.stringify({
+      pid: 4,
+      fingerprint: 'pre-boot-fingerprint',
+      version: '0.0.0',
+      createdAt: new Date(Date.now() - os.uptime() * 1000 - 60_000).toISOString(),
+    })}\n`,
+    'utf8',
+  );
+  const acquiredPreBoot = acquirePanelDataLock(rootPreBoot, { isAlive: () => true });
+  assert.equal(acquiredPreBoot.owner.pid, process.pid);
+  assert.ok(fs.readdirSync(rootPreBoot).some((name) => name.startsWith('.mystry-panel-lock.quarantine.')));
+  acquiredPreBoot.release();
+
+  // Case 3: Different Linux bootId -> stale even with a live PID and recent wall-clock time; same boot with live PID -> conflict.
+  const fakeDir = path.join(rootPreBoot, '.mystry-panel-lock');
+  const recentIso = new Date(Date.now() - 1_000).toISOString();
+  assert.equal(
+    isPanelLockOwnerStale(
+      { pid: 12345, fingerprint: 'other', version: '0.0.0', createdAt: recentIso, bootId: 'boot-old' },
+      fakeDir,
+      { bootId: 'boot-new', isAlive: () => true, uptimeSeconds: () => 3600 },
+    ),
+    true,
+  );
+  assert.equal(
+    isPanelLockOwnerStale(
+      { pid: 12345, fingerprint: 'other', version: '0.0.0', createdAt: recentIso, bootId: 'boot-same' },
+      fakeDir,
+      { bootId: 'boot-same', isAlive: () => true, uptimeSeconds: () => 3600 },
+    ),
+    false,
+  );
+});
