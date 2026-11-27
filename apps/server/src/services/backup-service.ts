@@ -497,6 +497,7 @@ async function enterMaintenance(
   key: 'server.backups.busyBackingUp' | 'server.backups.busyRestoring',
 ): Promise<() => void> {
   return processManager.runExclusive(instanceId, async () => {
+    await processManager.assertNoOrphanProcess(instanceId);
     const status = processManager.getStatus(instanceId);
     if (key === 'server.backups.busyRestoring' && processManager.isRunning(instanceId)) {
       throw new PanelError('server.backups.restoreRunning', undefined, { statusCode: 409 });
@@ -826,6 +827,7 @@ async function restoreBackup(
     });
     report(96, { key: 'server.backups.progress.replacing' });
     return await processManager.runExclusive(instanceId, async () => {
+      await processManager.assertNoOrphanProcess(instanceId);
       if (processManager.isRunning(instanceId)) {
         throw new PanelError('server.backups.restoreRunning', undefined, { statusCode: 409 });
       }

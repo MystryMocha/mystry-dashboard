@@ -36,6 +36,12 @@ export default {
   'files.edit.closeLabel': '關閉編輯',
   'files.edit.contentLabel': '檔案內容：{path}',
   'files.edit.binaryReadOnly': '這是二進位檔案，儲存會把它弄壞，所以這裡只能檢視。',
+  'files.edit.discard.title': '要捨棄尚未儲存的修改嗎？',
+  'files.edit.discard.body': '這個檔案還有尚未儲存的修改，現在關閉會遺失已更改的內容。',
+  'files.edit.discard.confirm': '捨棄修改',
+  'files.edit.unsaved.title': '要捨棄尚未儲存的檔案修改嗎？',
+  'files.edit.unsaved.savingTitle': '正在儲存檔案…',
+  'files.edit.unsaved.description': '離開目前頁面會遺失檔案編輯器中尚未儲存的修改。',
 
   'files.rename.hint': '只能在同一個資料夾內重新命名，名稱裡不能有 / 或 \\。',
   'files.rename.newName': '新名稱',

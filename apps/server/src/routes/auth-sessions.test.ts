@@ -153,7 +153,7 @@ test('old tokens, tickets and console connections are invalidated immediately af
   });
   assert.equal(staleTicketRequest.statusCode, 401);
 
-  assert.equal(await socketClosed, 1008, '旧登录打开的控制台连接必须被断开');
+  assert.equal(await socketClosed, 4401, '旧登录打开的控制台连接必须被断开');
   assert.equal(consumeConsoleTicket(pendingConsoleTicket, instanceId), null);
   assert.equal(getDownloadTicketStatus(reservedDownload, userId)?.status, 'failed');
 

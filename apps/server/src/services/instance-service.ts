@@ -78,6 +78,7 @@ function rowToInfo(row: InstanceRow): InstanceInfo {
       ? { kind: 'java-unavailable', requiredJava: null }
       : processManager.getStartIssue(row.id),
     ready: processManager.isReady(row.id),
+    orphanProcess: processManager.getOrphanProcess(row.id),
   };
 }
 
@@ -386,6 +387,7 @@ export async function deleteInstance(id: string): Promise<void> {
     if (processManager.isRunning(id)) {
       throw new PanelError('server.instance.deleteRunning');
     }
+    await processManager.assertNoOrphanProcess(id);
     processManager.assertNotInMaintenance(id);
     const row = getInstanceRow(id);
     if (!row) return;
@@ -413,13 +415,14 @@ export async function deleteInstance(id: string): Promise<void> {
 
 /** Takes over the default directory for the same instance ID, without reading or operating on the old external directory. */
 export async function adoptManagedDirectory(id: string): Promise<InstanceInfo> {
-  return processManager.runExclusive(id, async () => adoptManagedDirectoryWithinLock(id));
+  return processManager.runExclusive(id, () => adoptManagedDirectoryWithinLock(id));
 }
 
-function adoptManagedDirectoryWithinLock(id: string): InstanceInfo {
+async function adoptManagedDirectoryWithinLock(id: string): Promise<InstanceInfo> {
   if (processManager.isRunning(id)) {
     throw new PanelError('server.instance.adoptRunning');
   }
+  await processManager.assertNoOrphanProcess(id);
   processManager.assertNotInMaintenance(id);
 
   const row = getInstanceRow(id);

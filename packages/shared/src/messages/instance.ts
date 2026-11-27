@@ -39,6 +39,13 @@ export const INSTANCE_MESSAGES = {
   'server.instance.stopStdinUnavailable': 'The instance input stream is unavailable, so the stop command cannot be sent.',
   'server.instance.stopWriteFailed': 'Failed to write the stop command.',
   'server.instance.forgetRunning': 'Process state cannot be cleared while the instance is running.',
+  'server.instance.orphanProcessRunning': 'A previous server process (PID {pid}) is still running for this instance. Stop it before continuing.',
+  'server.instance.orphanProcessUnverified': 'The panel could not confirm whether PID {pid} is still the previous server process of this instance. Check PID {pid} with your system tools, end it if it is that server, then try again.',
+  'server.instance.orphanStopRequiresForce': 'The previous server process (PID {pid}) can no longer receive console commands on Windows. Use Force Stop instead.',
+  'server.instance.orphanStopPending': 'The previous server process (PID {pid}) is still stopping. Wait, or force stop it.',
+  'server.instance.orphanForceStopPending': 'The previous server process (PID {pid}) is still exiting after force stop. Please wait.',
+  'server.instance.orphanSignalFailed': 'Failed to stop the previous server process (PID {pid}): {reason}',
+  'server.instance.orphanDismissAlive': 'PID {pid} is confirmed to still be the previous server process of this instance, so it cannot be dismissed. Stop it instead.',
 
   // Console commands
   'server.instance.commandNotRunning': 'The instance is not running, so the command cannot be sent.',

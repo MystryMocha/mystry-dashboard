@@ -585,6 +585,11 @@ export async function cancelFolderUpload(id: string) {
   return api<{ ok: true }>(folderUploadApi(id), { method: 'DELETE', keepalive: true });
 }
 
+/** Clears a detached process the panel cannot verify, once the user has checked that its PID is not this server. */
+export async function dismissDetachedProcess(instanceId: string): Promise<void> {
+  await api<InstanceInfo>(instanceApi(instanceId, '/detached-process/dismiss'), { method: 'POST' });
+}
+
 export type InstanceAction = 'start' | 'stop' | 'restart';
 
 /** Starts, stops or restarts an instance; while the server is still saving, the error tells the user to wait or force stop. */

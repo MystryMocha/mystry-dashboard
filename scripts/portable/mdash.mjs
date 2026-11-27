@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import net from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import readline from 'node:readline/promises';
@@ -65,8 +66,10 @@ const launcherDir = path.join(dataDir, 'launcher');
 const statePath = path.join(launcherDir, 'state.json');
 // Keeps the name from before the controller became mdash, so an older mystryctl and mdash on the same data directory still exclude each other.
 const lockPath = path.join(launcherDir, 'mystryctl.lock');
-// The panel's own data directory lock. The panel keeps it after it stops answering for as long as a Minecraft server it started is still
-// running, which is how "still shutting down" is told apart from "stopped".
+// The panel's own data directory lock: an exclusive SQLite transaction held for the life of the panel process. The panel keeps it after
+// it stops answering for as long as a Minecraft server it started is still running, which is how "still shutting down" is told apart
+// from "stopped". owner.json beside it only names the holder in messages.
+const panelDataLockDbPath = path.join(dataDir, '.mystry-panel-lock.db');
 const panelDataLockOwnerPath = path.join(dataDir, '.mystry-panel-lock', 'owner.json');
 const stdoutLog = path.join(logDir, 'panel.stdout.log');
 const stderrLog = path.join(logDir, 'panel.stderr.log');
@@ -120,6 +123,136 @@ function setEnvLine(lines, name, value) {
   return true;
 }
 
+// Reads each ACL and rewrites only one that is not already restricted. A rewrite replaces the whole DACL in a single
+// write, so the path never passes through the parent's broader inherited permissions; Windows then propagates the new
+// inheritable entries to every existing file below, which is why a path that is already right is left alone.
+const WINDOWS_ACL_SCRIPT = [
+  "$ErrorActionPreference = 'Stop'",
+  // Windows PowerShell otherwise writes in the console code page, which garbles localized error messages.
+  '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+  '$allowed = @([System.Security.Principal.WindowsIdentity]::GetCurrent().User,',
+  "  [System.Security.Principal.SecurityIdentifier]::new('S-1-5-18'), [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))",
+  '$full = [System.Security.AccessControl.FileSystemRights]::FullControl',
+  '$targets = $env:MDASH_ACL_TARGETS.Split([char]10)',
+  'for ($index = 0; $index -lt $targets.Count; $index++) {',
+  '  $line = $targets[$index]',
+  "  $isDir = $line.StartsWith('D|')",
+  '  $target = $line.Substring(2)',
+  '  try {',
+  '    if ($isDir) { $acl = [System.IO.Directory]::GetAccessControl($target) } else { $acl = [System.IO.File]::GetAccessControl($target) }',
+  "    $inherit = if ($isDir) { [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit' } else { [System.Security.AccessControl.InheritanceFlags]::None }",
+  '    $rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))',
+  '    $restricted = $acl.AreAccessRulesProtected',
+  '    foreach ($rule in $rules) {',
+  "      if ($allowed -notcontains $rule.IdentityReference -or $rule.AccessControlType -ne 'Allow') { $restricted = $false }",
+  '    }',
+  '    foreach ($sid in $allowed) {',
+  '      $granted = $false',
+  '      foreach ($rule in $rules) {',
+  "        if ($rule.IdentityReference -eq $sid -and ($rule.FileSystemRights -band $full) -eq $full -and $rule.InheritanceFlags -eq $inherit -and $rule.PropagationFlags -eq 'None') { $granted = $true }",
+  '      }',
+  '      if (-not $granted) { $restricted = $false }',
+  '    }',
+  "    if ($restricted) { 'ok|' + $index; continue }",
+  '    if ($isDir) { $fresh = [System.Security.AccessControl.DirectorySecurity]::new() } else { $fresh = [System.Security.AccessControl.FileSecurity]::new() }',
+  '    $fresh.SetAccessRuleProtection($true, $false)',
+  "    foreach ($sid in $allowed) { $fresh.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($sid, $full, $inherit, 'None', 'Allow')) }",
+  '    if ($isDir) { [System.IO.Directory]::SetAccessControl($target, $fresh) } else { [System.IO.File]::SetAccessControl($target, $fresh) }',
+  "    'fixed|' + $index",
+  "  } catch { 'error|' + $index + '|' + $_.Exception.Message }",
+  '}',
+].join('\n');
+
+/**
+ * Restricts each existing path to the current user, SYSTEM and Administrators. Returns the paths that could not be
+ * restricted, each with the reason, for warnWindowsAclFailure.
+ */
+function restrictWindowsAcls(targets) {
+  const existing = targets.filter((target) => fs.existsSync(target.path));
+  if (existing.length === 0) return [];
+  const result = spawnSync(
+    path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(WINDOWS_ACL_SCRIPT, 'utf16le').toString('base64')],
+    {
+      encoding: 'utf8',
+      windowsHide: true,
+      // The first rewrite of a data directory with large worlds propagates to every file in it; later starts only read.
+      timeout: 300_000,
+      env: {
+        SystemRoot: process.env.SystemRoot,
+        WINDIR: process.env.WINDIR,
+        MDASH_ACL_TARGETS: existing.map((target) => `${target.directory ? 'D' : 'F'}|${target.path}`).join('\n'),
+      },
+    },
+  );
+  if (result.error || result.status !== 0) {
+    const reason = result.error?.message || result.stderr?.trim() || `exit ${result.status ?? 'unknown'}`;
+    return existing.map((target) => `${target.path} (${reason})`);
+  }
+  // One line per target, keyed by its index: echoing the paths back would depend on the console code page.
+  const reported = new Map();
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const [state, index, ...reason] = line.split('|');
+    if (state === 'ok' || state === 'fixed') reported.set(Number(index), null);
+    else if (state === 'error') reported.set(Number(index), reason.join('|') || 'error');
+  }
+  return existing.flatMap((target, index) => {
+    if (!reported.has(index)) return [`${target.path} (no result)`];
+    const reason = reported.get(index);
+    return reason === null ? [] : [`${target.path} (${reason})`];
+  });
+}
+
+function warnWindowsAclFailure(failures) {
+  if (failures.length === 0) return;
+  console.warn(text(
+    `警告：无法收紧以下 Windows 路径的访问权限：${failures.join('、')}。`
+      + '若所在磁盘不是 NTFS 或权限不足，其他本机账户可能读取配置密钥或数据目录，请手动限制 NTFS 权限。',
+    `Warning: could not restrict Windows permissions on: ${failures.join(', ')}. `
+      + 'On non-NTFS drives or with insufficient rights, other local accounts may read config secrets or data; restrict NTFS permissions manually.',
+  ));
+}
+
+/**
+ * Restricts panel config, data, logs and existing secret/DB files on Windows to the current user,
+ * SYSTEM and Administrators so directories extracted outside the user profile do not keep inherited broad ACLs.
+ * Only these top-level paths are rewritten; instance files and other children pick the result up through inheritance.
+ */
+function tightenWindowsPanelPaths() {
+  if (process.platform !== 'win32') return;
+  const resolvedHome = path.resolve(homeDir);
+  const candidateDirs = [path.dirname(configPath), dataDir, logDir, launcherDir];
+  const configBackupDir = path.join(launcherDir, 'config-backups');
+  if (fs.existsSync(configBackupDir)) candidateDirs.push(configBackupDir);
+
+  const targets = [];
+  for (const dir of candidateDirs) {
+    const resolved = path.resolve(dir);
+    // Source mode places .env directly under the repository root; never strip inheritance from the repo root itself.
+    if (resolved === resolvedHome || targets.some((target) => target.path === resolved)) continue;
+    targets.push({ path: resolved, directory: true });
+  }
+
+  const sensitiveFiles = [
+    configPath,
+    path.join(dataDir, 'panel.db'),
+    path.join(dataDir, 'panel.db-wal'),
+    path.join(dataDir, 'panel.db-shm'),
+    statePath,
+  ];
+  if (fs.existsSync(configBackupDir)) {
+    try {
+      for (const name of fs.readdirSync(configBackupDir)) {
+        sensitiveFiles.push(path.join(configBackupDir, name));
+      }
+    } catch {
+      // Ignore unreadable backup directory; directory tightening failure above will already report it.
+    }
+  }
+  for (const file of sensitiveFiles) targets.push({ path: path.resolve(file), directory: false });
+  warnWindowsAclFailure(restrictWindowsAcls(targets));
+}
+
 async function writeAtomic(filePath, content) {
   await fsp.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
   const temporary = path.join(
@@ -128,7 +261,14 @@ async function writeAtomic(filePath, content) {
   );
   await fsp.writeFile(temporary, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
   await fsp.rename(temporary, filePath);
-  if (process.platform !== 'win32') await fsp.chmod(filePath, 0o600);
+  if (process.platform !== 'win32') {
+    await fsp.chmod(filePath, 0o600);
+  } else if (
+    path.resolve(filePath) === path.resolve(configPath)
+    && path.resolve(path.dirname(filePath)) === path.resolve(homeDir)
+  ) {
+    warnWindowsAclFailure(restrictWindowsAcls([{ path: path.resolve(filePath), directory: false }]));
+  }
 }
 
 async function databaseNeedsSetup() {
@@ -182,6 +322,7 @@ async function ensureConfiguration() {
     fsp.mkdir(logDir, { recursive: true, mode: 0o700 }),
     fsp.mkdir(launcherDir, { recursive: true, mode: 0o700 }),
   ]);
+  tightenWindowsPanelPaths();
 
   const existed = fs.existsSync(configPath);
   const original = existed
@@ -272,18 +413,38 @@ function parsePort(values) {
   return port;
 }
 
-function getConnection(values) {
-  const host = process.env.HOST?.trim() || values?.get('HOST') || '127.0.0.1';
-  const port = parsePort(values);
-  const browserHost = ['0.0.0.0', '::', '[::]'].includes(host) ? '127.0.0.1' : host;
+function connectionForHostPort(host, port) {
+  const normalizedHost = !host || ['0.0.0.0', '::', '[::]'].includes(host) ? '127.0.0.1' : host;
+  const formattedHost = normalizedHost.includes(':') && !normalizedHost.startsWith('[')
+    ? `[${normalizedHost}]`
+    : normalizedHost;
   return {
     port,
-    url: `http://${browserHost}:${port}`,
-    healthUrl: `http://${browserHost}:${port}/api/health`,
-    setupUrl: `http://${browserHost}:${port}/api/auth/setup`,
+    url: `http://${formattedHost}:${port}`,
+    healthUrl: `http://${formattedHost}:${port}/api/health`,
+    setupUrl: `http://${formattedHost}:${port}/api/auth/setup`,
     shutdownUrl: `http://127.0.0.1:${port}/api/launcher/shutdown`,
     resetPasswordUrl: `http://127.0.0.1:${port}/api/launcher/reset-password`,
   };
+}
+
+function getConnection(values) {
+  const host = process.env.HOST?.trim() || values?.get('HOST') || '127.0.0.1';
+  const port = parsePort(values);
+  return connectionForHostPort(host, port);
+}
+
+function connectionFromState(state) {
+  if (typeof state?.url !== 'string' || !state.url) return null;
+  try {
+    const parsed = new URL(state.url);
+    if (parsed.protocol !== 'http:') return null;
+    const port = parsed.port ? Number(parsed.port) : 80;
+    if (!Number.isSafeInteger(port) || port < 1 || port > 65535) return null;
+    return connectionForHostPort(parsed.hostname, port);
+  } catch {
+    return null;
+  }
 }
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 2_000) {
@@ -296,9 +457,9 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 2_000) {
   }
 }
 
-async function getHealth(values, expectedFingerprint = null) {
+async function getHealthForConnection(connection, expectedFingerprint = null) {
+  if (!connection) return null;
   try {
-    const connection = getConnection(values);
     const response = await fetchWithTimeout(connection.healthUrl);
     if (!response.ok) return null;
     const body = await response.json();
@@ -313,6 +474,10 @@ async function getHealth(values, expectedFingerprint = null) {
   } catch {
     return null;
   }
+}
+
+async function getHealth(values, expectedFingerprint = null) {
+  return values ? await getHealthForConnection(getConnection(values), expectedFingerprint) : null;
 }
 
 async function isPortOpen(port) {
@@ -398,25 +563,100 @@ function isManagerProcessAlive(pid) {
   }
 }
 
-/** The PID of a live panel process holding the data directory, or null. */
-function panelDataLockHolder() {
+/**
+ * The PID of a live panel process holding the data directory, or null. Liveness comes from trying to take the lock itself: the
+ * operating system drops it when the holder exits, so a leftover owner.json with a recycled PID is never mistaken for a running panel.
+ */
+async function panelDataLockHolder() {
+  // Opening would create the file; a missing one simply means no panel with this lock has ever run here.
+  if (!fs.existsSync(panelDataLockDbPath)) return null;
+  let database = null;
+  try {
+    const { DatabaseSync } = await import('node:sqlite');
+    database = new DatabaseSync(panelDataLockDbPath, { timeout: 0 });
+    database.exec('BEGIN EXCLUSIVE');
+    database.exec('ROLLBACK');
+    return null;
+  } catch (error) {
+    // Anything other than "busy" (unreadable file, SQLite unavailable) proves nothing about a holder.
+    if (error?.errcode !== 5) return null;
+  } finally {
+    database?.close();
+  }
+  // A panel records itself right after taking the lock. Busy without a record is another launcher probing at the same instant.
   try {
     const owner = JSON.parse(fs.readFileSync(panelDataLockOwnerPath, 'utf8'));
-    return Number.isSafeInteger(owner?.pid) && owner.pid !== process.pid && isProcessAlive(owner.pid) ? owner.pid : null;
+    return Number.isSafeInteger(owner?.pid) && owner.pid !== process.pid ? owner.pid : null;
   } catch {
     return null;
   }
+}
+
+/** Whether a Linux start identity recorded by the panel (`linux:<boot id>:<start ticks>`) still describes the PID. */
+function linuxIdentityMatches(pid, identity) {
+  try {
+    const bootId = fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    const ticks = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/)[19];
+    return identity === `linux:${bootId}:${ticks}`;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Minecraft servers that outlived the panel: runs the database still has open whose PID exists. Stopping the panel only stops the
+ * servers it is attached to, so one it found already running after a crash keeps going, and nothing else would say so.
+ * Only Linux can confirm the PID is still that server without a subprocess. Elsewhere a run from before this boot is skipped, since
+ * its PID can only belong to something else by now (the usual case after the computer was shut down with servers running); a PID
+ * reused within the same boot is still listed, hence "may".
+ */
+async function serversLeftRunning() {
+  const databasePath = path.join(dataDir, 'panel.db');
+  if (!fs.existsSync(databasePath)) return [];
+  let database = null;
+  try {
+    const bootedAtMs = Date.now() - os.uptime() * 1000;
+    const { DatabaseSync } = await import('node:sqlite');
+    database = new DatabaseSync(databasePath, { readOnly: true, timeout: 1_000 });
+    const rows = database
+      .prepare(
+        `SELECT r.pid AS pid, r.process_identity AS identity, r.started_at AS startedAt, i.name AS name
+         FROM instance_runs r INNER JOIN instances i ON i.id = r.instance_id
+         WHERE r.ended_at IS NULL AND r.pid IS NOT NULL`,
+      )
+      .all();
+    return rows.filter((row) => {
+      if (!isProcessAlive(row.pid) || row.pid === process.pid) return false;
+      if (typeof row.identity === 'string' && row.identity.startsWith('linux:')) return linuxIdentityMatches(row.pid, row.identity);
+      const startedMs = Date.parse(row.startedAt);
+      return !(Number.isFinite(startedMs) && startedMs < bootedAtMs - 5_000);
+    });
+  } catch {
+    // An older database without these columns, or one that cannot be read right now: there is nothing reliable to report.
+    return [];
+  } finally {
+    database?.close();
+  }
+}
+
+async function warnServersLeftRunning() {
+  const servers = await serversLeftRunning();
+  if (servers.length === 0) return;
+  const list = servers.map((server) => `${server.name} (PID ${server.pid})`).join(text('、', ', '));
+  console.warn(text(
+    `提醒：面板没有在运行，但这些实例的 Minecraft 服务器可能还在运行：${list}。启动面板后可以在实例页停止它们；面板停着的时候，它们不受面板管理。`,
+    `Note: the panel is not running, but the Minecraft servers of these instances may still be: ${list}. Start the panel to stop them from the instance page; while it is stopped they are not managed.`,
+  ));
 }
 
 function serversStillStoppingMessage(pid) {
   const howToEnd = process.platform === 'win32'
     ? text('在任务管理器里结束它启动的 java.exe', 'end the java.exe it started in Task Manager')
     : text('用 kill 结束它启动的 java 进程', 'end the java process it started with kill');
-  const lockDir = path.dirname(panelDataLockOwnerPath);
-  // The last sentence is for a lock left by a panel that did not shut down (a crash or a power cut) whose PID now belongs to another program.
   return text(
-    `面板进程（PID ${pid}）已经不再响应，但还占着数据目录，通常是在等它启动的 Minecraft 服务器退出。为保护存档，${managerCommand} 不会强制结束它，也不会再启动一个面板。请等它退出后再启动面板；如果一直不退出，可以${howToEnd}，上次自动保存之后的进度会丢失。如果电脑重启过、这个 PID 已经不是面板，确认后删除 ${lockDir} 即可。`,
-    `The panel process (PID ${pid}) no longer responds but still holds the data directory, usually because a Minecraft server it started has not exited yet. To protect your worlds, ${managerCommand} neither forces it to end nor starts another panel. Start the panel once it has exited. If it never does, ${howToEnd}; progress since the last autosave is lost. If the computer has restarted since and this PID is no longer the panel, delete ${lockDir} once you have checked.`,
+    `面板进程（PID ${pid}）已经不再响应，但还占着数据目录，通常是在等它启动的 Minecraft 服务器退出。为保护存档，${managerCommand} 不会强制结束它，也不会再启动一个面板。请等它退出后再启动面板；如果一直不退出，可以${howToEnd}，上次自动保存之后的进度会丢失。`,
+    `The panel process (PID ${pid}) no longer responds but still holds the data directory, usually because a Minecraft server it started has not exited yet. To protect your worlds, ${managerCommand} neither forces it to end nor starts another panel. Start the panel once it has exited. If it never does, ${howToEnd}; progress since the last autosave is lost.`,
   );
 }
 
@@ -424,9 +664,19 @@ function serversStillStoppingMessage(pid) {
  * The PID of a panel that is shutting down but still waiting for its servers: it has closed its port yet still holds the data directory.
  * A panel that is only slow to answer still has its port open, and must not be reported this way: the advice is to end its servers.
  */
-async function panelStillShuttingDown(values) {
-  if (!values || await getHealth(values) || await isPortOpen(getConnection(values).port)) return null;
-  return panelDataLockHolder();
+async function panelStillShuttingDown(values, state = null) {
+  const candidates = [];
+  const fromState = connectionFromState(state);
+  if (fromState) candidates.push(fromState);
+  if (values) {
+    const configured = getConnection(values);
+    if (!candidates.some((c) => c.url === configured.url)) candidates.push(configured);
+  }
+  if (candidates.length === 0) return null;
+  for (const candidate of candidates) {
+    if (await getHealthForConnection(candidate) || await isPortOpen(candidate.port)) return null;
+  }
+  return await panelDataLockHolder();
 }
 
 /**
@@ -470,14 +720,35 @@ async function releaseCurrentManagerLock() {
   await unlinkIfExists(lockPath);
 }
 
+/**
+ * Resolves the active connection of a panel started by this manager, preferring state.json's URL
+ * so port/host edits while running still route stop/status/open/reset-password/remote cleanly.
+ */
+async function findManagedPanel(values, state) {
+  if (!isProcessAlive(state?.pid) || !state?.fingerprint) return null;
+  const fromState = connectionFromState(state);
+  const configured = values ? getConnection(values) : null;
+  const candidates = [];
+  if (fromState) candidates.push(fromState);
+  if (configured && !candidates.some((c) => c.url === configured.url)) {
+    candidates.push(configured);
+  }
+  for (const candidate of candidates) {
+    if (await getHealthForConnection(candidate, state.fingerprint)) {
+      return {
+        connection: candidate,
+        configured,
+        portChanged: Boolean(configured && candidate.port !== configured.port),
+        urlChanged: Boolean(configured && candidate.url !== configured.url),
+      };
+    }
+  }
+  return null;
+}
+
 /** Only when the process recorded in state.json is still alive, and the health check returns the same fingerprint, does it count as a panel started by this manager. */
 async function isManagedPanelRunning(values, state) {
-  return Boolean(
-    values
-    && isProcessAlive(state?.pid)
-    && state?.fingerprint
-    && await getHealth(values, state.fingerprint),
-  );
+  return Boolean(await findManagedPanel(values, state));
 }
 
 function checkJava() {
@@ -526,8 +797,10 @@ async function waitForHealth(
 }
 
 const OPEN_URL_COMMANDS = { win32: 'explorer.exe', darwin: 'open' };
-async function openBrowser(values, { announce = true } = {}) {
-  const url = getConnection(values).url;
+async function openBrowser(target, { announce = true } = {}) {
+  const url = target && typeof target === 'object' && 'url' in target
+    ? target.url
+    : getConnection(target).url;
   if (announce) console.log(text(`面板地址：${url}`, `Panel URL: ${url}`));
   if (process.env.MYSTRY_NO_BROWSER === '1') return;
   // Under SSH login the browser would open on the server where the user cannot see it; showRemoteAccessOnStart explains how to open it from outside instead.
@@ -622,13 +895,14 @@ async function resetPassword() {
     ));
   }
   const values = await loadConfiguration();
-  if (!(await isManagedPanelRunning(values, await readState()))) {
+  const managed = await findManagedPanel(values, await readState());
+  if (!managed) {
     throw new Error(text('面板未运行。请先启动面板，再重置密码。', 'The panel is not running. Start it first, then reset the password.'));
   }
   const password = randomPassword();
-  const response = await fetchWithTimeout(getConnection(values).resetPasswordUrl, {
+  const response = await fetchWithTimeout(managed.connection.resetPasswordUrl, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-launcher-token': values.get('LAUNCHER_TOKEN') },
+    headers: { 'content-type': 'application/json', 'x-launcher-token': values?.get('LAUNCHER_TOKEN') ?? '' },
     body: JSON.stringify({ password }),
   }, 15_000);
   if (!response.ok) {
@@ -656,12 +930,19 @@ async function prepareStart() {
     throw new Error(text(`找不到服务端构建产物：${serverEntry}`, `Server build not found: ${serverEntry}`));
   }
   const configuration = await ensureConfiguration();
-  if (await getHealth(configuration.values)) {
-    if (await isManagedPanelRunning(configuration.values, await readState())) {
-      console.log(text('面板已经在运行。', 'The panel is already running.'));
-      await openBrowser(configuration.values);
-      return null;
+  const managed = await findManagedPanel(configuration.values, await readState());
+  if (managed) {
+    console.log(text('面板已经在运行。', 'The panel is already running.'));
+    if (managed.urlChanged && managed.configured) {
+      console.log(text(
+        `当前面板运行在 ${managed.connection.url}，新配置（${managed.configured.url}）将在重启后生效。`,
+        `The panel is currently running at ${managed.connection.url}; the configured address (${managed.configured.url}) will take effect after restart.`,
+      ));
     }
+    await openBrowser(managed.connection);
+    return null;
+  }
+  if (await getHealth(configuration.values)) {
     throw new Error(text(
       '端口上已有无法由当前 mdash 指纹确认的面板，拒绝接管。',
       'A panel on this port does not match the fingerprint recorded by mdash; refusing to take it over.',
@@ -672,7 +953,7 @@ async function prepareStart() {
     throw new Error(text(`端口 ${connection.port} 已被其他程序占用。`, `Port ${connection.port} is already in use by another program.`));
   }
   // Otherwise the new panel would only fail to take the data directory, and say so after the full 60-second wait.
-  const holder = panelDataLockHolder();
+  const holder = await panelDataLockHolder();
   if (holder !== null) throw new Error(serversStillStoppingMessage(holder));
   checkJava();
   return { configuration, connection };
@@ -722,11 +1003,12 @@ const REMOTE_ERROR_TEXT = {
 };
 
 /** Calls the launcher endpoints that accept only this machine and LAUNCHER_TOKEN; the token does not go into output. */
-async function launcherRequest(values, method, pathname, body) {
-  const response = await fetchWithTimeout(`http://127.0.0.1:${parsePort(values)}${pathname}`, {
+async function launcherRequest(values, method, pathname, body, connection = null) {
+  const targetPort = (connection ?? getConnection(values)).port;
+  const response = await fetchWithTimeout(`http://127.0.0.1:${targetPort}${pathname}`, {
     method,
     headers: {
-      'x-launcher-token': values.get('LAUNCHER_TOKEN') ?? '',
+      'x-launcher-token': values?.get('LAUNCHER_TOKEN') ?? '',
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -744,8 +1026,8 @@ async function launcherRequest(values, method, pathname, body) {
   return payload;
 }
 
-const getRemoteStatus = (values) => launcherRequest(values, 'GET', '/api/launcher/remote-access');
-const setDirectAccess = (values, body) => launcherRequest(values, 'PUT', '/api/launcher/remote-access/direct', body);
+const getRemoteStatus = (values, connection = null) => launcherRequest(values, 'GET', '/api/launcher/remote-access', undefined, connection);
+const setDirectAccess = (values, body, connection = null) => launcherRequest(values, 'PUT', '/api/launcher/remote-access/direct', body, connection);
 
 /** Same defaults as the UI: all interfaces, HTTPS, no source restriction; existing settings keep their security options. */
 function directAccessRequest(status, overrides) {
@@ -904,21 +1186,22 @@ function remoteUsage() {
 async function remoteCommand(args) {
   const [action = '', argument] = args;
   const values = await loadConfiguration();
-  const running = await isManagedPanelRunning(values, await readState());
-  if (!running) {
+  const managed = await findManagedPanel(values, await readState());
+  if (!managed) {
     if (action === 'status') {
       console.log(text('状态：未运行', 'Status: stopped'));
       return;
     }
     throw new Error(text('面板未运行。请先启动面板。', 'The panel is not running. Start it first.'));
   }
+  const connection = managed.connection;
   if (action === 'status') {
-    printRemoteStatus(await getRemoteStatus(values));
+    printRemoteStatus(await getRemoteStatus(values, connection));
     return;
   }
   if (action === '') {
     // "Access from other devices" in the menu: shows the status, and can toggle it directly in a terminal.
-    const status = await getRemoteStatus(values);
+    const status = await getRemoteStatus(values, connection);
     printRemoteStatus(status);
     if (status.managedByConfig || !process.stdin.isTTY || !process.stdout.isTTY) return;
     const enable = !status.direct.enabled;
@@ -926,25 +1209,25 @@ async function remoteCommand(args) {
       ? text('\n现在开启吗？[y/N] ', '\nTurn it on now? [y/N] ')
       : text('\n现在关闭吗？[y/N] ', '\nTurn it off now? [y/N] '), false);
     if (!confirmed) return;
-    const next = await setDirectAccess(values, directAccessRequest(status, { enabled: enable }));
+    const next = await setDirectAccess(values, directAccessRequest(status, { enabled: enable }), connection);
     console.log(enable ? remoteAccessLines(next).join('\n') : text('已关闭从其他设备访问。', 'Access from other devices is off.'));
     return;
   }
   if (action === 'on') {
-    const status = await getRemoteStatus(values);
-    const next = await setDirectAccess(values, directAccessRequest(status, { enabled: true, interfaceName: argument ?? null }));
+    const status = await getRemoteStatus(values, connection);
+    const next = await setDirectAccess(values, directAccessRequest(status, { enabled: true, interfaceName: argument ?? null }), connection);
     console.log(remoteAccessLines(next).join('\n'));
     return;
   }
   if (action === 'off') {
-    const status = await getRemoteStatus(values);
-    await setDirectAccess(values, directAccessRequest(status, { enabled: false }));
+    const status = await getRemoteStatus(values, connection);
+    await setDirectAccess(values, directAccessRequest(status, { enabled: false }), connection);
     console.log(text('已关闭从其他设备访问。', 'Access from other devices is off.'));
     return;
   }
   if (action === 'https' && (argument === 'on' || argument === 'off')) {
-    const status = await getRemoteStatus(values);
-    const next = await setDirectAccess(values, directAccessRequest(status, { https: argument === 'on' }));
+    const status = await getRemoteStatus(values, connection);
+    const next = await setDirectAccess(values, directAccessRequest(status, { https: argument === 'on' }), connection);
     console.log(argument === 'on'
       ? text('已开启 HTTPS。', 'HTTPS is on.')
       : text('已关闭 HTTPS，连接不再加密。', 'HTTPS is off. The connection is no longer encrypted.'));
@@ -952,7 +1235,7 @@ async function remoteCommand(args) {
     return;
   }
   if (action === 'renew-cert') {
-    const next = await launcherRequest(values, 'POST', '/api/launcher/remote-access/certificate');
+    const next = await launcherRequest(values, 'POST', '/api/launcher/remote-access/certificate', undefined, connection);
     console.log(text(
       `已重新生成证书，浏览器需要重新确认一次。新指纹（SHA-256）：${next.certificate?.fingerprint256 ?? ''}`,
       `The certificate was regenerated, and browsers will ask you to confirm again. New fingerprint (SHA-256): ${next.certificate?.fingerprint256 ?? ''}`,
@@ -1234,24 +1517,31 @@ async function startAndWatch() {
 async function stopPanel() {
   const values = await loadConfiguration();
   const state = await readState();
-  if (!(await isManagedPanelRunning(values, state))) {
+  const managed = await findManagedPanel(values, state);
+  if (!managed) {
     if (values && await getHealth(values)) {
       throw new Error(text(
         '检测到面板服务，但 PID 或进程指纹不匹配；拒绝停止未知进程。',
         'A panel is responding, but its PID or process fingerprint does not match; refusing to stop an unknown process.',
       ));
     }
-    const holder = await panelStillShuttingDown(values);
+    const holder = await panelStillShuttingDown(values, state);
     if (holder !== null) throw new Error(serversStillStoppingMessage(holder));
     if (!isProcessAlive(state?.pid)) await clearState();
     console.log(text('面板未运行。', 'The panel is not running.'));
     return;
   }
-  const launcherToken = values.get('LAUNCHER_TOKEN');
+  const launcherToken = values?.get('LAUNCHER_TOKEN');
   if (!launcherToken || !SECRET_PATTERN.test(launcherToken)) {
     throw new Error(text('LAUNCHER_TOKEN 缺失或格式无效，无法安全停止面板。', 'LAUNCHER_TOKEN is missing or invalid; cannot stop the panel safely.'));
   }
-  const connection = getConnection(values);
+  if (managed.portChanged && managed.configured) {
+    console.log(text(
+      `当前配置端口（${managed.configured.port}）与运行中的面板（${managed.connection.url}）不同，将停止运行中的面板。`,
+      `Configured port (${managed.configured.port}) differs from the running panel (${managed.connection.url}); stopping the running panel.`,
+    ));
+  }
+  const connection = managed.connection;
   const response = await fetchWithTimeout(
     connection.shutdownUrl,
     {
@@ -1285,11 +1575,12 @@ async function stopPanel() {
   let waitingForServers = false;
   let heldSince = null;
   while (Date.now() < deadline) {
-    if (!(await getHealth(values, state.fingerprint))) {
+    if (!(await getHealthForConnection(connection, state.fingerprint))) {
       // The panel stops answering before its servers are sure to be gone; while one is still running it keeps the data directory.
-      if (panelDataLockHolder() === null) {
+      if ((await panelDataLockHolder()) === null) {
         await clearState();
         console.log(text('面板已停止。', 'The panel has stopped.'));
+        await warnServersLeftRunning();
         return;
       }
       heldSince ??= Date.now();
@@ -1304,7 +1595,7 @@ async function stopPanel() {
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  const holder = panelDataLockHolder();
+  const holder = await panelDataLockHolder();
   // State is kept: the process is still there, and a restart must not go on to start a second panel.
   if (heldSince !== null && holder !== null) throw new Error(serversStillStoppingMessage(holder));
   throw new Error(text(
@@ -1316,19 +1607,26 @@ async function stopPanel() {
 async function showStatus() {
   const values = await loadConfiguration();
   const state = await readState();
-  if (await isManagedPanelRunning(values, state)) {
-    const connection = getConnection(values);
-    console.log(text(`状态：运行中  ${connection.url}`, `Status: running  ${connection.url}`));
+  const managed = await findManagedPanel(values, state);
+  if (managed) {
+    console.log(text(`状态：运行中  ${managed.connection.url}`, `Status: running  ${managed.connection.url}`));
+    if (managed.urlChanged && managed.configured) {
+      console.log(text(
+        `当前配置已改为 ${managed.configured.url}，重启面板后生效。`,
+        `Configuration now specifies ${managed.configured.url}; restart the panel to apply it.`,
+      ));
+    }
     if (state?.pid) console.log(text(`PID：${state.pid}`, `PID: ${state.pid}`));
     return;
   }
-  const holder = await panelStillShuttingDown(values);
+  const holder = await panelStillShuttingDown(values, state);
   if (holder !== null) {
     console.log(text(`状态：正在关闭（PID ${holder}）`, `Status: shutting down (PID ${holder})`));
     console.warn(serversStillStoppingMessage(holder));
     return;
   }
   console.log(text('状态：未运行', 'Status: stopped'));
+  await warnServersLeftRunning();
   if (values && await getHealth(values)) {
     console.warn(text(
       '配置端口存在面板服务，但 PID 或进程指纹不匹配；不会自动接管或停止。',
@@ -1420,13 +1718,17 @@ const STOPPED_MENU = [
 
 async function interactiveMenu() {
   const values = await loadConfiguration();
-  const running = await isManagedPanelRunning(values, await readState());
+  const state = await readState();
+  const running = await isManagedPanelRunning(values, state);
   const menu = running ? RUNNING_MENU : STOPPED_MENU;
   console.log(text(`Mystry Dashboard ${managerLabel}`, `Mystry Dashboard (${managerLabel})`));
-  const holder = running ? null : await panelStillShuttingDown(values);
+  const holder = running ? null : await panelStillShuttingDown(values, state);
   if (running) console.log(text('状态：运行中', 'Status: running'));
   else if (holder !== null) console.log(text(`状态：正在关闭（PID ${holder} 在等 Minecraft 服务器退出）`, `Status: shutting down (PID ${holder} is waiting for Minecraft servers to exit)`));
-  else console.log(text('状态：未运行', 'Status: stopped'));
+  else {
+    console.log(text('状态：未运行', 'Status: stopped'));
+    await warnServersLeftRunning();
+  }
   console.log('');
   for (const [key, , label] of menu) console.log(`[${key}] ${label}`);
   console.log(text('[0] 退出', '[0] Exit'));
@@ -1464,7 +1766,9 @@ async function runCommand(command, args = []) {
     return;
   }
   if (command === 'open') {
-    await openBrowser(await loadConfiguration());
+    const values = await loadConfiguration();
+    const managed = await findManagedPanel(values, await readState());
+    await openBrowser(managed ? managed.connection : values);
     return;
   }
   if (command === 'reset-password') {

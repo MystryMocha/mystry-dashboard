@@ -96,7 +96,7 @@ X-Setup-Token: <SETUP_TOKEN>
 
 - 此前签发的所有 JWT 在下一次请求时返回 401。修改密码的响应附带新令牌，发起修改的会话可继续使用；重置密码不签发令牌，所有会话均须重新登录。
 - 由旧令牌签发且尚未使用的控制台 ticket，以及尚未开流的下载 ticket，同时作废；下载 ticket 状态变为 `failed`。
-- 已打开的控制台 WebSocket 以关闭码 **1008** 断开，客户端须以当前有效的令牌重新申请 ticket。
+- 已打开的控制台 WebSocket 以关闭码 **4401** 断开，客户端须以当前有效的令牌重新申请 ticket。
 - 已开始传输的下载不会中断，因其在开流时已通过授权。
 
 0.2.0-preview.3 及更早版本签发的令牌不含 `tv`，按版本 0 处理：升级后在过期前仍可使用，首次修改或重置密码后失效。旧数据库在启动时自动添加 `token_version` 列，已有用户从 0 起计。
@@ -177,6 +177,7 @@ Java 状态响应的确切结构：
 | POST | `/api/instances/:id/start` | 启动 |
 | POST | `/api/instances/:id/stop` | 停止；`?force=1` 强制终止进程。普通停止超时且仍在停止中时返回 **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
 | POST | `/api/instances/:id/restart` | 重启 |
+| POST | `/api/instances/:id/detached-process/dismiss` | 在 `orphanProcess.state` 为 `unknown`（面板无法确认该 PID 是否仍是该服务器）且用户确认其为其他程序后，清除 `orphanProcess`；同时结束对应的运行记录，不向任何进程发送信号。若已确认该 PID 仍是该服务器，返回 **409** `server.instance.orphanDismissAlive` |
 | POST | `/api/instances/:id/command` | Body：`{ command: string }`，发送控制台命令 |
 | GET | `/api/instances/:id/local-network` | 直连地址 `InstanceLocalNetwork`：`{ port, addresses, publicIpv4, publicIpv6, publicHost, serverIpBlocked, serverIpIsUnboundPublicHost, panelPort, platform }`。只读，不开放端口，也不修改配置 |
 
@@ -448,9 +449,9 @@ POST /api/instances/<id>/console-ticket
 Authorization: Bearer <token>
 ```
 
-然后连接：`ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`。ticket 默认有效期 60 秒，且仅能建立一次连接。修改或重置密码后，未使用的 ticket 作废，已建立的连接以关闭码 1008 断开，见 [令牌失效](#令牌失效)。
+然后连接：`ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`。ticket 默认有效期 60 秒，且仅能建立一次连接。修改或重置密码后，未使用的 ticket 作废，已建立的连接以关闭码 4401 断开，见 [令牌失效](#令牌失效)。
 
-连接数、入站消息大小、命令长度与发送速率的上限，见 [配置说明](configuration.zh-CN.md) 中的 `MAX_CONSOLE_*` 等变量；超出限制时，服务端不向实例 stdin 写入。
+连接数、入站消息大小、命令长度与发送速率的上限，见 [配置说明](configuration.zh-CN.md) 中的 `MAX_CONSOLE_*` 等变量；超出限制时，服务端不向实例 stdin 写入。命令发送超过速率上限的连接以关闭码 4429 断开。客户端接收过慢、发送缓冲区占满时，连接以关闭码 4503 断开，浏览器会自动重连并重新获取历史快照。
 
 ### 服务端 → 客户端消息（JSON）
 

@@ -34,6 +34,12 @@ export default {
   'files.edit.closeLabel': 'Close Editor',
   'files.edit.contentLabel': 'File content: {path}',
   'files.edit.binaryReadOnly': 'This is a binary file. Saving it here would break it, so it can only be viewed.',
+  'files.edit.discard.title': 'Discard unsaved changes?',
+  'files.edit.discard.body': 'Your edits to this file haven\'t been saved yet. Closing now discards them.',
+  'files.edit.discard.confirm': 'Discard Changes',
+  'files.edit.unsaved.title': 'Discard unsaved changes to this file?',
+  'files.edit.unsaved.savingTitle': 'Saving file…',
+  'files.edit.unsaved.description': 'If you leave this page, your unsaved edits in the file editor will be lost.',
 
   'files.rename.hint': 'You can only rename within the same folder. The name can\'t contain / or \\.',
   'files.rename.newName': 'New Name',

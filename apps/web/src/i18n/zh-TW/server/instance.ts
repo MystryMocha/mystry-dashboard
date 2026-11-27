@@ -41,6 +41,13 @@ export default {
   'server.instance.stopStdinUnavailable': '實例輸入串流無法使用，無法傳送停止指令',
   'server.instance.stopWriteFailed': '停止指令寫入失敗',
   'server.instance.forgetRunning': '執行中的實例不能清除程序狀態',
+  'server.instance.orphanProcessRunning': '此實例上次啟動的伺服器程序（PID {pid}）仍在執行中，請先停止後再繼續操作',
+  'server.instance.orphanProcessUnverified': '面板無法確認 PID {pid} 是否仍是此實例上次啟動的伺服器程序。請在系統工具中檢視 PID {pid}，確認是該伺服器後將其結束，然後再試一次',
+  'server.instance.orphanStopRequiresForce': '殘留的伺服器程序（PID {pid}）在 Windows 上已無法接收主控台指令，請改用「強制停止」',
+  'server.instance.orphanStopPending': '殘留的伺服器程序（PID {pid}）仍在停止中，請等候或選擇強制停止',
+  'server.instance.orphanForceStopPending': '殘留的伺服器程序（PID {pid}）仍在強制終止中，請稍候',
+  'server.instance.orphanSignalFailed': '停止殘留的伺服器程序（PID {pid}）失敗：{reason}',
+  'server.instance.orphanDismissAlive': '已確認 PID {pid} 仍是此實例上次啟動的伺服器程序，無法解除佔用，請改為停止它',
 
   // 控制台命令
   'server.instance.commandNotRunning': '實例未在執行，無法傳送指令',

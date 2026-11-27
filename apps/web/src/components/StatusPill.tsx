@@ -25,6 +25,7 @@ export function StatusPill({
 export function InstanceStatusPill({ instance }: { instance: InstanceInfo }) {
   const { t } = useI18n();
   if (instance.requiresMigration) return <StatusPill tone="warning">{t('instance.status.migration')}</StatusPill>;
+  if (instance.orphanProcess) return <StatusPill tone="warning">{t('instance.status.detached')}</StatusPill>;
   const key = instanceStatusKey(instance.status);
   return <StatusPill tone={instance.status}>{key ? t(key) : instance.status}</StatusPill>;
 }

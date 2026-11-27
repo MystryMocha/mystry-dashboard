@@ -39,6 +39,7 @@ import {
   canStopInstance,
   isLifecycleBusy,
   isProcessAlive,
+  isServerRunning,
 } from '../instance-status';
 
 type LoadState = 'loading' | 'loaded' | 'error';
@@ -83,6 +84,7 @@ function ServerRow({
   const { t, fmt } = i18n;
   const state = rowState(inst, t);
   const live = isProcessAlive(inst.status);
+  const hasOrphan = Boolean(inst.orphanProcess);
   const xmxBytes = parseXmxBytes(inst.jvmArgs);
   const memoryBytes = metrics?.instances[inst.id]?.memoryBytes ?? null;
   const coreName = coreDisplayName(inst.coreType, t);
@@ -149,7 +151,7 @@ function ServerRow({
             {state.fix.label}
           </Link>
         )}
-        {!inst.requiresMigration && canStartInstance(inst.status) && (
+        {!inst.requiresMigration && !hasOrphan && canStartInstance(inst.status) && (
           <button className="btn btn-ok" type="button" disabled={busy} onClick={() => onAction('start')}>
             <Play size={14} aria-hidden="true" />
             {t('action.start')}
@@ -167,13 +169,15 @@ function ServerRow({
               key: 'restart',
               label: t('dashboard.row.menu.restart'),
               icon: <RotateCcw size={14} />,
-              disabled: busy || inst.requiresMigration || isLifecycleBusy(inst.status),
+              disabled: busy || inst.requiresMigration || hasOrphan || isLifecycleBusy(inst.status),
               onSelect: onRestart,
             },
             {
               key: 'force-stop',
               label: t('action.forceStop'),
               icon: <Power size={14} />,
+              // A detached process is stopped from its instance page, which offers the stop the platform and the
+              // inspection allow; the row links there.
               disabled: busy || inst.requiresMigration || !isProcessAlive(inst.status),
               onSelect: onForceStop,
             },
@@ -182,8 +186,8 @@ function ServerRow({
               label: t('dashboard.row.menu.delete'),
               icon: <Trash2 size={14} />,
               danger: true,
-              disabled: busy || (!inst.requiresMigration && isProcessAlive(inst.status)),
-              title: !inst.requiresMigration && isProcessAlive(inst.status) ? t('dashboard.row.menu.deleteRunning') : undefined,
+              disabled: busy || (!inst.requiresMigration && (isProcessAlive(inst.status) || hasOrphan)),
+              title: !inst.requiresMigration && (isProcessAlive(inst.status) || hasOrphan) ? t('dashboard.row.menu.deleteRunning') : undefined,
               onSelect: onDelete,
             },
           ]}
@@ -290,12 +294,12 @@ export function DashboardPage() {
     }
   }
 
-  const runningCount = instances.filter((i) => i.status === 'running').length;
+  const runningCount = instances.filter(isServerRunning).length;
   const issueCount = instances.filter(hasIssue).length;
   const loaded = loadState === 'loaded';
   // Instances that need attention come first; the sort is stable, so the server's order holds within each group.
   const visibleInstances = instances
-    .filter((inst) => filter === 'all' || (filter === 'running' ? inst.status === 'running' : hasIssue(inst)))
+    .filter((inst) => filter === 'all' || (filter === 'running' ? isServerRunning(inst) : hasIssue(inst)))
     .sort((a, b) => Number(hasIssue(b)) - Number(hasIssue(a)));
   const filters: Array<{ key: ListFilter; label: string; count: number }> = [
     { key: 'all', label: t('dashboard.filter.all'), count: instances.length },

@@ -22,6 +22,7 @@ export default {
   'instance.restart.confirm': '確認重新啟動',
   'instance.forceStop.title': '要強制停止實例「{name}」嗎？',
   'instance.forceStop.description': '強制停止會立即結束程序，可能導致世界損毀。建議先嘗試一般的「停止」。',
+  'instance.forceStop.descriptionDetached': '強制停止會立即結束程序，可能導致世界損毀。面板無法向此程序傳送停服指令；若有 OP 玩家在線上，可先在遊戲內執行 /stop 儲存世界。',
   'instance.forceStop.confirm': '確認強制停止',
 
   // 实例设置
@@ -45,6 +46,16 @@ export default {
   'instance.settings.unsaved.description': '離開設定頁面會遺失尚未儲存的實例設定。',
 
   // 启动失败原因提示（控制台上方）
+  'instance.detached.title': '上次啟動的伺服器程序仍在執行中（PID {pid}）',
+  'instance.detached.bodyUnix': '面板上次結束後已失去對此程序的主控台連線，目前無法檢視即時日誌或傳送指令。請先停止或強制停止它，再啟動、備份或刪除此實例。',
+  'instance.detached.bodyWindows': '面板上次結束後已失去對此程序的主控台連線，在 Windows 上無法傳送停服指令。請先強制停止它，再啟動、備份或刪除此實例。',
+  'instance.detached.refresh': '重新整理狀態',
+  'instance.detached.unverifiedTitle': '無法確認 PID {pid} 是否仍是此伺服器程序',
+  'instance.detached.bodyUnverified': '面板上次結束後已失去對此伺服器的主控台連線，系統也不提供 PID {pid} 目前對應的程式。請在工作管理員中或用 ps 查看：若是此伺服器，請先在該處結束它，再點選「重新整理狀態」；若是其他程式，請點選「不是此伺服器」。',
+  'instance.detached.dismiss': '不是此伺服器',
+  'instance.detached.dismissConfirm.title': '要清除 PID {pid} 的佔用記錄嗎？',
+  'instance.detached.dismissConfirm.body': '面板將不再把 PID {pid} 視為此實例的伺服器，啟動、備份與刪除隨即恢復可用。若該伺服器其實仍在執行，再次啟動會讓兩個伺服器同時寫入同一個世界。',
+  'instance.detached.dismissConfirm.confirm': '清除記錄',
   'instance.startIssue.eula.title': '同意 Minecraft EULA 後才能啟動這個伺服器',
   'instance.startIssue.eula.body': 'Minecraft 伺服器必須先同意 <link>Minecraft EULA</link> 才能執行。點「同意並啟動」表示你已閱讀並同意該協議，面板會寫入 eula.txt 並啟動伺服器。',
   'instance.startIssue.eula.action': '同意並啟動',

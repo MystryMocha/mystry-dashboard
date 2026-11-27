@@ -172,6 +172,17 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // Clears a detached process the panel cannot inspect, after the user has checked its PID is not this server.
+  app.post<{ Params: { id: string } }>('/api/instances/:id/detached-process/dismiss', async (req, reply) => {
+    if (!getInstanceRow(req.params.id)) return reply.code(404).send(panelErrorBody('server.instance.notFound'));
+    try {
+      await processManager.dismissOrphan(req.params.id);
+      return getInstance(req.params.id);
+    } catch (err) {
+      return replyProcessManagerError(reply, err);
+    }
+  });
+
   app.post<{ Params: { id: string } }>('/api/instances/:id/restart', async (req, reply) => {
     const row = getInstanceRow(req.params.id);
     if (!row) return reply.code(404).send(panelErrorBody('server.instance.notFound'));

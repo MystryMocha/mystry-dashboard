@@ -106,8 +106,8 @@ export function DirectSection({
   }
 
   const running = instance.status === 'running';
-  // Pending migration, or this start is known to be bound to fail: no "Start" here, go to the instance page to handle it.
-  const needsFix = canStartInstance(instance.status) && (instance.requiresMigration || !!instance.startIssue);
+  // Pending migration, detached live process, or this start is known to fail: no "Start" here, go to the instance page to handle it.
+  const needsFix = !!instance.orphanProcess || (canStartInstance(instance.status) && (instance.requiresMigration || !!instance.startIssue));
   const port = network?.port ?? null;
   const withPort = (host: string) => (host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`);
   const addresses = port != null && network ? network.addresses.map(withPort) : [];

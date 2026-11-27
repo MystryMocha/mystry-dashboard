@@ -260,6 +260,19 @@ export interface InstanceLocalNetwork {
   platform: string;
 }
 
+/** Detached Minecraft server process detected from a previous panel session. */
+export interface OrphanProcessInfo {
+  pid: number;
+  startedAt: string;
+  /** True on Unix where SIGTERM triggers graceful shutdown; false on Windows where only force termination is available without stdin. */
+  canGracefulStop: boolean;
+  /**
+   * Result of the latest inspection: `alive` when the PID is confirmed to still be this server, `unknown` when the
+   * system would not say (the PID may since belong to another program). Only `unknown` can be dismissed by the user.
+   */
+  state: 'alive' | 'unknown';
+}
+
 export interface InstanceInfo {
   id: string;
   name: string;
@@ -286,6 +299,8 @@ export interface InstanceInfo {
   startIssue?: InstanceStartIssue | null;
   /** In this run the server has finished starting (it printed Done) and players can join; false when not running or still loading. */
   ready?: boolean;
+  /** Set when a live server process from a prior panel session is still attached to this instance's open run. */
+  orphanProcess?: OrphanProcessInfo | null;
 }
 
 /** Prefix for a Forge / NeoForge args file in `InstanceInfo.jarFile`, followed by the path relative to the instance directory. */
@@ -687,6 +702,15 @@ export interface ChangePasswordResult {
   token: string;
   user: AuthUser;
 }
+
+/**
+ * Application close codes of the console WebSocket (4000-4999 is the range reserved for applications). The standard
+ * 1008 and 1009 cannot tell these apart from a permanent rejection, and the client reconnects after each of them.
+ */
+export const CONSOLE_CLOSE_SESSION_REVOKED = 4401;
+export const CONSOLE_CLOSE_RATE_LIMITED = 4429;
+/** The client fell behind the output and the send buffer filled up; a fresh connection starts from a new snapshot. */
+export const CONSOLE_CLOSE_SEND_BACKLOG = 4503;
 
 export interface ConsoleMessage {
   type: 'output' | 'status' | 'error' | 'history';

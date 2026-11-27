@@ -36,6 +36,12 @@ export default {
   'files.edit.closeLabel': '关闭编辑',
   'files.edit.contentLabel': '文件内容：{path}',
   'files.edit.binaryReadOnly': '这是二进制文件，保存会把它写坏，所以这里只能查看。',
+  'files.edit.discard.title': '放弃未保存的修改？',
+  'files.edit.discard.body': '这个文件还有未保存的改动，现在关闭会丢失已修改的内容。',
+  'files.edit.discard.confirm': '放弃修改',
+  'files.edit.unsaved.title': '放弃未保存的文件修改？',
+  'files.edit.unsaved.savingTitle': '正在保存文件…',
+  'files.edit.unsaved.description': '离开当前页面会丢失文件编辑器里尚未保存的修改。',
 
   'files.rename.hint': '只能在当前文件夹里改名，名称里不能有 / 或 \\。',
   'files.rename.newName': '新名称',

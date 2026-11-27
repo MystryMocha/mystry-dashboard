@@ -828,6 +828,12 @@ import fs from 'node:fs';
 import http from 'node:http';
 const marker = process.env.FAKE_PANEL_MARKER;
 const fingerprint = process.env.MYSTRY_PROCESS_FINGERPRINT;
+const configuredPort = Number(
+  process.env.PORT
+  || (process.env.MYSTRY_CONFIG_PATH && fs.existsSync(process.env.MYSTRY_CONFIG_PATH)
+    ? fs.readFileSync(process.env.MYSTRY_CONFIG_PATH, 'utf8').match(/^PORT=(\\d+)/m)?.[1]
+    : undefined),
+);
 const server = http.createServer((req, res) => {
   res.setHeader('content-type', 'application/json');
   if (req.url === '/__exit') {
@@ -864,7 +870,7 @@ const server = http.createServer((req, res) => {
         return;
       }
       const enabled = req.method === 'PUT';
-      const port = Number(process.env.PORT);
+      const port = configuredPort;
       res.end(JSON.stringify({
         managedByConfig: false, configuredHost: null, port, interfaces: [],
         certificate: enabled ? { fingerprint256: 'FA:KE', notAfter: '2029-01-25T08:00:00.000Z', addresses: [] } : null,
@@ -883,10 +889,15 @@ const server = http.createServer((req, res) => {
     res.end('{}');
   }
 });
-server.listen(Number(process.env.PORT), '127.0.0.1');
+server.listen(configuredPort, '127.0.0.1');
 if (process.env.FAKE_PANEL_DATA_LOCK) {
   const lockDir = process.env.MYSTRY_DATA_DIR + '/.mystry-panel-lock';
   fs.mkdirSync(lockDir, { recursive: true });
+  const { DatabaseSync } = await import('node:sqlite');
+  // Kept on globalThis: a connection that goes out of scope is closed by the garbage collector, which would drop the lock.
+  globalThis.dataLock = new DatabaseSync(process.env.MYSTRY_DATA_DIR + '/.mystry-panel-lock.db');
+  globalThis.dataLock.exec('PRAGMA busy_timeout = 1000');
+  globalThis.dataLock.exec('BEGIN EXCLUSIVE');
   fs.writeFileSync(lockDir + '/owner.json', JSON.stringify({ pid: process.pid, fingerprint, version: 'test', createdAt: new Date().toISOString() }));
   process.on('exit', () => fs.rmSync(lockDir, { recursive: true, force: true }));
 }
@@ -1431,4 +1442,162 @@ test('openBrowser handles missing browser launcher without crashing the controll
   assert.equal(result.code, 0, result.output);
   assert.match(result.output, /面板地址：/);
   assert.match(result.output, /无法自动打开浏览器/);
+});
+
+test('status names instances whose server process outlived the panel, and stays quiet about runs whose PID is gone', async (t) => {
+  const { home, env } = await fakePanelHome(t, 'mystry-ctl-left-running-');
+  await fsp.mkdir(path.join(home, 'data'), { recursive: true });
+  const { DatabaseSync } = await import('node:sqlite');
+  const database = new DatabaseSync(path.join(home, 'data', 'panel.db'));
+  database.exec(`
+    CREATE TABLE instances (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE instance_runs (id INTEGER PRIMARY KEY, instance_id TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, pid INTEGER, process_identity TEXT);
+    INSERT INTO instances VALUES ('a', 'Survival'), ('b', 'Creative'), ('c', 'Finished'), ('d', 'Rebooted');
+  `);
+  const insert = database.prepare('INSERT INTO instance_runs (instance_id, started_at, ended_at, pid) VALUES (?, ?, ?, ?)');
+  // This test process stands in for a server that is still alive; the other runs must not be reported.
+  const now = new Date().toISOString();
+  const beforeBoot = new Date(Date.now() - os.uptime() * 1000 - 60_000).toISOString();
+  insert.run('a', now, null, process.pid);
+  insert.run('b', now, null, 9_999_999);
+  insert.run('c', now, now, process.pid);
+  // Left open by a shutdown with the server running; after the reboot its PID belongs to an unrelated process.
+  insert.run('d', beforeBoot, null, process.pid);
+  database.close();
+
+  const status = await runController('status', env);
+  assert.equal(status.code, 0, status.output);
+  assert.match(status.output, /状态：未运行/);
+  assert.match(status.output, new RegExp(`可能还在运行：Survival \\(PID ${process.pid}\\)。`));
+  assert.doesNotMatch(status.output, /Creative|Finished|Rebooted/);
+});
+
+test('a leftover panel lock record with a live PID and a fresh timestamp does not make status report shutting down', async (t) => {
+  const { home, env } = await fakePanelHome(t, 'mystry-ctl-leftover-panel-lock-');
+  const lockDir = path.join(home, 'data', '.mystry-panel-lock');
+  await fsp.mkdir(lockDir, { recursive: true });
+  // The lock database exists but nobody holds it: the panel that wrote this record was killed and its PID now belongs to this test.
+  await fsp.writeFile(path.join(home, 'data', '.mystry-panel-lock.db'), '');
+  await fsp.writeFile(
+    path.join(lockDir, 'owner.json'),
+    JSON.stringify({ pid: process.pid, fingerprint: 'killed-panel', version: '0.0.0', createdAt: new Date().toISOString() }),
+    'utf8',
+  );
+
+  const status = await runController('status', env);
+  assert.equal(status.code, 0, status.output);
+  assert.match(status.output, /状态：未运行/);
+  assert.doesNotMatch(status.output, /正在关闭/);
+});
+
+test('a stale panel data lock from before OS boot does not make status report shutting down when its PID is recycled', async (t) => {
+  const { home, env } = await fakePanelHome(t, 'mystry-ctl-preboot-panel-lock-');
+  const lockDir = path.join(home, 'data', '.mystry-panel-lock');
+  await fsp.mkdir(lockDir, { recursive: true });
+  // Choose a guaranteed live PID from a different process (PID 4 on Windows or 1 on POSIX).
+  const recycledLivePid = process.platform === 'win32' ? 4 : 1;
+  await fsp.writeFile(
+    path.join(lockDir, 'owner.json'),
+    JSON.stringify({
+      pid: recycledLivePid,
+      fingerprint: 'old-boot-fingerprint',
+      version: '0.0.0',
+      createdAt: new Date(Date.now() - os.uptime() * 1000 - 60_000).toISOString(),
+      ...(process.platform === 'linux' ? { bootId: 'previous-boot-id' } : {}),
+    }),
+    'utf8',
+  );
+
+  const status = await runController('status', env);
+  assert.equal(status.code, 0, status.output);
+  assert.match(status.output, /状态：未运行/);
+  assert.doesNotMatch(status.output, /正在关闭/);
+});
+
+test('status, open and restart follow the running panel URL recorded in state.json after PORT changes in panel.env', async (t) => {
+  const port1 = await reservePort();
+  const port2 = await reservePort();
+  const { home, env, statePid } = await fakePanelHome(t, 'mystry-ctl-port-change-', {
+    FAKE_PANEL_DATA_LOCK: '1',
+    PORT: String(port1),
+  });
+
+  const started = await runController('start', env);
+  assert.equal(started.code, 0, started.output);
+  const oldPid = statePid();
+  assert.ok(oldPid);
+
+  // Edit panel.env to switch to port2 while the panel is still running on port1, and run subsequent commands without env PORT.
+  const configPath = env.MYSTRY_CONFIG_PATH;
+  const currentConfig = await fsp.readFile(configPath, 'utf8');
+  const nextConfig = currentConfig.replace(/^PORT=.*$/m, `PORT=${port2}`);
+  await fsp.writeFile(configPath, nextConfig, 'utf8');
+  const updatedEnv = { ...env };
+  delete updatedEnv.PORT;
+
+  const status = await runController('status', updatedEnv);
+  assert.equal(status.code, 0, status.output);
+  assert.match(status.output, new RegExp(`状态：运行中\\s+http://127\\.0\\.0\\.1:${port1}`));
+  assert.match(status.output, new RegExp(`http://127\\.0\\.0\\.1:${port2}`));
+  assert.doesNotMatch(status.output, /正在关闭/);
+
+  const opened = await runController('open', updatedEnv);
+  assert.equal(opened.code, 0, opened.output);
+  assert.match(opened.output, new RegExp(`面板地址：http://127\\.0\\.0\\.1:${port1}`));
+
+  // Track second health check after restart via explicit cleanup hook.
+  t.after(async () => {
+    await fetch(`http://127.0.0.1:${port2}/__exit`).catch(() => {});
+  });
+
+  const restarted = await runController('restart', updatedEnv);
+  assert.equal(restarted.code, 0, restarted.output);
+  assert.doesNotMatch(restarted.output, /java\.exe|kill java|正在等它启动的 Minecraft 服务器退出/);
+  assert.match(restarted.output, new RegExp(`面板已启动：http://127\\.0\\.0\\.1:${port2}`));
+
+  const stateAfter = JSON.parse(await fsp.readFile(path.join(home, 'data', 'launcher', 'state.json'), 'utf8'));
+  assert.equal(stateAfter.url, `http://127.0.0.1:${port2}`);
+  assert.notEqual(stateAfter.pid, oldPid);
+
+  const stopped = await runController('stop', updatedEnv);
+  assert.equal(stopped.code, 0, stopped.output);
+});
+
+test('Windows launcher strips inherited and explicit permissions and restricts config, data and logs to the current user', {
+  skip: process.platform !== 'win32',
+}, async (t) => {
+  const { home, env } = await fakePanelHome(t, 'mystry-ctl-win-acl-');
+  const icaclsExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'icacls.exe');
+  // An explicit inheritable grant to Everyone survives `/inheritance:r` and reaches files created under it.
+  const dataDir = path.join(home, 'data');
+  const databaseFile = path.join(dataDir, 'panel.db');
+  await fsp.mkdir(dataDir);
+  const seeded = spawnSync(icaclsExe, [dataDir, '/grant', '*S-1-1-0:(OI)(CI)(F)'], { encoding: 'utf8', windowsHide: true });
+  assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+  await fsp.writeFile(databaseFile, '');
+  const seededFile = spawnSync(icaclsExe, [databaseFile], { encoding: 'utf8', windowsHide: true });
+  assert.match(seededFile.stdout, /Everyone/i, seededFile.stdout);
+
+  const started = await runController('start', env);
+  assert.equal(started.code, 0, started.output);
+  t.after(async () => {
+    await runController('stop', env).catch(() => {});
+  });
+
+  for (const dir of [
+    path.join(home, 'config'),
+    path.join(home, 'data'),
+    path.join(home, 'logs'),
+  ]) {
+    const result = spawnSync(icaclsExe, [dir], { encoding: 'utf8', windowsHide: true });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.doesNotMatch(result.stdout, /BUILTIN\\Users|Authenticated Users|Everyone/i, `${dir}\n${result.stdout}`);
+    assert.doesNotMatch(result.stdout, /[:)]\(I\)/i, `inheritance must be disabled on ${dir}\n${result.stdout}`);
+  }
+  const envAcl = spawnSync(icaclsExe, [path.join(home, 'config', 'panel.env')], { encoding: 'utf8', windowsHide: true });
+  assert.equal(envAcl.status, 0, envAcl.stderr || envAcl.stdout);
+  assert.doesNotMatch(envAcl.stdout, /BUILTIN\\Users|Authenticated Users|Everyone/i, envAcl.stdout);
+  const databaseAcl = spawnSync(icaclsExe, [databaseFile], { encoding: 'utf8', windowsHide: true });
+  assert.equal(databaseAcl.status, 0, databaseAcl.stderr || databaseAcl.stdout);
+  assert.doesNotMatch(databaseAcl.stdout, /BUILTIN\\Users|Authenticated Users|Everyone/i, databaseAcl.stdout);
 });

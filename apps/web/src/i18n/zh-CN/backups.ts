@@ -3,6 +3,7 @@ import type en from '../en/backups';
 /** 实例备份文案（简体中文）。 */
 export default {
   'backups.status.stopToRestore': '还原需先停服',
+  'backups.status.stopDetached': '需先停止残留进程',
   'backups.toolbar.refreshLabel': '刷新备份列表',
   'backups.toolbar.upload': '上传备份',
   'backups.toolbar.uploading': '正在上传…',

@@ -96,7 +96,7 @@ A successful password change (`POST /api/auth/password`) or local password reset
 
 - All previously issued JWTs return 401 on their next request. The password change response carries a new token, so the session making the change can continue; a password reset issues no token, and every session must sign in again.
 - Unused console tickets issued by old tokens, and download tickets that have not opened a stream, are voided at the same time; the download ticket status becomes `failed`.
-- Open console WebSockets are closed with close code **1008**, and the client must request a new ticket with a currently valid token.
+- Open console WebSockets are closed with close code **4401**, and the client must request a new ticket with a currently valid token.
 - Downloads already transferring are not interrupted; they passed authorization when the stream opened.
 
 Tokens issued by 0.2.0-preview.3 and earlier have no `tv` and are treated as version 0: after the upgrade they remain usable until they expire, and are invalidated by the first password change or reset. Old databases gain the `token_version` column automatically at startup, and existing users start at 0.
@@ -177,6 +177,7 @@ When Java is not found, it returns `{ "available": false, "version": null, "majo
 | POST | `/api/instances/:id/start` | Start |
 | POST | `/api/instances/:id/stop` | Stop; `?force=1` force-kills the process. When a normal stop times out and the instance is still stopping, returns **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
 | POST | `/api/instances/:id/restart` | Restart |
+| POST | `/api/instances/:id/detached-process/dismiss` | Clears `orphanProcess` when its `state` is `unknown` (the panel cannot tell whether the PID is still this server), after the user has checked it is another program; the run is closed and nothing is signalled. Returns **409** `server.instance.orphanDismissAlive` when the PID is confirmed to still be the server |
 | POST | `/api/instances/:id/command` | Body: `{ command: string }`; sends a console command |
 | GET | `/api/instances/:id/local-network` | Addresses for direct connection, `InstanceLocalNetwork`: `{ port, addresses, publicIpv4, publicIpv6, publicHost, serverIpBlocked, serverIpIsUnboundPublicHost, panelPort, platform }`. Read-only; opens no ports and changes no config |
 
@@ -448,9 +449,9 @@ POST /api/instances/<id>/console-ticket
 Authorization: Bearer <token>
 ```
 
-Then connect: `ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`. A ticket is valid for 60 seconds by default and can establish only one connection. After a password change or reset, unused tickets are voided and established connections are closed with close code 1008; see [Token Invalidation](#token-invalidation).
+Then connect: `ws://<host>:<port>/ws/console/:instanceId?ticket=<ticket>`. A ticket is valid for 60 seconds by default and can establish only one connection. After a password change or reset, unused tickets are voided and established connections are closed with close code 4401; see [Token Invalidation](#token-invalidation).
 
-Limits on connection count, inbound message size, command length and send rate are set by `MAX_CONSOLE_*` and related variables in [Configuration](configuration.md); when a limit is exceeded, the server does not write to the instance's stdin.
+Limits on connection count, inbound message size, command length and send rate are set by `MAX_CONSOLE_*` and related variables in [Configuration](configuration.md); when a limit is exceeded, the server does not write to the instance's stdin. A connection that sends commands faster than the allowed rate is closed with close code 4429. A client that falls so far behind the output that the send buffer fills is closed with 4503; the browser reconnects and receives a fresh history snapshot.
 
 ### Server → Client Messages (JSON)
 

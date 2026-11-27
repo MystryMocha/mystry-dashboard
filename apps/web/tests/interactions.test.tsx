@@ -546,6 +546,44 @@ test('home: status blocks open portaled popovers, support Escape and Tab keyboar
   expect(within(pendingDiskPop).getByText('已用')).toBeTruthy();
 });
 
+test('home and instance list count a detached server confirmed alive as running, but not one the panel cannot verify', async () => {
+  const baseFetch = globalThis.fetch;
+  const detached = (id: string, name: string, state: 'alive' | 'unknown') => ({
+    ...instance,
+    id,
+    name,
+    status: 'stopped',
+    orphanProcess: { pid: 4567, startedAt: '2026-11-27T08:00:00.000Z', canGracefulStop: false, state },
+  });
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/metrics') return new Response(JSON.stringify(metricSample));
+    if (url === '/api/instances') {
+      return new Response(JSON.stringify([
+        detached('kept', '生存服', 'alive'),
+        detached('unsure', '模组服', 'unknown'),
+        { ...instance, id: 'idle', name: '旧存档', status: 'stopped' },
+      ]));
+    }
+    if (String(url).startsWith('/api/stats/overview')) return new Response(JSON.stringify(statsOverviewSample));
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  const home = mount(<HomePage />);
+  expect(await screen.findByText('1 / 3')).toBeTruthy();
+  expect(screen.getByText('1 个实例正在运行')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: /运行中/ }));
+  const runningPop = screen.getByRole('dialog', { name: '运行中的实例' });
+  const keptRow = within(runningPop).getByRole('link', { name: /生存服/ });
+  expect(within(keptRow).getByText('独立运行中')).toBeTruthy();
+  expect(within(runningPop).queryByText('模组服')).toBeNull();
+  home.unmount();
+
+  mount(<DashboardPage />);
+  await user.click(await screen.findByRole('button', { name: /运行中/ }));
+  expect(screen.getByRole('link', { name: '生存服' })).toBeTruthy();
+  expect(screen.queryByRole('link', { name: '模组服' })).toBeNull();
+});
+
 test('home: range switch persists, trend switches CPU and memory, machine omits null CPU model, and timeline sorts runs with crash markers and tiered durations', async () => {
   const baseFetch = globalThis.fetch;
   const overviewRequests: string[] = [];
@@ -860,6 +898,65 @@ test('after a console reconnect the history snapshot replaces the old log, witho
   act(() => { sockets[1].onopen?.(); sockets[1].onmessage?.({ data: history }); });
   expect(terminal.written.match(/Done \(3\.2s\)/g)).toHaveLength(1);
   expect(terminal.written).toContain('已重新连接');
+});
+
+test('console backs off exponentially when closing before receiving history, and stops auto-reconnect only on 1008/1009', async () => {
+  const sockets: Array<{ onopen?: () => void; onmessage?: (ev: { data: string }) => void; onclose?: (ev: { code?: number }) => void }> = [];
+  vi.stubGlobal('WebSocket', class { constructor() { sockets.push(this); } close() {} });
+  vi.useFakeTimers();
+  mount(<ConsolePanel instanceId="test" />);
+
+  // Opening and immediately closing without a history frame must increase delay: 1s -> 2s -> 5s.
+  await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  expect(sockets).toHaveLength(1);
+  act(() => { sockets[0].onopen?.(); sockets[0].onclose?.({ code: 1006 }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(999); });
+  expect(sockets).toHaveLength(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(sockets).toHaveLength(2);
+
+  act(() => { sockets[1].onopen?.(); sockets[1].onclose?.({ code: 1006 }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(1999); });
+  expect(sockets).toHaveLength(2);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(sockets).toHaveLength(3);
+
+  act(() => { sockets[2].onopen?.(); sockets[2].onclose?.({ code: 1006 }); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(4999); });
+  expect(sockets).toHaveLength(3);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(sockets).toHaveLength(4);
+
+  // Passing conditions (revoked session, rate limit, full send buffer, full connection pool): the console says why and reconnects by itself.
+  for (const [code, fragment] of [
+    [4401, '登录会话已变更'],
+    [4429, '命令发送过于频繁'],
+    [4503, '网络传输跟不上控制台输出'],
+    [1013, '控制台连接数已达上限'],
+  ] as const) {
+    const beforeCount = sockets.length;
+    act(() => { sockets[beforeCount - 1].onclose?.({ code }); });
+    expect(terminal.written).toContain(fragment);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(sockets).toHaveLength(beforeCount + 1);
+  }
+
+  // Non-retryable close codes stop auto-reconnect and surface a manual Reconnect button.
+  for (const [code, fragment] of [
+    [1009, '超出单帧大小限制'],
+    [1008, '连接已被服务端关闭'],
+  ] as const) {
+    const beforeCount = sockets.length;
+    act(() => { sockets[beforeCount - 1].onclose?.({ code }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(sockets).toHaveLength(beforeCount);
+    expect(terminal.written).toContain(fragment);
+    expect(screen.getByText('连接已断开')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '重新连接' }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(sockets).toHaveLength(beforeCount + 1);
+  }
 });
 
 test('the copy notice timer is cleared when the console unmounts', async () => {
@@ -2628,7 +2725,8 @@ test('files: a binary file opens read-only with a warning and no Save, while a t
     return baseFetch(url, options);
   }));
   const user = userEvent.setup();
-  mount(<FilesTab instanceId="test" />);
+  const router = createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }]);
+  render(<RouterProvider router={router} />);
   const dialog = () => within(document.querySelector<HTMLElement>('.file-edit-dialog')!);
 
   await user.click(await screen.findByTitle('编辑 level.dat'));
@@ -2646,4 +2744,224 @@ test('files: a binary file opens read-only with a warning and no Save, while a t
   expect(save.disabled).toBe(true);
   await user.type(textarea, '!');
   expect(save.disabled).toBe(false);
+});
+
+test('detached orphan process: dashboard, instance console, and backups reflect detached state and enforce force stop flow', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const calls: string[] = [];
+  let canGracefulStop = false;
+  const orphanInstance = () => ({
+    ...instance,
+    name: '测试服',
+    status: 'stopped' as const,
+    orphanProcess: { pid: 4567, startedAt: '2026-11-27T08:00:00.000Z', canGracefulStop, state: 'alive' as const },
+  });
+
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const method = options?.method ?? 'GET';
+    if (url === '/api/instances') {
+      return new Response(JSON.stringify([orphanInstance()]));
+    }
+    if (url === '/api/instances/test' && method === 'GET') {
+      return new Response(JSON.stringify(orphanInstance()));
+    }
+    if (url === '/api/instances/test/backups' && method === 'GET') {
+      return new Response(JSON.stringify({ backups: [] }));
+    }
+    if (url === '/api/instances/test/backup-schedule' && method === 'GET') {
+      return new Response(JSON.stringify({ enabled: false, time: '04:00', keep: 7, utcOffsetMinutes: 480, lastBackupAt: null, lastFailure: null }));
+    }
+    if (method === 'POST' && String(url).startsWith('/api/instances/test/')) {
+      calls.push(`${method} ${url}`);
+      return new Response(JSON.stringify(orphanInstance()));
+    }
+    return baseFetch(url, options);
+  }));
+
+  // 1. Dashboard shows Detached pill, hides Start, and disables Restart / Force Stop / Delete: the row links to the
+  // instance page, which offers the stop the platform allows.
+  const dash = mount(<DashboardPage />);
+  expect(await screen.findByText('独立运行中')).toBeTruthy();
+  expect(screen.getByText('上次启动的进程（PID 4567）在面板重启后仍在运行')).toBeTruthy();
+  expect(screen.getByRole('link', { name: '处理进程' }).getAttribute('href')).toBe('/instances/test');
+  expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
+  await user.click(screen.getByRole('button', { name: '更多操作' }));
+  expect(screen.getByRole<HTMLMenuElement>('menuitem', { name: '重启实例' }).hasAttribute('disabled')).toBe(true);
+  expect(screen.getByRole<HTMLMenuElement>('menuitem', { name: '删除实例' }).hasAttribute('disabled')).toBe(true);
+  expect(screen.getByRole<HTMLMenuElement>('menuitem', { name: '强制停止' }).hasAttribute('disabled')).toBe(true);
+  dash.unmount();
+
+  // 2. Backups tab blocks creating backups when a detached process is running.
+  const backupsView = mount(<BackupsTab instance={orphanInstance() as never} onRestored={() => {}} />);
+  expect(await screen.findByText('需先停止残留进程')).toBeTruthy();
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: '立即备份' }).disabled).toBe(true);
+  backupsView.unmount();
+
+  // 3. Instance page (Windows mode: canGracefulStop = false) shows Force Stop confirmation flow.
+  const winRouter = createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  );
+  const winView = render(<RouterProvider router={winRouter} />);
+  const winBanner = await screen.findByRole('alert');
+  expect(winBanner.textContent).toContain('上次启动的服务器进程仍在运行（PID 4567）');
+  expect(winBanner.textContent).toContain('在 Windows 上无法发送停服命令');
+  expect(within(winBanner).queryByRole('button', { name: '停止' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
+  // The console says the process is out of reach, not that the instance is stopped and can be started.
+  expect(screen.getByText('独立运行中，无实时日志')).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: '控制台命令' }).getAttribute('placeholder')).toBe('面板无法向独立运行的进程发送命令');
+
+  await user.click(within(winBanner).getByRole('button', { name: '强制停止' }));
+  const confirm = await screen.findByRole('dialog');
+  // Windows offers no normal stop for a detached process, so the confirmation does not suggest one.
+  expect(confirm.textContent).toContain('面板无法向这个进程发送停服命令');
+  expect(confirm.textContent).not.toContain('建议先尝试普通「停止」');
+  await user.click(within(confirm).getByRole('button', { name: '确认强制停止' }));
+  await waitFor(() => expect(calls).toContain('POST /api/instances/test/stop?force=1'));
+  winView.unmount();
+
+  // 4. Instance page (Unix mode: canGracefulStop = true) exposes graceful Stop directly.
+  canGracefulStop = true;
+  const unixRouter = createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  );
+  render(<RouterProvider router={unixRouter} />);
+  const unixBanner = await screen.findByRole('alert');
+  expect(unixBanner.textContent).toContain('当前无法查看实时日志或发送命令');
+  await user.click(within(unixBanner).getByRole('button', { name: '停止' }));
+  await waitFor(() => expect(calls).toContain('POST /api/instances/test/stop'));
+});
+
+test('a detached process the panel cannot verify offers no stop, only refresh and a confirmed dismiss', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  const calls: string[] = [];
+  let dismissed = false;
+  const current = () => ({
+    ...instance,
+    name: '测试服',
+    status: 'stopped' as const,
+    orphanProcess: dismissed ? null : { pid: 4567, startedAt: '2026-11-27T08:00:00.000Z', canGracefulStop: false, state: 'unknown' as const },
+  });
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const method = options?.method ?? 'GET';
+    if (url === '/api/instances/test' && method === 'GET') return new Response(JSON.stringify(current()));
+    if (method === 'POST' && String(url).startsWith('/api/instances/test/') && !String(url).endsWith('/console-ticket')) {
+      calls.push(`${method} ${url}`);
+      if (String(url).endsWith('/detached-process/dismiss')) dismissed = true;
+      return new Response(JSON.stringify(current()));
+    }
+    return baseFetch(url, options);
+  }));
+
+  const router = createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  );
+  render(<RouterProvider router={router} />);
+  const banner = await screen.findByRole('alert');
+  expect(banner.textContent).toContain('无法确认 PID 4567 是否仍是该服务器进程');
+  expect(screen.queryByRole('button', { name: '停止' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '强制停止' })).toBeNull();
+
+  // Cancelling the confirmation sends nothing.
+  await user.click(within(banner).getByRole('button', { name: '不是该服务器' }));
+  const cancelDialog = await screen.findByRole('dialog');
+  expect(cancelDialog.textContent).toContain('两个服务器同时写入同一个世界');
+  await user.click(within(cancelDialog).getByRole('button', { name: '取消' }));
+  expect(calls).toEqual([]);
+
+  await user.click(within(banner).getByRole('button', { name: '不是该服务器' }));
+  await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '清除记录' }));
+  await waitFor(() => expect(calls).toEqual(['POST /api/instances/test/detached-process/dismiss']));
+  await waitFor(() => expect(screen.queryByText('无法确认 PID 4567 是否仍是该服务器进程')).toBeNull());
+  expect(screen.getByRole('button', { name: '启动' })).toBeTruthy();
+});
+
+test('files editor: clean close exits immediately; dirty edits confirm on Close, Cancel, Escape, backdrop, and route navigation', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/files?path=') {
+      return new Response(JSON.stringify([
+        { name: 'notes.txt', path: 'notes.txt', isDirectory: false, size: 5, modifiedAt },
+      ]));
+    }
+    if (url === '/api/instances/test/files/content?path=notes.txt' && !options?.method) {
+      return new Response(JSON.stringify({ path: 'notes.txt', content: 'hello', binary: false }));
+    }
+    if (url === '/api/instances/test/files/content' && options?.method === 'PUT') {
+      return new Response(JSON.stringify({ ok: true }));
+    }
+    return baseFetch(url, options);
+  }));
+  vi.stubGlobal('Request', class {
+    method = 'GET';
+    headers = new Headers();
+    signal: AbortSignal | undefined;
+    constructor(public url: string, init?: { signal?: AbortSignal }) { this.signal = init?.signal; }
+  });
+
+  const user = userEvent.setup();
+  const router = createMemoryRouter([
+    { path: '/', element: <FilesTab instanceId="test" /> },
+    { path: '/other', element: <p>已离开文件页</p> },
+  ]);
+  render(<RouterProvider router={router} />);
+  const editDialog = () => document.querySelector<HTMLDialogElement>('.file-edit-dialog')!;
+  const editScope = () => within(editDialog());
+
+  // Closing an unmodified file exits right away without confirmation.
+  await user.click(await screen.findByTitle('编辑 notes.txt'));
+  await editScope().findByRole('textbox', { name: '文件内容：notes.txt' });
+  await user.click(editScope().getByRole('button', { name: '关闭编辑', exact: true }));
+  expect(editDialog().open).toBe(false);
+  expect(screen.queryByRole('dialog', { name: '放弃未保存的修改？' })).toBeNull();
+
+  // Dirty edits require confirmation across Close, Cancel, Escape (cancel event), and backdrop clicks.
+  await user.click(screen.getByTitle('编辑 notes.txt'));
+  const textarea = await editScope().findByRole<HTMLTextAreaElement>('textbox', { name: '文件内容：notes.txt' });
+  await user.type(textarea, '-draft');
+  expect(textarea.value).toBe('hello-draft');
+
+  for (const trigger of [
+    () => user.click(editScope().getByRole('button', { name: '关闭编辑', exact: true })),
+    () => user.click(editScope().getByRole('button', { name: '取消', exact: true })),
+    () => { fireEvent(editDialog(), new Event('cancel', { cancelable: true })); return Promise.resolve(); },
+    () => { fireEvent.mouseDown(editDialog()); return Promise.resolve(); },
+  ]) {
+    await trigger();
+    const confirm = screen.getByRole('dialog', { name: '放弃未保存的修改？' });
+    expect(editDialog().open).toBe(true);
+    await user.click(within(confirm).getByRole('button', { name: '取消' }));
+    expect(editDialog().open).toBe(true);
+    expect(textarea.value).toBe('hello-draft');
+  }
+
+  // Attempting in-app navigation while dirty opens UnsavedChangesDialog; staying keeps edits intact.
+  await act(async () => {
+    await router.navigate('/other');
+  });
+  const navConfirm = screen.getByRole('dialog', { name: '放弃未保存的文件修改？' });
+  expect(screen.queryByText('已离开文件页')).toBeNull();
+  await user.click(within(navConfirm).getByRole('button', { name: '取消' }));
+  expect(editDialog().open).toBe(true);
+  expect(textarea.value).toBe('hello-draft');
+
+  // Confirming discard closes the editor and resets content on reopen.
+  await user.click(editScope().getByRole('button', { name: '取消', exact: true }));
+  await user.click(within(screen.getByRole('dialog', { name: '放弃未保存的修改？' })).getByRole('button', { name: '放弃修改' }));
+  expect(editDialog().open).toBe(false);
+
+  await user.click(screen.getByTitle('编辑 notes.txt'));
+  expect((await editScope().findByRole<HTMLTextAreaElement>('textbox', { name: '文件内容：notes.txt' })).value).toBe('hello');
+  await user.type(editScope().getByRole('textbox', { name: '文件内容：notes.txt' }), '-leave');
+  await act(async () => {
+    await router.navigate('/other');
+  });
+  await user.click(within(screen.getByRole('dialog', { name: '放弃未保存的文件修改？' })).getByRole('button', { name: '放弃修改并离开' }));
+  expect(await screen.findByText('已离开文件页')).toBeTruthy();
 });

@@ -116,6 +116,10 @@ export type InstanceRunRow = {
   ready_at: string | null;
   ended_at: string | null;
   end_reason: 'stopped' | 'crashed' | 'start-failed' | 'panel-exit' | null;
+  /** OS process ID of the spawned server; NULL before spawn or in pre-v5 databases. */
+  pid: number | null;
+  /** Platform-specific process start identity (e.g. linux:<bootId>:<ticks> or win32:<ticks>) to detect PID reuse. */
+  process_identity: string | null;
 };
 
 /** One 5-minute resource sample for either the host (instance_id IS NULL) or a running instance. */
@@ -165,6 +169,7 @@ export const PANEL_DB_MIGRATIONS: readonly DbMigration[] = [
   { version: 2, name: 'instance backup schedules', up: createBackupSchedules },
   { version: 3, name: 'overview run history and metric samples', up: createOverviewStatsTables },
   { version: 4, name: 'overview network and disk io samples', up: addMetricSampleIoColumns },
+  { version: 5, name: 'instance run process tracking', up: addInstanceRunProcessColumns },
 ];
 
 export function initDb(): void {
@@ -447,6 +452,18 @@ function addMetricSampleIoColumns(db: DatabaseSync): void {
   for (const column of METRIC_SAMPLE_IO_COLUMNS) {
     if (!existing.has(column)) db.exec(`ALTER TABLE metric_samples ADD COLUMN ${column} REAL`);
   }
+}
+
+/**
+ * Version 5: OS PID and process identity on instance_runs for detached-process detection across restarts.
+ * Checked column by column so dump-rebuilt databases at user_version 0 replay without error.
+ */
+function addInstanceRunProcessColumns(db: DatabaseSync): void {
+  const existing = new Set(
+    (db.prepare('PRAGMA table_info(instance_runs)').all() as Array<{ name: string }>).map((column) => column.name),
+  );
+  if (!existing.has('pid')) db.exec('ALTER TABLE instance_runs ADD COLUMN pid INTEGER');
+  if (!existing.has('process_identity')) db.exec('ALTER TABLE instance_runs ADD COLUMN process_identity TEXT');
 }
 
 /** Backfills phase for old task rows; idempotent and safe to run repeatedly. */

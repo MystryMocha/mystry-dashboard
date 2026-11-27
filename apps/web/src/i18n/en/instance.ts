@@ -20,6 +20,7 @@ export default {
   'instance.restart.confirm': 'Restart',
   'instance.forceStop.title': 'Force stop instance "{name}"?',
   'instance.forceStop.description': 'Force stopping ends the process immediately and may corrupt the world. Try a normal "Stop" first.',
+  'instance.forceStop.descriptionDetached': 'Force stopping ends the process immediately and may corrupt the world. The panel cannot send this process the "stop" command; an OP player in the game can run /stop to save the world first.',
   'instance.forceStop.confirm': 'Force Stop',
 
   // Instance settings
@@ -43,6 +44,16 @@ export default {
   'instance.settings.unsaved.description': 'If you leave Settings, your unsaved instance settings will be lost.',
 
   // Start failure reason notice (above the console)
+  'instance.detached.title': 'Previous server process is still running (PID {pid})',
+  'instance.detached.bodyUnix': 'The panel lost console control after a previous exit, so this page cannot stream logs or send commands. Stop or force stop it before starting, backing up, or deleting this instance.',
+  'instance.detached.bodyWindows': 'The panel lost console control after a previous exit, so it can no longer send the "stop" command. Force stop it before starting, backing up, or deleting this instance.',
+  'instance.detached.refresh': 'Refresh Status',
+  'instance.detached.unverifiedTitle': 'The panel cannot confirm whether PID {pid} is still this server',
+  'instance.detached.bodyUnverified': 'The panel lost console control of this server after a previous exit, and the system will not say which program PID {pid} is now. Check it in Task Manager or with ps. If it is this server, end it there and select "Refresh Status". If it is another program, select "Not This Server".',
+  'instance.detached.dismiss': 'Not This Server',
+  'instance.detached.dismissConfirm.title': 'Clear the record of PID {pid}?',
+  'instance.detached.dismissConfirm.body': 'The panel will no longer treat PID {pid} as this instance\'s server, and starting, backing up and deleting become available again. If that server is in fact still running, starting the instance would run two servers on the same world.',
+  'instance.detached.dismissConfirm.confirm': 'Clear Record',
   'instance.startIssue.eula.title': 'Agree to the Minecraft EULA to start this server',
   'instance.startIssue.eula.body': 'A Minecraft server runs only after you accept the <link>Minecraft EULA</link>. Selecting "Agree and Start" means you have read and agree to it. The panel then writes eula.txt and starts the server.',
   'instance.startIssue.eula.action': 'Agree and Start',
