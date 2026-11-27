@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import type { ConfirmZipImportInput, ImportPreviewInfo, ServerMessageKey, TaskInfo } from '@mystry/shared';
 import { config } from '../config.js';
 import { importZipPackage } from './import-service.js';
-import { inspectZipEulaAccepted, inspectZipJvmConfig } from './zip-service.js';
+import { assertZipImportSafe, inspectZipEulaAccepted, inspectZipJvmConfig } from './zip-service.js';
 import {
   assertImportPreviewUploadPath,
   removeUploadTemp,
@@ -129,6 +129,7 @@ export async function createImportPreview(input: {
   }
 
   const zipPath = assertImportPreviewUploadPath(input.zipPath);
+  assertZipImportSafe(zipPath);
   const detectedJvmConfig = await inspectZipJvmConfig(zipPath);
   const eulaAccepted = await inspectZipEulaAccepted(zipPath);
   const stat = fs.statSync(zipPath);

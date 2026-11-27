@@ -269,3 +269,109 @@ test('a forged staging marker inside the ZIP outer directory should be rejected'
   }
   assert.equal(fs.existsSync(zipPath), false);
 });
+
+test('ZIP archives with a panel ownership marker are rejected before promoting without leaving orphan directories', async (t) => {
+  const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-import-service-test-'));
+  process.env.MYSTRY_DATA_DIR = dataRoot;
+  t.after(async () => {
+    try {
+      const { closeDb } = await import('../db.js');
+      closeDb();
+    } finally {
+      fs.rmSync(dataRoot, { recursive: true, force: true });
+    }
+  });
+
+  const { initDb } = await import('../db.js');
+  const { importZipPackage } = await import('./import-service.js');
+  const { getTask, resetTaskRuntimeForTests } = await import('./task-service.js');
+  const { OWNERSHIP_MARKER_FILE } = await import('../utils/path.js');
+  initDb();
+  resetTaskRuntimeForTests();
+
+  for (const [label, entries] of [
+    ['root', [
+      { name: 'server.jar', contents: 'server-jar-content' },
+      { name: OWNERSHIP_MARKER_FILE, contents: '{"version":1,"instanceId":"old","marker":"abc"}' },
+    ]],
+    ['wrapper', [
+      { name: 'wrapper/server.jar', contents: 'server-jar-content' },
+      { name: `wrapper/${OWNERSHIP_MARKER_FILE}`, contents: '{"version":1,"instanceId":"old","marker":"abc"}' },
+    ]],
+  ] as const) {
+    const zipPath = path.join(dataRoot, 'uploads', `.tmp-import-reserved-${label}.zip`);
+    fs.writeFileSync(zipPath, createZip(entries));
+    const queuedTask = await importZipPackage({ name: `marker-${label}`, zipPath });
+    let completedTask = getTask(queuedTask.id);
+    for (let attempt = 0; attempt < 200 && completedTask?.status !== 'completed' && completedTask?.status !== 'failed'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      completedTask = getTask(queuedTask.id);
+    }
+    assert.equal(completedTask?.status, 'failed', label);
+    assert.equal(completedTask?.errorI18n?.key, 'server.files.zip.reservedName', label);
+    assert.deepEqual(fs.readdirSync(path.join(dataRoot, 'instances')), [], `${label} must not leave orphan instance directories`);
+    assert.deepEqual(fs.readdirSync(path.join(dataRoot, '.mystry-staging')), [], `${label} must clean staging`);
+    assert.equal(fs.existsSync(zipPath), false, `${label} must clean uploaded zip`);
+  }
+});
+
+test('commit failure during validation or DB insert rolls back and leaves no orphan instance directory', async (t) => {
+  const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-import-commit-rollback-'));
+  process.env.MYSTRY_DATA_DIR = dataRoot;
+  t.after(async () => {
+    try {
+      const { closeDb } = await import('../db.js');
+      closeDb();
+    } finally {
+      fs.rmSync(dataRoot, { recursive: true, force: true });
+    }
+  });
+
+  const { initDb, getDb } = await import('../db.js');
+  const { importZipPackage } = await import('./import-service.js');
+  const { getTask, resetTaskRuntimeForTests } = await import('./task-service.js');
+  initDb();
+  resetTaskRuntimeForTests();
+
+  const waitTask = async (id: string) => {
+    let task = getTask(id);
+    for (let attempt = 0; attempt < 200 && task?.status !== 'completed' && task?.status !== 'failed'; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      task = getTask(id);
+    }
+    return task;
+  };
+
+  // Failure during pre-rename validation (unavailable Java runtime ID).
+  const badJavaZip = path.join(dataRoot, 'uploads', '.tmp-import-bad-java.zip');
+  fs.writeFileSync(badJavaZip, createZip([{ name: 'server.jar', contents: 'jar' }]));
+  const badJavaTask = await waitTask((await importZipPackage({
+    name: 'bad-java',
+    zipPath: badJavaZip,
+    javaRuntimeId: 'nonexistent-runtime',
+  })).id);
+  assert.equal(badJavaTask?.status, 'failed');
+  assert.equal(badJavaTask?.errorI18n?.key, 'server.instance.javaRuntimeInvalid');
+  assert.deepEqual(fs.readdirSync(path.join(dataRoot, 'instances')), []);
+  assert.deepEqual(fs.readdirSync(path.join(dataRoot, '.mystry-staging')), []);
+
+  // Failure during DB insert after rename: directory must be moved back to staging and removed.
+  const dbFailZip = path.join(dataRoot, 'uploads', '.tmp-import-db-fail.zip');
+  fs.writeFileSync(dbFailZip, createZip([{ name: 'server.jar', contents: 'jar' }]));
+  getDb().exec(`CREATE TRIGGER fail_instance_insert BEFORE INSERT ON instances
+    BEGIN SELECT RAISE(ABORT, 'simulated disk full'); END`);
+  try {
+    const dbFailTask = await waitTask((await importZipPackage({
+      name: 'db-fail',
+      zipPath: dbFailZip,
+      acceptEula: true,
+    })).id);
+    assert.equal(dbFailTask?.status, 'failed');
+    assert.match(dbFailTask?.error ?? '', /simulated disk full/);
+    assert.deepEqual(fs.readdirSync(path.join(dataRoot, 'instances')), [], 'failed DB insert must not leave an orphan instance directory');
+    assert.deepEqual(fs.readdirSync(path.join(dataRoot, '.mystry-staging')), [], 'rolled-back staging tree must be cleaned');
+    assert.equal(getDb().prepare('SELECT COUNT(*) AS count FROM instances').get()!.count, 0);
+  } finally {
+    getDb().exec('DROP TRIGGER fail_instance_insert');
+  }
+});

@@ -15,7 +15,7 @@ import {
   assertSafeInstanceRoot,
   resolveSafePath,
 } from '../utils/path.js';
-import { registerPromotedInstance } from './instance-service.js';
+import { commitStagedInstance } from './instance-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { detectJvmConfigFile, jvmConfigFileFingerprint } from './jvm-detection-service.js';
 import { eulaFileFingerprint, hasAcceptedEula } from './eula-detection.js';
@@ -31,7 +31,6 @@ import { recordTaskStaging, runBackgroundTask } from './task-service.js';
 import {
   STAGING_MARKER_FILE,
   prepareTaskStaging,
-  promoteTaskStagingToInstance,
   removeTaskStagingTree,
   taskStagingDir,
   writeTaskStagingMarker,
@@ -115,8 +114,13 @@ export async function precheckServerFolder(sourceDir: string): Promise<ServerFol
     };
   };
 
-  if (fs.existsSync(resolveSafePath(sourceDir, OWNERSHIP_MARKER_FILE))) {
+  const rootNames = fs.readdirSync(sourceDir);
+  if (rootNames.some((name) => name.toLowerCase() === OWNERSHIP_MARKER_FILE.toLowerCase())) {
     throw new PanelError('server.imports.existing.managedMarker');
+  }
+  const reservedStaging = rootNames.find((name) => name.toLowerCase() === STAGING_MARKER_FILE.toLowerCase());
+  if (reservedStaging) {
+    throw new PanelError('server.imports.folder.reservedName', { path: reservedStaging });
   }
 
   const jarFile = detectJarFile(sourceDir);
@@ -236,8 +240,11 @@ async function scanSourceDirectory(
 
     for (const entry of entries) {
       throwIfAborted(signal);
-      if (!relativeDirectory && entry.name === OWNERSHIP_MARKER_FILE) {
+      if (!relativeDirectory && entry.name.toLowerCase() === OWNERSHIP_MARKER_FILE.toLowerCase()) {
         throw new PanelError('server.imports.existing.markerRefused');
+      }
+      if (!relativeDirectory && entry.name.toLowerCase() === STAGING_MARKER_FILE.toLowerCase()) {
+        throw new PanelError('server.imports.folder.reservedName', { path: entry.name });
       }
 
       const relative = path.join(relativeDirectory, entry.name);
@@ -307,8 +314,11 @@ async function copySourceDirectory(
 
     for (const entry of entries) {
       throwIfAborted(signal);
-      if (!relativeDirectory && entry.name === OWNERSHIP_MARKER_FILE) {
+      if (!relativeDirectory && entry.name.toLowerCase() === OWNERSHIP_MARKER_FILE.toLowerCase()) {
         throw new PanelError('server.imports.existing.markerRefused');
+      }
+      if (!relativeDirectory && entry.name.toLowerCase() === STAGING_MARKER_FILE.toLowerCase()) {
+        throw new PanelError('server.imports.folder.reservedName', { path: entry.name });
       }
 
       const relative = path.join(relativeDirectory, entry.name);
@@ -472,21 +482,21 @@ export async function runServerFolderImport(
 
     report(95, { key: 'server.imports.progress.writingInstance' });
     throwIfAborted(signal);
-    promoteTaskStagingToInstance(taskId, instanceId);
-    registerPromotedInstance(instanceId, {
-      name: input.name.trim(),
-      coreType: resolveImportedCoreType(input.coreType, copiedLaunchTarget.coreType),
-      mcVersion: input.mcVersion?.trim() || copiedLaunchTarget.mcVersion || undefined,
-      jarFile: copiedLaunchTarget.value,
-      jvmArgs: input.jvmArgs,
-      acceptEula: input.acceptEula,
-      javaRuntimeId: input.javaRuntimeId ?? null,
-    });
+    commitStagedInstance(
+      taskId,
+      instanceId,
+      {
+        name: input.name.trim(),
+        coreType: resolveImportedCoreType(input.coreType, copiedLaunchTarget.coreType),
+        mcVersion: input.mcVersion?.trim() || copiedLaunchTarget.mcVersion || undefined,
+        jarFile: copiedLaunchTarget.value,
+        jvmArgs: input.jvmArgs,
+        acceptEula: input.acceptEula,
+        javaRuntimeId: input.javaRuntimeId ?? null,
+      },
+      { writeEulaIfAccepted: true },
+    );
     completed = true;
-    if (input.acceptEula) {
-      const instanceRoot = path.join(config.instancesDir, instanceId);
-      fs.writeFileSync(resolveSafePath(instanceRoot, 'eula.txt'), 'eula=true\n', 'utf8');
-    }
 
     report(100, { key: text.done });
     return { instanceId };

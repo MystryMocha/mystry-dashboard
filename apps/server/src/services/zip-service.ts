@@ -5,7 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import { Readable, Writable } from 'node:stream';
 import { inspectJvmArgFile, renderPanelMessage, type DetectedJvmConfig, type PanelMessage } from '@mystry/shared';
 import { config } from '../config.js';
-import { assertSafeInstanceRoot, resolveSafePath } from '../utils/path.js';
+import { OWNERSHIP_MARKER_FILE, assertSafeInstanceRoot, resolveSafePath } from '../utils/path.js';
 import { MAX_DETECTED_JVM_ARGS_BYTES } from './jvm-detection-service.js';
 import { isEulaAcceptedText, MAX_EULA_FILE_BYTES } from './eula-detection.js';
 import { createByteCounter } from '../utils/byte-counter.js';
@@ -281,6 +281,28 @@ function invalidDetectedJvmConfig(message: PanelMessage | string): DetectedJvmCo
     canonicalArgs: null,
     issues: [issue],
   };
+}
+
+/**
+ * Rejects panel-reserved ownership markers in a server import ZIP (at the archive root, or directly inside a single
+ * wrapper folder that flattenSingleRoot would lift to the instance root).
+ */
+export function assertZipImportSafe(
+  zipPath: string,
+  signal: AbortSignal = new AbortController().signal,
+): void {
+  const entries = readZipEntries(zipPath, signal);
+  const topLevels = new Set(entries.map((entry) => entry.normalizedName.split('/')[0]!));
+  const singleTopLevel = topLevels.size === 1;
+  const reservedLower = OWNERSHIP_MARKER_FILE.toLowerCase();
+  for (const entry of entries) {
+    const parts = entry.normalizedName.split('/');
+    const atRoot = parts.length === 1 && parts[0]!.toLowerCase() === reservedLower;
+    const atFlattenedRoot = singleTopLevel && parts.length === 2 && parts[1]!.toLowerCase() === reservedLower;
+    if (atRoot || atFlattenedRoot) {
+      throw new PanelError('server.files.zip.reservedName', { name: entry.name });
+    }
+  }
 }
 
 /** A ZIP preview reads only the central directory and a size-limited user_jvm_args.txt, without extracting the full package. */

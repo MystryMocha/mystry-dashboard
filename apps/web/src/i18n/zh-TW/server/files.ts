@@ -68,6 +68,7 @@ export default {
   'server.files.zip.entryNameInvalid': 'ZIP 項目名稱無效',
   'server.files.zip.entryNameEmpty': 'ZIP 項目名稱為空',
   'server.files.zip.unsafePath': '偵測到不安全的 ZIP 路徑：{name}',
+  'server.files.zip.reservedName': 'ZIP 包含面板自行保留的檔名：{name}',
   'server.files.zip.tooLarge': 'ZIP 檔案超過大小限制',
   'server.files.zip.notZip': '不是有效的 ZIP 檔案',
   'server.files.zip.zip64Unsupported': '目前不支援 ZIP64 檔案',

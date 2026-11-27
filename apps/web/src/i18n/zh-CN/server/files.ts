@@ -68,6 +68,7 @@ export default {
   'server.files.zip.entryNameInvalid': 'ZIP 条目名称非法',
   'server.files.zip.entryNameEmpty': 'ZIP 条目名称为空',
   'server.files.zip.unsafePath': '检测到不安全的 ZIP 路径：{name}',
+  'server.files.zip.reservedName': 'ZIP 包含面板自己保留的文件名：{name}',
   'server.files.zip.tooLarge': 'ZIP 文件超过大小限制',
   'server.files.zip.notZip': '不是有效的 ZIP 文件',
   'server.files.zip.zip64Unsupported': '暂不支持 ZIP64 文件',

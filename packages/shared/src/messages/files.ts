@@ -66,6 +66,7 @@ export const FILES_MESSAGES = {
   'server.files.zip.entryNameInvalid': 'A ZIP entry has an invalid name.',
   'server.files.zip.entryNameEmpty': 'A ZIP entry has an empty name.',
   'server.files.zip.unsafePath': 'Unsafe ZIP path detected: {name}',
+  'server.files.zip.reservedName': 'The ZIP file contains a file name reserved by the panel: {name}',
   'server.files.zip.tooLarge': 'The ZIP file exceeds the size limit.',
   'server.files.zip.notZip': 'This is not a valid ZIP file.',
   'server.files.zip.zip64Unsupported': "ZIP64 files aren't supported yet.",
