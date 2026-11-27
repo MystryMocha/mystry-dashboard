@@ -44,7 +44,7 @@ The interface follows Apple's design style: a **sidebar** on the left and the **
 | Quick Deploy | `/deploy` | Downloads and installs a core from the official source |
 | Import Server | `/import` | Turns an uploaded server folder or zip, or a folder copied into imports, into an instance |
 | Multiplayer | `/multiplayer` | Opens an instance's game port to friends, through your own frp server or a virtual LAN |
-| Panel Settings (the gear at the bottom left) | `/settings` | **This Device**: language and appearance, for this browser only. **Panel**: sign-in duration, download source and Open on Another Device, for every device that signs in. **Account**: change the password or sign out. **Panel Info**: the version, listening address, data folder, backup folder and config file location, read-only; to change them, edit the config file and restart the panel |
+| Panel Settings (the gear at the bottom left) | `/settings` | **This Device**: language and appearance, for this browser only. **Panel**: sign-in duration, download source and Open on Another Device, for every device that signs in. **Instances**: [Restart After a Crash](#restart-after-a-crash), for every instance. **Account**: change the password or sign out. **Panel Info**: the version, listening address, data folder, backup folder and config file location, read-only; to change them, edit the config file and restart the panel |
 | Task Center (top right) | — | Slides in from the right with recent deploy and import tasks, and keeps updating after you leave the deploy page until each task completes or fails. The number on the button counts tasks in progress and is hidden when none are running. A task you cancelled shows as "Cancelled" |
 | Language (top right) | — | Choose **Auto / English / 简体中文 / 繁體中文**. With Auto, the panel follows your browser language: Traditional Chinese (Taiwan, Hong Kong, Macau) shows 繁體中文, other Chinese shows 简体中文, and every other language shows English. The choice is saved in this browser and can also be changed at the top right of the sign-in page or in Panel Settings |
 | Appearance (top right) | — | Choose the **Auto / Light / Dark** appearance (Auto follows the system). The choice is saved in this browser and can also be changed in Panel Settings |
@@ -136,7 +136,7 @@ Instance status and metrics refresh automatically every 5 seconds and pause whil
 | Starting | The process is starting up | Wait |
 | Running | The server has started | Join the game, send console commands |
 | Stopping | The process is shutting down | Wait |
-| Crashed | The process exited abnormally | Check the console log to troubleshoot |
+| Crashed | The process exited abnormally | Check the console log to troubleshoot. With [Restart After a Crash](#restart-after-a-crash) on, the panel starts it again |
 | ▲ Needs Migration | A legacy external instance that hasn't been adopted yet | See [Adopting a Legacy External Instance](#adopting-a-legacy-external-instance) |
 
 **Button behavior**
@@ -251,6 +251,32 @@ Importing takes two steps:
 The check result is kept for 30 minutes. If you refresh, or leave and come back, in the same browser tab, you can still confirm. You can also cancel, which deletes the uploaded temporary file at once. After the result expires or the panel restarts, you must upload again.
 
 During the import, if the zip contains only a single root folder, it's flattened into the instance root automatically. The panel finds the server jar on its own, or the launch arguments file for modern Forge / NeoForge. If the task queue is full, the page asks you to try again later; the check result is kept, so you don't need to upload again.
+
+---
+
+## Restart After a Crash
+
+On the **Panel Settings** page, under **Instances**, **Restart After a Crash** is off until you turn it on, and it applies to every instance. With it on, a server that exits unexpectedly after it had finished starting is started again by the panel. Three numbers appear under the switch; change them and click **Save**:
+
+| Setting | Default | Range |
+|---|---|---|
+| Wait Before Restarting | 10 seconds | 5–300 |
+| Maximum Restarts | 3 | 1–10 |
+| Count Starts Over After | 10 minutes | 5–60 |
+
+Restarts are counted in a row for each server. After the set number of them, one more crash leaves the server "Crashed" until you start it. The count starts over once the server has stayed up for the set time after a restart, or when you start it yourself: with the defaults, a server that crashes every few minutes is restarted 3 times and then left alone, while one that crashes now and then is restarted every time.
+
+While the panel waits, the **Start** button at the top of the instance's page turns into a countdown, such as "Restarting in 8 Seconds". Click it to cancel that restart; the button goes back to **Start**. The restart is the same as clicking **Start**, with the settings saved at that moment.
+
+When the panel stops trying, a line at the top of the console says so: either the limit was reached, or the start was refused, for example because the instance was being backed up, and the line gives the reason. It stays until you start the server.
+
+The panel doesn't restart a server that:
+
+- exited without an error, for example after `stop` was run in the game;
+- crashed before it finished starting (see [The Server Exits Right After Starting or Shows "Crashed"](#the-server-exits-right-after-starting-or-shows-crashed));
+- you restored from a backup while it was crashed: after a restore, start it yourself.
+
+Closing the panel drops a restart that is waiting, and the panel doesn't start instances by itself when it starts.
 
 ---
 

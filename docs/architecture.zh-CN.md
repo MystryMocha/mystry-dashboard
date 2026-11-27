@@ -206,6 +206,8 @@ DATA_DIR/
 
 子进程退出后释放活动进程引用，但 `stopped` / `crashed` 终态与末尾一段受限的控制台历史保留至下次启动或实例删除，供页面刷新与 WebSocket 重连读取。
 
+崩溃后是否重启不由 `ProcessManager` 决定，而由 `auto-restart-service.ts` 负责：它监听状态事件，在 `panel_settings` 中的面板级设置开启时，于已保存的等待时长过后重新读取实例记录，调用与 API 相同的 `start`，因而不绕过实例锁与启动前的各项检查。等待中的重启与计数仅存于内存，面板开始关闭时即丢弃。重启条件见 [API 文档](api.zh-CN.md) 的实例一节。
+
 普通 jar 的启动命令形如：
 
 ```text
