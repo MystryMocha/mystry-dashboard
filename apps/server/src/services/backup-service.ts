@@ -34,6 +34,7 @@ import {
 } from './backup-archive.js';
 import { getInstanceRow, updateInstanceServerFiles } from './instance-service.js';
 import { processManager } from './process-manager.js';
+import { findModLoaderArgsFile, resolvePlatformModLoaderArgsFile } from './server-launch-detect.js';
 import { recordTaskStaging, runBackgroundTask } from './task-service.js';
 import {
   prepareTaskStaging,
@@ -733,24 +734,58 @@ function launchTargetOf(jarFile: string): string | null {
   return jarFile.startsWith('@args:') ? jarFile.slice('@args:'.length) : jarFile;
 }
 
+function inferModLoaderKind(argsRelPath: string, coreType: string): 'forge' | 'neoforge' | null {
+  if (coreType === 'forge' || coreType === 'neoforge') return coreType;
+  const normalized = argsRelPath.replace(/\\/g, '/').toLowerCase();
+  if (normalized.includes('libraries/net/neoforged/neoforge/')) return 'neoforge';
+  if (normalized.includes('libraries/net/minecraftforge/forge/')) return 'forge';
+  return null;
+}
+
 /**
  * After a restore, makes the launch file, core type and version recorded by the panel follow the backup manifest, so the directory is not switched to an old version
- * while still launching with the new jar. When the manifest's launch file is not in the restored directory, the existing record is kept. Returns whether anything changed.
+ * while still launching with the new jar. For Forge/NeoForge `@args:` targets, resolves the current platform's args file (`win_args.txt` vs `unix_args.txt`)
+ * so backups restored across Windows and Linux boot cleanly. When the launch file is not in the restored directory, the existing record is kept. Returns whether anything changed.
  */
-function syncInstanceRecordWithManifest(instanceId: string, manifest: BackupManifest): boolean {
+export async function syncInstanceRecordWithManifest(
+  instanceId: string,
+  manifest: BackupManifest,
+  platform: NodeJS.Platform = process.platform,
+): Promise<boolean> {
   const row = getInstanceRow(instanceId);
-  const jarFile = manifest.instance.jarFile;
-  if (!row || typeof jarFile !== 'string' || jarFile === '') return false;
-  const target = launchTargetOf(jarFile);
+  const rawJarFile = manifest.instance.jarFile;
+  if (!row || typeof rawJarFile !== 'string' || rawJarFile === '') return false;
+  const target = launchTargetOf(rawJarFile);
   if (target === null) return false;
-  let stat: fs.Stats | undefined;
-  try {
-    stat = fs.lstatSync(resolveSafePath(getInstanceDir(instanceId), target), { throwIfNoEntry: false });
-  } catch {
-    return false;
-  }
-  if (!stat?.isFile()) return false;
+  const instanceDir = getInstanceDir(instanceId);
   const coreType = toCoreType(manifest.instance.coreType) ?? row.core_type;
+
+  let jarFile = rawJarFile;
+  if (rawJarFile.startsWith('@args:')) {
+    let resolvedArgs = resolvePlatformModLoaderArgsFile(instanceDir, target, platform);
+    if (!resolvedArgs) {
+      const loaderKind = inferModLoaderKind(target, coreType);
+      if (loaderKind) {
+        resolvedArgs = await findModLoaderArgsFile(instanceDir, loaderKind, {
+          maxDepth: config.modLoaderScanMaxDepth,
+          maxEntries: config.modLoaderScanMaxEntries,
+          deadlineMs: config.modLoaderScanTimeoutMs,
+          platform,
+        });
+      }
+    }
+    if (!resolvedArgs) return false;
+    jarFile = `@args:${resolvedArgs}`;
+  } else {
+    let stat: fs.Stats | undefined;
+    try {
+      stat = fs.lstatSync(resolveSafePath(instanceDir, target), { throwIfNoEntry: false });
+    } catch {
+      return false;
+    }
+    if (!stat?.isFile()) return false;
+  }
+
   const mcVersion = typeof manifest.instance.mcVersion === 'string' ? manifest.instance.mcVersion : null;
   if (jarFile === row.jar_file && coreType === row.core_type && mcVersion === row.mc_version) return false;
   updateInstanceServerFiles(instanceId, { jarFile, coreType, mcVersion });
@@ -798,7 +833,7 @@ async function restoreBackup(
       // The files were already replaced successfully: a failure to sync the record should not make the whole restore show as failed, and the user can still change it manually in settings.
       let instanceRecordUpdated = false;
       try {
-        instanceRecordUpdated = syncInstanceRecordWithManifest(instanceId, manifest);
+        instanceRecordUpdated = await syncInstanceRecordWithManifest(instanceId, manifest);
       } catch (error) {
         console.warn(`还原已完成，但未能按备份更新实例 ${instanceId} 的启动文件记录`, error);
       }

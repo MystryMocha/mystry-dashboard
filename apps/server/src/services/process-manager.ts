@@ -17,6 +17,7 @@ import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
 import { ensureServerPropertiesDefaults } from './config-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
+import { resolvePlatformModLoaderArgsFile } from './server-launch-detect.js';
 import { diagnoseStartFailure, hasFinishedStarting } from './start-diagnosis.js';
 import { errorMessage, PanelError } from '../utils/errors.js';
 
@@ -397,7 +398,10 @@ export class ProcessManager extends EventEmitter {
     let args: string[];
 
     if (instance.jar_file.startsWith('@args:')) {
-      const argsRel = instance.jar_file.slice('@args:'.length);
+      const rawArgsRel = instance.jar_file.slice('@args:'.length);
+      // Prefer the current platform's win_args.txt / unix_args.txt sibling when present so a migrated data directory
+      // or restored record still boots with the right classpath separator.
+      const argsRel = resolvePlatformModLoaderArgsFile(cwd, rawArgsRel) ?? rawArgsRel;
       const argsAbs = resolveSafePath(cwd, argsRel);
       if (!fs.existsSync(argsAbs)) {
         throw new PanelError('server.instance.forgeArgsMissing', { path: argsRel });

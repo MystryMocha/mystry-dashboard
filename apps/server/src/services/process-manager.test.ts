@@ -348,6 +348,45 @@ test('a Forge start rewrites user_jvm_args.txt with the normalized arguments', a
   );
 });
 
+test('a Forge start switches a foreign-platform @args: record to the current platform sibling when present', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const baseDir = 'libraries/net/minecraftforge/forge/1.20.1-47.2.0';
+  const foreignFile = process.platform === 'win32' ? 'unix_args.txt' : 'win_args.txt';
+  const nativeFile = process.platform === 'win32' ? 'win_args.txt' : 'unix_args.txt';
+  const info = createInstance({
+    name: 'forge-cross-os',
+    coreType: 'forge',
+    jarFile: `@args:${baseDir}/${foreignFile}`,
+  });
+  const instanceDir = defaultInstanceDir(info.id);
+  const fullDir = path.join(instanceDir, ...baseDir.split('/'));
+  fs.mkdirSync(fullDir, { recursive: true });
+  fs.writeFileSync(path.join(fullDir, 'win_args.txt'), '-cp a;b', 'utf8');
+  fs.writeFileSync(path.join(fullDir, 'unix_args.txt'), '-cp a:b', 'utf8');
+
+  let spawnedArgs: readonly string[] = [];
+  const manager = new ProcessManager(
+    (_command, args) => {
+      spawnedArgs = [...args];
+      return fakeChild();
+    },
+    async () => 'java',
+  );
+  await manager.start(getInstanceRow(info.id)! as InstanceRow);
+
+  assert.deepEqual(spawnedArgs, [
+    '@user_jvm_args.txt',
+    `@${baseDir}/${nativeFile}`,
+    'nogui',
+  ]);
+});
+
 test('delete must wait for an unfinished start, and a directory being started must not be torn down', async (t) => {
   prepareTempDataRoot(t);
   const { processManager } = await import('./process-manager.js');

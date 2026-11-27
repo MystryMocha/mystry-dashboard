@@ -115,3 +115,27 @@ test('importing an old Forge from a local folder: both the precheck and the impo
   assert.equal(manual.coreType, 'paper');
   assert.equal(manual.mcVersion, '1.16.5');
 });
+
+test('resolvePlatformModLoaderArgsFile switches between win_args.txt and unix_args.txt for the target platform', async (t) => {
+  const { resolvePlatformModLoaderArgsFile } = await import('./server-launch-detect.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-args-platform-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  const forgeDir = path.join(dir, 'libraries', 'net', 'minecraftforge', 'forge', '1.20.1-47.2.0');
+  fs.mkdirSync(forgeDir, { recursive: true });
+  fs.writeFileSync(path.join(forgeDir, 'win_args.txt'), '-cp a;b\n');
+  fs.writeFileSync(path.join(forgeDir, 'unix_args.txt'), '-cp a:b\n');
+
+  const winRel = 'libraries/net/minecraftforge/forge/1.20.1-47.2.0/win_args.txt';
+  const unixRel = 'libraries/net/minecraftforge/forge/1.20.1-47.2.0/unix_args.txt';
+
+  assert.equal(resolvePlatformModLoaderArgsFile(dir, winRel, 'linux'), unixRel);
+  assert.equal(resolvePlatformModLoaderArgsFile(dir, winRel, 'darwin'), unixRel);
+  assert.equal(resolvePlatformModLoaderArgsFile(dir, unixRel, 'win32'), winRel);
+  assert.equal(resolvePlatformModLoaderArgsFile(dir, winRel, 'win32'), winRel);
+  assert.equal(resolvePlatformModLoaderArgsFile(dir, '../escape/win_args.txt', 'linux'), null);
+
+  // When only one platform's args file exists, fall back to the existing file rather than failing lookup.
+  fs.rmSync(path.join(forgeDir, 'unix_args.txt'));
+  assert.equal(resolvePlatformModLoaderArgsFile(dir, winRel, 'linux'), winRel);
+});

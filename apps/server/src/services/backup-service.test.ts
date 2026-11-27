@@ -499,6 +499,53 @@ test('the instance record is kept when the launch file in the manifest is not in
   assert.equal(getInstanceRow(id)!.jar_file, 'server-1.21.jar');
 });
 
+test('cross-platform Forge/NeoForge restore re-resolves @args: for the current platform instead of copying foreign OS args', async () => {
+  const { id, dir } = await setup();
+  const { getInstanceRow, updateInstanceServerFiles } = await import('./instance-service.js');
+  const { startBackupTask, startRestoreTask, syncInstanceRecordWithManifest } = await import('./backup-service.js');
+  const { BACKUP_FORMAT, BACKUP_FORMAT_VERSION } = await import('./backup-archive.js');
+
+  const forgeRelDir = 'libraries/net/minecraftforge/forge/1.20.1-47.2.0';
+  const winArgs = `@args:${forgeRelDir}/win_args.txt`;
+  const unixArgs = `@args:${forgeRelDir}/unix_args.txt`;
+  fs.mkdirSync(path.join(dir, ...forgeRelDir.split('/')), { recursive: true });
+  fs.writeFileSync(path.join(dir, ...forgeRelDir.split('/'), 'win_args.txt'), '-cp a;b\n');
+  fs.writeFileSync(path.join(dir, ...forgeRelDir.split('/'), 'unix_args.txt'), '-cp a:b\n');
+
+  // Record the opposite platform's args file before backing up to simulate a backup uploaded from another OS.
+  const foreignArgs = process.platform === 'win32' ? unixArgs : winArgs;
+  const nativeArgs = process.platform === 'win32' ? winArgs : unixArgs;
+  updateInstanceServerFiles(id, { jarFile: foreignArgs, coreType: 'forge', mcVersion: '1.20.1' });
+  const backupTask = await waitForTask(await startBackupTask(id));
+  assert.equal(backupTask.status, 'completed', backupTask.error);
+
+  const restored = await waitForTask(await startRestoreTask(id, backupTask.result!.backupId!, { backupCurrent: false }));
+  assert.equal(restored.status, 'completed', restored.error);
+  assert.equal(restored.result?.instanceRecordUpdated, true);
+  assert.equal(getInstanceRow(id)!.jar_file, nativeArgs, 'restore must switch @args: to the current platform');
+
+  // Also verify both cross-platform directions directly via syncInstanceRecordWithManifest.
+  const winManifest = {
+    format: BACKUP_FORMAT,
+    version: BACKUP_FORMAT_VERSION,
+    createdAt: new Date().toISOString(),
+    instance: { id, name: 'forge', coreType: 'forge' as const, mcVersion: '1.20.1', jarFile: winArgs },
+    wasRunning: false,
+    directories: [],
+    files: [],
+  };
+  updateInstanceServerFiles(id, { jarFile: 'server.jar', coreType: 'custom', mcVersion: null });
+  assert.equal(await syncInstanceRecordWithManifest(id, winManifest, 'linux'), true);
+  assert.equal(getInstanceRow(id)!.jar_file, unixArgs);
+
+  const unixManifest = {
+    ...winManifest,
+    instance: { ...winManifest.instance, jarFile: unixArgs },
+  };
+  assert.equal(await syncInstanceRecordWithManifest(id, unixManifest, 'win32'), true);
+  assert.equal(getInstanceRow(id)!.jar_file, winArgs);
+});
+
 test('deleting a backup leaves no files; deleting the instance backup directory removes all backups', async () => {
   const { id } = await setup();
   const { backupRoot, deleteBackup, deleteInstanceBackups, listBackups, startBackupTask } = await import('./backup-service.js');
