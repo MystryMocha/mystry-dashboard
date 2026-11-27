@@ -162,7 +162,7 @@ ZIP 导入的预检结果暂存于 `uploads/.tmp-import-preview-*`，按登录�
 
 **符号链接**：若数据目录或备份目录的上级文件夹是符号链接或目录联接（例如 `/home` 本身即为链接的 Linux 发行版），面板读取配置时将其解析为真实位置。数据目录本身及其中的内容均不得为链接，否则面板将拒绝操作实例。
 
-**权限**：在 Linux/macOS 上，面板启动时创建数据根及 `instances`、`imports`、`uploads`、`.mystry-staging`、`.mystry-panel-lock` 等目录，并校验其权限为 `0700`，`panel.db` 及其 WAL/SHM 文件为 `0600`。若已有目录对 group/other 可访问，默认拒绝启动；设置 `MYSTRY_REPAIR_DATA_PERMISSIONS=1` 可在启动时自动收紧权限。在 Windows 上，`mdash` 会通过 `icacls` 重置 ACL、移除继承，并将 `config`（源码模式为 `.env`）、`data`、`logs` 限制为仅当前用户、`SYSTEM` 与 `Administrators` 可访问，显式授予其他账户的条目也一并清除；改写范围限于上述顶层路径及已存在的密钥与数据库文件，其下内容经继承取得相同权限。若权限收紧失败（例如非 NTFS 分区）会打印警告。服务端启动时也会通过 `icacls` 检查 `DATA_DIR` 的 ACL，检测到其他本机账户有访问权限或无法验证时，将在控制台与日志中输出可见警告（不阻断启动）。`db-backups` 在首次留存副本时创建，权限要求相同，每份副本为 `0600`。
+**权限**：在 Linux/macOS 上，面板启动时创建数据根及 `instances`、`imports`、`uploads`、`.mystry-staging`、`.mystry-panel-lock` 等目录，并校验其权限为 `0700`，`panel.db` 及其 WAL/SHM 文件为 `0600`。若已有目录对 group/other 可访问，默认拒绝启动；设置 `MYSTRY_REPAIR_DATA_PERMISSIONS=1` 可在启动时自动收紧权限。在 Windows 上，`mdash` 每次启动时将 `config`（源码模式为 `.env`）、`data`、`logs` 限制为仅当前用户、`SYSTEM` 与 `Administrators` 可访问：移除继承，显式授予其他账户的条目也一并清除。权限已符合要求的路径只读取不改写；否则一次写入整份 ACL。改写范围限于上述顶层路径及已存在的密钥与数据库文件，其下内容经继承取得相同权限，因此首次收紧较大的数据目录可能需要一段时间。若权限收紧失败（例如非 NTFS 分区）会打印警告。服务端启动时也会通过 `icacls` 检查 `DATA_DIR` 的 ACL，检测到其他本机账户有访问权限或无法验证时，将在控制台与日志中输出可见警告（不阻断启动）。`db-backups` 在首次留存副本时创建，权限要求相同，每份副本为 `0600`。
 
 **结构升级**：`panel.db` 自身记录结构版本。新版面板需要升级结构时，先将数据库复制到 `db-backups/`，再逐步执行，每一步各在一个事务中完成；某一步失败即回滚，面板拒绝启动并指明该步骤。数据库若已被更新版本的面板升级，面板同样拒绝启动，并列出两个版本号。若要换回某份副本：先停止面板，将 `panel.db` 及可能存在的 `panel.db-wal`、`panel.db-shm` 移出数据目录，再将 `db-backups/` 中选定的文件复制为 `panel.db`。副本留存之后的改动不在其中。副本与数据库一样含有账号与密钥。
 

@@ -123,47 +123,84 @@ function setEnvLine(lines, name, value) {
   return true;
 }
 
-let cachedWindowsUserSid;
+// Reads each ACL and rewrites only one that is not already restricted. A rewrite replaces the whole DACL in a single
+// write, so the path never passes through the parent's broader inherited permissions; Windows then propagates the new
+// inheritable entries to every existing file below, which is why a path that is already right is left alone.
+const WINDOWS_ACL_SCRIPT = [
+  "$ErrorActionPreference = 'Stop'",
+  // Windows PowerShell otherwise writes in the console code page, which garbles localized error messages.
+  '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+  '$allowed = @([System.Security.Principal.WindowsIdentity]::GetCurrent().User,',
+  "  [System.Security.Principal.SecurityIdentifier]::new('S-1-5-18'), [System.Security.Principal.SecurityIdentifier]::new('S-1-5-32-544'))",
+  '$full = [System.Security.AccessControl.FileSystemRights]::FullControl',
+  '$targets = $env:MDASH_ACL_TARGETS.Split([char]10)',
+  'for ($index = 0; $index -lt $targets.Count; $index++) {',
+  '  $line = $targets[$index]',
+  "  $isDir = $line.StartsWith('D|')",
+  '  $target = $line.Substring(2)',
+  '  try {',
+  '    if ($isDir) { $acl = [System.IO.Directory]::GetAccessControl($target) } else { $acl = [System.IO.File]::GetAccessControl($target) }',
+  "    $inherit = if ($isDir) { [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit' } else { [System.Security.AccessControl.InheritanceFlags]::None }",
+  '    $rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))',
+  '    $restricted = $acl.AreAccessRulesProtected',
+  '    foreach ($rule in $rules) {',
+  "      if ($allowed -notcontains $rule.IdentityReference -or $rule.AccessControlType -ne 'Allow') { $restricted = $false }",
+  '    }',
+  '    foreach ($sid in $allowed) {',
+  '      $granted = $false',
+  '      foreach ($rule in $rules) {',
+  "        if ($rule.IdentityReference -eq $sid -and ($rule.FileSystemRights -band $full) -eq $full -and $rule.InheritanceFlags -eq $inherit -and $rule.PropagationFlags -eq 'None') { $granted = $true }",
+  '      }',
+  '      if (-not $granted) { $restricted = $false }',
+  '    }',
+  "    if ($restricted) { 'ok|' + $index; continue }",
+  '    if ($isDir) { $fresh = [System.Security.AccessControl.DirectorySecurity]::new() } else { $fresh = [System.Security.AccessControl.FileSecurity]::new() }',
+  '    $fresh.SetAccessRuleProtection($true, $false)',
+  "    foreach ($sid in $allowed) { $fresh.AddAccessRule([System.Security.AccessControl.FileSystemAccessRule]::new($sid, $full, $inherit, 'None', 'Allow')) }",
+  '    if ($isDir) { [System.IO.Directory]::SetAccessControl($target, $fresh) } else { [System.IO.File]::SetAccessControl($target, $fresh) }',
+  "    'fixed|' + $index",
+  "  } catch { 'error|' + $index + '|' + $_.Exception.Message }",
+  '}',
+].join('\n');
 
-function resolveWindowsUserSid() {
-  if (cachedWindowsUserSid !== undefined) return cachedWindowsUserSid;
-  if (process.platform !== 'win32') {
-    cachedWindowsUserSid = null;
-    return null;
-  }
-  const whoami = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'whoami.exe');
-  const result = spawnSync(whoami, ['/user', '/fo', 'csv', '/nh'], {
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: 5_000,
-  });
-  if (result.error || result.status !== 0) {
-    cachedWindowsUserSid = null;
-    return null;
-  }
-  const match = /\b(S-1-\d+(?:-\d+)+)\b/.exec(result.stdout);
-  cachedWindowsUserSid = match?.[1] ?? null;
-  return cachedWindowsUserSid;
-}
-
-function tightenWindowsAcl(targetPath, isDirectory, userSid) {
-  const icacls = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'icacls.exe');
-  const grants = isDirectory
-    ? [`*${userSid}:(OI)(CI)F`, '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F']
-    : [`*${userSid}:F`, '*S-1-5-18:F', '*S-1-5-32-544:F'];
-  // `/inheritance:r` and `/grant:r` leave explicit entries for other principals in place (left behind by tools that
-  // copy ACLs, or by a manual grant), so the ACL is reset first. icacls rejects `/reset` combined with the other switches.
-  for (const args of [['/reset'], ['/inheritance:r', '/grant:r', ...grants]]) {
-    const result = spawnSync(icacls, [targetPath, ...args], {
+/**
+ * Restricts each existing path to the current user, SYSTEM and Administrators. Returns the paths that could not be
+ * restricted, each with the reason, for warnWindowsAclFailure.
+ */
+function restrictWindowsAcls(targets) {
+  const existing = targets.filter((target) => fs.existsSync(target.path));
+  if (existing.length === 0) return [];
+  const result = spawnSync(
+    path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(WINDOWS_ACL_SCRIPT, 'utf16le').toString('base64')],
+    {
       encoding: 'utf8',
       windowsHide: true,
-      timeout: 10_000,
-    });
-    if (result.error || result.status !== 0) {
-      return result.error?.message || result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status ?? 'unknown'}`;
-    }
+      // The first rewrite of a data directory with large worlds propagates to every file in it; later starts only read.
+      timeout: 300_000,
+      env: {
+        SystemRoot: process.env.SystemRoot,
+        WINDIR: process.env.WINDIR,
+        MDASH_ACL_TARGETS: existing.map((target) => `${target.directory ? 'D' : 'F'}|${target.path}`).join('\n'),
+      },
+    },
+  );
+  if (result.error || result.status !== 0) {
+    const reason = result.error?.message || result.stderr?.trim() || `exit ${result.status ?? 'unknown'}`;
+    return existing.map((target) => `${target.path} (${reason})`);
   }
-  return null;
+  // One line per target, keyed by its index: echoing the paths back would depend on the console code page.
+  const reported = new Map();
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const [state, index, ...reason] = line.split('|');
+    if (state === 'ok' || state === 'fixed') reported.set(Number(index), null);
+    else if (state === 'error') reported.set(Number(index), reason.join('|') || 'error');
+  }
+  return existing.flatMap((target, index) => {
+    if (!reported.has(index)) return [`${target.path} (no result)`];
+    const reason = reported.get(index);
+    return reason === null ? [] : [`${target.path} (${reason})`];
+  });
 }
 
 function warnWindowsAclFailure(failures) {
@@ -176,12 +213,6 @@ function warnWindowsAclFailure(failures) {
   ));
 }
 
-function tightenWindowsFileIfNeeded(filePath, userSid) {
-  if (!fs.existsSync(filePath)) return null;
-  const err = tightenWindowsAcl(filePath, false, userSid);
-  return err ? `${filePath} (${err})` : null;
-}
-
 /**
  * Restricts panel config, data, logs and existing secret/DB files on Windows to the current user,
  * SYSTEM and Administrators so directories extracted outside the user profile do not keep inherited broad ACLs.
@@ -189,29 +220,17 @@ function tightenWindowsFileIfNeeded(filePath, userSid) {
  */
 function tightenWindowsPanelPaths() {
   if (process.platform !== 'win32') return;
-  const userSid = resolveWindowsUserSid();
-  if (!userSid) {
-    console.warn(text(
-      '警告：无法获取当前 Windows 用户 SID，未自动收紧配置与数据目录权限；请确保 config、data 与 logs 仅当前用户可访问。',
-      'Warning: could not resolve the current Windows user SID; config and data directory permissions were not tightened. Ensure config, data and logs are readable only by your user.',
-    ));
-    return;
-  }
-
   const resolvedHome = path.resolve(homeDir);
   const candidateDirs = [path.dirname(configPath), dataDir, logDir, launcherDir];
   const configBackupDir = path.join(launcherDir, 'config-backups');
   if (fs.existsSync(configBackupDir)) candidateDirs.push(configBackupDir);
 
-  const seenDirs = new Set();
-  const failures = [];
+  const targets = [];
   for (const dir of candidateDirs) {
     const resolved = path.resolve(dir);
     // Source mode places .env directly under the repository root; never strip inheritance from the repo root itself.
-    if (resolved === resolvedHome || seenDirs.has(resolved) || !fs.existsSync(resolved)) continue;
-    seenDirs.add(resolved);
-    const err = tightenWindowsAcl(resolved, true, userSid);
-    if (err) failures.push(`${resolved} (${err})`);
+    if (resolved === resolvedHome || targets.some((target) => target.path === resolved)) continue;
+    targets.push({ path: resolved, directory: true });
   }
 
   const sensitiveFiles = [
@@ -230,11 +249,8 @@ function tightenWindowsPanelPaths() {
       // Ignore unreadable backup directory; directory tightening failure above will already report it.
     }
   }
-  for (const file of sensitiveFiles) {
-    const failure = tightenWindowsFileIfNeeded(file, userSid);
-    if (failure) failures.push(failure);
-  }
-  warnWindowsAclFailure(failures);
+  for (const file of sensitiveFiles) targets.push({ path: path.resolve(file), directory: false });
+  warnWindowsAclFailure(restrictWindowsAcls(targets));
 }
 
 async function writeAtomic(filePath, content) {
@@ -251,11 +267,7 @@ async function writeAtomic(filePath, content) {
     path.resolve(filePath) === path.resolve(configPath)
     && path.resolve(path.dirname(filePath)) === path.resolve(homeDir)
   ) {
-    const userSid = resolveWindowsUserSid();
-    if (userSid) {
-      const failure = tightenWindowsFileIfNeeded(filePath, userSid);
-      if (failure) warnWindowsAclFailure([failure]);
-    }
+    warnWindowsAclFailure(restrictWindowsAcls([{ path: path.resolve(filePath), directory: false }]));
   }
 }
 
