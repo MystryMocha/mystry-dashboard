@@ -1512,17 +1512,27 @@ test('status, open and restart follow the running panel URL recorded in state.js
   assert.equal(stopped.code, 0, stopped.output);
 });
 
-test('Windows launcher strips inherited permissions and restricts config, data and logs to the current user', {
+test('Windows launcher strips inherited and explicit permissions and restricts config, data and logs to the current user', {
   skip: process.platform !== 'win32',
 }, async (t) => {
   const { home, env } = await fakePanelHome(t, 'mystry-ctl-win-acl-');
+  const icaclsExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'icacls.exe');
+  // An explicit inheritable grant to Everyone survives `/inheritance:r` and reaches files created under it.
+  const dataDir = path.join(home, 'data');
+  const databaseFile = path.join(dataDir, 'panel.db');
+  await fsp.mkdir(dataDir);
+  const seeded = spawnSync(icaclsExe, [dataDir, '/grant', '*S-1-1-0:(OI)(CI)(F)'], { encoding: 'utf8', windowsHide: true });
+  assert.equal(seeded.status, 0, seeded.stderr || seeded.stdout);
+  await fsp.writeFile(databaseFile, '');
+  const seededFile = spawnSync(icaclsExe, [databaseFile], { encoding: 'utf8', windowsHide: true });
+  assert.match(seededFile.stdout, /Everyone/i, seededFile.stdout);
+
   const started = await runController('start', env);
   assert.equal(started.code, 0, started.output);
   t.after(async () => {
     await runController('stop', env).catch(() => {});
   });
 
-  const icaclsExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'icacls.exe');
   for (const dir of [
     path.join(home, 'config'),
     path.join(home, 'data'),
@@ -1536,4 +1546,7 @@ test('Windows launcher strips inherited permissions and restricts config, data a
   const envAcl = spawnSync(icaclsExe, [path.join(home, 'config', 'panel.env')], { encoding: 'utf8', windowsHide: true });
   assert.equal(envAcl.status, 0, envAcl.stderr || envAcl.stdout);
   assert.doesNotMatch(envAcl.stdout, /BUILTIN\\Users|Authenticated Users|Everyone/i, envAcl.stdout);
+  const databaseAcl = spawnSync(icaclsExe, [databaseFile], { encoding: 'utf8', windowsHide: true });
+  assert.equal(databaseAcl.status, 0, databaseAcl.stderr || databaseAcl.stdout);
+  assert.doesNotMatch(databaseAcl.stdout, /BUILTIN\\Users|Authenticated Users|Everyone/i, databaseAcl.stdout);
 });

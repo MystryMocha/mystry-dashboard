@@ -151,13 +151,17 @@ function tightenWindowsAcl(targetPath, isDirectory, userSid) {
   const grants = isDirectory
     ? [`*${userSid}:(OI)(CI)F`, '*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F']
     : [`*${userSid}:F`, '*S-1-5-18:F', '*S-1-5-32-544:F'];
-  const result = spawnSync(icacls, [targetPath, '/inheritance:r', '/grant:r', ...grants], {
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: 10_000,
-  });
-  if (result.error || result.status !== 0) {
-    return result.error?.message || result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status ?? 'unknown'}`;
+  // `/inheritance:r` and `/grant:r` leave explicit entries for other principals in place (left behind by tools that
+  // copy ACLs, or by a manual grant), so the ACL is reset first. icacls rejects `/reset` combined with the other switches.
+  for (const args of [['/reset'], ['/inheritance:r', '/grant:r', ...grants]]) {
+    const result = spawnSync(icacls, [targetPath, ...args], {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 10_000,
+    });
+    if (result.error || result.status !== 0) {
+      return result.error?.message || result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status ?? 'unknown'}`;
+    }
   }
   return null;
 }
@@ -181,6 +185,7 @@ function tightenWindowsFileIfNeeded(filePath, userSid) {
 /**
  * Restricts panel config, data, logs and existing secret/DB files on Windows to the current user,
  * SYSTEM and Administrators so directories extracted outside the user profile do not keep inherited broad ACLs.
+ * Only these top-level paths are rewritten; instance files and other children pick the result up through inheritance.
  */
 function tightenWindowsPanelPaths() {
   if (process.platform !== 'win32') return;
