@@ -132,6 +132,27 @@ test('a full send buffer closes with the retryable backlog code, an oversized fr
   assert.deepEqual(fine.closes, []);
 });
 
+test('a trimmed history snapshot still leaves room for an output chunk that arrives before it drains', async () => {
+  const { consoleSnapshotFrames, sendSocketMessage } = await import('./console.js');
+  const denseUnit = '\x1b[38;5;196m"warn"\n';
+  const history = denseUnit.repeat(Math.ceil((1024 * 1024) / denseUnit.length)).slice(0, 1024 * 1024);
+  const frames = consoleSnapshotFrames(history, 'running');
+  assert.ok(String(frames[0].data).length < history.length, 'the ANSI-heavy history must have been trimmed');
+
+  // Nothing has reached the network yet: the whole snapshot is still in the send buffer.
+  const queued = frames.reduce((total, frame) => total + Buffer.byteLength(JSON.stringify(frame), 'utf8'), 0);
+  const closes: number[] = [];
+  const socket = {
+    readyState: 1,
+    bufferedAmount: queued,
+    send: () => {},
+    close: (code?: number) => { closes.push(code ?? 1005); },
+    terminate: () => {},
+  };
+  assert.equal(sendSocketMessage(socket, { type: 'output', data: 'x'.repeat(60_000) }), true);
+  assert.deepEqual(closes, []);
+});
+
 test('console WebSocket sends a full-1MiB ANSI-heavy history snapshot without closing with 1009', async (t) => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'mystry-console-test-'));
   process.env.MYSTRY_DATA_DIR = dataRoot;

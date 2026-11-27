@@ -197,6 +197,18 @@ export function splitOutputForJsonBudget(
   return chunks;
 }
 
+/**
+ * The history and status frames a new connection starts with. Both sit in the send buffer until a slow client has read
+ * them, so the history is trimmed to leave room for one output chunk; filling the whole buffer would close the
+ * connection on the first log line printed meanwhile.
+ */
+export function consoleSnapshotFrames(history: string, status: InstanceStatus): ConsoleMessage[] {
+  const statusFrame: ConsoleMessage = { type: 'status', data: '', status };
+  const statusBytes = Buffer.byteLength(JSON.stringify(statusFrame), 'utf8');
+  const historyBudget = Math.max(0, maxSocketBufferedBytes - maxConsoleChunkBytes - statusBytes);
+  return [{ type: 'history', data: fitConsoleHistory(history, status, historyBudget), status }, statusFrame];
+}
+
 export function sendSocketMessage(
   socket: {
     readyState: number;
@@ -338,23 +350,11 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
 
       let commandWindowStartedAt = Date.now();
       let commandCount = 0;
-      const status = processManager.getStatus(instanceId);
-      const statusPayload: ConsoleMessage = { type: 'status', data: '', status };
-      const statusBytes = Buffer.byteLength(JSON.stringify(statusPayload), 'utf8');
-      // Reserve space for the synchronous status frame so history + status never exceed maxSocketBufferedBytes.
-      const maxHistoryBytes = Math.max(0, maxOutgoingMessageBytes - statusBytes - 1024);
-      const history = fitConsoleHistory(processManager.getHistory(instanceId), status, maxHistoryBytes);
-      if (!sendSocketMessage(socket, {
-        type: 'history',
-        data: history,
-        status,
-      })) {
-        terminateSocketLater(socket);
-        return;
-      }
-      if (!sendSocketMessage(socket, statusPayload)) {
-        terminateSocketLater(socket);
-        return;
+      for (const frame of consoleSnapshotFrames(processManager.getHistory(instanceId), processManager.getStatus(instanceId))) {
+        if (!sendSocketMessage(socket, frame)) {
+          terminateSocketLater(socket);
+          return;
+        }
       }
 
       const onOutput = (id: string, text: string) => {
