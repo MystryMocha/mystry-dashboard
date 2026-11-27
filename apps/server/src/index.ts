@@ -40,6 +40,7 @@ import {
 } from './services/data-lock-service.js';
 import { recoverInterruptedBackups } from './services/backup-service.js';
 import { attachBackupScheduleLifecycle, backupScheduler } from './services/backup-schedule-service.js';
+import { autoRestartService } from './services/auto-restart-service.js';
 import {
   attachRunHistoryLifecycle,
   detachRunHistoryLifecycle,
@@ -105,6 +106,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     attachLanLifecycle();
     attachBackupScheduleLifecycle();
     attachRunHistoryLifecycle();
+    autoRestartService.attach();
     const previewRecovery = initializeImportPreviews();
     const folderUploadRecovery = initializeFolderUploads();
 
@@ -327,6 +329,8 @@ async function main() {
     statsCollector.stop();
     diskUsageScanner.stop();
     processManager.beginShutdown();
+    // From here ProcessManager refuses every start, and a timer left waiting would keep the process alive.
+    autoRestartService.shutdown();
     return summary;
   };
 

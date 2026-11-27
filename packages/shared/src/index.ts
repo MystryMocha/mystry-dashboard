@@ -1,3 +1,4 @@
+import type { InstanceAutoRestartState } from './auto-restart.js';
 import type { DetectedJvmConfig } from './jvm-config.js';
 import type { PanelMessage, PanelMessageParams, ServerMessageKey } from './messages/index.js';
 
@@ -43,6 +44,8 @@ export type {
 } from './remote-access.js';
 export { PANEL_NETWORK_STATES, PANEL_NETWORK_VIRTUAL_IP } from './remote-access.js';
 export { FRP_CLIENT_VERSION, FRP_TRANSPORTS, TUNNEL_MODES, TUNNEL_STATUSES } from './frp.js';
+export type { AutoRestartSettings, InstanceAutoRestartState } from './auto-restart.js';
+export { AUTO_RESTART_DEFAULTS, AUTO_RESTART_LIMITS } from './auto-restart.js';
 
 /** Snapshot of local resources; an empty value means there is no valid sample yet, not zero usage. */
 export interface DashboardMetrics {
@@ -301,6 +304,8 @@ export interface InstanceInfo {
   ready?: boolean;
   /** Set when a live server process from a prior panel session is still attached to this instance's open run. */
   orphanProcess?: OrphanProcessInfo | null;
+  /** A restart the panel is waiting to make after a crash, or the reason the latest crash was not restarted; null when there is nothing to report. */
+  autoRestartState?: InstanceAutoRestartState | null;
 }
 
 /** Prefix for a Forge / NeoForge args file in `InstanceInfo.jarFile`, followed by the path relative to the instance directory. */
@@ -752,6 +757,7 @@ export {
   BACKUP_SCHEDULE_MAX_KEEP,
   BACKUP_SCHEDULE_TIME_PATTERN,
   updateBackupScheduleBodySchema,
+  updateAutoRestartBodySchema,
   createFrpEndpointBodySchema,
   updateFrpEndpointBodySchema,
   updateInstanceTunnelBodySchema,

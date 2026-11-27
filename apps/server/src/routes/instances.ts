@@ -21,6 +21,7 @@ import {
   isInstanceStopPendingError,
   processManager,
 } from '../services/process-manager.js';
+import { autoRestartService } from '../services/auto-restart-service.js';
 import { sendRouteError } from '../http-errors.js';
 import { errorBody, errorParam, panelErrorBody, PanelError, toPanelMessage } from '../utils/errors.js';
 
@@ -181,6 +182,13 @@ export async function instanceRoutes(app: FastifyInstance): Promise<void> {
     } catch (err) {
       return replyProcessManagerError(reply, err);
     }
+  });
+
+  // Cancels the restart the panel scheduled after a crash; succeeds when none is waiting, so a late click is not an error.
+  app.delete<{ Params: { id: string } }>('/api/instances/:id/pending-restart', async (req, reply) => {
+    if (!getInstanceRow(req.params.id)) return reply.code(404).send(panelErrorBody('server.instance.notFound'));
+    autoRestartService.cancel(req.params.id);
+    return getInstance(req.params.id);
   });
 
   app.post<{ Params: { id: string } }>('/api/instances/:id/restart', async (req, reply) => {

@@ -13,6 +13,7 @@ export default {
   'server.system.localNodeNoSecret': '本机节点无需密钥',
 
   // 下载来源
+  'server.system.autoRestartInvalid': '崩溃后自动重启的数值须为允许范围内的整数',
   'server.system.downloadSourceInvalid': '请选择支持的下载来源',
   'server.system.downloadAllSourcesFailed': '{name} 在所有下载来源都下载失败。{attempts}请稍后重试，或到「面板设置」页更换下载来源。',
   'server.system.metadataAllSourcesFailed': '所有来源都无法读取版本信息。{attempts}请稍后重试，或到「面板设置」页更换下载来源。',

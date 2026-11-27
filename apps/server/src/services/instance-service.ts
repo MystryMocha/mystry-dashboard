@@ -24,6 +24,7 @@ import {
   nowIso,
 } from '../utils/path.js';
 import { processManager } from './process-manager.js';
+import { autoRestartService } from './auto-restart-service.js';
 import { nodeExists } from './node-service.js';
 import { getJavaRuntime } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
@@ -79,6 +80,7 @@ function rowToInfo(row: InstanceRow): InstanceInfo {
       : processManager.getStartIssue(row.id),
     ready: processManager.isReady(row.id),
     orphanProcess: processManager.getOrphanProcess(row.id),
+    autoRestartState: autoRestartService.getState(row.id),
   };
 }
 
@@ -362,6 +364,8 @@ export async function deleteInstance(id: string): Promise<void> {
     }
     await processManager.assertNoOrphanProcess(id);
     processManager.assertNotInMaintenance(id);
+    // Once the delete is going ahead: a restart that came due now would start the server from a directory being removed.
+    autoRestartService.forget(id);
     const row = getInstanceRow(id);
     if (!row) return;
     if (row.install_path !== null) {

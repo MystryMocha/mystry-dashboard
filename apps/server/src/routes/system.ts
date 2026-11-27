@@ -3,9 +3,11 @@ import type { FastifyInstance } from 'fastify';
 import {
   installJavaBodySchema,
   updateAccessModeBodySchema,
+  updateAutoRestartBodySchema,
   updateDownloadSourceBodySchema,
   updatePanelNetworkBodySchema,
   updatePublicHostBodySchema,
+  type AutoRestartSettings,
   type DownloadSourceSetting,
   type InstallJavaRequest,
   type JavaRuntimeListResult,
@@ -16,6 +18,8 @@ import {
   type UpdatePublicHostRequest,
 } from '@mystry/shared';
 import { getDownloadSource, setDownloadSource } from '../services/download-sources.js';
+import { autoRestartService } from '../services/auto-restart-service.js';
+import { getAutoRestartSettings, setAutoRestartSettings } from '../services/auto-restart-settings.js';
 import { detectJava } from '../services/java-detect.js';
 import { cancelJavaInstall, installableJavaMajors, startJavaInstall } from '../services/java-install-service.js';
 import { scanJavaRuntimes } from '../services/java-runtime-service.js';
@@ -63,6 +67,25 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
       try {
         setDownloadSource(req.body.source);
         return { source: getDownloadSource() } satisfies DownloadSourceSetting;
+      } catch (err) {
+        return sendRouteError(reply, err, 500);
+      }
+    },
+  );
+
+  app.get('/api/system/auto-restart', (): AutoRestartSettings => getAutoRestartSettings());
+
+  app.put<{ Body: AutoRestartSettings }>(
+    '/api/system/auto-restart',
+    { attachValidation: true, schema: { body: updateAutoRestartBodySchema } },
+    async (req, reply) => {
+      if (req.validationError) {
+        return reply.code(400).send(panelErrorBody('server.system.autoRestartInvalid'));
+      }
+      try {
+        setAutoRestartSettings(req.body);
+        if (!req.body.enabled) autoRestartService.cancelAll();
+        return getAutoRestartSettings();
       } catch (err) {
         return sendRouteError(reply, err, 500);
       }
