@@ -33,18 +33,18 @@ test('recoverInterruptedTasks must not delete the final instance because of resu
 
   initDb();
   const inst = createInstance({ name: 'recovery-stub' });
-  const task = createTask('deploy', '模拟中断');
+  const task = createTask('deploy', 'simulated interruption');
   updateTask(task.id, { result: { instanceId: inst.id } }, { phase: 'staging' });
   getDb().prepare("UPDATE tasks SET status = 'running' WHERE id = ?").run(task.id);
 
   const instanceDir = path.join(process.env.MYSTRY_DATA_DIR!, 'instances', inst.id);
-  assert.ok(fs.existsSync(instanceDir), '前置：实例目录应已创建');
+  assert.ok(fs.existsSync(instanceDir), 'precondition: the instance directory exists');
 
   recoverInterruptedTasks();
 
   assert.ok(
     fs.existsSync(instanceDir) && getInstanceRow(inst.id),
-    '恢复逻辑不得 deleteInstance 已落地的最终目录',
+    'recovery must not delete a final directory that has already landed',
   );
 });
 
@@ -56,7 +56,7 @@ test('only half-finished items inside .mystry-staging with a matching marker and
   const { defaultInstanceDir } = await import('../utils/path.js');
 
   initDb();
-  const task = createTask('deploy', 'staging 中断');
+  const task = createTask('deploy', 'interrupted in staging');
   const { getDb } = await import('../db.js');
   getDb().prepare("UPDATE tasks SET status = 'running' WHERE id = ?").run(task.id);
   const instanceId = 'staginginst01';
@@ -73,7 +73,7 @@ test('only half-finished items inside .mystry-staging with a matching marker and
   const recovery = recoverInterruptedTasks();
   assert.equal(recovery.cleanedStaging, 1);
   assert.equal(fs.existsSync(taskStagingDir(task.id, instanceId, dataRoot)), false);
-  assert.ok(fs.existsSync(finalDir), '与任务无关的最终目录必须保留');
+  assert.ok(fs.existsSync(finalDir), 'a final directory unrelated to the task must be kept');
 });
 
 test('the task stays successful once the worker returned normally, even if it was aborted', async (t) => {
@@ -122,7 +122,7 @@ test('timeoutMs of runBackgroundTask overrides the global TASK_TIMEOUT_MS', asyn
     resetTaskRuntimeForTests();
   });
   initDb();
-  assert.ok(config.taskTimeoutMs > 1000, '前置：全局超时远大于本用例的时限');
+  assert.ok(config.taskTimeoutMs > 1000, 'precondition: the global timeout is far longer than this test allows');
 
   const task = await runBackgroundTask('backup', { key: 'server.tasks.queued' }, (_taskId, signal) => (
     new Promise((_resolve, reject) => {
@@ -148,22 +148,22 @@ test('onlyWhenIdle refuses a task while another is running or waiting, although 
     resetTaskRuntimeForTests();
   });
   initDb();
-  assert.ok(config.maxConcurrentTasks + config.maxQueuedTasks > 1, '前置：队列在一个任务之外还有空位');
+  assert.ok(config.maxConcurrentTasks + config.maxQueuedTasks > 1, 'precondition: the queue has room beyond one task');
 
   let finish!: () => void;
   const held = await runBackgroundTask('download', { key: 'server.tasks.queued' }, () => new Promise<void>((resolve) => {
     finish = resolve;
   }), { onlyWhenIdle: true });
-  assert.equal(getTask(held.id)?.status, 'running', '空闲时照常接受');
+  assert.equal(getTask(held.id)?.status, 'running', 'accepted as usual when idle');
   assert.equal(isTaskQueueIdle(), false);
 
   await assert.rejects(
     runBackgroundTask('backup', { key: 'server.tasks.queued' }, async () => {}, { onlyWhenIdle: true }),
     isTaskCapacityError,
   );
-  assert.deepEqual(getTaskActivity(), { running: 1, queued: 0 }, '被拒绝的任务不留记录在队列里');
+  assert.deepEqual(getTaskActivity(), { running: 1, queued: 0 }, 'a refused task leaves nothing in the queue');
   const ordinary = await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {});
-  assert.equal(getTask(ordinary.id)?.status, 'pending', '没有这个选项的任务仍可排队');
+  assert.equal(getTask(ordinary.id)?.status, 'pending', 'a task without the option can still queue');
 
   finish();
   for (let attempt = 0; attempt < 200 && !isTaskQueueIdle(); attempt += 1) {
@@ -187,7 +187,7 @@ test('cancelTask: a queued one is cancelled directly, a running one is recorded 
   const blocking = (_taskId: string, signal: AbortSignal) => new Promise<void>((_resolve, reject) => {
     signal.addEventListener('abort', () => {
       cleanedUp += 1;
-      reject(new Error('worker 自己的中止错误'));
+      reject(new Error('the abort error of the worker itself'));
     }, { once: true });
   });
   const running = [];
@@ -195,7 +195,7 @@ test('cancelTask: a queued one is cancelled directly, a running one is recorded 
     running.push(await runBackgroundTask('download', { key: 'server.tasks.queued' }, blocking));
   }
   const queued = await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {
-    throw new Error('取消后的排队任务不该运行');
+    throw new Error('a queued task must not run after being cancelled');
   });
   assert.equal(getTask(queued.id)?.status, 'pending');
 
@@ -215,7 +215,7 @@ test('cancelTask: a queued one is cancelled directly, a running one is recorded 
   assert.equal(current?.status, 'failed');
   assert.equal(current?.messageI18n?.key, 'server.tasks.cancelled');
   assert.equal(current?.errorI18n?.key, 'server.tasks.cancelledByUser');
-  assert.equal(cleanedUp, 1, '只中止被取消的那个任务');
+  assert.equal(cleanedUp, 1, 'only the cancelled task is aborted');
 
   assert.equal(cancelTask(target.id), false);
   assert.equal(cancelTask('missing-task'), false);
@@ -230,7 +230,7 @@ test('onSettled is called once however the task ends: after its worker, when it 
     resetTaskRuntimeForTests();
   });
   initDb();
-  assert.ok(config.maxQueuedTasks >= 2, '前置：队列能同时容纳两个等待中的任务');
+  assert.ok(config.maxQueuedTasks >= 2, 'precondition: the queue holds two waiting tasks at once');
 
   const settled: string[] = [];
   const mark = (name: string) => () => {
@@ -240,7 +240,7 @@ test('onSettled is called once however the task ends: after its worker, when it 
     for (let attempt = 0; attempt < 200 && settled.length < count; attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
-    assert.equal(settled.length, count, `已收尾：${settled.join('、')}`);
+    assert.equal(settled.length, count, `settled: ${settled.join(', ')}`);
   };
   const queued = { key: 'server.tasks.queued' } as const;
 
@@ -249,7 +249,7 @@ test('onSettled is called once however the task ends: after its worker, when it 
   assert.equal(getTask(returned.id)?.status, 'completed');
 
   const threw = await runBackgroundTask('download', queued, async () => {
-    throw new Error('worker 出错');
+    throw new Error('worker failed');
   }, { onSettled: mark('threw') });
   await untilSettled(2);
   assert.equal(getTask(threw.id)?.status, 'failed');
@@ -281,7 +281,7 @@ test('onSettled is called once however the task ends: after its worker, when it 
   const cancelled = await waiting('cancelled while waiting');
   const shutDown = await waiting('shut down while waiting');
   assert.equal(getTask(shutDown.id)?.status, 'pending');
-  assert.equal(settled.length, 3, '还在等待的任务不算结束');
+  assert.equal(settled.length, 3, 'a task still waiting does not count as finished');
 
   assert.equal(cancelTask(cancelled.id), true);
   assert.equal(settled.length, 4);
@@ -318,7 +318,7 @@ test('task messages are stored as key and params, old databases get the columns 
   initDb();
 
   const columns = (getDb().prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>).map((c) => c.name);
-  assert.ok(columns.includes('message_i18n') && columns.includes('error_i18n'), '旧库应自动补上两列');
+  assert.ok(columns.includes('message_i18n') && columns.includes('error_i18n'), 'an old database gets the two columns added');
   const old = getTask('legacy');
   assert.equal(old?.message, '失败');
   assert.equal(old?.error, '下载失败');
