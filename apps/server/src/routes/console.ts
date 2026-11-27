@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
+  CONSOLE_CLOSE_RATE_LIMITED,
+  CONSOLE_CLOSE_SESSION_REVOKED,
   renderPanelMessage,
   type ConsoleMessage,
   type InstanceStatus,
@@ -252,7 +254,7 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
     for (const [socket, ownerId] of authenticatedSockets) {
       if (ownerId !== userId) continue;
       authenticatedSockets.delete(socket);
-      closeSocket(socket, 1008, 'Session revoked');
+      closeSocket(socket, CONSOLE_CLOSE_SESSION_REVOKED, 'Session revoked');
       terminateSocketLater(socket);
     }
   });
@@ -393,7 +395,7 @@ export async function consoleRoutes(app: FastifyInstance): Promise<void> {
           }
           if (commandCount >= config.maxConsoleCommandsPerWindow) {
             sendSocketMessage(socket, errorFrame('server.instance.consoleCommandRateLimited'));
-            closeSocket(socket, 1008, 'Commands sent too often');
+            closeSocket(socket, CONSOLE_CLOSE_RATE_LIMITED, 'Commands sent too often');
             return;
           }
           commandCount += 1;

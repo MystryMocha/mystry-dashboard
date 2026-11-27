@@ -698,6 +698,13 @@ export interface ChangePasswordResult {
   user: AuthUser;
 }
 
+/**
+ * Application close codes of the console WebSocket (4000-4999 is the range reserved for applications). The standard
+ * 1008 cannot tell these two apart, and the client reacts differently to each.
+ */
+export const CONSOLE_CLOSE_SESSION_REVOKED = 4401;
+export const CONSOLE_CLOSE_RATE_LIMITED = 4429;
+
 export interface ConsoleMessage {
   type: 'output' | 'status' | 'error' | 'history';
   /** An `error` frame carries an English description (or the raw Node.js error text) */

@@ -9,7 +9,9 @@ export default {
   'console.system.reconnecting_other': '{prefix} {reason}. Reconnecting in {count} seconds…',
   'console.system.reconnected': '{prefix} Console reconnected',
   'console.system.disconnected': 'Console connection lost',
-  'console.system.closedPolicy': '{prefix} Connection closed by the server (policy or rate limit). Select Reconnect to try again.',
+  'console.system.sessionChanged': 'Your sign-in session changed',
+  'console.system.rateLimited': 'Commands were sent too often',
+  'console.system.closedPolicy': '{prefix} Connection closed by the server. Select Reconnect to try again.',
   'console.system.closedTooLarge': '{prefix} Console output exceeded the frame size limit. Select Reconnect to try again.',
   'console.system.closedTooMany': '{prefix} Too many open console connections. Close unused console tabs, then select Reconnect.',
 

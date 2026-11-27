@@ -11,7 +11,9 @@ export default {
   'console.system.reconnecting_other': '{prefix} {reason}，{count} 秒後重新連線…',
   'console.system.reconnected': '{prefix} 主控台已重新連線',
   'console.system.disconnected': '主控台連線已中斷',
-  'console.system.closedPolicy': '{prefix} 連線已被伺服器關閉（限制或驗證原因），請點選「重新連線」重試。',
+  'console.system.sessionChanged': '登入工作階段已變更',
+  'console.system.rateLimited': '指令傳送過於頻繁',
+  'console.system.closedPolicy': '{prefix} 連線已被伺服器關閉，請點選「重新連線」重試。',
   'console.system.closedTooLarge': '{prefix} 主控台訊息超出單訊框大小限制，連線已關閉，請點選「重新連線」重試。',
   'console.system.closedTooMany': '{prefix} 主控台連線數已達上限，請關閉其他主控台分頁後點選「重新連線」。',
 

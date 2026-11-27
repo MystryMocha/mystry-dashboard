@@ -196,5 +196,12 @@ test('console WebSocket sends a full-1MiB ANSI-heavy history snapshot without cl
   assert.ok(historyFrame);
   assert.ok(historyFrame.data.length > 100_000);
   assert.ok(historyFrame.data.includes('\x1b[31m"ERR"'));
-  ws.close();
+
+  // One command over the per-window allowance closes the connection with the dedicated rate-limit code.
+  const { config } = await import('../config.js');
+  const rateLimitClose = new Promise<number>((resolve) => ws.once('close', (code: number) => resolve(code)));
+  for (let i = 0; i <= config.maxConsoleCommandsPerWindow; i += 1) {
+    ws.send(JSON.stringify({ type: 'command', data: 'list' }));
+  }
+  assert.equal(await rateLimitClose, 4429);
 });

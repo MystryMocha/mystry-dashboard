@@ -889,6 +889,18 @@ test('console backs off exponentially when closing before receiving history, and
   await act(async () => { await vi.advanceTimersByTimeAsync(1); });
   expect(sockets).toHaveLength(4);
 
+  // A revoked session and a command rate limit have their own codes: the console says why and reconnects by itself.
+  for (const [code, fragment] of [
+    [4401, '登录会话已变更'],
+    [4429, '命令发送过于频繁'],
+  ] as const) {
+    const beforeCount = sockets.length;
+    act(() => { sockets[beforeCount - 1].onclose?.({ code }); });
+    expect(terminal.written).toContain(fragment);
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(sockets).toHaveLength(beforeCount + 1);
+  }
+
   // Non-retryable close codes stop auto-reconnect and surface a manual Reconnect button.
   for (const [code, fragment] of [
     [1009, '超出单帧大小限制'],

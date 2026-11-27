@@ -3,7 +3,13 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { Accessibility, Copy, Eraser, RefreshCw, Send } from 'lucide-react';
-import { isServerMessageKey, type ConsoleMessage, type PanelMessageParam } from '@mystry/shared';
+import {
+  CONSOLE_CLOSE_RATE_LIMITED,
+  CONSOLE_CLOSE_SESSION_REVOKED,
+  isServerMessageKey,
+  type ConsoleMessage,
+  type PanelMessageParam,
+} from '@mystry/shared';
 import { createConsoleTicket } from '../api';
 import { copyText } from '../clipboard';
 import { errorMessage, isAbortError } from '../errors';
@@ -35,6 +41,13 @@ const PROCESS_EXITED_RE = /^(?:\[Panel\] Process exited \(exit code (.*?), signa
 
 // Screen reader mode is a personal preference per browser; when reading or writing it fails (private mode, etc.) it is treated as off.
 const SCREEN_READER_KEY = 'mystry_console_screen_reader';
+
+// Close codes the client recovers from by itself, with the reason shown while it reconnects. After a revoked session the
+// reconnect asks for a new ticket: a tab whose token was reissued carries on, any other gets a 401 and is sent to sign in.
+const RETRYABLE_CLOSE_REASONS: Record<number, MessageKey> = {
+  [CONSOLE_CLOSE_SESSION_REVOKED]: 'console.system.sessionChanged',
+  [CONSOLE_CLOSE_RATE_LIMITED]: 'console.system.rateLimited',
+};
 
 // WebSocket close codes that indicate a hard limit or policy rejection rather than a transient drop.
 const NON_RETRYABLE_CLOSE_MESSAGES: Record<number, MessageKey> = {
@@ -274,7 +287,8 @@ export function ConsolePanel({ instanceId, canSend = true }: Props) {
             writeSystemLine(translateNow(stopKey, { prefix: panelPrefix() }));
             return;
           }
-          scheduleReconnect(translateNow('console.system.disconnected'));
+          const retryKey = closeCode !== undefined ? RETRYABLE_CLOSE_REASONS[closeCode] : undefined;
+          scheduleReconnect(translateNow(retryKey ?? 'console.system.disconnected'));
         };
       } catch (err) {
         if (disposed || controller.signal.aborted || isAbortError(err)) return;

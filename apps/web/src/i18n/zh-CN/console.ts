@@ -11,7 +11,9 @@ export default {
   'console.system.reconnecting_other': '{prefix} {reason}，{count} 秒后重连…',
   'console.system.reconnected': '{prefix} 控制台已重新连接',
   'console.system.disconnected': '控制台连接已断开',
-  'console.system.closedPolicy': '{prefix} 连接已被服务端关闭（限制或认证原因），可点击「重新连接」重试。',
+  'console.system.sessionChanged': '登录会话已变更',
+  'console.system.rateLimited': '命令发送过于频繁',
+  'console.system.closedPolicy': '{prefix} 连接已被服务端关闭，可点击「重新连接」重试。',
   'console.system.closedTooLarge': '{prefix} 控制台消息超出单帧大小限制，连接已关闭，可点击「重新连接」重试。',
   'console.system.closedTooMany': '{prefix} 控制台连接数已达上限，请关闭其他控制台标签页后点击「重新连接」。',
 
