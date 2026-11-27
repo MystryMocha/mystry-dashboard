@@ -614,6 +614,140 @@ test('marked as joinable after the finished-startup marker line is printed; clea
   assert.equal(manager.isReady(info.id), false);
 });
 
+async function startFakeManaged(t: test.TestContext, name: string) {
+  prepareTempDataRoot(t);
+  const { ProcessManager } = await import('./process-manager.js');
+  const { config } = await import('../config.js');
+  const { initDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const info = createInstance({ name });
+  fs.writeFileSync(path.join(defaultInstanceDir(info.id), 'server.jar'), 'stub-jar');
+  let child: ChildProcessWithoutNullStreams | undefined;
+  const manager = new ProcessManager(() => (child = fakeChild()), async () => 'java');
+  await manager.start(getInstanceRow(info.id)! as InstanceRow);
+  return { manager, child: child!, instanceId: info.id, chunkLimit: config.maxConsoleChunkBytes };
+}
+
+test('a multi-byte character split across two output chunks is decoded as one character', async (t) => {
+  const { manager, child, instanceId } = await startFakeManaged(t, 'split-utf8');
+  const characters = Buffer.from('中文');
+  child.stdout.emit('data', characters.subarray(0, 1));
+  child.stdout.emit('data', characters.subarray(1));
+
+  assert.equal(manager.getHistory(instanceId), '中文');
+});
+
+test('stdout and stderr decode their partial characters independently', async (t) => {
+  const { manager, child, instanceId } = await startFakeManaged(t, 'split-utf8-streams');
+  const stdoutCharacters = Buffer.from('中');
+  const stderrCharacters = Buffer.from('安');
+  child.stdout.emit('data', stdoutCharacters.subarray(0, 1));
+  child.stderr.emit('data', stderrCharacters.subarray(0, 1));
+  child.stdout.emit('data', stdoutCharacters.subarray(1));
+  child.stderr.emit('data', stderrCharacters.subarray(1));
+
+  assert.equal(manager.getHistory(instanceId), '中安');
+});
+
+test('an incomplete character left at exit is flushed instead of being dropped', async (t) => {
+  const { manager, child, instanceId } = await startFakeManaged(t, 'exit-flush-utf8');
+  child.stdout.emit('data', Buffer.from('中').subarray(0, 2));
+  assert.equal(manager.getHistory(instanceId), '', 'the partial character is held until more bytes or the exit');
+  child.emit('exit', 1, null);
+
+  const history = manager.getHistory(instanceId);
+  assert.ok(history.startsWith('�'), history);
+  assert.equal(history.match(/�/g)?.length, 1);
+  assert.match(history, /Process exited/);
+});
+
+test('an incomplete character left when the process fails to start is flushed before the failure line', async (t) => {
+  const { manager, child, instanceId } = await startFakeManaged(t, 'error-flush-utf8');
+  child.stdout.emit('data', Buffer.from('中').subarray(0, 1));
+  child.emit('error', new Error('spawn java ENOENT'));
+
+  assert.equal(manager.getHistory(instanceId), '�\n[Panel] Process failed to start: spawn java ENOENT\n');
+});
+
+test('an oversized chunk is cut at the chunk limit without carrying its partial character over', async (t) => {
+  const { manager, child, instanceId, chunkLimit } = await startFakeManaged(t, 'oversized-chunk-utf8');
+  const retained = Buffer.alloc(chunkLimit - 1, 0x61);
+  // A four-byte character starts in the last retained byte, so the cut leaves it incomplete.
+  child.stdout.emit('data', Buffer.concat([retained, Buffer.from([0xf0, 0x9f])]));
+  child.stdout.emit('data', Buffer.from('b'));
+
+  assert.equal(manager.getHistory(instanceId), `${'a'.repeat(chunkLimit - 1)}b`);
+});
+
+test('decoded output over the chunk limit is appended in pieces within the limit instead of losing its end', async (t) => {
+  const { manager, child, instanceId, chunkLimit } = await startFakeManaged(t, 'carried-partial-utf8');
+  const emitted: string[] = [];
+  manager.on('output', (id: string, text: string) => {
+    if (id === instanceId) emitted.push(text);
+  });
+  const character = Buffer.from('中');
+  // Both chunks are exactly at the limit. The second also decodes the byte the first left over, so its text is one byte over,
+  // and the byte that does not fit is its trailing newline.
+  child.stdout.emit('data', Buffer.concat([Buffer.alloc(chunkLimit - 1, 0x61), character.subarray(0, 1)]));
+  child.stdout.emit('data', Buffer.concat([character.subarray(1), Buffer.alloc(chunkLimit - 3, 0x78), Buffer.from('\n')]));
+  child.stdout.emit('data', Buffer.from('next line'));
+
+  const history = manager.getHistory(instanceId);
+  assert.ok(history === `${'a'.repeat(chunkLimit - 1)}中${'x'.repeat(chunkLimit - 3)}\nnext line`, 'no delivered character is lost');
+  assert.equal(emitted.join(''), history);
+  // The console route closes the connection on an output message over the limit.
+  for (const text of emitted) assert.ok(Buffer.byteLength(text, 'utf8') <= chunkLimit);
+});
+
+test('the finished-startup marker is recognized when the chunk completing it is appended in several pieces', async (t) => {
+  const { manager, child, instanceId, chunkLimit } = await startFakeManaged(t, 'ready-marker-pieces');
+  child.stdout.emit('data', Buffer.from('[13:23:09] [Server thread/INFO]: Do'));
+  // Every invalid byte decodes to a 3-byte replacement character, so this chunk's text spans more than one piece.
+  const invalid = Buffer.alloc(Math.ceil(chunkLimit / 2), 0xff);
+  child.stdout.emit('data', Buffer.concat([Buffer.from('ne (4.512s)! For help, type "help"\n'), invalid]));
+
+  assert.ok(manager.getBuffer(instanceId).length > 2, 'the second chunk takes several buffer entries');
+  assert.equal(manager.isReady(instanceId), true);
+});
+
+test('the finished-startup marker is recognized when its first half ends in a piece of a single byte', async (t) => {
+  const { manager, child, instanceId, chunkLimit } = await startFakeManaged(t, 'ready-marker-short-piece');
+  const character = Buffer.from('中');
+  const firstHalf = '\n[13:23:09] [Server thread/INFO]: Do';
+  child.stdout.emit('data', Buffer.concat([Buffer.alloc(chunkLimit - 1, 0x61), character.subarray(0, 1)]));
+  // This chunk is exactly at the limit and also decodes the byte the first left over, so its last byte is appended on its own.
+  child.stdout.emit('data', Buffer.concat([
+    character.subarray(1),
+    Buffer.alloc(chunkLimit - 2 - firstHalf.length, 0x78),
+    Buffer.from(firstHalf),
+  ]));
+  child.stdout.emit('data', Buffer.from('ne (4.512s)! For help, type "help"\n'));
+
+  assert.equal(manager.getBuffer(instanceId).at(-2), 'o');
+  assert.equal(manager.isReady(instanceId), true);
+});
+
+test('the finished-startup marker is recognized when stderr output arrives between its two halves', async (t) => {
+  const { manager, child, instanceId } = await startFakeManaged(t, 'ready-marker-stderr-between');
+  child.stdout.emit('data', Buffer.from('[13:23:09] [Server thread/INFO]: Do'));
+  child.stderr.emit('data', Buffer.from('SLF4J: Defaulting to no-operation logger\n'));
+  child.stdout.emit('data', Buffer.from('ne (4.512s)! For help, type "help"\n'));
+
+  assert.equal(manager.isReady(instanceId), true);
+});
+
+test('the finished-startup marker is recognized when a command echo is appended between its two halves', async (t) => {
+  const { manager, child, instanceId } = await startFakeManaged(t, 'ready-marker-echo-between');
+  child.stdout.emit('data', Buffer.from('[13:23:09] [Server thread/INFO]: Do'));
+  manager.sendCommand(instanceId, 'list');
+  child.stdout.emit('data', Buffer.from('ne (4.512s)! For help, type "help"\n'));
+
+  assert.equal(manager.isReady(instanceId), true);
+});
+
 test('when the bound Java is unavailable or no longer in the registry, the instance info reports java-unavailable without waiting for a start', async (t) => {
   prepareTempDataRoot(t);
   const { initDb, getDb } = await import('../db.js');
