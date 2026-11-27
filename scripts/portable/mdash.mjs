@@ -533,15 +533,20 @@ async function openBrowser(values, { announce = true } = {}) {
   // Under SSH login the browser would open on the server where the user cannot see it; showRemoteAccessOnStart explains how to open it from outside instead.
   if (isRemoteLogin()) return;
   const command = OPEN_URL_COMMANDS[process.platform] ?? 'xdg-open';
+  const warnManualOpen = () => {
+    console.warn(text('无法自动打开浏览器，请手动访问上面的地址。', 'Could not open a browser. Open the address above manually.'));
+  };
   try {
     const child = spawn(command, [url], {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
     });
+    // Missing launchers (such as xdg-open on headless Linux) emit an async ENOENT 'error' event outside try/catch.
+    child.once('error', warnManualOpen);
     child.unref();
   } catch {
-    console.warn(text('无法自动打开浏览器，请手动访问上面的地址。', 'Could not open a browser. Open the address above manually.'));
+    warnManualOpen();
   }
 }
 

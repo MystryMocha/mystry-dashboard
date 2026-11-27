@@ -1410,3 +1410,25 @@ test('pressing Ctrl+C twice in foreground mode still waits for the panel to shut
   assert.match(signals, /closed/, '面板应完成安全关闭');
   assert.equal(fs.existsSync(path.join(home, 'data', 'launcher', 'state.json')), false, '退出后应清除运行状态');
 });
+
+test('openBrowser handles missing browser launcher without crashing the controller', async (t) => {
+  const home = await fsp.mkdtemp(path.join(os.tmpdir(), 'mystry-ctl-open-missing-'));
+  t.after(() => fsp.rm(home, { recursive: true, force: true }));
+  const keepAlive = path.join(home, 'keep-alive.mjs');
+  // Keep the event loop alive briefly so the asynchronous ENOENT error from spawn fires before process exit, as in start/foreground/watch.
+  await fsp.writeFile(keepAlive, 'setTimeout(() => {}, 250);\n', 'utf8');
+  const env = {
+    ...process.env,
+    PATH: '',
+    Path: '',
+    MYSTRY_HOME: home,
+    MYSTRY_CONFIG_PATH: path.join(home, 'config', 'panel.env'),
+    MYSTRY_DATA_DIR: path.join(home, 'data'),
+    MYSTRY_LANG: 'zh-CN',
+  };
+  for (const name of ['MYSTRY_NO_BROWSER', 'SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY']) delete env[name];
+  const result = await runController('open', env, ['--import', pathToFileURL(keepAlive).href]);
+  assert.equal(result.code, 0, result.output);
+  assert.match(result.output, /面板地址：/);
+  assert.match(result.output, /无法自动打开浏览器/);
+});
