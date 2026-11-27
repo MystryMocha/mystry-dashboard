@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider, useLocation } from 'react-router-dom';
 import { App } from '../src/App';
 import { AuthProvider } from '../src/auth';
 import { setLocalePreference } from '../src/i18n';
@@ -23,14 +23,13 @@ const instance = { id: 'test', name: 'Survival', coreType: 'custom', status: 'st
 let signedIn: boolean;
 
 function Location() { return <span data-testid="location">{useLocation().pathname}</span>; }
-// The config editor and instance settings pages use useBlocker and need a data router; only pages that do not depend on it are covered here.
+// ConfigTab, SettingsTab, and FilesTab use useBlocker, so routes must run inside a data router (matching main.tsx).
 function mountApp(path = '/') {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <AuthProvider><App /></AuthProvider>
-      <Location />
-    </MemoryRouter>,
+  const router = createMemoryRouter(
+    [{ path: '*', element: <><AuthProvider><App /></AuthProvider><Location /></> }],
+    { initialEntries: [path] },
   );
+  return render(<RouterProvider router={router} />);
 }
 
 beforeEach(() => {
@@ -42,6 +41,13 @@ beforeEach(() => {
   signedIn = true;
   localStorage.setItem('mystry_token', 'test-only');
   window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener() {}, removeEventListener() {} });
+  // Route navigation constructs Node's own Request with jsdom's AbortSignal, which Node rejects unless stubbed.
+  vi.stubGlobal('Request', class {
+    method = 'GET';
+    headers = new Headers();
+    signal: AbortSignal | undefined;
+    constructor(public url: string, init?: { signal?: AbortSignal }) { this.signal = init?.signal; }
+  });
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url === '/api/auth/me' && !signedIn) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 });
     const data = url === '/api/auth/status' ? { needsSetup: false }

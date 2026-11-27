@@ -2674,7 +2674,8 @@ test('files: a binary file opens read-only with a warning and no Save, while a t
     return baseFetch(url, options);
   }));
   const user = userEvent.setup();
-  mount(<FilesTab instanceId="test" />);
+  const router = createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }]);
+  render(<RouterProvider router={router} />);
   const dialog = () => within(document.querySelector<HTMLElement>('.file-edit-dialog')!);
 
   await user.click(await screen.findByTitle('编辑 level.dat'));
@@ -2774,4 +2775,89 @@ test('detached orphan process: dashboard, instance console, and backups reflect 
   expect(unixBanner.textContent).toContain('当前无法查看实时日志或发送命令');
   await user.click(within(unixBanner).getByRole('button', { name: '停止' }));
   await waitFor(() => expect(calls).toContain('POST /api/instances/test/stop'));
+});
+
+test('files editor: clean close exits immediately; dirty edits confirm on Close, Cancel, Escape, backdrop, and route navigation', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/files?path=') {
+      return new Response(JSON.stringify([
+        { name: 'notes.txt', path: 'notes.txt', isDirectory: false, size: 5, modifiedAt },
+      ]));
+    }
+    if (url === '/api/instances/test/files/content?path=notes.txt' && !options?.method) {
+      return new Response(JSON.stringify({ path: 'notes.txt', content: 'hello', binary: false }));
+    }
+    if (url === '/api/instances/test/files/content' && options?.method === 'PUT') {
+      return new Response(JSON.stringify({ ok: true }));
+    }
+    return baseFetch(url, options);
+  }));
+  vi.stubGlobal('Request', class {
+    method = 'GET';
+    headers = new Headers();
+    signal: AbortSignal | undefined;
+    constructor(public url: string, init?: { signal?: AbortSignal }) { this.signal = init?.signal; }
+  });
+
+  const user = userEvent.setup();
+  const router = createMemoryRouter([
+    { path: '/', element: <FilesTab instanceId="test" /> },
+    { path: '/other', element: <p>已离开文件页</p> },
+  ]);
+  render(<RouterProvider router={router} />);
+  const editDialog = () => document.querySelector<HTMLDialogElement>('.file-edit-dialog')!;
+  const editScope = () => within(editDialog());
+
+  // Closing an unmodified file exits right away without confirmation.
+  await user.click(await screen.findByTitle('编辑 notes.txt'));
+  await editScope().findByRole('textbox', { name: '文件内容：notes.txt' });
+  await user.click(editScope().getByRole('button', { name: '关闭编辑', exact: true }));
+  expect(editDialog().open).toBe(false);
+  expect(screen.queryByRole('dialog', { name: '放弃未保存的修改？' })).toBeNull();
+
+  // Dirty edits require confirmation across Close, Cancel, Escape (cancel event), and backdrop clicks.
+  await user.click(screen.getByTitle('编辑 notes.txt'));
+  const textarea = await editScope().findByRole<HTMLTextAreaElement>('textbox', { name: '文件内容：notes.txt' });
+  await user.type(textarea, '-draft');
+  expect(textarea.value).toBe('hello-draft');
+
+  for (const trigger of [
+    () => user.click(editScope().getByRole('button', { name: '关闭编辑', exact: true })),
+    () => user.click(editScope().getByRole('button', { name: '取消', exact: true })),
+    () => { fireEvent(editDialog(), new Event('cancel', { cancelable: true })); return Promise.resolve(); },
+    () => { fireEvent.mouseDown(editDialog()); return Promise.resolve(); },
+  ]) {
+    await trigger();
+    const confirm = screen.getByRole('dialog', { name: '放弃未保存的修改？' });
+    expect(editDialog().open).toBe(true);
+    await user.click(within(confirm).getByRole('button', { name: '取消' }));
+    expect(editDialog().open).toBe(true);
+    expect(textarea.value).toBe('hello-draft');
+  }
+
+  // Attempting in-app navigation while dirty opens UnsavedChangesDialog; staying keeps edits intact.
+  await act(async () => {
+    await router.navigate('/other');
+  });
+  const navConfirm = screen.getByRole('dialog', { name: '放弃未保存的文件修改？' });
+  expect(screen.queryByText('已离开文件页')).toBeNull();
+  await user.click(within(navConfirm).getByRole('button', { name: '取消' }));
+  expect(editDialog().open).toBe(true);
+  expect(textarea.value).toBe('hello-draft');
+
+  // Confirming discard closes the editor and resets content on reopen.
+  await user.click(editScope().getByRole('button', { name: '取消', exact: true }));
+  await user.click(within(screen.getByRole('dialog', { name: '放弃未保存的修改？' })).getByRole('button', { name: '放弃修改' }));
+  expect(editDialog().open).toBe(false);
+
+  await user.click(screen.getByTitle('编辑 notes.txt'));
+  expect((await editScope().findByRole<HTMLTextAreaElement>('textbox', { name: '文件内容：notes.txt' })).value).toBe('hello');
+  await user.type(editScope().getByRole('textbox', { name: '文件内容：notes.txt' }), '-leave');
+  await act(async () => {
+    await router.navigate('/other');
+  });
+  await user.click(within(screen.getByRole('dialog', { name: '放弃未保存的文件修改？' })).getByRole('button', { name: '放弃修改并离开' }));
+  expect(await screen.findByText('已离开文件页')).toBeTruthy();
 });

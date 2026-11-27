@@ -4,9 +4,11 @@ import type { FileEntry } from '@mystry/shared';
 import { ApiError, api, downloadAuthenticated, instanceApi } from '../api';
 import { errorMessage, isAbortError } from '../errors';
 import { useDialogOpen } from '../hooks/useDialogOpen';
+import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import { useI18n, type MessageKey } from '../i18n';
 import { ActionMenu, type ActionMenuItem } from './ActionMenu';
 import { ConfirmDialog } from './ConfirmDialog';
+import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 
 /** Aligned with the server's default MAX_TEXT_FILE_BYTES, used to decide whether to show "Edit". */
 const MAX_EDITABLE_FILE_BYTES = 1_048_576;
@@ -164,6 +166,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(false);
+  const [confirmDiscardEdit, setConfirmDiscardEdit] = useState(false);
   const [busyPath, setBusyPath] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [renameTarget, setRenameTarget] = useState<FileEntry | null>(null);
@@ -222,6 +225,9 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     void load();
   }, [load]);
 
+  const editDirty = editPath !== null && !editBinary && editOriginal !== null && content !== editOriginal;
+  const blocker = useUnsavedGuard(editDirty, saving);
+
   function closeEditor() {
     editGenerationRef.current += 1;
     setEditPath(null);
@@ -230,6 +236,16 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setEditBinary(false);
     setEditError('');
     setLoadingEdit(false);
+    setConfirmDiscardEdit(false);
+  }
+
+  function requestCloseEditor() {
+    if (saving) return;
+    if (editDirty) {
+      setConfirmDiscardEdit(true);
+      return;
+    }
+    closeEditor();
   }
 
   function closeRename() {
@@ -271,6 +287,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setContent('');
     setEditOriginal(null);
     setEditBinary(false);
+    setConfirmDiscardEdit(false);
     try {
       const res = await api<{ content: string; binary?: boolean }>(
         instanceApi(instanceId, `/files/content?path=${encodeURIComponent(file.path)}`),
@@ -558,13 +575,21 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
         ref={editDialogRef}
         className="file-edit-dialog"
         aria-labelledby="file-edit-dialog-title"
-        onClose={closeEditor}
-        onCancel={(event) => {
-          event.preventDefault();
+        onClose={() => {
+          if (editPath !== null && (saving || editDirty)) {
+            const dialog = editDialogRef.current;
+            if (dialog && !dialog.open) dialog.showModal();
+            if (editDirty && !saving) setConfirmDiscardEdit(true);
+            return;
+          }
           closeEditor();
         }}
+        onCancel={(event) => {
+          event.preventDefault();
+          requestCloseEditor();
+        }}
         onMouseDown={(event) => {
-          if (event.target === event.currentTarget) closeEditor();
+          if (event.target === event.currentTarget) requestCloseEditor();
         }}
       >
         <div className="file-edit-dialog-panel">
@@ -573,7 +598,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
               <h2 id="file-edit-dialog-title">{t('files.edit.title')}</h2>
               <p className="file-edit-dialog-path">{editPath}</p>
             </div>
-            <button className="btn btn-plain" type="button" aria-label={t('files.edit.closeLabel')} onClick={closeEditor}>
+            <button className="btn btn-plain" type="button" disabled={saving} aria-label={t('files.edit.closeLabel')} onClick={requestCloseEditor}>
               {t('action.close')}
             </button>
           </header>
@@ -589,7 +614,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
               className="file-edit-dialog-textarea"
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              readOnly={editBinary}
+              readOnly={editBinary || saving}
               spellCheck={false}
               aria-label={t('files.edit.contentLabel', { path: editPath ?? '' })}
             />
@@ -601,7 +626,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
               </button>
             ) : (
               <>
-                <button className="btn" type="button" onClick={closeEditor}>
+                <button className="btn" type="button" disabled={saving} onClick={requestCloseEditor}>
                   {t('action.cancel')}
                 </button>
                 <button
@@ -746,6 +771,25 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
         busy={deleting}
         onConfirm={() => void confirmRemove()}
         onCancel={closeDelete}
+      />
+
+      <ConfirmDialog
+        open={confirmDiscardEdit}
+        title={t('files.edit.discard.title')}
+        description={t('files.edit.discard.body')}
+        confirmLabel={t('files.edit.discard.confirm')}
+        danger
+        busy={saving}
+        onConfirm={closeEditor}
+        onCancel={() => setConfirmDiscardEdit(false)}
+      />
+
+      <UnsavedChangesDialog
+        blocker={blocker}
+        saving={saving}
+        title={t('files.edit.unsaved.title')}
+        savingTitle={t('files.edit.unsaved.savingTitle')}
+        description={t('files.edit.unsaved.description')}
       />
     </div>
   );
