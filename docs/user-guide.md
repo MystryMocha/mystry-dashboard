@@ -264,17 +264,18 @@ On the **Panel Settings** page, under **Instances**, **Restart After a Crash** i
 | Maximum Restarts | 3 | 1–10 |
 | Count Starts Over After | 10 minutes | 5–60 |
 
-Restarts are counted in a row for each server. After the set number of them, one more crash leaves the server "Crashed" until you start it. The count starts over once the server has stayed up for the set time after a restart, or when you start it yourself: with the defaults, a server that crashes every few minutes is restarted 3 times and then left alone, while one that crashes now and then is restarted every time.
+Restarts are counted in a row for each server. After the set number of them, one more crash leaves the server "Crashed" until you start it. The count starts over once a restarted server has stayed up for the set time, counted from when it finished starting, or when you start it yourself: with the defaults, a server that crashes every few minutes is restarted 3 times and then left alone, while one that crashes now and then is restarted every time.
 
 While the panel waits, the **Start** button at the top of the instance's page turns into a countdown, such as "Restarting in 8 Seconds". Click it to cancel that restart; the button goes back to **Start**. The restart is the same as clicking **Start**, with the settings saved at that moment.
 
-When the panel stops trying, a line at the top of the console says so: either the limit was reached, or the start was refused, for example because the instance was being backed up, and the line gives the reason. It stays until you start the server.
+When the panel stops trying, a line at the top of the console says so: the limit was reached, the start was refused, for example because the instance was being backed up, or the restarted server crashed again before it finished starting. The line gives the reason. It stays until you start the server.
 
 The panel doesn't restart a server that:
 
 - exited without an error, for example after `stop` was run in the game;
 - crashed before it finished starting (see [The Server Exits Right After Starting or Shows "Crashed"](#the-server-exits-right-after-starting-or-shows-crashed));
-- you restored from a backup while it was crashed: after a restore, start it yourself.
+- you restored from a backup while it was crashed: after a restore, start it yourself;
+- never prints the `Done (` line that marks the end of startup, such as a Velocity or BungeeCord proxy run as a custom core: the panel can't tell that it finished starting.
 
 Closing the panel drops a restart that is waiting, and the panel doesn't start instances by itself when it starts.
 
