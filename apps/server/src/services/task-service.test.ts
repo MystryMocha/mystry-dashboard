@@ -412,7 +412,7 @@ test('terminal task persistence failures do not become unhandled rejections or w
   }
 
   resetTaskRuntimeForTests();
-  const after = await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => ({ ok: true }));
+  const after = await runBackgroundTask('download', { key: 'server.tasks.queued' }, async () => {});
   for (let attempt = 0; attempt < 200 && getTask(after.id)?.status !== 'completed'; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
