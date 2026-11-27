@@ -298,7 +298,7 @@ export function updateInstance(id: string, input: UpdateInstanceInput): Instance
 
   // On start, eula=true is written only when accepted. When acceptance is withdrawn the file has to be changed back, or the acceptance written earlier would stay in effect.
   // Only this change is considered: an instance where it was never checked (for example one imported with its own acceptance record) keeps its existing eula.txt untouched.
-  // A legacy instance bound to an external directory cannot start before migration and its instance directory cannot be resolved, so only the database is changed, and it can be saved as before.
+  // A legacy instance bound to an external directory cannot start before migration and its instance directory cannot be resolved, so only the database is changed, and the save still goes through.
   if (existing.accept_eula && input.acceptEula === false && existing.install_path === null) {
     // Restoring a backup replaces the whole directory, so files written now would be lost and the database and files would disagree.
     processManager.assertNotInMaintenance(id);

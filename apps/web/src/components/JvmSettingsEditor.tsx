@@ -575,7 +575,7 @@ export function JvmSettingsEditor({
         </>
       )}
 
-      {/* Raw text mode has no collapsible section, so the preview stays outside as before. */}
+      {/* Raw text mode has no collapsible section, so the preview stays outside. */}
       {draft.rawMode && preview}
       {issues.map((item, index) => (
         <p

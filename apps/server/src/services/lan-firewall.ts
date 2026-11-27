@@ -27,7 +27,7 @@ export interface LanFirewallInput {
   listenPort: number;
   /**
    * Absolute path of the easytier-core actually started; it comes only from the panel's own runtime directory, never from a request.
-   * When null or not suitable to pass to netsh, the listen port rules have no program restriction (same as before narrowing).
+   * When null or not suitable to pass to netsh, the listen port rules have no program restriction.
    */
   corePath: string | null;
 }
