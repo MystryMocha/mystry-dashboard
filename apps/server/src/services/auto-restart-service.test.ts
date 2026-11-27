@@ -253,6 +253,7 @@ test('a server that crashes every four minutes is restarted three times and then
     await s.crashAfterReady();
     assert.equal(s.service.getState(s.id)?.attempt, attempt);
     await s.clock.advance(10_000);
+    await s.ready();
     await s.clock.advance(240_000);
   }
   // The first restart is more than ten minutes old by now, and still counts: the server never stayed up that long.
@@ -261,19 +262,50 @@ test('a server that crashes every four minutes is restarted three times and then
   assert.equal(s.children.length, 4);
 });
 
-test('the count starts over only once the server has stayed up for the saved time after its last restart', async (t) => {
+test('the count starts over only once the restarted server has stayed up for the saved time after it finished starting', async (t) => {
   const s = await setup(t);
   await s.crashAfterReady();
   await s.clock.advance(10_000);
+  await s.ready();
 
   await s.clock.advance(599_999);
   await s.crashAfterReady();
   assert.equal(s.service.getState(s.id)?.attempt, 2, 'one millisecond short of ten minutes');
   await s.clock.advance(10_000);
 
+  // Nine minutes to start and two minutes up: eleven minutes after the restart, but not ten minutes of running.
+  await s.clock.advance(540_000);
+  await s.ready();
+  await s.clock.advance(120_000);
+  await s.crashAfterReady();
+  assert.equal(s.service.getState(s.id)?.attempt, 3, 'the time spent starting does not count');
+  await s.clock.advance(10_000);
+  await s.ready();
+
   await s.clock.advance(600_000);
   await s.crashAfterReady();
   assert.equal(s.service.getState(s.id)?.attempt, 1, 'a server that crashes now and then is restarted every time');
+});
+
+test('a restarted server that crashes before it finished starting is left crashed, with the reason reported', async (t) => {
+  const s = await setup(t);
+  await s.crashAfterReady();
+  await s.clock.advance(10_000);
+  assert.equal(s.children.length, 2);
+  s.exit(1);
+  assert.deepEqual(s.service.getState(s.id), {
+    state: 'failed',
+    attempt: 1,
+    max: 3,
+    at: new Date(s.clock.now()).toISOString(),
+    reason: { key: 'server.instance.autoRestartDidNotStart' },
+  });
+  assert.equal(s.clock.waiting(), 0);
+
+  await s.start();
+  assert.equal(s.service.getState(s.id), null);
+  s.exit(1);
+  assert.equal(s.service.getState(s.id), null, 'a start by the user that fails is not reported as a failed restart');
 });
 
 test('a waiting restart is dropped by cancelling it, by switching the option off and by panel shutdown, and none uses up an attempt', async (t) => {

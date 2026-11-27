@@ -28,7 +28,8 @@ type PendingRestart = {
 /** The automatic restarts made in a row so far. */
 type RestartSeries = {
   count: number;
-  lastRestartAt: number;
+  /** When the latest restarted run finished starting; null until it has. */
+  readyAt: number | null;
 };
 
 type RestartOutcome = Exclude<InstanceAutoRestartState, { state: 'scheduled' }>;
@@ -50,6 +51,8 @@ export class AutoRestartService {
   private readonly pending = new Map<string, PendingRestart>();
   private readonly series = new Map<string, RestartSeries>();
   private readonly outcomes = new Map<string, RestartOutcome>();
+  /** Instances whose current run was started by this service, with the numbers of that restart. */
+  private readonly restartedRuns = new Map<string, Pick<PendingRestart, 'attempt' | 'max'>>();
   /** Instances this service is starting right now, to tell its own `starting` event from a start by the user. */
   private readonly ownStarts = new Set<string>();
   private attached = false;
@@ -72,12 +75,14 @@ export class AutoRestartService {
     if (this.attached) return;
     this.attached = true;
     this.deps.processManager.on('status', this.onStatus);
+    this.deps.processManager.on('ready', this.onReady);
   }
 
   detach(): void {
     if (!this.attached) return;
     this.attached = false;
     this.deps.processManager.off('status', this.onStatus);
+    this.deps.processManager.off('ready', this.onReady);
   }
 
   /** For the instance info: the restart that is waiting, or why the latest crash was not restarted. */
@@ -110,6 +115,7 @@ export class AutoRestartService {
   forget(instanceId: string): void {
     this.cancel(instanceId);
     this.series.delete(instanceId);
+    this.restartedRuns.delete(instanceId);
   }
 
   /** The setting was turned off: restarts that are waiting are no longer wanted either. */
@@ -136,8 +142,16 @@ export class AutoRestartService {
     }
   };
 
+  // The time the server must stay up is counted from here, not from the restart: a large modpack takes minutes to start.
+  private readonly onReady = (instanceId: string): void => {
+    const series = this.series.get(instanceId);
+    if (series && series.readyAt === null) series.readyAt = this.deps.now();
+  };
+
   private onCrashed(instanceId: string): void {
     this.cancel(instanceId);
+    const restartedRun = this.restartedRuns.get(instanceId);
+    this.restartedRuns.delete(instanceId);
     const row = this.deps.loadInstance(instanceId);
     const settings = this.deps.loadSettings();
     if (!row || !this.mayRestart(row, settings)) return;
@@ -145,14 +159,25 @@ export class AutoRestartService {
     const manager = this.deps.processManager;
     // A server that dies while starting would die again. This also covers every failure the panel diagnoses:
     // a start issue is only recognized in a run that never finished starting.
-    if (!manager.exitedAfterReady(instanceId)) return;
+    if (!manager.exitedAfterReady(instanceId)) {
+      // Without this the server the panel restarted would just show as crashed, with nothing saying why it was left.
+      if (restartedRun) {
+        this.outcomes.set(instanceId, {
+          state: 'failed',
+          ...restartedRun,
+          at: new Date(this.deps.now()).toISOString(),
+          reason: { key: 'server.instance.autoRestartDidNotStart' },
+        });
+      }
+      return;
+    }
     if (manager.getOrphanProcess(instanceId)) return;
 
     const now = this.deps.now();
-    // The series ends once the server has stayed up for the whole window after its last restart. A crash sooner than
+    // The series ends once the restarted server has stayed up for the whole window after it finished starting. A crash sooner than
     // that continues it, however long ago it began: a server that keeps dying every few minutes must reach the limit.
     const series = this.series.get(instanceId);
-    if (series && now - series.lastRestartAt >= settings.windowMinutes * 60_000) this.series.delete(instanceId);
+    if (series && series.readyAt !== null && now - series.readyAt >= settings.windowMinutes * 60_000) this.series.delete(instanceId);
     const made = this.series.get(instanceId)?.count ?? 0;
     const max = settings.maxAttempts;
     if (made >= max) {
@@ -190,11 +215,13 @@ export class AutoRestartService {
       const row = this.deps.loadInstance(instanceId);
       if (!row || !this.mayRestart(row, this.deps.loadSettings()) || manager.getStatus(instanceId) !== 'crashed') return;
       // Counted when it runs, so a restart that was cancelled while waiting does not use up an attempt.
-      this.series.set(instanceId, { count: pending.attempt, lastRestartAt: now });
+      this.series.set(instanceId, { count: pending.attempt, readyAt: null });
+      this.restartedRuns.set(instanceId, { attempt: pending.attempt, max: pending.max });
       this.ownStarts.add(instanceId);
       // Called outside any runExclusive: the instance lock is not re-entrant, and start takes it itself.
       await manager.start(row);
     } catch (error) {
+      this.restartedRuns.delete(instanceId);
       try {
         this.onStartRefused(instanceId, pending, now, error);
       } catch (reportError) {

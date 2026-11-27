@@ -28,6 +28,7 @@ export const INSTANCE_MESSAGES = {
   'server.instance.startShuttingDown': 'The panel is shutting down, so the instance cannot be started.',
   'server.instance.startCancelledShuttingDown': 'The panel is shutting down. The start was cancelled.',
   'server.instance.alreadyRunning': 'The instance is already running, starting, or stopping.',
+  'server.instance.autoRestartDidNotStart': 'The server crashed again before it finished starting.',
   'server.instance.forgeArgsMissing': 'Forge/NeoForge launch arguments file not found: {path}. Redeploy the instance.',
   'server.instance.modloaderNotInstalled': 'Forge/NeoForge installation has not finished. Redeploy the instance, or check the Task Center for why the installation failed.',
   'server.instance.jarMissing': 'Server jar not found: {jar}.',

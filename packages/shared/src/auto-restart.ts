@@ -7,7 +7,7 @@ export interface AutoRestartSettings {
   delaySeconds: number;
   /** Restarts the panel makes in a row; one more crash leaves the instance crashed. */
   maxAttempts: number;
-  /** Minutes the server must stay up after an automatic restart for the count to start over. */
+  /** Minutes a restarted server must stay up, counted from when it finished starting, for the count to start over. */
   windowMinutes: number;
 }
 
@@ -47,11 +47,11 @@ export type InstanceAutoRestartState =
     windowMinutes: number;
   }
   | {
-    /** The start was refused when the restart came due; it is not tried again. */
+    /** The start was refused when the restart came due, or the restarted server crashed before it finished starting; it is not tried again. */
     state: 'failed';
     attempt: number;
     max: number;
     at: string;
-    /** Why the start was refused: a translatable message, or the original text of an error that has none. */
+    /** Why: a translatable message, or the original text of an error that has none. */
     reason: PanelMessage | string;
   };
