@@ -5,8 +5,9 @@ import { getDb, type InstanceRunRow } from '../db.js';
 import { defaultInstanceDir } from '../utils/path.js';
 import {
   canGracefullyStopOrphan,
+  inspectTrackedProcess,
   type TrackedProcessCandidate,
-  verifyTrackedProcessAlive,
+  type TrackedProcessState,
 } from '../utils/process-inspect.js';
 import { processManager, type OrphanProcessRecord } from './process-manager.js';
 
@@ -28,7 +29,7 @@ export type OrphanRecoveryResult = {
 export type RunHistoryTrackerOptions = {
   events?: ProcessEventSource;
   orphanRegistry?: OrphanRegistry;
-  verifyAlive?: (candidate: TrackedProcessCandidate) => Promise<boolean>;
+  inspectProcess?: (candidate: TrackedProcessCandidate) => Promise<TrackedProcessState>;
   canGracefulStop?: () => boolean;
   now?: () => Date;
   db?: () => DatabaseSync;
@@ -40,6 +41,8 @@ export type RunHistoryTracker = {
   recoverOrphanProcesses(): Promise<OrphanRecoveryResult>;
   recoverInterrupted(excludeRunIds?: ReadonlySet<number>): { recovered: number };
 };
+
+const ORPHAN_INSPECT_CONCURRENCY = 4;
 
 function maxIso(...values: Array<string | null | undefined>): string {
   let latest = '';
@@ -57,7 +60,7 @@ function maxIso(...values: Array<string | null | undefined>): string {
 export function createRunHistoryTracker(options: RunHistoryTrackerOptions = {}): RunHistoryTracker {
   const events = options.events ?? processManager;
   const orphanRegistry: Partial<OrphanRegistry> = options.orphanRegistry ?? events;
-  const verifyAlive = options.verifyAlive ?? verifyTrackedProcessAlive;
+  const inspectProcess = options.inspectProcess ?? inspectTrackedProcess;
   const canGracefulStop = options.canGracefulStop ?? canGracefullyStopOrphan;
   const now = options.now ?? (() => new Date());
   const db = options.db ?? getDb;
@@ -223,18 +226,29 @@ export function createRunHistoryTracker(options: RunHistoryTrackerOptions = {}):
       const seenInstances = new Set<string>();
       const orphans: Array<{ instanceId: string; pid: number; runId: number }> = [];
       const activeRunIds = new Set<number>();
-      for (const row of rows) {
-        if (seenInstances.has(row.instance_id)) continue;
-        seenInstances.add(row.instance_id);
-        if (!Number.isSafeInteger(row.pid) || row.pid <= 0) continue;
-        const cwd = row.install_path ?? defaultInstanceDir(row.instance_id);
-        const alive = await verifyAlive({
+      const candidates = rows
+        .filter((row) => {
+          if (seenInstances.has(row.instance_id)) return false;
+          seenInstances.add(row.instance_id);
+          return Number.isSafeInteger(row.pid) && row.pid > 0;
+        })
+        .map((row) => ({ row, cwd: row.install_path ?? defaultInstanceDir(row.instance_id) }));
+      // Each inspection may spawn a system tool that takes up to its timeout, so run a few at a time rather than
+      // delaying the listener by the sum of all of them.
+      const states: TrackedProcessState[] = [];
+      for (let offset = 0; offset < candidates.length; offset += ORPHAN_INSPECT_CONCURRENCY) {
+        const batch = candidates.slice(offset, offset + ORPHAN_INSPECT_CONCURRENCY);
+        states.push(...await Promise.all(batch.map(({ row, cwd }) => inspectProcess({
           pid: row.pid,
           startedAt: row.started_at,
           processIdentity: row.process_identity,
           cwd,
-        });
-        if (!alive) continue;
+        }))));
+      }
+      for (const [index, { row, cwd }] of candidates.entries()) {
+        // An uninspectable PID is kept as a detached process with its run left open: treating it as exited would
+        // let a second server start on the same world directory.
+        if (states[index] === 'dead') continue;
         orphanRegistry.registerOrphanProcess?.(row.instance_id, {
           pid: row.pid,
           startedAt: row.started_at,

@@ -40,6 +40,7 @@ export const INSTANCE_MESSAGES = {
   'server.instance.stopWriteFailed': 'Failed to write the stop command.',
   'server.instance.forgetRunning': 'Process state cannot be cleared while the instance is running.',
   'server.instance.orphanProcessRunning': 'A previous server process (PID {pid}) is still running for this instance. Stop it before continuing.',
+  'server.instance.orphanProcessUnverified': 'The panel could not confirm whether PID {pid} is still the previous server process of this instance. Check PID {pid} with your system tools, end it if it is that server, then try again.',
   'server.instance.orphanStopRequiresForce': 'The previous server process (PID {pid}) can no longer receive console commands on Windows. Use Force Stop instead.',
   'server.instance.orphanStopPending': 'The previous server process (PID {pid}) is still stopping. Wait, or force stop it.',
   'server.instance.orphanForceStopPending': 'The previous server process (PID {pid}) is still exiting after force stop. Please wait.',

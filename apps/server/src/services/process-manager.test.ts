@@ -12,7 +12,8 @@ import test from 'node:test';
 import type { InstanceRow } from '../db.js';
 import {
   captureProcessIdentityAsync,
-  verifyTrackedProcessAlive,
+  inspectTrackedProcess,
+  isTrackedProcessPresentSync,
 } from '../utils/process-inspect.js';
 
 function prepareTempDataRoot(t: test.TestContext): string {
@@ -668,7 +669,7 @@ test('run history persists spawned PID and process identity, keeps verified orph
     {
       captureIdentitySync: () => null,
       captureIdentityAsync: () => identityPromise,
-      verifyTrackedProcessAlive: async () => true,
+      inspectTrackedProcess: async () => 'alive',
       isTrackedProcessPresentSync: () => true,
       signalProcess: () => {},
     },
@@ -709,7 +710,7 @@ test('run history persists spawned PID and process identity, keeps verified orph
       clearOrphanProcesses: () => { registered.length = 0; },
       registerOrphanProcess: (id, rec) => { registered.push([id, rec.pid]); },
     },
-    verifyAlive: async (candidate) => candidate.pid === 55123,
+    inspectProcess: async (candidate) => (candidate.pid === 55123 ? 'alive' : 'dead'),
     canGracefulStop: () => false,
     now: () => new Date('2026-11-27T08:05:00.000Z'),
   });
@@ -766,7 +767,7 @@ test('orphan stop respects Windows Force Stop requirement and Unix SIGTERM grace
     {
       captureIdentitySync: () => 'test:boot:1',
       captureIdentityAsync: async () => 'test:boot:1',
-      verifyTrackedProcessAlive: async (candidate) => alivePids.has(candidate.pid),
+      inspectTrackedProcess: async (candidate) => (alivePids.has(candidate.pid) ? 'alive' : 'dead'),
       isTrackedProcessPresentSync: (candidate) => alivePids.has(candidate.pid),
       signalProcess: (pid, sig) => {
         signals.push([pid, sig]);
@@ -848,6 +849,72 @@ test('orphan stop respects Windows Force Stop requirement and Unix SIGTERM grace
   );
 });
 
+test('an orphan that cannot be inspected stays tracked, blocks operations, and is never signalled', async (t) => {
+  prepareTempDataRoot(t);
+  const { ProcessManager, InstanceOperationConflictError } = await import('./process-manager.js');
+  const { initDb, getDb } = await import('../db.js');
+  const { createInstance, getInstanceRow } = await import('./instance-service.js');
+  const { createRunHistoryTracker } = await import('./run-history-service.js');
+
+  initDb();
+  const inst = createInstance({ name: 'uninspectable-orphan' });
+  const signals: Array<[number, string]> = [];
+  let state: 'alive' | 'dead' | 'unknown' = 'unknown';
+  const manager = new ProcessManager(
+    () => fakeChild(),
+    async () => 'java',
+    {
+      captureIdentitySync: () => null,
+      captureIdentityAsync: async () => null,
+      inspectTrackedProcess: async () => state,
+      isTrackedProcessPresentSync: () => state !== 'dead',
+      signalProcess: (pid, sig) => { signals.push([pid, sig]); },
+    },
+  );
+  const exited: string[] = [];
+  manager.on('orphan-exited', (id: string) => exited.push(id));
+
+  getDb()
+    .prepare('INSERT INTO instance_runs (instance_id, started_at, pid, process_identity) VALUES (?, ?, ?, ?)')
+    .run(inst.id, '2026-11-27T09:00:00.000Z', 72001, 'win32:1');
+  const tracker = createRunHistoryTracker({
+    events: manager,
+    inspectProcess: async () => state,
+    canGracefulStop: () => true,
+  });
+  tracker.attach();
+  t.after(() => tracker.detach());
+
+  // Startup recovery must keep an uninspectable PID as a detached process and leave its run open.
+  const recovery = await tracker.recoverOrphanProcesses();
+  assert.equal(recovery.orphans.length, 1);
+  assert.equal(tracker.recoverInterrupted(recovery.activeRunIds).recovered, 0);
+  const readRun = () => getDb()
+    .prepare('SELECT ended_at, end_reason FROM instance_runs WHERE instance_id = ?')
+    .get(inst.id) as { ended_at: string | null; end_reason: string | null };
+  assert.deepEqual({ ...readRun() }, { ended_at: null, end_reason: null });
+
+  const unverified = (err: unknown) => err instanceof InstanceOperationConflictError
+    && err.messageKey === 'server.instance.orphanProcessUnverified'
+    && err.statusCode === 409;
+  const row = getInstanceRow(inst.id)! as InstanceRow;
+  await assert.rejects(() => manager.start(row), unverified);
+  await assert.rejects(() => manager.assertNoOrphanProcess(inst.id), unverified);
+  await assert.rejects(() => manager.stop(inst.id, false), unverified);
+  await assert.rejects(() => manager.stop(inst.id, true), unverified);
+
+  assert.deepEqual(signals, []);
+  assert.deepEqual(exited, []);
+  assert.equal(manager.getOrphanProcess(inst.id)?.pid, 72001);
+  assert.deepEqual({ ...readRun() }, { ended_at: null, end_reason: null });
+
+  // Once the PID is proven gone the gate opens and the run is closed.
+  state = 'dead';
+  await manager.assertNoOrphanProcess(inst.id);
+  assert.deepEqual(exited, [inst.id]);
+  assert.equal(readRun().end_reason, 'stopped');
+});
+
 test('real verified orphan blocks start, restart, delete, adopt, and backup until force stopped', async (t) => {
   prepareTempDataRoot(t);
   const { processManager, InstanceOperationConflictError } = await import('./process-manager.js');
@@ -878,11 +945,19 @@ test('real verified orphan blocks start, restart, delete, adopt, and backup unti
   const identity = await captureProcessIdentityAsync(pid);
   assert.ok(identity, 'expected platform process identity for live test subprocess');
 
-  // Verify anti-PID-reuse guards against self-PID, pre-boot timestamp, and mismatched identity.
-  assert.equal(await verifyTrackedProcessAlive({ pid: process.pid, startedAt, processIdentity: null }), false);
-  assert.equal(await verifyTrackedProcessAlive({ pid, startedAt: '2000-01-01T00:00:00.000Z', processIdentity: identity }), false);
-  assert.equal(await verifyTrackedProcessAlive({ pid, startedAt, processIdentity: `${identity}-mismatch` }), false);
-  assert.equal(await verifyTrackedProcessAlive({ pid, startedAt, processIdentity: identity, cwd: dir }), true);
+  // Verify anti-PID-reuse guards against self-PID, mismatched identity, and a pre-boot timestamp without identity.
+  assert.equal(await inspectTrackedProcess({ pid: process.pid, startedAt, processIdentity: null }), 'dead');
+  assert.equal(await inspectTrackedProcess({ pid, startedAt, processIdentity: `${identity}-mismatch` }), 'dead');
+  assert.equal(await inspectTrackedProcess({ pid, startedAt: '2000-01-01T00:00:00.000Z', processIdentity: null }), 'dead');
+  assert.equal(await inspectTrackedProcess({ pid, startedAt, processIdentity: identity, cwd: dir }), 'alive');
+  // A matching start identity outranks the wall-clock boot estimate, so a clock jump cannot retire a live server.
+  assert.equal(await inspectTrackedProcess({ pid, startedAt: '2000-01-01T00:00:00.000Z', processIdentity: identity }), 'alive');
+  assert.equal(isTrackedProcessPresentSync({ pid, startedAt: '2000-01-01T00:00:00.000Z', processIdentity: identity }), true);
+  if (process.platform === 'win32') {
+    // PID 4 (System) exists on every Windows host and hides its start time from unprivileged callers. A record
+    // from before this boot that now points at it must be released rather than left blocking the instance.
+    assert.equal(await inspectTrackedProcess({ pid: 4, startedAt: '2000-01-01T00:00:00.000Z', processIdentity: 'win32:1' }), 'dead');
+  }
 
   getDb()
     .prepare('INSERT INTO instance_runs (instance_id, started_at, pid, process_identity) VALUES (?, ?, ?, ?)')

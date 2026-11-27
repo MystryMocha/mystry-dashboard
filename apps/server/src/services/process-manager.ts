@@ -18,10 +18,11 @@ import { getMinecraftChildEnv } from '../utils/child-env.js';
 import {
   captureProcessIdentityAsync,
   captureProcessIdentitySync,
+  inspectTrackedProcess,
   isTrackedProcessPresentSync,
   signalProcess,
   type TrackedProcessCandidate,
-  verifyTrackedProcessAlive,
+  type TrackedProcessState,
 } from '../utils/process-inspect.js';
 import { parseJvmArgs, serializeJvmArgFile } from '@mystry/shared';
 import { ensureServerPropertiesDefaults } from './config-service.js';
@@ -101,7 +102,7 @@ export type OrphanProcessRecord = OrphanProcessInfo & {
 export type ProcessInspectTools = {
   captureIdentitySync: (pid: number) => string | null;
   captureIdentityAsync: (pid: number) => Promise<string | null>;
-  verifyTrackedProcessAlive: (candidate: TrackedProcessCandidate) => Promise<boolean>;
+  inspectTrackedProcess: (candidate: TrackedProcessCandidate) => Promise<TrackedProcessState>;
   isTrackedProcessPresentSync: (candidate: TrackedProcessCandidate) => boolean;
   signalProcess: (pid: number, signal: 'SIGTERM' | 'SIGKILL') => void;
 };
@@ -109,7 +110,7 @@ export type ProcessInspectTools = {
 const defaultProcessInspectTools: ProcessInspectTools = {
   captureIdentitySync: captureProcessIdentitySync,
   captureIdentityAsync: captureProcessIdentityAsync,
-  verifyTrackedProcessAlive,
+  inspectTrackedProcess,
   isTrackedProcessPresentSync,
   signalProcess,
 };
@@ -208,8 +209,7 @@ export class ProcessManager extends EventEmitter {
     const orphan = this.orphans.get(instanceId);
     if (!orphan) return null;
     if (!this.processTools.isTrackedProcessPresentSync(orphan)) {
-      this.orphans.delete(instanceId);
-      this.emit('orphan-exited', instanceId, orphan.runId);
+      this.releaseOrphan(instanceId, orphan);
       return null;
     }
     return {
@@ -219,18 +219,28 @@ export class ProcessManager extends EventEmitter {
     };
   }
 
-  /** Refuses mutating instance operations while a verified detached server process is still alive. */
+  private releaseOrphan(instanceId: string, orphan: OrphanProcessRecord): void {
+    if (this.orphans.get(instanceId) !== orphan) return;
+    this.orphans.delete(instanceId);
+    this.emit('orphan-exited', instanceId, orphan.runId);
+  }
+
+  /**
+   * Refuses mutating instance operations unless the detached server process is proven gone. A process that cannot
+   * be inspected is refused as well, since it may still hold the world directory.
+   */
   async assertNoOrphanProcess(instanceId: string): Promise<void> {
     const orphan = this.orphans.get(instanceId);
     if (!orphan) return;
-    if (!(await this.processTools.verifyTrackedProcessAlive(orphan))) {
-      if (this.orphans.get(instanceId) === orphan) {
-        this.orphans.delete(instanceId);
-        this.emit('orphan-exited', instanceId, orphan.runId);
-      }
+    const state = await this.processTools.inspectTrackedProcess(orphan);
+    if (state === 'dead') {
+      this.releaseOrphan(instanceId, orphan);
       return;
     }
-    throw new InstanceOperationConflictError('server.instance.orphanProcessRunning', { pid: orphan.pid });
+    throw new InstanceOperationConflictError(
+      state === 'alive' ? 'server.instance.orphanProcessRunning' : 'server.instance.orphanProcessUnverified',
+      { pid: orphan.pid },
+    );
   }
 
   getStatus(instanceId: string): InstanceStatus {
@@ -653,12 +663,14 @@ export class ProcessManager extends EventEmitter {
     if (!orphan) {
       throw new PanelError('server.instance.notRunning');
     }
-    if (!(await this.processTools.verifyTrackedProcessAlive(orphan))) {
-      if (this.orphans.get(instanceId) === orphan) {
-        this.orphans.delete(instanceId);
-        this.emit('orphan-exited', instanceId, orphan.runId);
-      }
+    const state = await this.processTools.inspectTrackedProcess(orphan);
+    if (state === 'dead') {
+      this.releaseOrphan(instanceId, orphan);
       return;
+    }
+    // Never signal a PID whose owner cannot be confirmed: it may have been recycled by an unrelated process.
+    if (state === 'unknown') {
+      throw new InstanceOperationConflictError('server.instance.orphanProcessUnverified', { pid: orphan.pid });
     }
     if (!force && !orphan.canGracefulStop) {
       throw new InstanceOperationConflictError('server.instance.orphanStopRequiresForce', { pid: orphan.pid });
@@ -668,10 +680,7 @@ export class ProcessManager extends EventEmitter {
       this.processTools.signalProcess(orphan.pid, signal);
     } catch (error) {
       if (hasErrorCode(error, 'ESRCH')) {
-        if (this.orphans.get(instanceId) === orphan) {
-          this.orphans.delete(instanceId);
-          this.emit('orphan-exited', instanceId, orphan.runId);
-        }
+        this.releaseOrphan(instanceId, orphan);
         return;
       }
       throw new PanelError('server.instance.orphanSignalFailed', {
@@ -683,20 +692,14 @@ export class ProcessManager extends EventEmitter {
     const deadline = Date.now() + getStopGraceMs();
     while (Date.now() < deadline) {
       if (!this.processTools.isTrackedProcessPresentSync(orphan)) {
-        if (this.orphans.get(instanceId) === orphan) {
-          this.orphans.delete(instanceId);
-          this.emit('orphan-exited', instanceId, orphan.runId);
-        }
+        this.releaseOrphan(instanceId, orphan);
         return;
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    if (!(await this.processTools.verifyTrackedProcessAlive(orphan))) {
-      if (this.orphans.get(instanceId) === orphan) {
-        this.orphans.delete(instanceId);
-        this.emit('orphan-exited', instanceId, orphan.runId);
-      }
+    if ((await this.processTools.inspectTrackedProcess(orphan)) === 'dead') {
+      this.releaseOrphan(instanceId, orphan);
       return;
     }
 

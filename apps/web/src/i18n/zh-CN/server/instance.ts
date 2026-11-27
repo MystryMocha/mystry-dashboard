@@ -42,6 +42,7 @@ export default {
   'server.instance.stopWriteFailed': '停止命令写入失败',
   'server.instance.forgetRunning': '运行中的实例不能清理进程状态',
   'server.instance.orphanProcessRunning': '该实例上次启动的服务器进程（PID {pid}）仍在运行，请先停止后再继续操作',
+  'server.instance.orphanProcessUnverified': '面板无法确认 PID {pid} 是否仍是该实例上次启动的服务器进程。请在系统工具中查看 PID {pid}，确认是该服务器后将其结束，然后重试',
   'server.instance.orphanStopRequiresForce': '残留的服务器进程（PID {pid}）在 Windows 上已无法接收控制台命令，请改用「强制停止」',
   'server.instance.orphanStopPending': '残留的服务器进程（PID {pid}）仍在停止中，请等待或选择强制停止',
   'server.instance.orphanForceStopPending': '残留的服务器进程（PID {pid}）仍在强制终止中，请稍候',

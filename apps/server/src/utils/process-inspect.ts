@@ -166,45 +166,53 @@ function linuxProcessLooksLikeInstanceJava(pid: number, cwd?: string): boolean {
 }
 
 /**
- * Verifies whether a tracked PID still refers to the same managed Java process rather than an exited or recycled PID.
- * Never returns true when pre-boot evidence, identity mismatch, or platform inspection fails.
+ * `unknown` means the PID exists but the OS could not be asked who owns it (inspection blocked, timed out or
+ * unreadable). Callers must treat it as possibly still running: only `dead` may release a tracked process.
  */
-export async function verifyTrackedProcessAlive(
+export type TrackedProcessState = 'alive' | 'dead' | 'unknown';
+
+/**
+ * An unreadable identity proves exit only when the PID is gone or the record predates this boot. The boot check
+ * matters after a reboot, when the old PID may now belong to a system process whose start time an unprivileged
+ * panel cannot read; without it such an instance would stay blocked.
+ */
+function stateWhenUninspectable(candidate: TrackedProcessCandidate): TrackedProcessState {
+  if (!isProcessAliveSync(candidate.pid)) return 'dead';
+  return isTimestampBeforeBoot(candidate.startedAt) ? 'dead' : 'unknown';
+}
+
+/**
+ * Determines whether a tracked PID still refers to the same managed Java process, has exited or been recycled,
+ * or cannot be inspected right now.
+ */
+export async function inspectTrackedProcess(
   candidate: TrackedProcessCandidate,
   timeoutMs = 3500,
-): Promise<boolean> {
+): Promise<TrackedProcessState> {
   if (!Number.isSafeInteger(candidate.pid) || candidate.pid <= 0 || candidate.pid === process.pid) {
-    return false;
-  }
-  if (isTimestampBeforeBoot(candidate.startedAt)) {
-    return false;
+    return 'dead';
   }
   if (!isProcessAliveSync(candidate.pid)) {
-    return false;
+    return 'dead';
   }
 
   if (candidate.processIdentity) {
-    if (candidate.processIdentity.startsWith('linux:')) {
-      return process.platform === 'linux'
-        && captureProcessIdentitySync(candidate.pid) === candidate.processIdentity;
-    }
-    if (candidate.processIdentity.startsWith('win32:')) {
-      if (process.platform !== 'win32') return false;
-      return (await captureProcessIdentityAsync(candidate.pid, timeoutMs)) === candidate.processIdentity;
-    }
-    if (candidate.processIdentity.startsWith('darwin:')) {
-      if (process.platform !== 'darwin') return false;
-      return (await captureProcessIdentityAsync(candidate.pid, timeoutMs)) === candidate.processIdentity;
-    }
-    return false;
+    // A readable start identity decides on its own; the wall-clock boot estimate is only a tie-breaker when the
+    // identity cannot be read, so a forward clock jump alone cannot declare a live server dead.
+    if (!candidate.processIdentity.startsWith(`${process.platform}:`)) return 'dead';
+    const current = await captureProcessIdentityAsync(candidate.pid, timeoutMs);
+    if (current === null) return stateWhenUninspectable(candidate);
+    return current === candidate.processIdentity ? 'alive' : 'dead';
   }
 
   // Legacy/crash-window fallback when the panel died before the async identity write completed.
   const startedMs = Date.parse(candidate.startedAt);
-  if (!Number.isFinite(startedMs)) return false;
+  if (!Number.isFinite(startedMs)) return 'dead';
+  if (isTimestampBeforeBoot(candidate.startedAt)) return 'dead';
 
   if (process.platform === 'linux') {
-    return linuxProcessLooksLikeInstanceJava(candidate.pid, candidate.cwd);
+    if (linuxProcessLooksLikeInstanceJava(candidate.pid, candidate.cwd)) return 'alive';
+    return readLinuxProcStartTicksSync(candidate.pid) === null ? stateWhenUninspectable(candidate) : 'dead';
   }
   if (process.platform === 'win32') {
     const script = `${WIN32_POWERSHELL_PREAMBLE} try { $p = Get-Process -Id ${candidate.pid} -ErrorAction Stop; [PSCustomObject]@{ name=$p.ProcessName; startMs=[int64](($p.StartTime.ToUniversalTime() - [datetime]'1970-01-01T00:00:00Z').TotalMilliseconds) } | ConvertTo-Json -Compress } catch {}`;
@@ -214,14 +222,17 @@ export async function verifyTrackedProcessAlive(
         ['-NoProfile', '-NonInteractive', '-Command', script],
         { windowsHide: true, timeout: timeoutMs, maxBuffer: 4096, env: powershellEnv() },
       );
-      const trimmed = stdout.trim();
-      if (!trimmed) return false;
-      const parsed = JSON.parse(trimmed) as { name?: unknown; startMs?: unknown };
-      if (typeof parsed.name !== 'string' || !isJavaExecutableToken(parsed.name)) return false;
-      if (typeof parsed.startMs !== 'number' || !Number.isFinite(parsed.startMs)) return false;
-      return parsed.startMs >= startedMs - BOOT_TIME_SKEW_MS && parsed.startMs <= startedMs + 60_000;
+      const parsed = JSON.parse(stdout.trim()) as { name?: unknown; startMs?: unknown };
+      if (typeof parsed.name !== 'string' || typeof parsed.startMs !== 'number' || !Number.isFinite(parsed.startMs)) {
+        return stateWhenUninspectable(candidate);
+      }
+      return isJavaExecutableToken(parsed.name)
+        && parsed.startMs >= startedMs - BOOT_TIME_SKEW_MS
+        && parsed.startMs <= startedMs + 60_000
+        ? 'alive'
+        : 'dead';
     } catch {
-      return false;
+      return stateWhenUninspectable(candidate);
     }
   }
   if (process.platform === 'darwin') {
@@ -230,34 +241,36 @@ export async function verifyTrackedProcessAlive(
         timeout: timeoutMs,
         maxBuffer: 4096,
       });
-      const line = stdout.trim();
-      const match = /^(\S+)\s+(.+)$/.exec(line);
-      if (!match || !isJavaExecutableToken(match[1])) return false;
-      const startMs = Date.parse(match[2]);
-      return Number.isFinite(startMs)
+      const match = /^(\S+)\s+(.+)$/.exec(stdout.trim());
+      const startMs = match ? Date.parse(match[2]) : Number.NaN;
+      if (!match || !Number.isFinite(startMs)) return stateWhenUninspectable(candidate);
+      return isJavaExecutableToken(match[1])
         && startMs >= startedMs - BOOT_TIME_SKEW_MS
-        && startMs <= startedMs + 60_000;
+        && startMs <= startedMs + 60_000
+        ? 'alive'
+        : 'dead';
     } catch {
-      return false;
+      return stateWhenUninspectable(candidate);
     }
   }
-  return false;
+  return 'unknown';
 }
 
 /**
  * Lightweight synchronous liveness check suitable for frequent status reads and stop polling.
  * Full OS identity verification runs at startup recovery and before delivering termination signals.
+ * It only reports absence on positive evidence, because callers drop the tracked process when it returns false.
  */
 export function isTrackedProcessPresentSync(candidate: TrackedProcessCandidate): boolean {
   if (!Number.isSafeInteger(candidate.pid) || candidate.pid <= 0 || candidate.pid === process.pid) {
     return false;
   }
-  if (isTimestampBeforeBoot(candidate.startedAt)) return false;
   if (!isProcessAliveSync(candidate.pid)) return false;
   if (candidate.processIdentity) {
     if (candidate.processIdentity.startsWith('linux:')) {
-      return process.platform === 'linux'
-        && captureProcessIdentitySync(candidate.pid) === candidate.processIdentity;
+      if (process.platform !== 'linux') return false;
+      const current = captureProcessIdentitySync(candidate.pid);
+      return current === null || current === candidate.processIdentity;
     }
     if (candidate.processIdentity.startsWith('win32:')) {
       return process.platform === 'win32';
