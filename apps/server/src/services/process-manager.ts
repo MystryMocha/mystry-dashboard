@@ -599,6 +599,16 @@ export class ProcessManager extends EventEmitter {
       }
 
       const decoders = { stdout: createConsoleDecoder(), stderr: createConsoleDecoder() };
+      const decodeChunk = (stream: keyof typeof decoders, chunk: Buffer): string => {
+        if (chunk.length <= maxConsoleChunkBytes) {
+          return decoders[stream].decode(chunk, { stream: true });
+        }
+        const retained = decoders[stream].decode(chunk.subarray(0, maxConsoleChunkBytes), { stream: true });
+        // The rest of an oversized chunk is discarded by design. Resetting the decoder also discards the partial character at the cut,
+        // so its remaining bytes cannot turn into a replacement character when they are never delivered.
+        decoders[stream] = createConsoleDecoder();
+        return retained;
+      };
       const flushDecodedOutput = () => {
         for (const stream of ['stdout', 'stderr'] as const) {
           const tail = decoders[stream].decode();
@@ -610,7 +620,7 @@ export class ProcessManager extends EventEmitter {
 
       const onChunk = (stream: keyof typeof decoders) => (chunk: Buffer) => {
         if (this.processes.get(instance.id) !== managed) return;
-        const text = decoders[stream].decode(chunk, { stream: true });
+        const text = decodeChunk(stream, chunk);
         this.appendOutput(instance.id, text);
         if (managed.status === 'starting') {
           managed.status = 'running';
@@ -789,9 +799,9 @@ export class ProcessManager extends EventEmitter {
     const managed = this.processes.get(instanceId);
     if (!managed) return;
 
-    // Text can be larger than the chunk limit: the limit may be set below the size of one pipe read, a partial character carried over
-    // from the previous chunk adds up to 3 bytes, and invalid bytes decode to 3-byte replacement characters. The console route closes
-    // the connection on a larger output message, and cutting would drop delivered text, so it is appended in pieces at character boundaries.
+    // Decoded text can be larger than the chunk limit: a partial character carried over from the previous chunk adds up to 3 bytes,
+    // and invalid bytes decode to 3-byte replacement characters. The console route closes the connection on a larger output
+    // message, and cutting would drop delivered text such as a newline, so the text is appended in pieces at character boundaries.
     let rest = text;
     while (rest) {
       const output = takeUtf8Prefix(rest, maxConsoleChunkBytes);
