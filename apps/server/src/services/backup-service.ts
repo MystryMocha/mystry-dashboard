@@ -42,7 +42,7 @@ import {
   STAGING_MARKER_FILE,
   STAGING_ROOT_DIR,
 } from './task-staging-service.js';
-import { isUploadTooLargeError, removeUploadTemp, streamToUploadTemp } from './upload-service.js';
+import { isUploadTooLargeError, streamToUploadTemp } from './upload-service.js';
 
 /** Backup ID: UTC time + a 6-character random suffix, also the file name stem. */
 const BACKUP_ID_PATTERN = /^\d{8}-\d{6}-[A-Za-z0-9_-]{6}$/;
@@ -872,28 +872,38 @@ export async function startRestoreTask(
   }
 }
 
-function moveIntoPlace(source: string, target: string): void {
+export async function moveBackupArchiveIntoPlace(source: string, target: string): Promise<void> {
   try {
-    fs.renameSync(source, target);
+    await fs.promises.rename(source, target);
+    return;
   } catch (error) {
     if (!hasErrorCode(error, 'EXDEV')) throw error;
-    // The backup directory is on another disk: copy to a temp file in the same directory first, then rename atomically.
-    const temp = `${path.join(path.dirname(target), TEMP_PREFIX)}${path.basename(target)}`;
-    try {
-      fs.copyFileSync(source, temp, fs.constants.COPYFILE_EXCL);
-      fs.renameSync(temp, target);
-    } finally {
-      fs.rmSync(temp, { force: true });
-    }
+  }
+  // Cross-volume fallback: copy asynchronously to a temp file in the target directory so large archives never block
+  // the event loop, then rename atomically into place.
+  const temp = `${path.join(path.dirname(target), TEMP_PREFIX)}${path.basename(target)}`;
+  try {
+    await fs.promises.copyFile(source, temp, fs.constants.COPYFILE_EXCL);
+    await fs.promises.rename(temp, target);
+    await fs.promises.rm(source, { force: true }).catch(() => undefined);
+  } finally {
+    await fs.promises.rm(temp, { force: true }).catch(() => undefined);
   }
 }
 
 /** Saves an uploaded backup file: it appears in the list only after full verification passes. */
 export async function saveUploadedBackup(instanceId: string, input: Readable): Promise<BackupInfo> {
   requireManagedInstance(instanceId);
+  // Stage directly inside the instance backup directory with the .tmp-*.tar.gz naming convention so BACKUP_DIR on another
+  // volume finishes with a same-volume rename (no multi-gigabyte copy) and interrupted uploads are cleaned up at startup.
+  const dir = instanceBackupDir(instanceId, true)!;
   let temp: string;
   try {
-    temp = await streamToUploadTemp(input, 'backup', { maxBytes: config.maxBackupUploadBytes });
+    temp = await streamToUploadTemp(input, 'upload', {
+      maxBytes: config.maxBackupUploadBytes,
+      targetDir: dir,
+      suffix: ARCHIVE_SUFFIX,
+    });
   } catch (error) {
     if (isUploadTooLargeError(error)) {
       throw new PanelError('server.backups.upload.tooLarge', { limit: config.maxBackupUploadBytes }, { statusCode: 413 });
@@ -907,9 +917,8 @@ export async function saveUploadedBackup(instanceId: string, input: Readable): P
       limits: archiveLimits(),
       signal: new AbortController().signal,
     });
-    const dir = instanceBackupDir(instanceId, true)!;
     const backupId = newBackupId();
-    moveIntoPlace(temp, archiveFile(dir, backupId));
+    await moveBackupArchiveIntoPlace(temp, archiveFile(dir, backupId));
     const { manifest } = verified;
     const info: BackupInfo = {
       id: backupId,
@@ -933,7 +942,9 @@ export async function saveUploadedBackup(instanceId: string, input: Readable): P
     }
     return info;
   } finally {
-    if (fs.existsSync(temp)) removeUploadTemp(temp);
+    if (fs.existsSync(temp)) {
+      await fs.promises.rm(temp, { force: true }).catch(() => undefined);
+    }
   }
 }
 
