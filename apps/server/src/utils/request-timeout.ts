@@ -11,6 +11,32 @@ const activeRequestTimeouts = new WeakMap<FastifyRequest, TimeoutHandle>();
 /** Grace window after sending 408 + FIN so the client can read the error JSON before forcing a reset. */
 const TIMEOUT_SOCKET_DESTROY_GRACE_MS = 500;
 
+type EventTargetLike = {
+  once: (event: string, listener: () => void) => unknown;
+  off: (event: string, listener: () => void) => unknown;
+};
+
+function hasEventTarget(target: unknown): target is EventTargetLike {
+  return (
+    typeof target === 'object'
+    && target !== null
+    && typeof (target as { once?: unknown }).once === 'function'
+    && typeof (target as { off?: unknown }).off === 'function'
+  );
+}
+
+/**
+ * Upgraded connections (such as WebSockets) are governed by their own protocol handlers rather than an HTTP request-body
+ * receive deadline. Rely only on Fastify's `@fastify/websocket` flag and Node's parser-set `upgrade` flag; never rely
+ * on the client-controlled `Upgrade` header alone, which could otherwise be spoofed on regular POST requests.
+ */
+function isUpgradedRequest(req: FastifyRequest): boolean {
+  return (
+    (req as { ws?: unknown }).ws === true
+    || (req.raw as { upgrade?: unknown }).upgrade === true
+  );
+}
+
 function sendTimeoutAndClose(
   req: FastifyRequest,
   reply: FastifyReply,
@@ -37,7 +63,9 @@ function sendTimeoutAndClose(
     });
     return;
   }
-  rawReq.destroy();
+  if (typeof rawReq.destroy === 'function') {
+    rawReq.destroy();
+  }
 }
 
 /**
@@ -57,7 +85,17 @@ export function attachRequestTimeoutHook(
 
   app.addHook('onRequest', async (req, reply) => {
     const rawReq = req.raw;
-    if (rawReq.readableEnded || rawReq.destroyed) return;
+    const rawReply = reply.raw;
+    if (
+      isUpgradedRequest(req)
+      || !hasEventTarget(rawReq)
+      || !hasEventTarget(rawReply)
+      || rawReq.complete
+      || rawReq.readableEnded
+      || rawReq.destroyed
+    ) {
+      return;
+    }
 
     let cancelled = false;
     let timer: NodeJS.Timeout | null = null;
@@ -71,13 +109,15 @@ export function attachRequestTimeoutHook(
       }
       rawReq.off('end', cancel);
       rawReq.off('close', cancel);
-      reply.raw.off('close', cancel);
-      reply.raw.off('finish', cancel);
+      rawReply.off('close', cancel);
+      rawReply.off('finish', cancel);
       activeRequestTimeouts.delete(req);
     };
 
     timer = setTimeout(() => {
-      if (cancelled || rawReq.readableEnded || reply.raw.writableEnded) {
+      // Check `rawReq.complete` in addition to `readableEnded`: on bodyless GET requests (such as streaming backup
+      // downloads), Node marks `complete = true` as soon as headers finish even though nothing ever drains `rawReq`.
+      if (cancelled || rawReq.complete || rawReq.readableEnded || rawReply.writableEnded) {
         cancel();
         return;
       }
@@ -88,8 +128,8 @@ export function attachRequestTimeoutHook(
 
     rawReq.once('end', cancel);
     rawReq.once('close', cancel);
-    reply.raw.once('close', cancel);
-    reply.raw.once('finish', cancel);
+    rawReply.once('close', cancel);
+    rawReply.once('finish', cancel);
     activeRequestTimeouts.set(req, { cancel });
   });
 }
@@ -107,8 +147,13 @@ export function switchToStreamingUploadTimeout(
   activeRequestTimeouts.get(req)?.cancel();
 
   const rawReq = req.raw;
+  const rawReply = reply.raw;
   if (
     idleTimeoutMs <= 0
+    || isUpgradedRequest(req)
+    || !hasEventTarget(rawReq)
+    || !hasEventTarget(rawReply)
+    || rawReq.complete
     || rawReq.readableEnded
     || rawReq.destroyed
     || typeof rawReq.setTimeout !== 'function'
@@ -117,13 +162,23 @@ export function switchToStreamingUploadTimeout(
   }
 
   let cleared = false;
+  const onIdle = () => {
+    if (cleared || rawReq.complete || rawReq.readableEnded) {
+      clearIdle();
+      return;
+    }
+    clearIdle();
+    sendTimeoutAndClose(req, reply, 'server.files.upload.idleTimeout');
+  };
+
   const clearIdle = () => {
     if (cleared) return;
     cleared = true;
     rawReq.off('end', clearIdle);
     rawReq.off('close', clearIdle);
-    reply.raw.off('close', clearIdle);
-    reply.raw.off('finish', clearIdle);
+    rawReq.off('timeout', onIdle);
+    rawReply.off('close', clearIdle);
+    rawReply.off('finish', clearIdle);
     try {
       rawReq.setTimeout(0);
     } catch {
@@ -131,14 +186,10 @@ export function switchToStreamingUploadTimeout(
     }
   };
 
-  rawReq.setTimeout(idleTimeoutMs, () => {
-    if (cleared || rawReq.readableEnded) return;
-    clearIdle();
-    sendTimeoutAndClose(req, reply, 'server.files.upload.idleTimeout');
-  });
+  rawReq.setTimeout(idleTimeoutMs, onIdle);
 
   rawReq.once('end', clearIdle);
   rawReq.once('close', clearIdle);
-  reply.raw.once('close', clearIdle);
-  reply.raw.once('finish', clearIdle);
+  rawReply.once('close', clearIdle);
+  rawReply.once('finish', clearIdle);
 }

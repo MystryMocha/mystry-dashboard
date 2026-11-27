@@ -131,7 +131,6 @@ export async function buildApp(options: BuildAppOptions = {}) {
     ajv: { customOptions: { removeAdditional: false } },
   });
   app.server.headersTimeout = Math.min(config.httpConnectionTimeoutMs, 60_000);
-  attachRequestTimeoutHook(app, config.httpRequestTimeoutMs);
   for (const notice of takeStartupNotices()) app.log.warn({ quiet: true }, notice);
   if (
     backupRecovery.restoresRolledBack > 0
@@ -182,6 +181,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
       perMessageDeflate: false,
     },
   });
+  // Register after `@fastify/websocket` so its `onRequest` hook marks `req.ws` before the HTTP timeout hook runs.
+  attachRequestTimeoutHook(app, config.httpRequestTimeoutMs);
 
   app.addHook(
     'onRequest',

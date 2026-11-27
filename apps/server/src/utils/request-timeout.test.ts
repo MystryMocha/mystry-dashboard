@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import test from 'node:test';
 import Fastify from 'fastify';
+import websocket from '@fastify/websocket';
+import WebSocket from 'ws';
 import { randomBytes } from 'node:crypto';
 
 process.env.JWT_SECRET = randomBytes(32).toString('hex');
@@ -133,4 +135,79 @@ test('regular routes enforce total requestTimeout while streaming uploads use id
   });
   assert.equal(verified.statusCode, 200, verified.body);
   assert.deepEqual(JSON.parse(verified.body), { total: 13 });
+});
+
+test('request timeout hook does not abort slow streaming GET downloads or WebSocket upgrades', async (t) => {
+  const { attachRequestTimeoutHook } = await import('./request-timeout.js');
+  const app = Fastify({ requestTimeout: 0 });
+  // Intentionally register the timeout hook BEFORE `@fastify/websocket` as well, verifying synthetic `injectWS`
+  // requests without EventEmitter methods and real TCP upgrades are both handled safely regardless of hook order.
+  attachRequestTimeoutHook(app, 100);
+  await app.register(websocket);
+
+  app.get('/slow-download', async (_req, reply) => {
+    reply.hijack();
+    reply.raw.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+    reply.raw.write('part-1:');
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    reply.raw.end('part-2');
+    return reply;
+  });
+
+  app.get('/ws-echo', { websocket: true }, (socket) => {
+    socket.on('message', (data) => {
+      socket.send(`echo:${String(data)}`);
+    });
+  });
+
+  await app.listen({ host: '127.0.0.1', port: 0 });
+  t.after(async () => {
+    await app.close();
+  });
+  const { port } = app.server.address() as { port: number };
+
+  // 1. Slow GET download outlives the 100ms request receive timeout without being aborted.
+  const download = await new Promise<{ statusCode: number; body: string }>((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port, path: '/slow-download' }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => resolve({ statusCode: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }));
+      res.on('error', reject);
+    }).on('error', reject);
+  });
+  assert.equal(download.statusCode, 200);
+  assert.equal(download.body, 'part-1:part-2');
+
+  // 2. Real TCP WebSocket connection stays open and responsive past the 100ms HTTP request timeout.
+  const wsReply = await new Promise<string>((resolve, reject) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws-echo`);
+    ws.once('open', () => {
+      setTimeout(() => {
+        ws.send('still-alive');
+      }, 220);
+    });
+    ws.once('message', (data) => {
+      ws.close();
+      resolve(String(data));
+    });
+    ws.once('error', reject);
+  });
+  assert.equal(wsReply, 'echo:still-alive');
+
+  // 3. Synthetic `@fastify/websocket` `injectWS` upgrade request succeeds without crashing on `rawReq.once`.
+  const injectedReply = await new Promise<string>((resolve, reject) => {
+    app.injectWS('/ws-echo', {}, {
+      onInit(ws) {
+        ws.once('message', (data) => {
+          ws.close();
+          resolve(String(data));
+        });
+        ws.once('error', reject);
+      },
+      onOpen(ws) {
+        ws.send('ping');
+      },
+    }).catch(reject);
+  });
+  assert.equal(injectedReply, 'echo:ping');
 });
