@@ -151,7 +151,7 @@ test('an exit with the EULA not accepted is recorded as stopped with a reason; a
   assert.deepEqual(manager.getStartIssue(info.id), { kind: 'eula', requiredJava: null });
 
   await manager.start(row);
-  assert.equal(manager.getStartIssue(info.id), null, '启动中不应保留上一次的原因');
+  assert.equal(manager.getStartIssue(info.id), null, 'the reason from the previous run is not kept while starting');
   children[1].stderr.emit('data', Buffer.from(
     'java.lang.ClassCastException: class jdk.internal.loader.ClassLoaders$AppClassLoader cannot be cast to class java.net.URLClassLoader\n',
   ));
@@ -204,7 +204,7 @@ test('withdrawing EULA acceptance in instance settings: eula.txt goes back to fa
   assert.equal(getInstance(agreed.id)?.acceptEula, false);
   assert.equal(fs.readFileSync(agreedEula, 'utf8'), 'eula=false\n');
   await manager.start(getInstanceRow(agreed.id)! as InstanceRow);
-  assert.equal(fs.readFileSync(agreedEula, 'utf8'), 'eula=false\n', '不同意时启动不写 eula.txt');
+  assert.equal(fs.readFileSync(agreedEula, 'utf8'), 'eula=false\n', 'a start without agreement does not write eula.txt');
   children[1].emit('exit', 0, null);
 
   // Never checked: saving (even with acceptEula: false) does not change the existing file, and neither does starting.
@@ -441,8 +441,8 @@ test('delete must wait for an unfinished start, and a directory being started mu
   const startPromise = processManager.start(row as InstanceRow);
   const deletePromise = deleteInstance(info.id);
   await new Promise((resolve) => setTimeout(resolve, 40));
-  assert.ok(fs.existsSync(instanceDir), 'start 持锁期间删除不得先拆目录');
-  assert.ok(getInstanceRow(info.id), 'start 持锁期间删除不得先删库行');
+  assert.ok(fs.existsSync(instanceDir), 'a delete must not remove the directory while start holds the lock');
+  assert.ok(getInstanceRow(info.id), 'a delete must not remove the database row while start holds the lock');
 
   releaseJava();
   await startPromise;
@@ -608,7 +608,7 @@ test('marked as joinable after the finished-startup marker line is printed; clea
 
   const stopping = manager.stop(info.id);
   await flush();
-  assert.equal(manager.isReady(info.id), false, '正在停止时不再提示可以进服');
+  assert.equal(manager.isReady(info.id), false, 'a stopping server is no longer shown as joinable');
   children[0].emit('exit', 0, null);
   await stopping;
   assert.equal(manager.isReady(info.id), false);
@@ -767,14 +767,14 @@ test('when the bound Java is unavailable or no longer in the registry, the insta
 
   initDb();
   const info = createInstance({ name: 'java-gone' });
-  assert.equal(getInstance(info.id)?.startIssue, null, '用系统默认 Java 的实例不提前报问题');
+  assert.equal(getInstance(info.id)?.startIssue, null, 'an instance on the system default Java reports no issue ahead of a start');
 
   const db = getDb();
   db.prepare(
     'INSERT INTO java_runtimes (id, path, version, major_version, source, verified_at, available) VALUES (?, ?, ?, ?, ?, ?, 1)',
   ).run('rt-test', path.join(os.tmpdir(), 'mystry-missing-java'), '21.0.1', 21, 'scan', new Date().toISOString());
   db.prepare('UPDATE instances SET java_runtime_id = ? WHERE id = ?').run('rt-test', info.id);
-  assert.equal(getInstance(info.id)?.startIssue, null, '登记为可用的运行时不提前报问题');
+  assert.equal(getInstance(info.id)?.startIssue, null, 'a runtime registered as available reports no issue ahead of a start');
 
   db.prepare('UPDATE java_runtimes SET available = 0 WHERE id = ?').run('rt-test');
   assert.deepEqual(getInstance(info.id)?.startIssue, { kind: 'java-unavailable', requiredJava: null });
@@ -786,7 +786,7 @@ test('when the bound Java is unavailable or no longer in the registry, the insta
   );
 
   db.prepare('UPDATE instances SET java_runtime_id = NULL WHERE id = ?').run(info.id);
-  assert.equal(getInstance(info.id)?.startIssue, null, '改回系统默认 Java 后提示消失');
+  assert.equal(getInstance(info.id)?.startIssue, null, 'the notice goes away after switching back to the system default Java');
 });
 
 test('run history persists spawned PID and process identity, keeps verified orphans open, and closes dead or stale runs', async (t) => {
