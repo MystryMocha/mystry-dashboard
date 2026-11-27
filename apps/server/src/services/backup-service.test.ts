@@ -588,11 +588,11 @@ test('cross-platform Forge/NeoForge restore re-resolves @args: for the current p
   assert.equal(getInstanceRow(id)!.jar_file, nativeArgs, 'restore must switch @args: to the current platform');
 
   // Also verify both cross-platform directions directly via syncInstanceRecordWithManifest.
-  const winManifest = {
+  const winManifest: import('./backup-archive.js').BackupManifest = {
     format: BACKUP_FORMAT,
     version: BACKUP_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
-    instance: { id, name: 'forge', coreType: 'forge' as const, mcVersion: '1.20.1', jarFile: winArgs },
+    instance: { id, name: 'forge', coreType: 'forge', mcVersion: '1.20.1', jarFile: winArgs },
     wasRunning: false,
     directories: [],
     files: [],
@@ -601,7 +601,7 @@ test('cross-platform Forge/NeoForge restore re-resolves @args: for the current p
   assert.equal(await syncInstanceRecordWithManifest(id, winManifest, 'linux'), true);
   assert.equal(getInstanceRow(id)!.jar_file, unixArgs);
 
-  const unixManifest = {
+  const unixManifest: import('./backup-archive.js').BackupManifest = {
     ...winManifest,
     instance: { ...winManifest.instance, jarFile: unixArgs },
   };
