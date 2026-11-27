@@ -3,16 +3,67 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { panelErrorBody } from '../utils/errors.js';
 import { clientKey } from '../utils/request-origin.js';
 
+const DEFAULT_MAX_BUCKETS = 10_000;
+const UNMATCHED_ROUTE_KEY = '<unmatched>';
+
 type RateLimitOptions = {
   max: number;
   windowMs: number;
   name: string;
+  maxBuckets?: number;
 };
 
 type Bucket = {
   count: number;
   resetAt: number;
 };
+
+type BoundedBuckets = {
+  cleanup: (now: number, force?: boolean) => void;
+  getActive: (key: string, now: number) => Bucket | undefined;
+  set: (key: string, bucket: Bucket, now: number) => void;
+  delete: (key: string) => void;
+};
+
+function createBoundedBuckets(windowMs: number, maxBuckets = DEFAULT_MAX_BUCKETS): BoundedBuckets {
+  const limit = Math.max(1, Math.floor(maxBuckets));
+  const buckets = new Map<string, Bucket>();
+  let lastCleanup = 0;
+
+  function cleanup(now: number, force = false): void {
+    if (!force && now - lastCleanup <= windowMs) return;
+    for (const [key, bucket] of buckets) {
+      if (bucket.resetAt <= now) buckets.delete(key);
+    }
+    lastCleanup = now;
+  }
+
+  return {
+    cleanup,
+    getActive(key, now) {
+      const bucket = buckets.get(key);
+      if (!bucket || bucket.resetAt > now) return bucket;
+      buckets.delete(key);
+      return undefined;
+    },
+    set(key, bucket, now) {
+      if (!buckets.has(key) && buckets.size >= limit) {
+        cleanup(now, true);
+        while (buckets.size >= limit) {
+          const oldestKey = buckets.keys().next().value;
+          if (oldestKey === undefined) break;
+          buckets.delete(oldestKey);
+        }
+      }
+      // Refresh insertion order so eviction always removes the least recently updated bucket first.
+      buckets.delete(key);
+      buckets.set(key, bucket);
+    },
+    delete(key) {
+      buckets.delete(key);
+    },
+  };
+}
 
 export type LoginFailureLimiter = {
   isBlocked: (request: FastifyRequest, reply: FastifyReply, username: string) => boolean;
@@ -34,30 +85,22 @@ export function tokenMatches(value: string | string[] | undefined, expected: str
  * requests arriving through the panel's built-in network all count as one origin and do not share a quota with this machine (clientKey).
  */
 export function createRateLimitHook(options: RateLimitOptions) {
-  const buckets = new Map<string, Bucket>();
-  let lastCleanup = 0;
+  const buckets = createBoundedBuckets(options.windowMs, options.maxBuckets);
 
   return async function rateLimitHook(
     request: FastifyRequest,
     reply: FastifyReply,
   ): Promise<void> {
     const now = Date.now();
-    if (now - lastCleanup > options.windowMs) {
-      for (const [key, bucket] of buckets) {
-        if (bucket.resetAt <= now) buckets.delete(key);
-      }
-      lastCleanup = now;
-    }
+    buckets.cleanup(now);
 
-    const route = request.routeOptions.url || request.url.split('?')[0];
+    // Collapse 404 / unmatched paths into one bucket per client so random URLs cannot bypass rate limiting or grow memory without bound.
+    const route = request.routeOptions.url || UNMATCHED_ROUTE_KEY;
     const key = `${options.name}:${clientKey(request)}:${route}`;
-    const current = buckets.get(key);
-    const bucket = current && current.resetAt > now
-      ? current
-      : { count: 0, resetAt: now + options.windowMs };
+    const bucket = buckets.getActive(key, now) ?? { count: 0, resetAt: now + options.windowMs };
 
     bucket.count += 1;
-    buckets.set(key, bucket);
+    buckets.set(key, bucket, now);
 
     reply.header('X-RateLimit-Limit', String(options.max));
     reply.header('X-RateLimit-Remaining', String(Math.max(0, options.max - bucket.count)));
@@ -73,27 +116,11 @@ export function createRateLimitHook(options: RateLimitOptions) {
  * Failed sign-in rate limiter: only password verification failures are counted; a successful sign-in clears the record, so normal admin activity is not locked out.
  */
 export function createLoginFailureLimiter(options: RateLimitOptions): LoginFailureLimiter {
-  const buckets = new Map<string, Bucket>();
-  let lastCleanup = 0;
-
-  function cleanup(now: number): void {
-    if (now - lastCleanup <= options.windowMs) return;
-    for (const [key, bucket] of buckets) {
-      if (bucket.resetAt <= now) buckets.delete(key);
-    }
-    lastCleanup = now;
-  }
+  const buckets = createBoundedBuckets(options.windowMs, options.maxBuckets);
 
   function getKey(request: FastifyRequest, username: string): string {
     // Username case must not be a way around the failure count; actual authentication keeps its original case semantics.
     return [options.name, clientKey(request), username.trim().toLowerCase()].join(':');
-  }
-
-  function getActiveBucket(key: string, now: number): Bucket | undefined {
-    const bucket = buckets.get(key);
-    if (!bucket || bucket.resetAt > now) return bucket;
-    buckets.delete(key);
-    return undefined;
   }
 
   function setHeaders(reply: FastifyReply, bucket: Bucket, now: number): void {
@@ -108,8 +135,8 @@ export function createLoginFailureLimiter(options: RateLimitOptions): LoginFailu
   return {
     isBlocked(request, reply, username) {
       const now = Date.now();
-      cleanup(now);
-      const bucket = getActiveBucket(getKey(request, username), now);
+      buckets.cleanup(now);
+      const bucket = buckets.getActive(getKey(request, username), now);
       if (!bucket) return false;
       setHeaders(reply, bucket, now);
       if (bucket.count < options.max) return false;
@@ -118,11 +145,11 @@ export function createLoginFailureLimiter(options: RateLimitOptions): LoginFailu
     },
     recordFailure(request, reply, username) {
       const now = Date.now();
-      cleanup(now);
+      buckets.cleanup(now);
       const key = getKey(request, username);
-      const bucket = getActiveBucket(key, now) ?? { count: 0, resetAt: now + options.windowMs };
+      const bucket = buckets.getActive(key, now) ?? { count: 0, resetAt: now + options.windowMs };
       bucket.count += 1;
-      buckets.set(key, bucket);
+      buckets.set(key, bucket, now);
       setHeaders(reply, bucket, now);
     },
     reset(request, username) {
