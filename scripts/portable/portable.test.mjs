@@ -893,6 +893,11 @@ server.listen(configuredPort, '127.0.0.1');
 if (process.env.FAKE_PANEL_DATA_LOCK) {
   const lockDir = process.env.MYSTRY_DATA_DIR + '/.mystry-panel-lock';
   fs.mkdirSync(lockDir, { recursive: true });
+  const { DatabaseSync } = await import('node:sqlite');
+  // Kept on globalThis: a connection that goes out of scope is closed by the garbage collector, which would drop the lock.
+  globalThis.dataLock = new DatabaseSync(process.env.MYSTRY_DATA_DIR + '/.mystry-panel-lock.db');
+  globalThis.dataLock.exec('PRAGMA busy_timeout = 1000');
+  globalThis.dataLock.exec('BEGIN EXCLUSIVE');
   fs.writeFileSync(lockDir + '/owner.json', JSON.stringify({ pid: process.pid, fingerprint, version: 'test', createdAt: new Date().toISOString() }));
   process.on('exit', () => fs.rmSync(lockDir, { recursive: true, force: true }));
 }
@@ -1437,6 +1442,52 @@ test('openBrowser handles missing browser launcher without crashing the controll
   assert.equal(result.code, 0, result.output);
   assert.match(result.output, /面板地址：/);
   assert.match(result.output, /无法自动打开浏览器/);
+});
+
+test('status names instances whose server process outlived the panel, and stays quiet about runs whose PID is gone', async (t) => {
+  const { home, env } = await fakePanelHome(t, 'mystry-ctl-left-running-');
+  await fsp.mkdir(path.join(home, 'data'), { recursive: true });
+  const { DatabaseSync } = await import('node:sqlite');
+  const database = new DatabaseSync(path.join(home, 'data', 'panel.db'));
+  database.exec(`
+    CREATE TABLE instances (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE instance_runs (id INTEGER PRIMARY KEY, instance_id TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, pid INTEGER, process_identity TEXT);
+    INSERT INTO instances VALUES ('a', 'Survival'), ('b', 'Creative'), ('c', 'Finished'), ('d', 'Rebooted');
+  `);
+  const insert = database.prepare('INSERT INTO instance_runs (instance_id, started_at, ended_at, pid) VALUES (?, ?, ?, ?)');
+  // This test process stands in for a server that is still alive; the other runs must not be reported.
+  const now = new Date().toISOString();
+  const beforeBoot = new Date(Date.now() - os.uptime() * 1000 - 60_000).toISOString();
+  insert.run('a', now, null, process.pid);
+  insert.run('b', now, null, 9_999_999);
+  insert.run('c', now, now, process.pid);
+  // Left open by a shutdown with the server running; after the reboot its PID belongs to an unrelated process.
+  insert.run('d', beforeBoot, null, process.pid);
+  database.close();
+
+  const status = await runController('status', env);
+  assert.equal(status.code, 0, status.output);
+  assert.match(status.output, /状态：未运行/);
+  assert.match(status.output, new RegExp(`可能还在运行：Survival \\(PID ${process.pid}\\)。`));
+  assert.doesNotMatch(status.output, /Creative|Finished|Rebooted/);
+});
+
+test('a leftover panel lock record with a live PID and a fresh timestamp does not make status report shutting down', async (t) => {
+  const { home, env } = await fakePanelHome(t, 'mystry-ctl-leftover-panel-lock-');
+  const lockDir = path.join(home, 'data', '.mystry-panel-lock');
+  await fsp.mkdir(lockDir, { recursive: true });
+  // The lock database exists but nobody holds it: the panel that wrote this record was killed and its PID now belongs to this test.
+  await fsp.writeFile(path.join(home, 'data', '.mystry-panel-lock.db'), '');
+  await fsp.writeFile(
+    path.join(lockDir, 'owner.json'),
+    JSON.stringify({ pid: process.pid, fingerprint: 'killed-panel', version: '0.0.0', createdAt: new Date().toISOString() }),
+    'utf8',
+  );
+
+  const status = await runController('status', env);
+  assert.equal(status.code, 0, status.output);
+  assert.match(status.output, /状态：未运行/);
+  assert.doesNotMatch(status.output, /正在关闭/);
 });
 
 test('a stale panel data lock from before OS boot does not make status report shutting down when its PID is recycled', async (t) => {
