@@ -1,5 +1,5 @@
 /**
- * Panel runtime info: readable only after sign-in; gives only the listen address, data directory, backup directory and config file path, with no secrets.
+ * Panel runtime info: readable only after sign-in; gives only the listen address, data directory, backup directory, config file path and text file limit, with no secrets.
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -47,7 +47,8 @@ test('panel runtime info: 401 when not signed in; after sign-in it returns the l
   });
   assert.equal(response.statusCode, 200);
   const info = response.json<PanelInfo>();
-  assert.deepEqual(Object.keys(info).sort(), ['backupDir', 'configPath', 'dataDir', 'host', 'port']);
+  assert.deepEqual(Object.keys(info).sort(), ['backupDir', 'configPath', 'dataDir', 'host', 'maxTextFileBytes', 'port']);
+  assert.equal(info.maxTextFileBytes, config.maxTextFileBytes);
   assert.equal(info.host, config.host);
   assert.equal(info.port, config.port);
   assert.equal(info.dataDir, path.resolve(config.dataDir));

@@ -116,7 +116,7 @@ beforeEach(() => {
       : url === '/api/nodes' ? []
       : url === '/api/system/download-source' ? { source: 'official' }
       : url === '/api/auth/session-duration' ? { duration: '12h' }
-      : url === '/api/system/panel-info' ? { host: '127.0.0.1', port: 3000, dataDir: '/srv/mystry/data', backupDir: '/srv/mystry/data/backups', configPath: '/srv/mystry/config/panel.env' }
+      : url === '/api/system/panel-info' ? { host: '127.0.0.1', port: 3000, dataDir: '/srv/mystry/data', backupDir: '/srv/mystry/data/backups', configPath: '/srv/mystry/config/panel.env', maxTextFileBytes: 1_048_576 }
       : String(url).includes('/import/sources') ? { sources: [] }
       : String(url).includes('java-runtimes') ? { runtimes: [], defaultRuntime: null }
       : {};
@@ -2748,6 +2748,43 @@ test('files: a binary file opens read-only with a warning and no Save, while a t
   expect(save.disabled).toBe(true);
   await user.type(textarea, '!');
   expect(save.disabled).toBe(false);
+});
+
+test('files: editing is offered up to the text file limit the server reports, and for every file when the limit cannot be read', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  let limitReadable = true;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/system/panel-info') {
+      return limitReadable
+        ? new Response(JSON.stringify({ host: '127.0.0.1', port: 3000, dataDir: '/data', backupDir: '/data/backups', configPath: '/config/panel.env', maxTextFileBytes: 2048 }))
+        : new Response(JSON.stringify({ error: '测试网络失败' }), { status: 503 });
+    }
+    if (url === '/api/instances/test/files?path=') {
+      return new Response(JSON.stringify([
+        { name: 'at-limit.log', path: 'at-limit.log', isDirectory: false, size: 2048, modifiedAt },
+        { name: 'over-limit.log', path: 'over-limit.log', isDirectory: false, size: 2049, modifiedAt },
+      ]));
+    }
+    return baseFetch(url, options);
+  }));
+  const mountFiles = () => render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  const user = userEvent.setup();
+
+  const view = mountFiles();
+  expect(await screen.findByTitle('编辑 at-limit.log')).toBeTruthy();
+  expect(screen.getByText('over-limit.log')).toBeTruthy();
+  expect(screen.queryByTitle('编辑 over-limit.log')).toBeNull();
+  await user.click(screen.getByRole('button', { name: 'over-limit.log 的操作' }));
+  expect(screen.getByRole('menuitem', { name: '下载' })).toBeTruthy();
+  expect(screen.queryByRole('menuitem', { name: '编辑' })).toBeNull();
+  view.unmount();
+
+  // Without the limit the choice is left to the server, which refuses a file that is too large when it is opened.
+  limitReadable = false;
+  mountFiles();
+  expect(await screen.findByTitle('编辑 over-limit.log')).toBeTruthy();
+  expect(screen.getByTitle('编辑 at-limit.log')).toBeTruthy();
 });
 
 test('detached orphan process: dashboard, instance console, and backups reflect detached state and enforce force stop flow', async () => {

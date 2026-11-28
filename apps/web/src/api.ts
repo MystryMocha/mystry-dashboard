@@ -374,7 +374,7 @@ export async function detectDefaultJava() {
   return api<JavaDetectResult>('/api/system/java');
 }
 
-/** Panel runtime info: listen address, data directory, backup directory and config file path, read-only. */
+/** Panel runtime info: listen address, data directory, backup directory, config file path and the text file size limit, read-only. */
 export async function getPanelInfo() {
   return api<PanelInfo>('/api/system/panel-info');
 }

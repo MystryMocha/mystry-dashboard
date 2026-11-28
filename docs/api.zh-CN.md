@@ -109,7 +109,7 @@ X-Setup-Token: <SETUP_TOKEN>
 | GET | `/api/system/java-runtimes` | 是 | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
 | POST | `/api/system/java-runtimes/install` | 是 | 请求体 `{ major }`（8、17、21、25），返回后台任务 `TaskInfo`；完成后 `result.javaRuntimeId` 为新运行时 |
 | POST | `/api/system/java-runtimes/install/:taskId/cancel` | 是 | 取消仍在排队或运行的一键安装 Java 任务，返回任务当前状态；目标不是进行中的 Java 安装任务时返回 409（`server.jvm.javaInstall.notCancellable`） |
-| GET | `/api/system/panel-info` | 是 | `PanelInfo`：`{ host, port, dataDir, backupDir, configPath }`，即面板启动时从配置文件读取的监听地址与目录（绝对路径）。只读，不含密钥，供「面板设置」页的「运行信息」展示 |
+| GET | `/api/system/panel-info` | 是 | `PanelInfo`：`{ host, port, dataDir, backupDir, configPath, maxTextFileBytes }`，即面板启动时从配置文件读取的监听地址、目录（绝对路径）与文本文件上限（`MAX_TEXT_FILE_BYTES`）。只读，不含密钥。监听地址与目录供「面板设置」页的「运行信息」展示；文件管理只对不超过 `maxTextFileBytes` 的文件提供编辑 |
 | GET | `/api/system/download-source` | 是 | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | 是 | 请求体 `{ source }`，返回保存后的值；其他取值返回 400 |
 | GET | `/api/system/auto-restart` | 是 | `AutoRestartSettings`：`{ enabled, delaySeconds, maxAttempts, windowMinutes }`；未保存过时为 `{ false, 10, 3, 10 }` |

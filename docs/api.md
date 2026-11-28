@@ -109,7 +109,7 @@ Tokens issued by 0.2.0-preview.3 and earlier have no `tv` and are treated as ver
 | GET | `/api/system/java-runtimes` | Yes | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
 | POST | `/api/system/java-runtimes/install` | Yes | Request body `{ major }` (8, 17, 21, 25); returns the background task `TaskInfo`; on completion `result.javaRuntimeId` is the new runtime |
 | POST | `/api/system/java-runtimes/install/:taskId/cancel` | Yes | Cancels a one-click Java install task still queued or running and returns the task's current state; 409 when it is not a Java install task in progress (`server.jvm.javaInstall.notCancellable`) |
-| GET | `/api/system/panel-info` | Yes | `PanelInfo`: `{ host, port, dataDir, backupDir, configPath }`, the listen address and directories (absolute paths) the panel read from the config file at startup. Read-only, without secrets, shown as "Runtime Info" on the "Panel Settings" page |
+| GET | `/api/system/panel-info` | Yes | `PanelInfo`: `{ host, port, dataDir, backupDir, configPath, maxTextFileBytes }`, the listen address, directories (absolute paths) and text file limit (`MAX_TEXT_FILE_BYTES`) the panel read from the config file at startup. Read-only, without secrets. The address and directories are shown as "Runtime Info" on the "Panel Settings" page; the file manager offers editing for files up to `maxTextFileBytes` |
 | GET | `/api/system/download-source` | Yes | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | Yes | Request body `{ source }`; returns the saved value; other values return 400 |
 | GET | `/api/system/auto-restart` | Yes | `AutoRestartSettings`: `{ enabled, delaySeconds, maxAttempts, windowMinutes }`; `{ false, 10, 3, 10 }` until saved |
