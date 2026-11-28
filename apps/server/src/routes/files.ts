@@ -275,8 +275,9 @@ export function cancelDownloadTicketRoute(
 }
 
 export async function fileRoutes(app: FastifyInstance): Promise<void> {
-  // Downloads can use a one-time ticket instead of the JWT (native browser navigation cannot send Authorization)
-  app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
+  // Downloads can use a one-time ticket instead of the JWT (native browser navigation cannot send Authorization).
+  // The check runs in onRequest, before the body is read: a request that is not signed in must not get a body parsed for it.
+  app.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
     if (isDownloadRoute(req)) {
       const ticket = (req.query as { ticket?: string }).ticket;
       if (typeof ticket === 'string' && ticket.length > 0) return;
