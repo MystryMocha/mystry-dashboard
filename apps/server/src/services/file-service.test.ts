@@ -547,6 +547,44 @@ test('saving a text file replaces it in one step: a failed save keeps the old co
   assert.equal(fs.statSync(target).size, 0);
 });
 
+test('a save that must not replace anything creates a new file, and leaves a file or folder that is already there alone', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { writeTextFile } = await import('./file-service.js');
+  const { routeErrorStatus } = await import('../http-errors.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-create' });
+  const root = defaultInstanceDir(inst.id);
+  fs.writeFileSync(path.join(root, 'server.properties'), 'motd=keep\n');
+  fs.mkdirSync(path.join(root, 'plugins'));
+  const exists = (err: unknown) => {
+    assert.equal((err as { messageKey?: string }).messageKey, 'server.files.alreadyExists');
+    assert.equal(routeErrorStatus(err), 409);
+    return true;
+  };
+
+  assert.throws(() => writeTextFile(inst.id, 'server.properties', '', { onConflict: 'fail' }), exists);
+  assert.equal(fs.readFileSync(path.join(root, 'server.properties'), 'utf8'), 'motd=keep\n');
+  // A folder of that name gets the same answer, not the one for a path that is not a regular file.
+  assert.throws(() => writeTextFile(inst.id, 'plugins', '', { onConflict: 'fail' }), exists);
+  assert.ok(fs.statSync(path.join(root, 'plugins')).isDirectory());
+  if (process.platform === 'win32') {
+    // The file system ignores letter case here, so a name that differs only in case is the same file.
+    assert.throws(() => writeTextFile(inst.id, 'Server.Properties', '', { onConflict: 'fail' }), exists);
+    assert.equal(fs.readFileSync(path.join(root, 'server.properties'), 'utf8'), 'motd=keep\n');
+  }
+
+  writeTextFile(inst.id, 'notes.txt', '', { onConflict: 'fail' });
+  assert.equal(fs.readFileSync(path.join(root, 'notes.txt'), 'utf8'), '');
+  assert.deepEqual(fs.readdirSync(root).filter((name) => name.includes('mystry-save')), []);
+  // Without it a save still replaces the file, as before.
+  writeTextFile(inst.id, 'server.properties', 'motd=new\n', { onConflict: 'overwrite' });
+  assert.equal(fs.readFileSync(path.join(root, 'server.properties'), 'utf8'), 'motd=new\n');
+});
+
 test('saving a text file keeps its permission bits, and a file marked read-only is still refused', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');

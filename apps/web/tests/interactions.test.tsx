@@ -2787,6 +2787,234 @@ test('files: editing is offered up to the text file limit the server reports, an
   expect(screen.getByTitle('编辑 at-limit.log')).toBeTruthy();
 });
 
+test('files: New creates a folder or a file; a file is created only where the name is free, then opens in the editor', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  const saves: unknown[] = [];
+  const folders: unknown[] = [];
+  let listed = [{ name: 'ops.json', path: 'ops.json', isDirectory: false, size: 2, modifiedAt }];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/files?path=') return new Response(JSON.stringify(listed));
+    if (url === '/api/instances/test/files/mkdir' && options?.method === 'POST') {
+      const body = JSON.parse(String(options.body)) as { path: string };
+      folders.push(body);
+      listed = [...listed, { name: body.path, path: body.path, isDirectory: true, size: 0, modifiedAt }];
+      return new Response(JSON.stringify({ ok: true }));
+    }
+    if (url === '/api/instances/test/files/content' && options?.method === 'PUT') {
+      const body = JSON.parse(String(options.body)) as { path: string };
+      saves.push(body);
+      if (body.path === 'ops.json') {
+        return new Response(JSON.stringify({ error: 'A file or folder with this name already exists here.', code: 'server.files.alreadyExists' }), { status: 409 });
+      }
+      listed = [...listed, { name: body.path, path: body.path, isDirectory: false, size: 0, modifiedAt }];
+      return new Response(JSON.stringify({ ok: true }));
+    }
+    if (url === '/api/instances/test/files/content?path=notes.txt') {
+      return new Response(JSON.stringify({ path: 'notes.txt', content: '', binary: false }));
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  await screen.findByText('ops.json');
+  const editDialog = () => document.querySelector<HTMLDialogElement>('.file-edit-dialog');
+
+  // A folder is made with the folder endpoint and nothing is opened.
+  await user.click(screen.getByRole('button', { name: '新建' }));
+  await user.click(screen.getByRole('menuitem', { name: '文件夹' }));
+  const folderDialog = screen.getByRole('dialog', { name: '新建文件夹' });
+  await user.type(within(folderDialog).getByRole('textbox', { name: '文件夹名称' }), 'plugins');
+  await user.click(within(folderDialog).getByRole('button', { name: '创建' }));
+  expect(await screen.findByText('plugins', { selector: '.file-name' })).toBeTruthy();
+  expect(folders).toEqual([{ path: 'plugins' }]);
+  expect(saves).toEqual([]);
+  expect(screen.queryByRole('dialog', { name: '新建文件夹' })).toBeNull();
+  expect(editDialog()?.open ?? false).toBe(false);
+
+  await user.click(screen.getByRole('button', { name: '新建' }));
+  await user.click(screen.getByRole('menuitem', { name: '文件' }));
+  const dialog = screen.getByRole('dialog', { name: '新建文件' });
+  const name = within(dialog).getByRole('textbox', { name: '文件名' });
+
+  // A taken name: the save asks the server to refuse rather than replace, so the existing file is not emptied.
+  await user.type(name, 'ops.json');
+  await user.click(within(dialog).getByRole('button', { name: '创建' }));
+  expect(await within(dialog).findByText('此处已有同名的文件或文件夹')).toBeTruthy();
+  expect(saves).toEqual([{ path: 'ops.json', content: '', onConflict: 'fail' }]);
+
+  await user.clear(name);
+  await user.type(name, 'notes.txt');
+  await user.click(within(dialog).getByRole('button', { name: '创建' }));
+  const editor = within(editDialog()!);
+  const text = await editor.findByRole<HTMLTextAreaElement>('textbox', { name: '文件内容：notes.txt' });
+  expect(text.value).toBe('');
+  // A file just created is opened to be written: the cursor is already in its text.
+  await waitFor(() => expect(document.activeElement).toBe(text));
+  expect(saves).toEqual([
+    { path: 'ops.json', content: '', onConflict: 'fail' },
+    { path: 'notes.txt', content: '', onConflict: 'fail' },
+  ]);
+  expect(screen.queryByRole('dialog', { name: '新建文件' })).toBeNull();
+  expect(screen.getByText('notes.txt', { selector: '.file-name' })).toBeTruthy();
+});
+
+test('files editor: Ctrl+S saves as the Save button does, and only keeps the browser from saving the page when there is nothing to save', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  const saves: unknown[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/files?path=') {
+      return new Response(JSON.stringify([{ name: 'notes.txt', path: 'notes.txt', isDirectory: false, size: 5, modifiedAt }]));
+    }
+    if (url === '/api/instances/test/files/content?path=notes.txt') {
+      return new Response(JSON.stringify({ path: 'notes.txt', content: 'hello', binary: false }));
+    }
+    if (url === '/api/instances/test/files/content' && options?.method === 'PUT') {
+      saves.push(JSON.parse(String(options.body)));
+      return new Response(JSON.stringify({ ok: true }));
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  const editDialog = () => document.querySelector<HTMLDialogElement>('.file-edit-dialog')!;
+
+  await user.click(await screen.findByTitle('编辑 notes.txt'));
+  const textarea = await within(editDialog()).findByRole<HTMLTextAreaElement>('textbox', { name: '文件内容：notes.txt' });
+  // Opened from the list, the dialog keeps its own first focus; only a file just created starts in its text.
+  expect(document.activeElement).not.toBe(textarea);
+  // Unchanged: nothing is sent, but the shortcut is still taken from the browser (fireEvent returns false once it is).
+  expect(fireEvent.keyDown(textarea, { key: 's', ctrlKey: true })).toBe(false);
+  // The S key on a Russian layout is Ctrl+S to the browser too; on Dvorak it types "o", and Ctrl+O is left alone.
+  expect(fireEvent.keyDown(textarea, { key: 'ы', code: 'KeyS', ctrlKey: true })).toBe(false);
+  expect(fireEvent.keyDown(textarea, { key: 'o', code: 'KeyS', ctrlKey: true })).toBe(true);
+  expect(saves).toEqual([]);
+
+  await user.type(textarea, '!');
+  // Ctrl+Alt is AltGr on some keyboard layouts, and a held key repeats: neither saves.
+  expect(fireEvent.keyDown(textarea, { key: 's', ctrlKey: true, altKey: true })).toBe(true);
+  fireEvent.keyDown(textarea, { key: 's', ctrlKey: true, repeat: true });
+  expect(saves).toEqual([]);
+
+  // Over the discard confirmation the shortcut is still kept from the browser, but saves nothing from there.
+  await user.click(within(editDialog()).getByRole('button', { name: '取消' }));
+  const discard = screen.getByRole('dialog', { name: '放弃未保存的修改？' });
+  expect(fireEvent.keyDown(within(discard).getByRole('button', { name: '取消' }), { key: 's', ctrlKey: true })).toBe(false);
+  expect(saves).toEqual([]);
+  await user.click(within(discard).getByRole('button', { name: '取消' }));
+  expect(editDialog().open).toBe(true);
+  await user.click(textarea);
+
+  await user.keyboard('{Control>}s{/Control}');
+  await waitFor(() => expect(editDialog().open).toBe(false));
+  expect(saves).toEqual([{ path: 'notes.txt', content: 'hello!' }]);
+  expect(await screen.findByText('文件已保存。')).toBeTruthy();
+});
+
+test('files: the path box moves to a typed folder only once it is listed, says why when it cannot, and Escape brings the breadcrumbs back', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const dir = (name: string, parent = '') => ({ name, path: parent ? `${parent}/${name}` : name, isDirectory: true, size: 0, modifiedAt });
+  const listings: Record<string, unknown[]> = {
+    '': [dir('plugins'), dir('world')],
+    plugins: [dir('LuckPerms', 'plugins')],
+    'plugins/LuckPerms': [{ name: 'config.yml', path: 'plugins/LuckPerms/config.yml', isDirectory: false, size: 10, modifiedAt }],
+  };
+  const baseFetch = globalThis.fetch;
+  let holdPlugins = false;
+  let releasePlugins: (() => void) | undefined;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const prefix = '/api/instances/test/files?path=';
+    if (url.startsWith(prefix)) {
+      const listing = listings[decodeURIComponent(url.slice(prefix.length))];
+      if (listing === listings.plugins && holdPlugins) {
+        holdPlugins = false;
+        return new Promise<Response>((resolve) => {
+          releasePlugins = () => resolve(new Response(JSON.stringify(listing)));
+        });
+      }
+      return listing
+        ? new Response(JSON.stringify(listing))
+        : new Response(JSON.stringify({ error: 'Directory not found.', code: 'server.files.dirNotFound' }), { status: 400 });
+    }
+    return baseFetch(url, options);
+  }));
+  const user = userEvent.setup();
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  await screen.findByText('world');
+  const box = () => screen.getByRole<HTMLInputElement>('textbox', { name: '路径' });
+  const trail = () => screen.getByRole('navigation', { name: '当前路径' });
+
+  await user.click(within(trail()).getByRole('button', { name: '输入路径' }));
+  expect(box().value).toBe('/');
+  expect(document.activeElement).toBe(box());
+  // The trail stays in place under the box, out of reach (jsdom loads no styles and does not enforce inert, hence the attributes).
+  expect(trail().hasAttribute('inert')).toBe(true);
+  expect(trail().parentElement!.classList.contains('is-editing')).toBe(true);
+
+  // A folder that is not there: the box stays open with the reason, and the list behind it is still the root's.
+  await user.clear(box());
+  await user.type(box(), 'plugin{Enter}');
+  expect(await screen.findByText('目录不存在')).toBeTruthy();
+  expect(box().getAttribute('aria-invalid')).toBe('true');
+  expect(screen.getByText('world')).toBeTruthy();
+  // A press on the message, which lies over the list, only dismisses it.
+  await user.click(screen.getByText('目录不存在'));
+  expect(screen.queryByText('目录不存在')).toBeNull();
+  expect(box().value).toBe('plugin');
+  expect(document.activeElement).toBe(box());
+
+  // Climbing above the instance root, a path copied from Explorer, or a drive at the start, is refused before anything is sent.
+  const listed = vi.mocked(globalThis.fetch).mock.calls.length;
+  await user.clear(box());
+  await user.type(box(), '/world/../../other{Enter}');
+  expect(screen.getByText('请输入实例内的路径，例如 /world/region。')).toBeTruthy();
+  for (const pasted of ['C:\\Servers\\survival\\world', '"C:\\Servers\\survival\\world"', '\\\\nas\\mc\\world', '/c:world', './c:world', 'world/../c:world']) {
+    await user.clear(box());
+    await user.type(box(), `${pasted}{Enter}`);
+    expect(screen.getByText('请输入实例内的路径，例如 /world/region。')).toBeTruthy();
+  }
+  expect(vi.mocked(globalThis.fetch).mock.calls.length).toBe(listed);
+
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('textbox', { name: '路径' })).toBeNull();
+  expect(trail().hasAttribute('inert')).toBe(false);
+  expect(trail().parentElement!.classList.contains('is-editing')).toBe(false);
+  expect(document.activeElement).toBe(within(trail()).getByRole('button', { name: '输入路径' }));
+  expect(screen.getByText('world')).toBeTruthy();
+
+  // Leaving the box while the typed folder is still being listed: the answer that comes afterwards does not move the view.
+  holdPlugins = true;
+  await user.click(within(trail()).getByRole('button', { name: '输入路径' }));
+  await user.clear(box());
+  await user.type(box(), 'plugins{Enter}');
+  expect(box().getAttribute('aria-busy')).toBe('true');
+  await user.tab();
+  expect(screen.queryByRole('textbox', { name: '路径' })).toBeNull();
+  await act(async () => {
+    releasePlugins?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(within(trail()).getByRole('button', { name: '实例根目录' }).getAttribute('aria-current')).toBe('page');
+  expect(screen.getByText('world')).toBeTruthy();
+
+  // Backslashes, slashes at either end and ".." are read the way the server resolves them.
+  await user.click(within(trail()).getByRole('button', { name: '输入路径' }));
+  await user.clear(box());
+  await user.type(box(), '\\world\\..\\plugins\\LuckPerms\\{Enter}');
+  expect(await screen.findByText('config.yml')).toBeTruthy();
+  expect(within(trail()).getByRole('button', { name: 'LuckPerms' }).getAttribute('aria-current')).toBe('page');
+  expect(within(trail()).getByRole('button', { name: 'plugins' })).toBeTruthy();
+
+  // The box opens on the current folder, and moving focus away closes it.
+  await user.click(within(trail()).getByRole('button', { name: '输入路径' }));
+  expect(box().value).toBe('/plugins/LuckPerms');
+  await user.tab();
+  expect(screen.queryByRole('textbox', { name: '路径' })).toBeNull();
+  expect(trail().hasAttribute('inert')).toBe(false);
+  expect(screen.getByText('config.yml')).toBeTruthy();
+});
+
 test('detached orphan process: dashboard, instance console, and backups reflect detached state and enforce force stop flow', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;

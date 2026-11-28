@@ -791,6 +791,7 @@ h1[tabindex="-1"]:focus { outline: none; }
 .btn-block { width: 100%; }
 
 .action-menu-trigger.is-open { background-image: linear-gradient(var(--active-overlay), var(--active-overlay)); }
+.action-menu-caret { color: var(--label-2); }
 
 .chip {
   display: inline-flex;
@@ -1914,16 +1915,58 @@ input[type='radio'] {
 .files-workspace { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 
 .files-toolbar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
 }
+/*
+ * Under the whole toolbar, over the top of the list, so the buttons stay clear when they wrap onto a line of their own, and
+ * the rows stay where the pointer is when the box closes. Above the rows, which are positioned.
+ */
+.files-path-error {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 3;
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--float-shadow);
+}
 .files-nav { display: flex; align-items: center; gap: 10px; flex: 1 1 320px; min-width: 0; }
 .files-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 
-.breadcrumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; min-width: 0; font-size: var(--text-small); }
+.breadcrumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; flex: 1; min-width: 0; font-size: var(--text-small); }
+/* The space after the last folder; clicking it turns the trail into a path box. It wraps onto a line of its own rather than vanishing. */
+.breadcrumbs-edit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1 0 32px;
+  align-self: stretch;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--label-3);
+  cursor: text;
+}
+.breadcrumbs-edit:hover { background: var(--fill-2); }
+/* Blank space gives no hint that it can be clicked: the cursor mark appears under a mouse or keyboard focus, and stays on touch screens, which have neither. */
+.breadcrumbs-edit svg { opacity: 0; transition: opacity 0.15s var(--ease); }
+.breadcrumbs-edit:is(:hover, :focus-visible) svg { opacity: 1; }
+@media (hover: none) {
+  .breadcrumbs-edit svg { opacity: 1; }
+}
+/* The path box lies over the trail, which stays laid out but hidden: the row keeps the trail's height, however it wraps. */
+.files-path { position: relative; display: flex; flex: 1; min-width: 0; }
+.files-path.is-editing > .breadcrumbs { visibility: hidden; }
+.files-path-form { position: absolute; inset: 0; display: flex; align-items: center; }
+/* As tall as the toolbar buttons: a one-line trail is shorter, and the box stands out of it evenly without leaving the row. Touch screens get the usual 44px from the input rules below. */
+.files-path-input { min-height: 34px; padding-block: 6px; }
 .breadcrumb-item { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
 .breadcrumb-sep { flex-shrink: 0; color: var(--label-3); }
 .breadcrumb {
@@ -3662,6 +3705,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .input-row > select,
   .lazy-select-trigger { min-height: 44px; }
   .breadcrumb { padding-top: 12px; padding-bottom: 12px; }
+  .breadcrumbs-edit { flex-basis: 44px; min-height: 44px; }
 
   .btn-sm,
   .link-button,
@@ -3703,5 +3747,6 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.3); animation: fade-in 0.2s var(-
   .home-tl-row,
   .progress-fill,
   .backups-schedule-chevron,
-  .backups-schedule-icon { transition: none; }
+  .backups-schedule-icon,
+  .breadcrumbs-edit svg { transition: none; }
 }
