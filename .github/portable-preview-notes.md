@@ -9,8 +9,8 @@
 - **Sharper interface**: Frosted glass is gone so text stays sharp on Windows and macOS, the accent is now clay orange, the dark appearance is deep graphite, and the desktop sidebar can collapse to icons.
 - **Read-only binary files**: Binary files such as `level.dat`, plugin `.jar` archives and `server-icon.png` open read-only in the file editor instead of being shown and saved back as garbled text.
 - **Restart after a crash**: A switch in **Panel Settings** starts a server again when it exits unexpectedly after it had finished starting, after a wait and up to a set number of times in a row. It is off until you turn it on.
-- **Servers that outlive the panel**: A server still running after the panel exited unexpectedly is shown as **Detached** when the panel starts again. Starting, backing up, restoring or deleting that instance waits until the old process is stopped, so the same world cannot be opened twice.
-- **Console**: Chinese and other non-ASCII lines are no longer garbled at random, a long colored log reopens reliably, and the console reconnects by itself after a slow connection or a password change.
+- **Servers that outlive the panel**: A server still running after the panel exited unexpectedly is shown as **Detached** when the panel starts again. Starting, backing up, restoring or deleting that instance is refused until the old process is stopped, so the same world cannot be opened twice.
+- **Console**: Chinese and other non-ASCII lines are no longer garbled at random, a long colored log reopens reliably, and a console that keeps losing its connection says why instead of retrying every second.
 - **Backups and imports**: A file that changes while it is backed up fails the backup instead of being stored truncated, Forge and NeoForge backups restore across Windows and Linux, uploads and downloads time out only when they stall, and ZIP files with file names in a legacy encoding are refused instead of imported with broken names.
 - **Security**: Sign-in attempts are limited per address and checked off the main thread, and on Windows the launcher restricts `config`, `data` and `logs` to the current user, `SYSTEM` and `Administrators`.
 
@@ -73,8 +73,8 @@ Full details are in `docs/portable-release.md` in the repository; the Chinese ve
 - **界面更清晰**：去掉毛玻璃，保留 Windows 与 macOS 清晰的文字显示；强调色改为陶土橙，深色外观改为深石墨灰，桌面端侧栏可收起为图标栏。
 - **二进制文件只读保护**：`level.dat`、插件 `.jar` 与 `server-icon.png` 等二进制文件在文件编辑器中以只读方式打开，不再显示为乱码并误存损坏。
 - **崩溃后自动重启**：「面板设置」新增开关，服务器在启动完成之后异常退出时，面板于等待之后再次启动，连续重启的次数设有上限。默认关闭。
-- **面板退出后仍在运行的服务器**：面板异常退出后仍在运行的服务器，在面板再次启动时显示为「独立运行中」。旧进程停止之前，该实例的启动、备份、还原与删除一律等待，同一存档不会被打开两次。
-- **控制台**：中文及其他非 ASCII 文字不再随机出现乱码，日志较长且带颜色时可以稳定重新打开，连接过慢或修改密码之后自动重连。
+- **面板退出后仍在运行的服务器**：面板异常退出后仍在运行的服务器，在面板再次启动时显示为「独立运行中」。旧进程停止之前，该实例的启动、备份、还原与删除一律拒绝，同一存档不会被打开两次。
+- **控制台**：中文及其他非 ASCII 文字不再随机出现乱码，日志较长且带颜色时可以稳定重新打开，连接反复断开时说明原因，不再每秒重试。
 - **备份与导入**：备份期间发生变化的文件会使该次备份失败，不再存入被截断的内容；Forge 与 NeoForge 的备份可在 Windows 与 Linux 之间还原；上传与下载仅在停滞时超时；文件名采用旧编码的 ZIP 会被拒绝，不再以损坏的文件名导入。
 - **安全**：登录尝试按来源地址限制次数，密码校验移出主线程；在 Windows 上，启动器将 `config`、`data` 与 `logs` 限制为仅当前用户、`SYSTEM` 与 `Administrators` 可访问。
 
