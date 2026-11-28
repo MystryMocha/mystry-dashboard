@@ -178,6 +178,7 @@ export function readTextFile(instanceId: string, relativePath: string): TextFile
 }
 
 type TextWriteOptions = {
+  /** `fail` refuses when a file or folder is already at the path: creating a file must not empty one the list did not show yet. */
   onConflict?: TextFileSaveRequest['onConflict'];
   /** Process IDs of the instance's server: a file one of them has open is written in place, see writeTextFile. */
   serverPids?: number[];
@@ -190,8 +191,9 @@ const TEXT_SAVE_TEMP_TAG = 'mystry-save';
 const TEXT_SAVE_TEMP_NAME = /^\..+\.mystry-save\.[0-9a-f]{16}\.tmp$/;
 
 /**
- * A save runs without yielding and only one panel process uses the data directory, so every temp file still in the
- * directory after a save is a leftover. The listing hides these files and the next save retries any failed cleanup.
+ * A panel that is killed between writing a temp file and publishing it leaves the temp file behind. A save runs without
+ * yielding and only one panel process uses the data directory, so every temp file still in the directory after a save is
+ * a leftover. Failures are ignored: the listing hides these files and the next save tries again.
  */
 function removeLeftoverTextSaveTemps(dir: string): void {
   try {
@@ -233,7 +235,27 @@ function createTextFile(target: string, bytes: Buffer): void {
       }
     }
     // An empty file can be published immediately. On the fallback, the new file is visible during the write.
-    fs.writeFileSync(target, bytes, { flag: 'wx', mode: 0o666, flush: true });
+    const fd = fs.openSync(target, 'wx', 0o666);
+    try {
+      try {
+        // One call may write less than it was given.
+        for (let written = 0; written < bytes.length;) {
+          written += fs.writeSync(fd, bytes, written);
+        }
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+    } catch (error) {
+      // The exclusive open above created this file, so removing it takes nothing from anyone. Left in place, a file cut
+      // short by a full disk would answer every further attempt with "already exists".
+      try {
+        fs.rmSync(target, { force: true });
+      } catch {
+        /* The write failure is the one to report. */
+      }
+      throw error;
+    }
   } catch (error) {
     if (hasErrorCode(error, 'EEXIST')) throw fileAlreadyExists();
     throw error;

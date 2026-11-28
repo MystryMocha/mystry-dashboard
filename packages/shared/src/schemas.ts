@@ -236,7 +236,7 @@ const textFileConflictPolicies = ['fail', 'overwrite'] as const;
 export interface TextFileSaveRequest {
   path: string;
   content: string;
-  /** `fail` refuses with 409 when a file or folder already exists at `path`; defaults to `overwrite`. */
+  /** `fail` refuses with 409 when a file or folder already exists at `path`, so creating a file never empties one; defaults to `overwrite`. */
   onConflict?: (typeof textFileConflictPolicies)[number];
 }
 

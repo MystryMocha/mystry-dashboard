@@ -654,6 +654,41 @@ test('creating a nonempty text file uses an exclusive write when the volume refu
   assert.deepEqual(fs.readdirSync(root).filter((entry) => entry.includes('mystry-save')), []);
 });
 
+test('a text file whose exclusive write fails is removed, so the name is free for the next attempt', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { writeTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-create-write-fails' });
+  const root = defaultInstanceDir(inst.id);
+  const diskFull = () => Object.assign(new Error('no space left on device'), { code: 'ENOSPC' });
+  const link = t.mock.method(fs, 'linkSync', () => {
+    throw Object.assign(new Error('hard links unavailable'), { code: process.platform === 'win32' ? 'EISDIR' : 'EPERM' });
+  });
+  const fsyncSync = fs.fsyncSync;
+  // Fails only for the write into the target itself: the temp file of the hard-link attempt is synced before the link is tried.
+  const sync = t.mock.method(fs, 'fsyncSync', (fd: number) => {
+    if (link.mock.callCount() > 0 || failEverySync) throw diskFull();
+    fsyncSync(fd);
+  });
+  let failEverySync = false;
+
+  assert.throws(() => writeTextFile(inst.id, 'partial.yml', 'enabled: true\n', { onConflict: 'fail' }), { code: 'ENOSPC' });
+  assert.equal(fs.existsSync(path.join(root, 'partial.yml')), false);
+
+  failEverySync = true;
+  assert.throws(() => writeTextFile(inst.id, 'empty.yml', '', { onConflict: 'fail' }), { code: 'ENOSPC' });
+  assert.equal(fs.existsSync(path.join(root, 'empty.yml')), false);
+
+  sync.mock.restore();
+  writeTextFile(inst.id, 'partial.yml', 'enabled: true\n', { onConflict: 'fail' });
+  assert.equal(fs.readFileSync(path.join(root, 'partial.yml'), 'utf8'), 'enabled: true\n');
+  assert.deepEqual(fs.readdirSync(root).filter((entry) => entry.includes('mystry-save')), []);
+});
+
 test('saving a text file keeps its permission bits, and a file marked read-only is still refused', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');

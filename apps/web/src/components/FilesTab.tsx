@@ -50,9 +50,10 @@ function parentOf(relativePath: string): string {
 function normalizeTypedPath(input: string): string | null {
   // Checked before the slashes are read: they hide the leading pair of a network path. Explorer's "Copy as path" wraps the
   // path in double quotes; anywhere else a quote belongs to the name.
-  if (/^(?:[A-Za-z]:|\\\\)/.test(input.replace(/^"(.*)"$/, '$1'))) return null;
+  // A pasted path often carries spaces around it, which must not hide the drive letter or the quotes.
+  if (/^(?:[A-Za-z]:|\\\\)/.test(input.trim().replace(/^"(.*)"$/, '$1').trimStart())) return null;
   const segments: string[] = [];
-  // Whitespace can be part of a directory name, including the last segment.
+  // Whitespace can be part of a directory name, including the last segment: the caller tries the path as typed first.
   for (const segment of input.replace(/\\/g, '/').split('/')) {
     if (segment === '' || segment === '.') continue;
     if (segment !== '..') {
@@ -636,13 +637,28 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     pathCheckGenerationRef.current = generation;
     setPathChecking(true);
     setPathDraftError('');
+    const listPath = (candidate: string) => api<FileEntry[]>(instanceApi(instanceId, `/files?path=${encodeURIComponent(candidate)}`));
     try {
-      const listing = await api<FileEntry[]>(instanceApi(instanceId, `/files?path=${encodeURIComponent(target)}`));
+      const listing = await listPath(target);
       if (generation !== pathCheckGenerationRef.current) return;
       endPathEdit(true);
       changePath(target, listing);
     } catch (err) {
       if (generation !== pathCheckGenerationRef.current) return;
+      // A folder whose name starts or ends with a space is rare, and a path pasted with spaces around it is not: when the
+      // path as typed cannot be listed, the one without them is tried. Its failure is not shown, the first one says more.
+      const trimmed = normalizeTypedPath(pathDraft.trim());
+      if (trimmed !== null && trimmed !== target) {
+        try {
+          const listing = trimmed === path ? undefined : await listPath(trimmed);
+          if (generation !== pathCheckGenerationRef.current) return;
+          endPathEdit(true);
+          if (listing) changePath(trimmed, listing);
+          return;
+        } catch {
+          if (generation !== pathCheckGenerationRef.current) return;
+        }
+      }
       setPathDraftError(errorMessage(err));
       setPathChecking(false);
     }

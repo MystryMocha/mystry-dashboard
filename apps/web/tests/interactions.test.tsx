@@ -3057,6 +3057,55 @@ test('files: a typed path preserves spaces in a folder name', async () => {
   expect(screen.queryByText('without-space.yml')).toBeNull();
 });
 
+test('files: a typed path with stray spaces around it still opens the folder, and a padded drive path is refused in the box', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  const requested: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const prefix = '/api/instances/test/files?path=';
+    if (!url.startsWith(prefix)) return baseFetch(url, options);
+    const path = decodeURIComponent(url.slice(prefix.length));
+    requested.push(path);
+    if (path === '') return new Response(JSON.stringify([{ name: 'world', path: 'world', isDirectory: true, size: 0, modifiedAt }]));
+    if (path === 'world') {
+      return new Response(JSON.stringify([{ name: 'level.dat', path: 'world/level.dat', isDirectory: false, size: 10, modifiedAt }]));
+    }
+    return new Response(JSON.stringify({ error: 'Directory not found.', code: 'server.files.dirNotFound' }), { status: 400 });
+  }));
+
+  const user = userEvent.setup();
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  await screen.findByText('world');
+  const editPath = () => screen.getByRole('button', { name: '输入路径' });
+  const box = () => screen.getByRole<HTMLInputElement>('textbox', { name: '路径' });
+
+  // No folder is named "world " here, so the name without the pasted spaces is opened.
+  await user.click(editPath());
+  await user.clear(box());
+  await user.type(box(), ' /world {Enter}');
+  expect(await screen.findByText('level.dat')).toBeTruthy();
+  await user.click(editPath());
+  expect(box().value).toBe('/world');
+
+  // Spaces alone are the root.
+  await user.clear(box());
+  await user.type(box(), '   {Enter}');
+  expect(await screen.findByText('world')).toBeTruthy();
+  expect(screen.queryByText('level.dat')).toBeNull();
+
+  // A drive path is recognized through the spaces around it, quoted or not, and never sent.
+  const sent = requested.length;
+  for (const typed of [' C:\\Users\\me', '"C:\\Users\\me" ']) {
+    await user.click(editPath());
+    await user.clear(box());
+    await user.type(box(), `${typed}{Enter}`);
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain('/world/region');
+    await user.keyboard('{Escape}');
+  }
+  expect(requested).toHaveLength(sent);
+});
+
 test('detached orphan process: dashboard, instance console, and backups reflect detached state and enforce force stop flow', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;
