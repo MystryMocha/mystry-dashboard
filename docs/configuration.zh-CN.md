@@ -66,7 +66,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `MAX_JSON_BODY_BYTES` | `1048576` | JSON 请求体上限，1 MiB |
+| `MAX_JSON_BODY_BYTES` | `1048576` | JSON 请求体上限，1 MiB。保存文本文件的请求除外：其上限更大，以容纳 `MAX_TEXT_FILE_BYTES` 以内的任何内容 |
 | `MAX_CONCURRENT_UPLOADS` | `1` | 同时处理的上传数上限 |
 | `MAX_CONCURRENT_FILE_DOWNLOADS` | `4` | 同时处理的文件下载数上限 |
 | `MAX_CONCURRENT_TASKS` | `1` | 同时执行的部署 / 导入任务数上限 |

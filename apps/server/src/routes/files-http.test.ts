@@ -78,4 +78,44 @@ test('file endpoints over HTTP', async (t) => {
     assert.equal(signedIn.statusCode, 200);
     assert.equal(signedIn.body, 'download');
   });
+
+  await t.test('a text file within the size limit can be saved however much its content grows as JSON', async () => {
+    const limit = config.maxTextFileBytes;
+    const read = () => fs.readFileSync(path.join(root, 'notes.txt'), 'utf8');
+
+    // Line breaks double in JSON: a config file of the full size with many of them is over the general JSON limit.
+    const lineBreaks = '\n'.repeat(limit);
+    assert.ok(Buffer.byteLength(JSON.stringify(lineBreaks)) > config.maxJsonBodyBytes);
+    const savedLineBreaks = await save(lineBreaks);
+    assert.equal(savedLineBreaks.statusCode, 200, savedLineBreaks.body);
+    assert.equal(read(), lineBreaks);
+
+    // The worst case: every byte is a control character that JSON writes as six.
+    const controlCharacters = '\u0001'.repeat(limit);
+    const savedControlCharacters = await save(controlCharacters);
+    assert.equal(savedControlCharacters.statusCode, 200, savedControlCharacters.body);
+    assert.equal(read(), controlCharacters);
+
+    // Over the text limit by bytes or by characters: refused with a message that says so, and the file is left alone.
+    const tooManyBytes = await save('中'.repeat(Math.floor(limit / 3) + 1));
+    assert.equal(tooManyBytes.statusCode, 400);
+    assert.equal(tooManyBytes.json<{ code: string }>().code, 'server.files.text.tooLarge');
+    const tooManyCharacters = await save('x'.repeat(limit + 1));
+    assert.equal(tooManyCharacters.statusCode, 400);
+    assert.equal(tooManyCharacters.json<{ code: string }>().code, 'server.files.validation.textBody');
+
+    // The body limit is still there: nothing within the text limit can reach it.
+    const overBodyLimit = await save('x'.repeat(limit * 16));
+    assert.equal(overBodyLimit.statusCode, 413);
+    assert.equal(read(), controlCharacters);
+
+    // Other endpoints keep the general limit.
+    const mkdir = await app.inject({
+      method: 'POST',
+      url: `/api/instances/${id}/files/mkdir`,
+      headers: authorization,
+      payload: { path: 'x'.repeat(config.maxJsonBodyBytes) },
+    });
+    assert.equal(mkdir.statusCode, 413);
+  });
 });

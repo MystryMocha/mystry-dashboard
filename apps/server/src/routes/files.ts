@@ -71,6 +71,18 @@ const textContentBodySchema = {
   },
 } as const;
 
+/**
+ * Body limit of the text save endpoint. The content travels as a JSON string, where one UTF-8 byte can take up to six bytes
+ * (a control character becomes `\u00XX`), so under the general JSON limit a file within the text limit could be opened but not
+ * saved. Sized for the worst case of both fields plus the JSON punctuation around them, and never below the general limit.
+ */
+const JSON_STRING_MAX_BYTES_PER_UTF8_BYTE = 6;
+const textContentBodyLimit = Math.max(
+  config.maxJsonBodyBytes,
+  // The path limit counts characters, and no character takes more than six bytes in JSON either.
+  (maxTextFileBytes + maxPathLength) * JSON_STRING_MAX_BYTES_PER_UTF8_BYTE + 64,
+);
+
 const pathBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -316,7 +328,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
 
   app.put<{ Params: { id: string }; Body: { path: string; content: string } }>(
     '/api/instances/:id/files/content',
-    { attachValidation: true, schema: { body: textContentBodySchema } },
+    { attachValidation: true, bodyLimit: textContentBodyLimit, schema: { body: textContentBodySchema } },
     async (req, reply) => {
       if (req.validationError) return validationMessage(reply, 'server.files.validation.textBody');
       if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
