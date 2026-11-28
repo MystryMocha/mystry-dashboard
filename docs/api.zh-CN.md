@@ -247,7 +247,7 @@ Authorization: Bearer <token>
 |------|------|------|
 | GET | `/files?path=` | 列出实例根目录内的目录，返回 `FileEntry[]`；实例根目录下的面板所有权标记 `.mystry-instance.json` 不在列表中 |
 | GET | `/files/content?path=` | 读取文本 `{ path, content, binary }`。前 8 KiB 中含 NUL 字节时 `binary` 为 `true`，此时 `content` 有损（非 UTF-8 字节变为 U+FFFD），原样写回会损坏文件 |
-| PUT | `/files/content` | Body：`{ path, content }`。`content` 按 UTF-8 计至多 `MAX_TEXT_FILE_BYTES` 字节。本接口的请求体上限按这样的内容经 JSON 转义后仍能容纳来设定，不受 `MAX_JSON_BODY_BYTES` 约束 |
+| PUT | `/files/content` | Body：`{ path, content }`。`content` 按 UTF-8 计至多 `MAX_TEXT_FILE_BYTES` 字节。本接口的请求体上限按这样的内容经 JSON 转义后仍能容纳来设定，可高于 `MAX_JSON_BODY_BYTES`，且不低于它 |
 | DELETE | `/files?path=` | 删除实例根目录内的文件或目录。与该实例的启动、停止、重启及实例删除共用实例锁：其中一项进行时，删除排队等待；删除完成前，这些操作亦须等待 |
 | POST | `/files/mkdir` | Body：`{ path }` |
 | POST | `/files/rename` | Body：`{ from, to }` |

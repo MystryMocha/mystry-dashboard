@@ -4,6 +4,19 @@
 
 This file records notable changes to the project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Files: A text file near the 1 MiB editing limit with many line breaks could be opened but not saved.
+- Files: When the panel stopped or the disk filled up during a save, the file could be left half written. The old content now stays until the new content is written in full.
+- Files: On Windows, a new folder, a renamed entry, a new text file or an upload could get a name such as `con` or one ending with a dot, which Explorer could then neither open nor delete. Such names are now refused.
+- Files: After `MAX_TEXT_FILE_BYTES` was changed in `panel.env`, the file list still offered **Edit** only up to the default 1 MiB.
+
+### Security
+
+- Files: Requests that are not signed in are refused before their body is read.
+
 ## [0.3.0-preview.1] - 2026-11-28
 
 ### Upgrade notes
