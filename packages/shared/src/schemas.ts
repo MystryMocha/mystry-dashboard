@@ -1,5 +1,7 @@
 /** Request JSON Schemas used by Fastify AJV; when fields change, keep the matching types in index.ts in sync. */
 
+import { AUTO_RESTART_LIMITS } from './auto-restart.js';
+
 /** Core type enum (including custom) */
 export const CORE_TYPE_ENUM = [
   'vanilla',
@@ -101,6 +103,18 @@ export const updateDownloadSourceBodySchema = {
   required: ['source'],
   properties: {
     source: { type: 'string', enum: [...DOWNLOAD_SOURCE_ENUM] },
+  },
+} as const;
+
+export const updateAutoRestartBodySchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['enabled', 'delaySeconds', 'maxAttempts', 'windowMinutes'],
+  properties: {
+    enabled: { type: 'boolean' },
+    delaySeconds: { type: 'integer', minimum: AUTO_RESTART_LIMITS.delaySeconds.min, maximum: AUTO_RESTART_LIMITS.delaySeconds.max },
+    maxAttempts: { type: 'integer', minimum: AUTO_RESTART_LIMITS.maxAttempts.min, maximum: AUTO_RESTART_LIMITS.maxAttempts.max },
+    windowMinutes: { type: 'integer', minimum: AUTO_RESTART_LIMITS.windowMinutes.min, maximum: AUTO_RESTART_LIMITS.windowMinutes.max },
   },
 } as const;
 

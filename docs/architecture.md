@@ -206,6 +206,8 @@ For each instance `ProcessManager` maintains:
 
 When the child process exits, the active process reference is released, but the `stopped` / `crashed` final state and the last size-limited stretch of console history are kept until the next start or until the instance is deleted, so page refreshes and WebSocket reconnects can read them.
 
+Restarting after a crash is decided outside `ProcessManager`, in `auto-restart-service.ts`. It listens to the status events and, while the panel-wide setting in `panel_settings` is on, reads the instance record again after the saved delay and calls the same `start` as the API, so the instance lock and the start checks are not bypassed. Waiting restarts and the count exist only in memory, and they are dropped as soon as the panel begins shutting down. The conditions are listed under Instances in the [API reference](api.md).
+
 A plain jar launches with:
 
 ```text

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import { Accessibility, Copy, Eraser, RefreshCw, Send } from 'lucide-react';
+import { Accessibility, Copy, Eraser, RefreshCw, Send, TriangleAlert } from 'lucide-react';
 import {
   CONSOLE_CLOSE_RATE_LIMITED,
   CONSOLE_CLOSE_SEND_BACKLOG,
@@ -27,6 +27,10 @@ type Props = {
   canSend?: boolean;
   /** A server process left running by an earlier panel process: the panel neither streams its log nor sends it commands. */
   detached?: boolean;
+  /** One line shown inside the console window, above the output, until the caller clears it. */
+  notice?: string | null;
+  /** The server reported a status change: the page reads the instance again without waiting for its next poll. */
+  onStatusChange?: () => void;
 };
 
 // The commands themselves are Minecraft commands and not translated; descriptions store string keys, resolved in the current language at render time.
@@ -116,7 +120,7 @@ function consoleErrorText(msg: ConsoleMessage): string {
     : msg.data;
 }
 
-export function ConsolePanel({ instanceId, canSend = true, detached = false }: Props) {
+export function ConsolePanel({ instanceId, canSend = true, detached = false, notice = null, onStatusChange }: Props) {
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -135,6 +139,9 @@ export function ConsolePanel({ instanceId, canSend = true, detached = false }: P
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyRequestRef = useRef(0);
   const reconnectRef = useRef<(() => void) | null>(null);
+  // Read through a ref so a new callback does not rebuild the terminal and drop the WebSocket.
+  const onStatusChangeRef = useRef(onStatusChange);
+  onStatusChangeRef.current = onStatusChange;
 
   useEffect(() => () => {
     copyRequestRef.current += 1;
@@ -273,6 +280,8 @@ export function ConsolePanel({ instanceId, canSend = true, detached = false }: P
               }
             } else if (msg.type === 'output') {
               writeColored(msg.data);
+            } else if (msg.type === 'status') {
+              onStatusChangeRef.current?.();
             }
             if (msg.type === 'error') {
               writeSystemLine(`${translateNow('console.prefix.error')} ${consoleErrorText(msg)}`);
@@ -492,6 +501,12 @@ export function ConsolePanel({ instanceId, canSend = true, detached = false }: P
           </div>
         </div>
 
+        {notice && (
+          <p className="console-notice-bar" role="alert">
+            <TriangleAlert size={16} aria-hidden="true" />
+            <span>{notice}</span>
+          </p>
+        )}
         <p role="status" aria-live="polite" className="console-copy-status">{copyMessage}</p>
         <div className="console-output" ref={containerRef} />
 

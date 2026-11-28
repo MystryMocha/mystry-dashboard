@@ -10,6 +10,8 @@ export const SYSTEM_MESSAGES = {
   'server.system.nodeHasInstances': 'This node still has instances. Move or delete them first.',
   'server.system.localNodeNoSecret': 'The local node does not need a secret.',
 
+  'server.system.autoRestartInvalid': 'Enter whole numbers within the allowed ranges for restarting after a crash.',
+
   // Download source
   'server.system.downloadSourceInvalid': 'Choose a supported download source.',
   'server.system.downloadAllSourcesFailed': "{name} couldn't be downloaded from any source. {attempts}Try again later, or change the download source on the Panel Settings page.",

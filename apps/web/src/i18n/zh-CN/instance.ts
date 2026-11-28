@@ -45,6 +45,15 @@ export default {
   'instance.settings.unsaved.savingTitle': '正在保存设置…',
   'instance.settings.unsaved.description': '离开设置页会丢失尚未保存的实例设置。',
 
+  'instance.autoRestart.countdown_one': '{count} 秒后重启',
+  'instance.autoRestart.countdown_other': '{count} 秒后重启',
+  'instance.autoRestart.now': '正在重启',
+  'instance.autoRestart.cancelTitle': '取消自动重启',
+  'instance.autoRestart.cancelLabel_one': '取消自动重启，还有 {count} 秒',
+  'instance.autoRestart.cancelLabel_other': '取消自动重启，还有 {count} 秒',
+  'instance.autoRestart.gaveUp': '已连续重启 {max} 次，每次都在 {minutes} 分钟内再次崩溃，已停止自动重启。',
+  'instance.autoRestart.failed': '自动重启失败：{reason}',
+
   // 启动失败原因提示（控制台上方）
   'instance.detached.title': '上次启动的服务器进程仍在运行（PID {pid}）',
   'instance.detached.bodyUnix': '面板上次退出后已失去对该进程的控制台连接，当前无法查看实时日志或发送命令。请先停止或强制停止它，再启动、备份或删除此实例。',
