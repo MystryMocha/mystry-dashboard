@@ -1,6 +1,22 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Download, File, FileText, Folder, FolderPlus, Pencil, RefreshCw, TextCursorInput, Trash2, Upload } from 'lucide-react';
-import type { FileEntry } from '@mystry/shared';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  File,
+  FilePlus,
+  FileText,
+  Folder,
+  FolderPlus,
+  Pencil,
+  Plus,
+  RefreshCw,
+  TextCursor,
+  TextCursorInput,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+import type { FileEntry, TextFileSaveRequest } from '@mystry/shared';
 import { ApiError, api, downloadAuthenticated, getPanelInfo, instanceApi } from '../api';
 import { errorMessage, isAbortError } from '../errors';
 import { useDialogOpen } from '../hooks/useDialogOpen';
@@ -22,6 +38,45 @@ function parentOf(relativePath: string): string {
   const parts = relativePath.split('/').filter(Boolean);
   parts.pop();
   return parts.join('/');
+}
+
+/**
+ * Turns a typed path into the form the tab keeps ("world/region"): either slash, with empty and "." segments dropped and ".."
+ * applied, as the server would resolve it. Returns null when ".." climbs above the instance root, or for a Windows path with a
+ * drive letter or a network path, as pasted from Explorer, which would otherwise be read as folders named "C:", "Users" and so
+ * on. A first folder named like "c:data" is refused too: the server on Windows would list the folder "data" for it. Such a
+ * folder, possible on Linux, is still opened from the list. The server still checks the result.
+ */
+function normalizeTypedPath(input: string): string | null {
+  const trimmed = input.trim();
+  // Checked before the slashes are read: they hide the leading pair of a network path. Explorer's "Copy as path" wraps the
+  // path in double quotes; anywhere else a quote belongs to the name.
+  if (/^(?:[A-Za-z]:|\\\\)/.test(trimmed.replace(/^"(.*)"$/, '$1'))) return null;
+  const segments: string[] = [];
+  for (const segment of trimmed.replace(/\\/g, '/').split('/')) {
+    if (segment === '' || segment === '.') continue;
+    if (segment !== '..') {
+      segments.push(segment);
+    } else if (segments.pop() === undefined) {
+      return null;
+    }
+  }
+  // After "." and ".." are applied, so "./c:data" is refused as well.
+  if (/^[A-Za-z]:/.test(segments[0] ?? '')) return null;
+  return segments.join('/');
+}
+
+const SAVE_SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘S' : 'Ctrl+S';
+
+/**
+ * Ctrl+S or Cmd+S. The physical key counts only when the layout does not type Latin letters (Russian, Greek...), which the
+ * browser's own Ctrl+S still answers to; on a remapped Latin layout such as Dvorak it is another letter. Ctrl+Alt is AltGr on
+ * some layouts.
+ */
+function isSaveShortcut(event: Pick<KeyboardEvent, 'ctrlKey' | 'metaKey' | 'altKey' | 'shiftKey' | 'key' | 'code'>): boolean {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return false;
+  const key = event.key.toLowerCase();
+  return key === 's' || (!/^[a-z]$/.test(key) && event.code === 'KeyS');
 }
 
 /** Validates a name within the same directory and returns the error string key; when folder is true the "folder name" messages are used. */
@@ -60,7 +115,7 @@ function sameFileRowProps(prev: FileRowProps, next: FileRowProps): boolean {
 }
 
 /**
- * A single file row. Isolated with memo: every keystroke in the editor, rename or new-folder input re-renders FilesTab,
+ * A single file row. Isolated with memo: every keystroke in the editor, the path box, or the rename or create input re-renders FilesTab,
  * and with stable callbacks only rows whose props really changed (such as the one being downloaded) re-render.
  */
 const FileRow = memo(function FileRow({
@@ -177,19 +232,34 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   const [renameName, setRenameName] = useState('');
   const [renameError, setRenameError] = useState('');
   const [renaming, setRenaming] = useState(false);
-  const [newDirOpen, setNewDirOpen] = useState(false);
-  const [newDir, setNewDir] = useState('');
-  const [newDirError, setNewDirError] = useState('');
-  const [creatingDir, setCreatingDir] = useState(false);
+  /** What the "New" dialog creates; null while it is closed. */
+  const [createKind, setCreateKind] = useState<'folder' | 'file' | null>(null);
+  const [createName, setCreateName] = useState('');
+  const [createError, setCreateError] = useState('');
+  const [creating, setCreating] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<FileEntry | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
+  /** The breadcrumbs are replaced by a text box holding pathDraft. */
+  const [pathEditing, setPathEditing] = useState(false);
+  const [pathDraft, setPathDraft] = useState('');
+  const [pathDraftError, setPathDraftError] = useState('');
+  const [pathChecking, setPathChecking] = useState(false);
   const editDialogRef = useDialogOpen(editPath !== null);
   const renameDialogRef = useDialogOpen(renameTarget !== null);
-  const newDirDialogRef = useDialogOpen(newDirOpen);
+  const createDialogRef = useDialogOpen(createKind !== null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
+  const pathInputRef = useRef<HTMLInputElement>(null);
+  const pathTriggerRef = useRef<HTMLButtonElement>(null);
+  /** Set when leaving the path box should put focus back on the button that opened it. */
+  const focusPathTriggerRef = useRef(false);
+  /** Path check generation: a check still running when the box is closed must not navigate afterwards. */
+  const pathCheckGenerationRef = useRef(0);
   /** Edit generation: incremented when the editor is closed or a new file is opened, used to discard old file content arriving in a slow response. */
   const editGenerationRef = useRef(0);
+  /** The edit generation of a file just created, whose editor opens with the cursor in the text; 0 for none. */
+  const focusTextGenerationRef = useRef(0);
+  const editTextRef = useRef<HTMLTextAreaElement>(null);
   /** File list request generation: late old lists are discarded after a directory change, so they do not overwrite the current view. */
   const loadGenerationRef = useRef(0);
   const downloadControllersRef = useRef(new Set<AbortController>());
@@ -243,8 +313,40 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (pathEditing) {
+      pathInputRef.current?.focus();
+      pathInputRef.current?.select();
+    } else if (focusPathTriggerRef.current) {
+      focusPathTriggerRef.current = false;
+      pathTriggerRef.current?.focus();
+    }
+  }, [pathEditing]);
+
   const editDirty = editPath !== null && !editBinary && editOriginal !== null && content !== editOriginal;
+  /** The Save button and Ctrl+S share this. */
+  const canSave = editDirty && !saving && !loadingEdit;
   const blocker = useUnsavedGuard(editDirty, saving);
+
+  const editorOpen = editPath !== null;
+  // A confirmation over the editor takes the focus out of the editor's dialog, where the browser would still offer to save the
+  // whole page. Nothing is saved from there: a save closes the editor beneath the open confirmation.
+  useEffect(() => {
+    if (!editorOpen) return;
+    const keepFromBrowser = (event: KeyboardEvent) => {
+      if (isSaveShortcut(event)) event.preventDefault();
+    };
+    document.addEventListener('keydown', keepFromBrowser);
+    return () => document.removeEventListener('keydown', keepFromBrowser);
+  }, [editorOpen]);
+
+  const editTextShown = editOriginal !== null && !loadingEdit;
+  // Only for a file just created, which is opened to be written; a file opened from the list keeps the dialog's own first focus.
+  useEffect(() => {
+    if (!editTextShown || focusTextGenerationRef.current !== editGenerationRef.current) return;
+    focusTextGenerationRef.current = 0;
+    editTextRef.current?.focus();
+  }, [editTextShown]);
 
   function closeEditor() {
     editGenerationRef.current += 1;
@@ -273,11 +375,25 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setRenaming(false);
   }
 
-  function closeNewDir() {
-    if (creatingDir) return;
-    setNewDirOpen(false);
-    setNewDir('');
-    setNewDirError('');
+  function closeCreate() {
+    if (creating) return;
+    setCreateKind(null);
+    setCreateName('');
+    setCreateError('');
+  }
+
+  function startPathEdit() {
+    setPathDraft(`/${path}`);
+    setPathDraftError('');
+    setPathEditing(true);
+  }
+
+  function endPathEdit(returnFocus: boolean) {
+    pathCheckGenerationRef.current += 1;
+    if (returnFocus) focusPathTriggerRef.current = true;
+    setPathEditing(false);
+    setPathChecking(false);
+    setPathDraftError('');
   }
 
   function closeDelete() {
@@ -324,7 +440,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   }, [instanceId]);
 
   async function saveFile() {
-    if (!editPath || editOriginal === null || editBinary) return;
+    if (!canSave || !editPath) return;
     setSaving(true);
     try {
       await api(instanceApi(instanceId, '/files/content'), {
@@ -394,7 +510,8 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   // The confirm button is disabled when the name does not comply or is unchanged; an explanation shows under the input only when something non-compliant is filled in, with no early error while empty.
   const renameIssue = renameTarget ? validateEntryName(renameName) : null;
   const renameUnchanged = renameTarget !== null && renameName.trim() === renameTarget.name;
-  const newDirIssue = validateEntryName(newDir, true);
+  const createFolder = (createKind ?? 'folder') === 'folder';
+  const createIssue = validateEntryName(createName, createFolder);
 
   async function confirmRename() {
     if (!renameTarget) return;
@@ -449,31 +566,82 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     }
   }
 
-  async function createDir() {
-    const validation = validateEntryName(newDir, true);
+  async function createEntry() {
+    if (!createKind || creating) return;
+    const folder = createKind === 'folder';
+    const validation = validateEntryName(createName, folder);
     if (validation) {
-      setNewDirError(t(validation));
+      setCreateError(t(validation));
       return;
     }
-    const target = path ? `${path}/${newDir.trim()}` : newDir.trim();
-    setCreatingDir(true);
-    setNewDirError('');
+    const name = createName.trim();
+    const target = path ? `${path}/${name}` : name;
+    setCreating(true);
+    setCreateError('');
     try {
-      await api(instanceApi(instanceId, '/files/mkdir'), {
-        method: 'POST',
-        json: { path: target },
-      });
-      setNewDirOpen(false);
-      setNewDir('');
+      if (folder) {
+        await api(instanceApi(instanceId, '/files/mkdir'), {
+          method: 'POST',
+          json: { path: target },
+        });
+      } else {
+        // An empty save that the server refuses when anything already has this name: the list may not show it yet,
+        // or on Windows differ from it only in letter case, and an ordinary save would empty that file.
+        const body: TextFileSaveRequest = { path: target, content: '', onConflict: 'fail' };
+        await api(instanceApi(instanceId, '/files/content'), { method: 'PUT', json: body });
+      }
+      setCreateKind(null);
+      setCreateName('');
+      const editGeneration = editGenerationRef.current;
       await load();
+      // Opened once the dialog has closed and handed focus back, so that hand-back cannot land behind the editor. The list
+      // stays clickable while it reloads: a file opened from it meanwhile is left alone, edits and all.
+      if (!folder && editGeneration === editGenerationRef.current) {
+        void startEdit({ name, path: target, isDirectory: false, size: 0, modifiedAt: new Date().toISOString() });
+        // startEdit has already taken its generation: only this file's text gets the cursor once it is shown.
+        focusTextGenerationRef.current = editGenerationRef.current;
+      }
     } catch (err) {
-      setNewDirError(errorMessage(err));
+      setCreateError(errorMessage(err));
     } finally {
-      setCreatingDir(false);
+      setCreating(false);
+    }
+  }
+
+  async function submitPathDraft() {
+    if (pathChecking) return;
+    const target = normalizeTypedPath(pathDraft);
+    if (target === null) {
+      setPathDraftError(t('files.nav.pathOutside'));
+      return;
+    }
+    if (target === path) {
+      endPathEdit(true);
+      return;
+    }
+    // The folder is listed before the view moves there, so a mistyped path leaves the current list and breadcrumbs as they were.
+    const generation = pathCheckGenerationRef.current + 1;
+    pathCheckGenerationRef.current = generation;
+    setPathChecking(true);
+    setPathDraftError('');
+    try {
+      await api<FileEntry[]>(instanceApi(instanceId, `/files?path=${encodeURIComponent(target)}`));
+      if (generation !== pathCheckGenerationRef.current) return;
+      endPathEdit(true);
+      changePath(target);
+    } catch (err) {
+      if (generation !== pathCheckGenerationRef.current) return;
+      setPathDraftError(errorMessage(err));
+      setPathChecking(false);
     }
   }
 
   const segments = path.split('/').filter(Boolean);
+  // Disabled until a creation has finished, list reload included, so the dialog cannot reopen under the editor about to open.
+  const createMenuItems: ActionMenuItem[] = [
+    { key: 'folder', label: t('files.toolbar.newFolderItem'), icon: <FolderPlus size={14} />, disabled: creating, onSelect: () => setCreateKind('folder') },
+    { key: 'file', label: t('files.toolbar.newFileItem'), icon: <FilePlus size={14} />, disabled: creating, onSelect: () => setCreateKind('file') },
+  ];
 
   return (
     <div className="files-workspace">
@@ -489,33 +657,89 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
           >
             <ChevronLeft size={18} aria-hidden="true" />
           </button>
-          <nav className="breadcrumbs" aria-label={t('files.nav.breadcrumbs')}>
-            <button
-              type="button"
-              className="breadcrumb"
-              aria-current={segments.length === 0 ? 'page' : undefined}
-              onClick={() => changePath('')}
-            >
-              {t('files.nav.root')}
-            </button>
-            {segments.map((segment, index) => {
-              const target = segments.slice(0, index + 1).join('/');
-              const last = index === segments.length - 1;
-              return (
-                <span key={target} className="breadcrumb-item">
-                  <ChevronRight size={13} aria-hidden="true" className="breadcrumb-sep" />
-                  <button
-                    type="button"
-                    className="breadcrumb"
-                    aria-current={last ? 'page' : undefined}
-                    onClick={() => changePath(target)}
-                  >
-                    {segment}
-                  </button>
-                </span>
-              );
-            })}
-          </nav>
+          <div className={pathEditing ? 'files-path is-editing' : 'files-path'}>
+            {/* Left in place and hidden while the box is open: the row keeps the trail's height, so closing the box moves nothing. */}
+            <nav className="breadcrumbs" aria-label={t('files.nav.breadcrumbs')} inert={pathEditing}>
+              <button
+                type="button"
+                className="breadcrumb"
+                aria-current={segments.length === 0 ? 'page' : undefined}
+                onClick={() => changePath('')}
+              >
+                {t('files.nav.root')}
+              </button>
+              {segments.map((segment, index) => {
+                const target = segments.slice(0, index + 1).join('/');
+                const last = index === segments.length - 1;
+                return (
+                  <span key={target} className="breadcrumb-item">
+                    <ChevronRight size={13} aria-hidden="true" className="breadcrumb-sep" />
+                    <button
+                      type="button"
+                      className="breadcrumb"
+                      aria-current={last ? 'page' : undefined}
+                      onClick={() => changePath(target)}
+                    >
+                      {segment}
+                    </button>
+                  </span>
+                );
+              })}
+              {/* The space after the last folder, as in a desktop file manager's address bar. */}
+              <button
+                ref={pathTriggerRef}
+                type="button"
+                className="breadcrumbs-edit"
+                title={t('files.nav.editPath')}
+                aria-label={t('files.nav.editPath')}
+                onClick={startPathEdit}
+              >
+                <TextCursor size={14} aria-hidden="true" />
+              </button>
+            </nav>
+            {pathEditing && (
+              <form
+                className="files-path-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void submitPathDraft();
+                }}
+              >
+                <input
+                  ref={pathInputRef}
+                  className="input files-path-input"
+                  value={pathDraft}
+                  onChange={(event) => {
+                    setPathDraft(event.target.value);
+                    setPathDraftError('');
+                  }}
+                  onKeyDown={(event) => {
+                    // Escape during an IME composition only cancels the composition.
+                    if (event.key !== 'Escape' || event.nativeEvent.isComposing || event.keyCode === 229) return;
+                    event.preventDefault();
+                    endPathEdit(true);
+                  }}
+                  onBlur={(event) => {
+                    // Switching to another window to copy a path keeps the box open: nothing on the page takes the focus.
+                    if (!event.relatedTarget && !document.hasFocus()) return;
+                    // Closed at once, before the click that moved the focus lands: the trail under the box keeps the row's
+                    // height and the error floats over the list, so nothing moves under the pointer.
+                    endPathEdit(false);
+                  }}
+                  readOnly={pathChecking}
+                  aria-label={t('files.nav.pathLabel')}
+                  aria-invalid={pathDraftError ? true : undefined}
+                  aria-describedby={pathDraftError ? 'files-path-error' : undefined}
+                  aria-busy={pathChecking || undefined}
+                  enterKeyHint="go"
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              </form>
+            )}
+          </div>
         </div>
         <div className="files-actions">
           <button
@@ -528,10 +752,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
           >
             <RefreshCw size={15} aria-hidden="true" className={loading ? 'spin' : undefined} />
           </button>
-          <button className="btn" type="button" onClick={() => setNewDirOpen(true)}>
-            <FolderPlus size={15} aria-hidden="true" />
-            {t('files.toolbar.newFolder')}
-          </button>
+          <ActionMenu label={t('files.toolbar.new')} triggerIcon={<Plus size={15} aria-hidden="true" />} items={createMenuItems} />
           <button
             className="btn btn-primary"
             type="button"
@@ -543,6 +764,18 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
           </button>
           <input ref={uploadInputRef} type="file" hidden onChange={(e) => void upload(e)} />
         </div>
+        {pathEditing && pathDraftError && (
+          // A press on the message only dismisses it: the box keeps the focus and what was typed.
+          <p
+            id="files-path-error"
+            className="callout callout-danger files-path-error"
+            role="alert"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setPathDraftError('')}
+          >
+            {pathDraftError}
+          </p>
+        )}
       </div>
 
       {error && (
@@ -611,6 +844,12 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) requestCloseEditor();
         }}
+        onKeyDown={(event) => {
+          if (!isSaveShortcut(event)) return;
+          // Also when there is nothing to save, or the browser offers to save the whole page instead.
+          event.preventDefault();
+          if (!event.repeat) void saveFile();
+        }}
       >
         <div className="file-edit-dialog-panel">
           <header className="file-edit-dialog-header">
@@ -631,6 +870,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
             </div>
           ) : editOriginal !== null && (
             <textarea
+              ref={editTextRef}
               className="file-edit-dialog-textarea"
               value={content}
               onChange={(e) => setContent(e.target.value)}
@@ -652,7 +892,9 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
                 <button
                   className="btn btn-primary"
                   type="button"
-                  disabled={saving || loadingEdit || !editPath || editOriginal === null || content === editOriginal}
+                  disabled={!canSave}
+                  title={t('files.edit.saveWithShortcut', { shortcut: SAVE_SHORTCUT })}
+                  aria-keyshortcuts="Control+S Meta+S"
                   onClick={() => void saveFile()}
                 >
                   {saving ? t('action.saving') : t('action.save')}
@@ -715,52 +957,52 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       </dialog>
 
       <dialog
-        ref={newDirDialogRef}
+        ref={createDialogRef}
         className="confirm-dialog"
-        aria-labelledby="file-mkdir-dialog-title"
-        onClose={closeNewDir}
+        aria-labelledby="file-create-dialog-title"
+        onClose={closeCreate}
         onCancel={(event) => {
           event.preventDefault();
-          closeNewDir();
+          closeCreate();
         }}
         onMouseDown={(event) => {
-          if (event.target === event.currentTarget) closeNewDir();
+          if (event.target === event.currentTarget) closeCreate();
         }}
       >
         <form
           className="confirm-dialog-panel"
           onSubmit={(event) => {
             event.preventDefault();
-            void createDir();
+            void createEntry();
           }}
         >
-          <h2 id="file-mkdir-dialog-title" className="confirm-dialog-title">
-            {t('files.toolbar.newFolder')}
+          <h2 id="file-create-dialog-title" className="confirm-dialog-title">
+            {createFolder ? t('files.toolbar.newFolder') : t('files.toolbar.newFile')}
           </h2>
           <div className="confirm-dialog-body">
-            <p>{t('files.mkdir.location', { path })}</p>
+            <p>{createFolder ? t('files.mkdir.location', { path }) : t('files.newFile.location', { path })}</p>
             <div className="field">
-              <label htmlFor="file-mkdir-input">{t('files.mkdir.name')}</label>
+              <label htmlFor="file-create-input">{createFolder ? t('files.mkdir.name') : t('files.newFile.name')}</label>
               <input
-                id="file-mkdir-input"
-                value={newDir}
-                onChange={(e) => setNewDir(e.target.value)}
-                placeholder={t('files.mkdir.placeholder')}
+                id="file-create-input"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder={createFolder ? t('files.mkdir.placeholder') : t('files.newFile.placeholder')}
                 autoComplete="off"
                 autoFocus
-                disabled={creatingDir}
-                aria-invalid={newDirIssue && newDir.trim() ? true : undefined}
+                disabled={creating}
+                aria-invalid={createIssue && createName.trim() ? true : undefined}
               />
             </div>
-            {newDirIssue && newDir.trim() ? <p className="error">{t(newDirIssue)}</p>
-              : newDirError && <p className="error">{newDirError}</p>}
+            {createIssue && createName.trim() ? <p className="error">{t(createIssue)}</p>
+              : createError && <p className="error">{createError}</p>}
           </div>
           <footer className="confirm-dialog-footer">
-            <button className="btn" type="button" disabled={creatingDir} onClick={closeNewDir}>
+            <button className="btn" type="button" disabled={creating} onClick={closeCreate}>
               {t('action.cancel')}
             </button>
-            <button className="btn btn-primary" type="submit" disabled={creatingDir || newDirIssue !== null}>
-              {creatingDir ? t('files.mkdir.creating') : t('files.mkdir.create')}
+            <button className="btn btn-primary" type="submit" disabled={creating || createIssue !== null}>
+              {creating ? t('files.create.creating') : t('files.create.submit')}
             </button>
           </footer>
         </form>

@@ -6,6 +6,10 @@ This file records notable changes to the project. The format follows [Keep a Cha
 
 ## [Unreleased]
 
+### Added
+
+- Files: **New** creates a file as well as a folder, and opens the new file in the editor. In the editor, **Ctrl+S** (**⌘S** on macOS) saves. Click the space after the path to type the path of a folder to go to.
+
 ### Fixed
 
 - Files: A text file near the 1 MiB editing limit with many line breaks could be opened but not saved.

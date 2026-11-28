@@ -334,12 +334,12 @@ You can work only with files inside the current instance's root folder:
 
 | Where | Action |
 |------|------|
-| Top left | **‹** goes up to the parent folder. The path is shown level by level; click any level to jump back to it |
-| Top right | **Refresh**, **New Folder** (enter the name in a dialog), **Upload** a file to the current folder |
+| Top left | **‹** goes up to the parent folder. The path is shown level by level; click any level to jump back to it. Click the space after the last level to type a path instead: **Enter** goes there, **Esc** cancels |
+| Top right | **Refresh**, **New** → **Folder** or **File** (enter the name in a dialog), **Upload** a file to the current folder |
 | Click a folder / text file | Opens the folder, or opens the file for editing |
 | "…" at the right of each item | **Download** (files only), **Edit** (text files only), **Rename**, **Delete** |
 
-**Edit** opens the file's content in a dialog; click **Save** to write it back to disk. Large files can't be edited online. A binary file, such as `level.dat` or a plugin `.jar`, opens read-only with a warning, because saving it here would break it.
+**Edit** opens the file's content in a dialog; click **Save** or press **Ctrl+S** (**⌘S** on macOS) to write it back to disk. A new file opens in the editor as soon as it's created. If the name is already taken, the file isn't created, so an existing file is never emptied. Large files can't be edited online. A binary file, such as `level.dat` or a plugin `.jar`, opens read-only with a warning, because saving it here would break it.
 
 Paths are relative to the instance root. Before you change `mods`, `plugins` or world data, it's best to **stop the server first**.
 

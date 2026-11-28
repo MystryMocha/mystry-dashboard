@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Ellipsis } from 'lucide-react';
+import { ChevronDown, Ellipsis } from 'lucide-react';
 import { useI18n } from '../i18n';
 
 const PANEL_GAP = 6;
@@ -26,13 +26,16 @@ type PanelStyle = {
  * The "more actions" menu inside a card.
  * The panel is attached to body through a portal and fixed-positioned, so it is not clipped by the card's overflow;
  * it always opens below the trigger button, right-aligned, flipping above only when there is not enough room below and more room above.
+ * With triggerIcon, the trigger is a labelled button with a dropdown indicator instead of the icon-only "⋯".
  */
 export function ActionMenu({
   label: labelProp,
   items,
+  triggerIcon,
 }: {
   label?: string;
   items: ActionMenuItem[];
+  triggerIcon?: React.ReactNode;
 }) {
   const { t } = useI18n();
   const label = labelProp ?? t('menu.more');
@@ -136,21 +139,30 @@ export function ActionMenu({
     }
   }
 
+  const labelled = triggerIcon !== undefined;
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        className={`btn btn-icon action-menu-trigger${open ? ' is-open' : ''}`}
-        title={label}
-        aria-label={label}
+        className={`btn${labelled ? '' : ' btn-icon'} action-menu-trigger${open ? ' is-open' : ''}`}
+        title={labelled ? undefined : label}
+        aria-label={labelled ? undefined : label}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={() => (open ? close(false) : setOpen(true))}
         onKeyDown={onTriggerKeyDown}
       >
-        <Ellipsis size={17} aria-hidden="true" />
+        {labelled ? (
+          <>
+            {triggerIcon}
+            {label}
+            <ChevronDown size={14} aria-hidden="true" className="action-menu-caret" />
+          </>
+        ) : (
+          <Ellipsis size={17} aria-hidden="true" />
+        )}
       </button>
       {open &&
         createPortal(
