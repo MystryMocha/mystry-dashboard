@@ -48,12 +48,12 @@ function parentOf(relativePath: string): string {
  * well. Such a folder, possible on Linux, is still opened from the list. The server still checks the result.
  */
 function normalizeTypedPath(input: string): string | null {
-  const trimmed = input.trim();
   // Checked before the slashes are read: they hide the leading pair of a network path. Explorer's "Copy as path" wraps the
   // path in double quotes; anywhere else a quote belongs to the name.
-  if (/^(?:[A-Za-z]:|\\\\)/.test(trimmed.replace(/^"(.*)"$/, '$1'))) return null;
+  if (/^(?:[A-Za-z]:|\\\\)/.test(input.replace(/^"(.*)"$/, '$1'))) return null;
   const segments: string[] = [];
-  for (const segment of trimmed.replace(/\\/g, '/').split('/')) {
+  // Whitespace can be part of a directory name, including the last segment.
+  for (const segment of input.replace(/\\/g, '/').split('/')) {
     if (segment === '' || segment === '.') continue;
     if (segment !== '..') {
       segments.push(segment);
@@ -262,6 +262,8 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   const editTextRef = useRef<HTMLTextAreaElement>(null);
   /** File list request generation: late old lists are discarded after a directory change, so they do not overwrite the current view. */
   const loadGenerationRef = useRef(0);
+  /** A refresh started after an async file operation reads the directory currently shown. */
+  const pathRef = useRef('');
   const downloadControllersRef = useRef(new Set<AbortController>());
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -271,7 +273,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setLoading(true);
     try {
       const list = await api<FileEntry[]>(
-        instanceApi(instanceId, `/files?path=${encodeURIComponent(path)}`),
+        instanceApi(instanceId, `/files?path=${encodeURIComponent(pathRef.current)}`),
       );
       if (generation !== loadGenerationRef.current) return;
       setFiles(list);
@@ -284,7 +286,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     } finally {
       if (generation === loadGenerationRef.current) setLoading(false);
     }
-  }, [instanceId, path]);
+  }, [instanceId]);
 
   useEffect(() => {
     const controllers = downloadControllersRef.current;
@@ -297,6 +299,10 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
 
   useEffect(() => {
     void load();
+    return () => {
+      loadGenerationRef.current += 1;
+      pathCheckGenerationRef.current += 1;
+    };
   }, [load]);
 
   useEffect(() => {
@@ -402,14 +408,20 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   }
 
   // The callbacks passed to FileRow below keep stable references, so not every keystroke in an input re-renders the whole list.
-  const changePath = useCallback((nextPath: string) => {
-    loadGenerationRef.current += 1;
-    setFiles([]);
-    setLoaded(false);
-    setLoading(true);
-    setError('');
+  const changePath = useCallback((nextPath: string, listing?: FileEntry[]) => {
+    if (nextPath === pathRef.current) return;
+    pathRef.current = nextPath;
     setPath(nextPath);
-  }, []);
+    setError('');
+    setFiles(listing ?? []);
+    setLoaded(listing !== undefined);
+    if (listing === undefined) {
+      void load();
+    } else {
+      loadGenerationRef.current += 1;
+      setLoading(false);
+    }
+  }, [load]);
 
   const startEdit = useCallback(async (file: FileEntry) => {
     if (file.isDirectory) return;
@@ -625,10 +637,10 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setPathChecking(true);
     setPathDraftError('');
     try {
-      await api<FileEntry[]>(instanceApi(instanceId, `/files?path=${encodeURIComponent(target)}`));
+      const listing = await api<FileEntry[]>(instanceApi(instanceId, `/files?path=${encodeURIComponent(target)}`));
       if (generation !== pathCheckGenerationRef.current) return;
       endPathEdit(true);
-      changePath(target);
+      changePath(target, listing);
     } catch (err) {
       if (generation !== pathCheckGenerationRef.current) return;
       setPathDraftError(errorMessage(err));

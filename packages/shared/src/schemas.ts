@@ -228,7 +228,30 @@ export const updateNodeBodySchema = {
 } as const;
 
 /** Maximum length of a relative path inside an instance (same as the file routes) */
-const maxInstanceRelativePathLength = 1024;
+export const maxInstanceRelativePathLength = 1_024;
+
+const textFileConflictPolicies = ['fail', 'overwrite'] as const;
+
+/** PUT /api/instances/:id/files/content request body */
+export interface TextFileSaveRequest {
+  path: string;
+  content: string;
+  /** `fail` refuses with 409 when a file or folder already exists at `path`; defaults to `overwrite`. */
+  onConflict?: (typeof textFileConflictPolicies)[number];
+}
+
+export function createTextFileSaveSchema(maxTextFileBytes: number) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['path', 'content'],
+    properties: {
+      path: { type: 'string', maxLength: maxInstanceRelativePathLength },
+      content: { type: 'string', maxLength: maxTextFileBytes },
+      onConflict: { type: 'string', enum: textFileConflictPolicies },
+    },
+  } as const;
+}
 
 /** POST /api/instances/:id/files/download-ticket request body */
 export const fileDownloadTicketBodySchema = {

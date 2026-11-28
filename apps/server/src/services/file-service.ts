@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { Readable } from 'node:stream';
-import type { FileEntry, ServerMessageKey } from '@mystry/shared';
+import type { FileEntry, ServerMessageKey, TextFileSaveRequest } from '@mystry/shared';
 import { config } from '../config.js';
 import { writeFileAtomic } from '../utils/atomic-write.js';
 import { checkEntryName, type EntryNameIssue } from '../utils/entry-name.js';
@@ -178,8 +178,7 @@ export function readTextFile(instanceId: string, relativePath: string): TextFile
 }
 
 type TextWriteOptions = {
-  /** `fail` refuses when a file or folder is already at the path: creating a file must not empty one the list did not show yet. */
-  onConflict?: 'fail' | 'overwrite';
+  onConflict?: TextFileSaveRequest['onConflict'];
   /** Process IDs of the instance's server: a file one of them has open is written in place, see writeTextFile. */
   serverPids?: number[];
   /** Tests only: stands in for the rename that puts the new content in place. */
@@ -191,9 +190,8 @@ const TEXT_SAVE_TEMP_TAG = 'mystry-save';
 const TEXT_SAVE_TEMP_NAME = /^\..+\.mystry-save\.[0-9a-f]{16}\.tmp$/;
 
 /**
- * A panel that is killed between writing a temp file and renaming it leaves the temp file behind. A save runs from start to
- * finish without yielding and only one panel process uses the data directory, so once a save has finished, every such file
- * in the directory is a leftover. Failures are ignored: the listing hides these files, and the next save tries again.
+ * A save runs without yielding and only one panel process uses the data directory, so every temp file still in the
+ * directory after a save is a leftover. The listing hides these files and the next save retries any failed cleanup.
  */
 function removeLeftoverTextSaveTemps(dir: string): void {
   try {
@@ -211,6 +209,36 @@ function removeLeftoverTextSaveTemps(dir: string): void {
  * room for the temp file's suffix. A full disk is not one of them: writing in place would then cut the file short.
  */
 const REPLACE_REFUSED_CODES = ['EPERM', 'EACCES', 'EBUSY', 'ENAMETOOLONG'];
+
+const CREATE_FALLBACK_CODES = [
+  ...REPLACE_REFUSED_CODES,
+  'ENOTSUP',
+  'ENOSYS',
+  // libuv maps ERROR_INVALID_FUNCTION to EISDIR when a Windows volume cannot create a hard link.
+  ...(process.platform === 'win32' ? ['EISDIR'] : []),
+];
+
+function fileAlreadyExists(): PanelError {
+  return new PanelError('server.files.alreadyExists', undefined, { statusCode: 409 });
+}
+
+function createTextFile(target: string, bytes: Buffer): void {
+  try {
+    if (bytes.length > 0) {
+      try {
+        writeFileAtomic(target, bytes, { createMode: 0o666, tempTag: TEXT_SAVE_TEMP_TAG, replaceExisting: false });
+        return;
+      } catch (error) {
+        if (!CREATE_FALLBACK_CODES.some((code) => hasErrorCode(error, code))) throw error;
+      }
+    }
+    // An empty file can be published immediately. On the fallback, the new file is visible during the write.
+    fs.writeFileSync(target, bytes, { flag: 'wx', mode: 0o666, flush: true });
+  } catch (error) {
+    if (hasErrorCode(error, 'EEXIST')) throw fileAlreadyExists();
+    throw error;
+  }
+}
 
 export function writeTextFile(
   instanceId: string,
@@ -231,9 +259,8 @@ export function writeTextFile(
   assertMutableTarget(root, target);
   let existingMode: number | undefined;
   if (fs.existsSync(target)) {
-    // Before the type check, so a folder of that name is reported the same way. From here to the rename nothing yields,
-    // so no other request can put a file at the path in between.
-    if (options.onConflict === 'fail') throw new PanelError('server.files.alreadyExists', undefined, { statusCode: 409 });
+    // The create-only policy reports a folder on this path as a name conflict too.
+    if (options.onConflict === 'fail') throw fileAlreadyExists();
     const stat = fs.lstatSync(target);
     if (stat.isSymbolicLink() || !stat.isFile()) {
       throw new PanelError('server.files.notRegularFile');
@@ -243,7 +270,14 @@ export function writeTextFile(
     existingMode = stat.mode & 0o7777;
   }
   assertCreatableNames(root, target);
-  fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+  const directory = path.dirname(target);
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  if (options.onConflict === 'fail') {
+    createTextFile(target, bytes);
+    removeLeftoverTextSaveTemps(directory);
+    return;
+  }
+
   // Where a rename over an open file succeeds (Linux), the server would go on writing to the old file, which no longer has a
   // name: its latest.log would stop growing where anyone can read it. Such a file is written in place, which is also where
   // Windows ends up below, because it refuses the rename.
@@ -265,7 +299,7 @@ export function writeTextFile(
     if (heldOpenByServer || !REPLACE_REFUSED_CODES.some((code) => hasErrorCode(error, code))) throw error;
     fs.writeFileSync(target, bytes);
   }
-  removeLeftoverTextSaveTemps(path.dirname(target));
+  removeLeftoverTextSaveTemps(directory);
 }
 
 /** Before reading server.properties directly, checks that it is still a restricted regular text file. */

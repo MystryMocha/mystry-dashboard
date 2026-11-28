@@ -248,7 +248,7 @@ Authorization: Bearer <token>
 |------|------|------|
 | GET | `/files?path=` | 列出实例根目录内的目录，返回 `FileEntry[]`；实例根目录下的面板所有权标记 `.mystry-instance.json` 不在列表中，保存被中断时留下的临时文件（`.<name>.mystry-save.<hex>.tmp`）也不在其中 |
 | GET | `/files/content?path=` | 读取文本 `{ path, content, binary }`。前 8 KiB 中含 NUL 字节时 `binary` 为 `true`，此时 `content` 有损（非 UTF-8 字节变为 U+FFFD），原样写回会损坏文件 |
-| PUT | `/files/content` | Body：`{ path, content, onConflict? }`。`onConflict` 为 `"fail"` 时，`path` 处已有文件或文件夹即返回 **409**，新建文件不会覆盖已有文件；默认值 `"overwrite"` 覆盖保存已有文件。`content` 按 UTF-8 计至多 `MAX_TEXT_FILE_BYTES` 字节。本接口的请求体上限按这样的内容经 JSON 转义后仍能容纳来设定，可高于 `MAX_JSON_BODY_BYTES`，且不低于它。内容先写入同目录的临时文件，再改名覆盖原文件，原文件保留权限位；该目录中此前保存被中断留下的临时文件一并清除。原文件正被该实例的服务器进程打开（Linux），或无法通过改名覆盖（如 Windows 上被其他程序占用）时，改为直接写入原文件 |
+| PUT | `/files/content` | Body：`{ path, content, onConflict? }`。`onConflict` 为 `"fail"` 时，仅在名称未被占用时创建文件。文件或文件夹先占用该名称时返回 **409**。空文件直接创建。带内容的文件先写入同目录的临时文件，再以不覆盖目标的方式落盘。在不支持硬链接等无法这样落盘的情况下，改用排他方式创建并直接写入。此时写入中断可能留下不完整的新文件。默认值 `"overwrite"` 通过临时文件改名保存，保留已有文件的权限位。文件正被实例的服务器进程打开（Linux）或无法通过改名覆盖时，改为直接写入。保存成功后清理该目录中此前遗留的保存临时文件。`content` 按 UTF-8 计至多 `MAX_TEXT_FILE_BYTES` 字节。请求体上限可容纳这样的内容经 JSON 转义后的大小，且不低于 `MAX_JSON_BODY_BYTES` |
 | DELETE | `/files?path=` | 删除实例根目录内的文件或目录。与该实例的启动、停止、重启及实例删除共用实例锁：其中一项进行时，删除排队等待；删除完成前，这些操作亦须等待 |
 | POST | `/files/mkdir` | Body：`{ path }` |
 | POST | `/files/rename` | Body：`{ from, to }` |

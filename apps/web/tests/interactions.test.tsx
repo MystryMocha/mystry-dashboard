@@ -2921,16 +2921,17 @@ test('files: the path box moves to a typed folder only once it is listed, says w
     'plugins/LuckPerms': [{ name: 'config.yml', path: 'plugins/LuckPerms/config.yml', isDirectory: false, size: 10, modifiedAt }],
   };
   const baseFetch = globalThis.fetch;
-  let holdPlugins = false;
-  let releasePlugins: (() => void) | undefined;
+  let holdListingFor: string | undefined;
+  let releaseListing: (() => void) | undefined;
   vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
     const prefix = '/api/instances/test/files?path=';
     if (url.startsWith(prefix)) {
-      const listing = listings[decodeURIComponent(url.slice(prefix.length))];
-      if (listing === listings.plugins && holdPlugins) {
-        holdPlugins = false;
+      const path = decodeURIComponent(url.slice(prefix.length));
+      const listing = listings[path];
+      if (path === holdListingFor) {
+        holdListingFor = undefined;
         return new Promise<Response>((resolve) => {
-          releasePlugins = () => resolve(new Response(JSON.stringify(listing)));
+          releaseListing = () => resolve(new Response(JSON.stringify(listing)));
         });
       }
       return listing
@@ -2984,7 +2985,7 @@ test('files: the path box moves to a typed folder only once it is listed, says w
   expect(screen.getByText('world')).toBeTruthy();
 
   // Leaving the box while the typed folder is still being listed: the answer that comes afterwards does not move the view.
-  holdPlugins = true;
+  holdListingFor = 'plugins';
   await user.click(within(trail()).getByRole('button', { name: '输入路径' }));
   await user.clear(box());
   await user.type(box(), 'plugins{Enter}');
@@ -2992,17 +2993,29 @@ test('files: the path box moves to a typed folder only once it is listed, says w
   await user.tab();
   expect(screen.queryByRole('textbox', { name: '路径' })).toBeNull();
   await act(async () => {
-    releasePlugins?.();
+    releaseListing?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   expect(within(trail()).getByRole('button', { name: '实例根目录' }).getAttribute('aria-current')).toBe('page');
   expect(screen.getByText('world')).toBeTruthy();
+
+  // A refresh of the root that finishes after navigation must not replace the new directory's listing.
+  releaseListing = undefined;
+  holdListingFor = '';
+  await user.click(screen.getByRole('button', { name: '刷新文件列表' }));
+  expect(releaseListing).toBeDefined();
 
   // Backslashes, slashes at either end and ".." are read the way the server resolves them.
   await user.click(within(trail()).getByRole('button', { name: '输入路径' }));
   await user.clear(box());
   await user.type(box(), '\\world\\..\\plugins\\LuckPerms\\{Enter}');
   expect(await screen.findByText('config.yml')).toBeTruthy();
+  expect(vi.mocked(globalThis.fetch).mock.calls.filter(([url]) => url === '/api/instances/test/files?path=plugins%2FLuckPerms')).toHaveLength(1);
+  await act(async () => {
+    releaseListing?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(screen.queryByText('world')).toBeNull();
   expect(within(trail()).getByRole('button', { name: 'LuckPerms' }).getAttribute('aria-current')).toBe('page');
   expect(within(trail()).getByRole('button', { name: 'plugins' })).toBeTruthy();
 
@@ -3013,6 +3026,35 @@ test('files: the path box moves to a typed folder only once it is listed, says w
   expect(screen.queryByRole('textbox', { name: '路径' })).toBeNull();
   expect(trail().hasAttribute('inert')).toBe(false);
   expect(screen.getByText('config.yml')).toBeTruthy();
+});
+
+test('files: a typed path preserves spaces in a folder name', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const prefix = '/api/instances/test/files?path=';
+    if (!url.startsWith(prefix)) return baseFetch(url, options);
+    const path = decodeURIComponent(url.slice(prefix.length));
+    if (path === '') {
+      return new Response(JSON.stringify(['world', 'world '].map((name) => ({ name, path: name, isDirectory: true, size: 0, modifiedAt }))));
+    }
+    const name = path === 'world ' ? 'with-space.yml' : 'without-space.yml';
+    return new Response(JSON.stringify([{ name, path: `${path}/${name}`, isDirectory: false, size: 10, modifiedAt }]));
+  }));
+
+  const user = userEvent.setup();
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  const editPath = () => screen.getByRole('button', { name: '输入路径' });
+  const box = () => screen.getByRole<HTMLInputElement>('textbox', { name: '路径' });
+  await user.click(editPath());
+  await user.clear(box());
+  await user.type(box(), '/world {Enter}');
+  expect(await screen.findByText('with-space.yml')).toBeTruthy();
+  await user.click(editPath());
+  expect(box().value).toBe('/world ');
+  await user.keyboard('{Enter}');
+  expect(screen.getByText('with-space.yml')).toBeTruthy();
+  expect(screen.queryByText('without-space.yml')).toBeNull();
 });
 
 test('detached orphan process: dashboard, instance console, and backups reflect detached state and enforce force stop flow', async () => {

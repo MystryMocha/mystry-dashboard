@@ -356,14 +356,6 @@ export interface FileEntry {
   modifiedAt: string;
 }
 
-/** PUT /api/instances/:id/files/content request body */
-export interface TextFileSaveRequest {
-  path: string;
-  content: string;
-  /** `fail` refuses with 409 when a file or folder already exists at `path`, so creating a file never empties one; defaults to `overwrite`. */
-  onConflict?: 'fail' | 'overwrite';
-}
-
 /** One-time file download ticket; then pass it as a query parameter to GET .../files/download */
 export interface FileDownloadTicketResult {
   ticket: string;
@@ -760,6 +752,9 @@ export {
   loginBodySchema,
   createNodeBodySchema,
   updateNodeBodySchema,
+  maxInstanceRelativePathLength,
+  createTextFileSaveSchema,
+  type TextFileSaveRequest,
   fileDownloadTicketBodySchema,
   fileDownloadQuerySchema,
   restoreBackupBodySchema,

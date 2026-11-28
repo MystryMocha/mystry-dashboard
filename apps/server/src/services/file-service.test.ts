@@ -585,6 +585,75 @@ test('a save that must not replace anything creates a new file, and leaves a fil
   assert.equal(fs.readFileSync(path.join(root, 'server.properties'), 'utf8'), 'motd=new\n');
 });
 
+test('creating a text file leaves a name claimed after the existence check alone', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { writeTextFile } = await import('./file-service.js');
+  const { routeErrorStatus } = await import('../http-errors.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-create-race' });
+  const root = defaultInstanceDir(inst.id);
+  const existsSync = fs.existsSync;
+  const cases = [
+    { name: 'empty.txt', content: '', isDirectory: false },
+    { name: 'initial.txt', content: 'initial text', isDirectory: false },
+    { name: 'empty-folder', content: '', isDirectory: true },
+    { name: 'initial-folder', content: 'initial text', isDirectory: true },
+  ];
+  for (const { name, content, isDirectory } of cases) {
+    await t.test(name, (t) => {
+      const target = path.join(root, name);
+      t.mock.method(fs, 'existsSync', (candidate: fs.PathLike) => {
+        const exists = existsSync(candidate);
+        if (candidate === target && !exists) {
+          if (isDirectory) fs.mkdirSync(target);
+          else fs.writeFileSync(target, 'other writer', { flag: 'wx' });
+        }
+        return exists;
+      });
+
+      assert.throws(() => writeTextFile(inst.id, name, content, { onConflict: 'fail' }), (err: unknown) => {
+        assert.equal(routeErrorStatus(err), 409);
+        return true;
+      });
+      if (isDirectory) assert.deepEqual(fs.readdirSync(target), []);
+      else assert.equal(fs.readFileSync(target, 'utf8'), 'other writer');
+      assert.deepEqual(fs.readdirSync(root).filter((entry) => entry.includes('mystry-save')), []);
+    });
+  }
+});
+
+test('creating a nonempty text file uses an exclusive write when the volume refuses hard links', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { writeTextFile } = await import('./file-service.js');
+  const { routeErrorStatus } = await import('../http-errors.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-create-no-links' });
+  const root = defaultInstanceDir(inst.id);
+  const claimed = path.join(root, 'claimed.txt');
+  const link = t.mock.method(fs, 'linkSync', (_source: fs.PathLike, target: fs.PathLike) => {
+    if (target === claimed) fs.writeFileSync(claimed, 'other writer', { flag: 'wx' });
+    throw Object.assign(new Error('hard links unavailable'), { code: process.platform === 'win32' ? 'EISDIR' : 'EPERM' });
+  });
+
+  writeTextFile(inst.id, 'created.txt', 'complete text', { onConflict: 'fail' });
+  assert.equal(fs.readFileSync(path.join(root, 'created.txt'), 'utf8'), 'complete text');
+  assert.throws(() => writeTextFile(inst.id, 'claimed.txt', 'new text', { onConflict: 'fail' }), (err: unknown) => {
+    assert.equal(routeErrorStatus(err), 409);
+    return true;
+  });
+  assert.equal(fs.readFileSync(claimed, 'utf8'), 'other writer');
+  assert.equal(link.mock.callCount(), 2);
+  assert.deepEqual(fs.readdirSync(root).filter((entry) => entry.includes('mystry-save')), []);
+});
+
 test('saving a text file keeps its permission bits, and a file marked read-only is still refused', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');

@@ -3,8 +3,10 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  createTextFileSaveSchema,
   fileDownloadQuerySchema,
   fileDownloadTicketBodySchema,
+  maxInstanceRelativePathLength as maxPathLength,
   type ApiErrorBody,
   type ServerMessageKey,
   type TextFileSaveRequest,
@@ -45,7 +47,6 @@ import { errorBody, errorMessage, isPanelError, PanelError, panelErrorBody, toPa
 import { switchToStreamingUploadTimeout } from '../utils/request-timeout.js';
 
 const { maxTextFileBytes } = config;
-const maxPathLength = 1_024;
 const maxPropertyKeys = 256;
 const maxPropertyKeyLength = 256;
 
@@ -62,16 +63,7 @@ const requiredPathQuerySchema = {
   properties: { path: { type: 'string', maxLength: maxPathLength } },
 } as const;
 
-const textContentBodySchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['path', 'content'],
-  properties: {
-    path: { type: 'string', maxLength: maxPathLength },
-    content: { type: 'string', maxLength: maxTextFileBytes },
-    onConflict: { type: 'string', enum: ['fail', 'overwrite'] },
-  },
-} as const;
+const textContentBodySchema = createTextFileSaveSchema(maxTextFileBytes);
 
 /**
  * Body limit of the text save endpoint. The content travels as a JSON string, where one UTF-8 byte can take up to six bytes

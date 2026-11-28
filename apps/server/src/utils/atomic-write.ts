@@ -9,11 +9,13 @@ export type AtomicWriteOptions = {
   exactMode?: number;
   /** Takes the place of the process ID in the temp file's name, so that the caller can recognize its own leftovers. */
   tempTag?: string;
+  /** With false, publish through a hard link so an existing target cannot be replaced. */
+  replaceExisting?: boolean;
   /** Tests only: stands in for the rename over the target. */
   renameSync?: typeof fs.renameSync;
 };
 
-/** Writes a temp file in the same directory and fsyncs it, then renames it over the target; a failure at any step never leaves a half-written target file. */
+/** Writes and fsyncs a temp file in the same directory so the target is only published once the content is complete. */
 export function writeFileAtomic(target: string, content: string | Buffer, options: AtomicWriteOptions = {}): void {
   const dir = path.dirname(target);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -23,6 +25,7 @@ export function writeFileAtomic(target: string, content: string | Buffer, option
   );
   const bytes = typeof content === 'string' ? Buffer.from(content, 'utf8') : content;
   const fd = fs.openSync(temp, 'wx', options.createMode ?? 0o600);
+  let renamed = false;
   try {
     try {
       if (options.exactMode !== undefined) fs.fchmodSync(fd, options.exactMode);
@@ -34,15 +37,20 @@ export function writeFileAtomic(target: string, content: string | Buffer, option
     } finally {
       fs.closeSync(fd);
     }
-    // Rename directly over the target: an atomic replace on POSIX, and on Windows libuv uses
-    // MOVEFILE_REPLACE_EXISTING. The original file is not deleted first, so it is still there if rename fails.
-    (options.renameSync ?? fs.renameSync)(temp, target);
-  } catch (error) {
-    try {
-      fs.rmSync(temp, { force: true });
-    } catch {
-      /* Ignore cleanup failures */
+    if (options.replaceExisting === false) {
+      fs.linkSync(temp, target);
+    } else {
+      // libuv uses MOVEFILE_REPLACE_EXISTING on Windows. If the rename fails, the old file is still there.
+      (options.renameSync ?? fs.renameSync)(temp, target);
+      renamed = true;
     }
-    throw error;
+  } finally {
+    if (!renamed) {
+      try {
+        fs.rmSync(temp, { force: true });
+      } catch {
+        /* Ignore cleanup failures */
+      }
+    }
   }
 }

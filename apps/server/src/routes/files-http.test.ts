@@ -121,24 +121,33 @@ test('file endpoints over HTTP', async (t) => {
   });
 
   await t.test('a save that must not replace anything is refused with 409 when the name is taken', async () => {
-    const create = (filePath: string, onConflict: unknown = 'fail') => app.inject({
+    const saveWithPolicy = (filePath: string, content: string, onConflict: unknown = 'fail') => app.inject({
       method: 'PUT',
       url: contentUrl,
       headers: { ...authorization, 'content-type': 'application/json' },
-      payload: JSON.stringify({ path: filePath, content: '', onConflict }),
+      payload: JSON.stringify({ path: filePath, content, onConflict }),
     });
     fs.writeFileSync(path.join(root, 'ops.json'), '[]');
 
-    const taken = await create('ops.json');
+    const taken = await saveWithPolicy('ops.json', '');
     assert.equal(taken.statusCode, 409);
     assert.equal(taken.json<{ code: string }>().code, 'server.files.alreadyExists');
     assert.equal(fs.readFileSync(path.join(root, 'ops.json'), 'utf8'), '[]');
 
-    const created = await create('config/new.yml');
-    assert.equal(created.statusCode, 200, created.body);
+    const empty = await saveWithPolicy('config/new.yml', '');
+    assert.equal(empty.statusCode, 200, empty.body);
     assert.equal(fs.readFileSync(path.join(root, 'config', 'new.yml'), 'utf8'), '');
 
-    const unknownPolicy = await create('other.yml', 'merge');
+    const created = await saveWithPolicy('settings/new.yml', 'enabled: true\n');
+    assert.equal(created.statusCode, 200, created.body);
+    const createdPath = path.join(root, 'settings', 'new.yml');
+    assert.equal(fs.readFileSync(createdPath, 'utf8'), 'enabled: true\n');
+
+    const replaced = await saveWithPolicy('settings/new.yml', 'enabled: false\n', 'overwrite');
+    assert.equal(replaced.statusCode, 200, replaced.body);
+    assert.equal(fs.readFileSync(createdPath, 'utf8'), 'enabled: false\n');
+
+    const unknownPolicy = await saveWithPolicy('other.yml', '', 'merge');
     assert.equal(unknownPolicy.statusCode, 400);
     assert.equal(unknownPolicy.json<{ code: string }>().code, 'server.files.validation.textBody');
     assert.equal(fs.existsSync(path.join(root, 'other.yml')), false);
