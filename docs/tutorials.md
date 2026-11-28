@@ -156,7 +156,7 @@ The console keeps the most recent output and shows it first after you refresh th
 1. **Stop** the instance (recommended before changing the world or large files).
 2. The **Files** tab → go to the target directory (such as `world`, `plugins`, `mods`).
 3. Click **Upload** and choose a local file.
-4. **New Folder** creates a subdirectory.
+4. **New → Folder** creates a subdirectory.
 5. To edit text files online (such as `ops.json` and some configuration files), click the file name, or click **Edit** in the "…" menu on the right.
 6. When you're done, click **Start** or **Restart**.
 

@@ -178,6 +178,8 @@ export function readTextFile(instanceId: string, relativePath: string): TextFile
 }
 
 type TextWriteOptions = {
+  /** `fail` refuses when a file or folder is already at the path: creating a file must not empty one the list did not show yet. */
+  onConflict?: 'fail' | 'overwrite';
   /** Process IDs of the instance's server: a file one of them has open is written in place, see writeTextFile. */
   serverPids?: number[];
   /** Tests only: stands in for the rename that puts the new content in place. */
@@ -229,6 +231,9 @@ export function writeTextFile(
   assertMutableTarget(root, target);
   let existingMode: number | undefined;
   if (fs.existsSync(target)) {
+    // Before the type check, so a folder of that name is reported the same way. From here to the rename nothing yields,
+    // so no other request can put a file at the path in between.
+    if (options.onConflict === 'fail') throw new PanelError('server.files.alreadyExists', undefined, { statusCode: 409 });
     const stat = fs.lstatSync(target);
     if (stat.isSymbolicLink() || !stat.isFile()) {
       throw new PanelError('server.files.notRegularFile');

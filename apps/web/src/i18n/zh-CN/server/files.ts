@@ -31,6 +31,7 @@ export default {
   'server.files.rename.sameDirOnly': '重命名只能在同一目录内进行',
   'server.files.rename.sourceNotFound': '源路径不存在',
   'server.files.rename.conflict': '目标路径已存在，无法重命名',
+  'server.files.alreadyExists': '此处已有同名的文件或文件夹',
   'server.files.serverProperties.tooLarge': 'server.properties 超过大小限制（{limit} 字节）',
 
   // 请求参数校验
