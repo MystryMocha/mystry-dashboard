@@ -47,34 +47,59 @@ describe('stylesheet rules that keep text and edges sharp', () => {
   });
 
   it('surfaces are opaque: no backdrop blur and no blue-tinted translucent gray', () => {
-    expect(matches(/backdrop-filter\s*:[^;}]*/g)).toEqual([]);
-    expect(matches(/rgba\(\s*120\s*,\s*120\s*,\s*128\s*,[^)]*\)/g)).toEqual([]);
+    expect(matches(/backdrop-filter\s*:[^;{}]*/gi)).toEqual([]);
+    expect(matches(/rgba\(\s*120\s*,\s*120\s*,\s*128\s*,[^)]*\)/gi)).toEqual([]);
   });
 
   // A half-pixel line is drawn as a gray smear at 1x and at the fractional display scales
-  // Windows uses (125%, 150%, 175%).
+  // Windows uses (125%, 150%, 175%). Corner radii are not lines, so they are left alone.
   it('borders, outlines and shadows never use a half-pixel width', () => {
-    expect(matches(/(?:border|outline|box-shadow)[\w-]*\s*:[^;}]*?(?<![\d.])0?\.5px[^;}]*/g)).toEqual([]);
+    expect(
+      matches(/((?:border|outline|shadow)[\w-]*)\s*:[^;{}]*?(?<![\d.])0?\.50*px[^;{}]*/gi, (match) =>
+        /radius/i.test(match[1]),
+      ),
+    ).toEqual([]);
   });
 
   // Forcing grayscale smoothing turns off ClearType subpixel rendering on Windows.
   it('font smoothing and text rendering are left to the platform', () => {
-    expect(matches(/font-smoothing\s*:[^;}]*/g)).toEqual([]);
-    expect(matches(/text-rendering\s*:\s*optimizeLegibility/g)).toEqual([]);
+    expect(matches(/font-smoothing\s*:[^;{}]*/gi)).toEqual([]);
+    expect(matches(/text-rendering\s*:\s*optimizeLegibility/gi)).toEqual([]);
   });
 
-  // The "UI" variants are the condensed dialog faces, and a leading system-ui resolves to
-  // them on Windows under a zh-* language.
+  // The "UI" variants are the condensed dialog faces, and system-ui resolves to them on
+  // Windows under a zh-* language, so it may only follow the named faces as the last
+  // fallback before the generic family.
   it('font stacks avoid the condensed CJK dialog faces and keep system-ui last', () => {
-    expect(matches(/Microsoft (?:YaHei|JhengHei) UI/g)).toEqual([]);
-    expect(matches(/system-ui(?!\s*,\s*(?:sans-serif|monospace)\s*[;}])[^;}]*/g)).toEqual([]);
+    expect(matches(/Microsoft (?:YaHei|JhengHei) UI/gi)).toEqual([]);
+    expect(
+      matches(/[\w-]+\s*:\s*([^;{}]*system-ui[^;{}]*)/gi, (match) => {
+        const families = match[1]
+          .replace(/!important/i, '')
+          .split(',')
+          .map((family) => family.trim().toLowerCase());
+        const index = families.findIndex((family) => /(?:^|\s)system-ui$/.test(family));
+        const rest = families.slice(index + 1);
+        return index > 0 && rest.every((family) => /^(?:sans-serif|serif|monospace)$/.test(family));
+      }),
+    ).toEqual([]);
   });
 
   it('font sizes come from the --text-* scale, and every step of the scale is a whole pixel', () => {
-    const allowed = /^(?:var\(--text-[a-z]+\)|inherit)(?:\s*!important)?$/;
+    const allowed = /^(?:var\(--text-[a-z]+\)|inherit)(?:\s*!important)?$/i;
     expect(
-      matches(/(?<![\w-])font-size\s*:\s*([^;}]+)/g, (match) => allowed.test(match[1].trim())),
+      matches(/(?<![\w-])font-size\s*:\s*([^;{}]+)/gi, (match) => allowed.test(match[1].trim())),
     ).toEqual([]);
-    expect(matches(/--text-[a-z]+\s*:\s*([^;}]+)/g, (match) => /^\d+px$/.test(match[1].trim()))).toEqual([]);
+    // The font shorthand carries a size of its own, which would bypass the check above.
+    expect(
+      matches(/(?<![\w-])font\s*:\s*([^;{}]+)/gi, (match) => /^inherit$/i.test(match[1].trim())),
+    ).toEqual([]);
+    // Only lengths are checked, so a --text-* token that holds something else is not a step.
+    expect(
+      matches(/--text-[\w-]+\s*:\s*([^;{}]+)/gi, (match) => {
+        const value = match[1].trim();
+        return !/^[\d.]+[a-z%]*$/i.test(value) || /^\d+px$/i.test(value);
+      }),
+    ).toEqual([]);
   });
 });
