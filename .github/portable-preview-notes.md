@@ -8,6 +8,11 @@
 - **Scheduled backups**: An instance's **Backups** tab can run a daily automatic backup at a chosen local time and keep the newest scheduled copies, while leaving manual, uploaded and pre-restore backups untouched. Days with no server runs or file edits are skipped, and missed times are made up after the panel starts again.
 - **Sharper interface**: Frosted glass is gone so text stays sharp on Windows and macOS, the accent is now clay orange, the dark appearance is deep graphite, and the desktop sidebar can collapse to icons.
 - **Read-only binary files**: Binary files such as `level.dat`, plugin `.jar` archives and `server-icon.png` open read-only in the file editor instead of being shown and saved back as garbled text.
+- **Restart after a crash**: A switch in **Panel Settings** starts a server again when it exits unexpectedly after it had finished starting, after a wait and up to a set number of times in a row. It is off until you turn it on.
+- **Servers that outlive the panel**: A server still running after the panel exited unexpectedly is shown as **Detached** when the panel starts again. Starting, backing up, restoring or deleting that instance waits until the old process is stopped, so the same world cannot be opened twice.
+- **Console**: Chinese and other non-ASCII lines are no longer garbled at random, a long colored log reopens reliably, and the console reconnects by itself after a slow connection or a password change.
+- **Backups and imports**: A file that changes while it is backed up fails the backup instead of being stored truncated, Forge and NeoForge backups restore across Windows and Linux, uploads and downloads time out only when they stall, and ZIP files with file names in a legacy encoding are refused instead of imported with broken names.
+- **Security**: Sign-in attempts are limited per address and checked off the main thread, and on Windows the launcher restricts `config`, `data` and `logs` to the current user, `SYSTEM` and `Administrators`.
 
 ### New in 0.2.0-preview.7
 
@@ -55,7 +60,7 @@ First run `mdash stop` in the old folder (`mystryctl stop` in 0.2.0-preview.5 an
 - **Platform scope**: This preview ships for Windows x64 and Linux x64 only. Linux ARM64 and macOS builds, a system installer, service registration, start at boot, native auto-update and Windows code signing are not available yet.
 - **Network boundary**: By default the panel listens only on `127.0.0.1`. Access from other devices stays off until an administrator turns it on in the panel. Once it is on, the sign-in page is reachable from the networks you chose, so keep HTTPS on and do not expose the panel to the untrusted public internet.
 - **Signature & checksum verification**: After downloading, check the files against `SHA256SUMS`. Import `mystry-release-signing-key.asc`, confirm its fingerprint is `89776870C5B4C56BE7D0E32BA3AA7D21DB154796` (the same value as `.github/release-signing-key.fingerprint` in the repository; `gpg --fingerprint` prints it in groups of four, so ignore spaces and case when comparing), then verify `SHA256SUMS.asc` with that public key.
-- **Dependency audit**: The production dependency audit against the official registry on 2026-11-26 found 0 critical, 0 high and 2 moderate advisories. Both moderate advisories concern React Router 6 (GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg) and are fixed only in 7.18 and later. The frontend uses no SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs. The advisories remain a residual preview risk, and the audit is rerun for every release.
+- **Dependency audit**: The production dependency audit against the official registry on 2026-11-28 found 0 critical, 0 high and 2 moderate advisories. Both moderate advisories concern React Router 6 (GHSA-wrjc-x8rr-h8h6, GHSA-337j-9hxr-rhxg) and are fixed only in 7.18 and later. The frontend uses no SSR hydration, and navigation targets come from fixed in-app paths or server-generated instance IDs. The advisories remain a residual preview risk, and the audit is rerun for every release.
 
 Full details are in `docs/portable-release.md` in the repository; the Chinese version is `docs/portable-release.zh-CN.md`.
 
@@ -67,6 +72,11 @@ Full details are in `docs/portable-release.md` in the repository; the Chinese ve
 - **每天定时备份**：实例的「备份」页可在设定的本机时刻每天自动备份一次，并只保留最新的若干份定时备份，手动备份、上传的备份与还原前备份不受影响。服务器未运行且未改动文件的日期自动跳过，面板错过的时刻在重新启动后补做一次。
 - **界面更清晰**：去掉毛玻璃，保留 Windows 与 macOS 清晰的文字显示；强调色改为陶土橙，深色外观改为深石墨灰，桌面端侧栏可收起为图标栏。
 - **二进制文件只读保护**：`level.dat`、插件 `.jar` 与 `server-icon.png` 等二进制文件在文件编辑器中以只读方式打开，不再显示为乱码并误存损坏。
+- **崩溃后自动重启**：「面板设置」新增开关，服务器在启动完成之后异常退出时，面板于等待之后再次启动，连续重启的次数设有上限。默认关闭。
+- **面板退出后仍在运行的服务器**：面板异常退出后仍在运行的服务器，在面板再次启动时显示为「独立运行中」。旧进程停止之前，该实例的启动、备份、还原与删除一律等待，同一存档不会被打开两次。
+- **控制台**：中文及其他非 ASCII 文字不再随机出现乱码，日志较长且带颜色时可以稳定重新打开，连接过慢或修改密码之后自动重连。
+- **备份与导入**：备份期间发生变化的文件会使该次备份失败，不再存入被截断的内容；Forge 与 NeoForge 的备份可在 Windows 与 Linux 之间还原；上传与下载仅在停滞时超时；文件名采用旧编码的 ZIP 会被拒绝，不再以损坏的文件名导入。
+- **安全**：登录尝试按来源地址限制次数，密码校验移出主线程；在 Windows 上，启动器将 `config`、`data` 与 `logs` 限制为仅当前用户、`SYSTEM` 与 `Administrators` 可访问。
 
 ### 0.2.0-preview.7 新增
 
@@ -114,6 +124,6 @@ Full details are in `docs/portable-release.md` in the repository; the Chinese ve
 - **平台范围**：本 Preview 仅发布 Windows x64 与 Linux x64 版本；暂不提供 Linux ARM64 与 macOS 版本、系统安装器、服务注册、开机启动、原生自动更新或 Windows 代码签名。
 - **监听边界**：面板默认仅监听 `127.0.0.1`；从其他设备访问默认关闭，须由管理员在面板中开启。开启后，所选网络均可访问登录页，因此请保持 HTTPS 开启，切勿将面板暴露于不可信的公网。
 - **哈希与签名校验**：下载后先以 `SHA256SUMS` 校验文件；导入 `mystry-release-signing-key.asc`，核对指纹为 `89776870C5B4C56BE7D0E32BA3AA7D21DB154796`（与仓库 `.github/release-signing-key.fingerprint` 相同；`gpg --fingerprint` 每 4 位分组显示，比对时忽略空格与大小写），再以该公钥验证 `SHA256SUMS.asc`。
-- **依赖安全审计**：2026-11-26 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系依赖公告（GHSA-wrjc-x8rr-h8h6、GHSA-337j-9hxr-rhxg），仅 7.18 及更高版本修复。当前前端不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；这两项仍作为 Preview 残余风险保留，每次发布均重新审计。
+- **依赖安全审计**：2026-11-28 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系依赖公告（GHSA-wrjc-x8rr-h8h6、GHSA-337j-9hxr-rhxg），仅 7.18 及更高版本修复。当前前端不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；这两项仍作为 Preview 残余风险保留，每次发布均重新审计。
 
 完整说明见仓库中的 `docs/portable-release.zh-CN.md`，英文版为 `docs/portable-release.md`。

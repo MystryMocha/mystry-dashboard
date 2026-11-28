@@ -127,7 +127,7 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 - Java 8/17/21/25 不随包提供；可使用系统 `PATH` 中的运行时、选择面板扫描到的其他已安装版本，或在缺少推荐版本时由面板安装 Eclipse Temurin。
 - 登录仍使用浏览器本地存储的 JWT；Cookie 会话、CSRF 防护、TOTP 与公网部署向导尚未实现。
 - 面板默认仅监听 `127.0.0.1`。切勿将面板端口直接暴露于不可信的公网。
-- 2026-11-26 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系公告（GHSA-wrjc-x8rr-h8h6 反斜杠开放重定向、GHSA-337j-9hxr-rhxg SSR hydration 构造注入），仅 7.18 及更高版本修复。当前 SPA 不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；但这些公告仍作为 Preview 残余风险记录，每次发布须重新审计。此前的公告已通过以下升级消除：`react-router-dom` / `react-router` 升至 6.30.6（GHSA-jjmj-jmhj-qwj2），`@fastify/static` 升至 10.1.10 并带动 `glob` 14.0.3 / `minimatch` 11.0.4（GHSA-3g3m-2fjr-6pw4、GHSA-g3hv-75wg-m249），以及传递依赖（`fastify` 5.12.7、`fast-jwt` 6.3.5、`@fastify/busboy` 3.2.3、`fast-uri` 3.1.9 / 4.2.3、`brace-expansion` 5.0.12）。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入便携包；修复需跨大版本升级，暂未处理。
+- 2026-11-28 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系公告（GHSA-wrjc-x8rr-h8h6 反斜杠开放重定向、GHSA-337j-9hxr-rhxg SSR hydration 构造注入），仅 7.18 及更高版本修复。当前 SPA 不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；但这些公告仍作为 Preview 残余风险记录，每次发布须重新审计。此前的公告已通过以下升级消除：`react-router-dom` / `react-router` 升至 6.30.6（GHSA-jjmj-jmhj-qwj2），`@fastify/static` 升至 10.1.10 并带动 `glob` 14.0.3 / `minimatch` 11.0.4（GHSA-3g3m-2fjr-6pw4、GHSA-g3hv-75wg-m249），以及传递依赖（`fastify` 5.12.7、`fast-jwt` 6.3.5、`@fastify/busboy` 3.2.3、`fast-uri` 3.1.9 / 4.2.3、`brace-expansion` 5.0.12）。开发依赖 `vitest` 3 系的 `tinypool` critical 公告不进入便携包；修复需跨大版本升级，暂未处理。
 
 ## 发布维护
 
