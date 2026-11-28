@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { Readable } from 'node:stream';
-import type { FileEntry } from '@mystry/shared';
+import type { FileEntry, ServerMessageKey } from '@mystry/shared';
 import { config } from '../config.js';
 import { writeFileAtomic } from '../utils/atomic-write.js';
+import { checkEntryName, type EntryNameIssue } from '../utils/entry-name.js';
 import { getInstanceDir, OWNERSHIP_MARKER_FILE, resolveSafePath } from '../utils/path.js';
 import { streamToUploadTemp, removeUploadTemp } from './upload-service.js';
 import { hasErrorCode, PanelError } from '../utils/errors.js';
@@ -70,6 +71,30 @@ function assertMutableTarget(root: string, target: string): void {
   const marker = resolveSafePath(root, OWNERSHIP_MARKER_FILE);
   if (samePath(marker, target)) {
     throw new PanelError('server.files.markerImmutable');
+  }
+}
+
+const ENTRY_NAME_MESSAGES: Record<Exclude<EntryNameIssue, 'empty' | 'tooLong'>, ServerMessageKey> = {
+  invalidCharacter: 'server.files.name.invalidCharacter',
+  trailingDotOrSpace: 'server.files.name.trailingDotOrSpace',
+  reserved: 'server.files.name.reserved',
+};
+
+/**
+ * Refuses to create an entry under a name the system cannot handle afterwards (see checkEntryName). Every entry point that
+ * may create a file or directory calls this for its target. Only the segments that do not exist yet are checked: an entry
+ * that is already there, whatever its name, can still be opened, saved, renamed and deleted.
+ */
+function assertCreatableNames(root: string, target: string): void {
+  let current = root;
+  for (const segment of path.relative(root, target).split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    if (fs.existsSync(current)) continue;
+    const issue = checkEntryName(segment);
+    if (!issue) continue;
+    // A resolved path has no empty, "." or ".." segment left, and the system itself usually refuses an overlong name while the path is resolved.
+    if (issue === 'empty' || issue === 'tooLong') throw new PanelError('server.files.validation.path');
+    throw new PanelError(ENTRY_NAME_MESSAGES[issue], { name: segment });
   }
 }
 
@@ -188,6 +213,7 @@ export function writeTextFile(
     fs.accessSync(target, fs.constants.W_OK);
     existingMode = stat.mode & 0o7777;
   }
+  assertCreatableNames(root, target);
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
   try {
     // Written beside the target and renamed over it: a panel that stops midway leaves the old file whole, not half a config file.
@@ -294,6 +320,7 @@ export function renamePath(instanceId: string, from: string, to: string): void {
   if (fs.existsSync(dest)) {
     throw new FileRenameConflictError();
   }
+  assertCreatableNames(root, dest);
   fs.renameSync(src, dest);
 }
 
@@ -301,6 +328,7 @@ export function mkdirPath(instanceId: string, relativePath: string): void {
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
   assertMutableTarget(root, target);
+  assertCreatableNames(root, target);
   fs.mkdirSync(target, { recursive: true, mode: 0o700 });
 }
 
@@ -352,6 +380,8 @@ export async function saveUploadedFile(
   const safeName = path.posix.basename(filename.replace(/\\/g, '/'));
   const target = resolveSafePath(root, path.posix.join(relativeDir || '', safeName));
   assertMutableTarget(root, target);
+  // Before the upload is received, so a name that would be refused does not cost the whole transfer first.
+  assertCreatableNames(root, target);
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
   const temp = await streamToUploadTemp(input, 'file');
   const renameSync = replaceOperations.renameSync ?? fs.renameSync;

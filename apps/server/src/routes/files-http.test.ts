@@ -118,4 +118,29 @@ test('file endpoints over HTTP', async (t) => {
     });
     assert.equal(mkdir.statusCode, 413);
   });
+
+  await t.test('a name the system cannot handle is refused with a message that names it', async () => {
+    const bad = 'bad\u0001name';
+    const refused = (response: { statusCode: number; json: <T>() => T }, name: string) => {
+      assert.equal(response.statusCode, 400);
+      const { code, params } = response.json<{ code: string; params: unknown }>();
+      assert.deepEqual({ code, params }, { code: 'server.files.name.invalidCharacter', params: { name } });
+    };
+
+    refused(await app.inject({
+      method: 'POST',
+      url: `/api/instances/${id}/files/mkdir`,
+      headers: authorization,
+      payload: { path: `plugins/${bad}` },
+    }), bad);
+    assert.equal(fs.existsSync(path.join(root, 'plugins')), false);
+    refused(await save('x', authorization, `${bad}.yml`), `${bad}.yml`);
+    refused(await app.inject({
+      method: 'POST',
+      url: `/api/instances/${id}/files/rename`,
+      headers: authorization,
+      payload: { from: 'download.txt', to: bad },
+    }), bad);
+    assert.equal(fs.readFileSync(path.join(root, 'download.txt'), 'utf8'), 'download');
+  });
 });

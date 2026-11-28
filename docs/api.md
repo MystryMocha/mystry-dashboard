@@ -265,6 +265,8 @@ The issue lifetime of a download ticket is controlled by `FILE_DOWNLOAD_TICKET_T
 
 An authenticated `DELETE .../download-ticket/:ticket` cancels the ticket and immediately releases the pre-claimed slot, returning **204**, only when the ticket, the current user and the instance ID in the URL all match and the ticket is still `reserved`. Once it is `streaming`, neither the stream nor the slot is changed and it returns **409**; a nonexistent ticket or a mismatched owner or instance always returns **404**.
 
+A request that would create a file or directory (saving to a new path, `mkdir`, the target of a rename, an upload) is refused with **400** when a new name contains a control character, and on Windows also when it contains one of `<>:"|?*`, ends with a dot or a space, or is a device name such as `CON` or `NUL` with or without an extension. Entries that already exist are not checked, so they can still be saved, renamed and deleted.
+
 An upload over `MAX_UPLOAD_BYTES` returns **413**; full upload or download concurrency returns **429**. Related timeouts are in [Configuration](configuration.md).
 
 ## Instance Backups `/api/instances/:id/backups`

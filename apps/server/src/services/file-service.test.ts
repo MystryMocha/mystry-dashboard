@@ -554,3 +554,65 @@ test('saving a text file keeps its permission bits, and a file marked read-only 
     fs.chmodSync(locked, 0o644);
   }
 });
+
+test('creating an entry refuses a name the system cannot handle, while entries that are already there stay usable', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { config } = await import('../config.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath, mkdirPath, renamePath, saveUploadedFile, writeTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir, OWNERSHIP_MARKER_FILE } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'entry-names' });
+  const root = defaultInstanceDir(inst.id);
+  const entries = () => fs.readdirSync(root).filter((name) => name !== OWNERSHIP_MARKER_FILE).sort();
+  const hasKey = (key: string) => (err: unknown) => (err as { messageKey?: string }).messageKey === key;
+  fs.writeFileSync(path.join(root, 'a.txt'), 'a');
+
+  // A control character is refused on every system, by each entry point that can create something.
+  const bad = 'bad\u0001name';
+  const invalidCharacter = hasKey('server.files.name.invalidCharacter');
+  assert.throws(() => mkdirPath(inst.id, bad), invalidCharacter);
+  assert.throws(() => mkdirPath(inst.id, `plugins/${bad}/data`), invalidCharacter, 'a new folder is not created up to the bad name');
+  assert.throws(() => writeTextFile(inst.id, `${bad}.yml`, 'x'), invalidCharacter);
+  assert.throws(() => writeTextFile(inst.id, `${bad}/config.yml`, 'x'), invalidCharacter);
+  assert.throws(() => renamePath(inst.id, 'a.txt', `${bad}.txt`), invalidCharacter);
+  await assert.rejects(saveUploadedFile(inst.id, '', `${bad}.jar`, Readable.from('jar')), invalidCharacter);
+  await assert.rejects(saveUploadedFile(inst.id, `mods/${bad}`, 'mod.jar', Readable.from('jar')), invalidCharacter);
+  assert.deepEqual(entries(), ['a.txt']);
+  assert.equal(fs.readFileSync(path.join(root, 'a.txt'), 'utf8'), 'a');
+  // The upload was refused before anything of it was received.
+  assert.equal(fs.existsSync(config.uploadDir) && fs.readdirSync(config.uploadDir).some((entry) => entry.startsWith('.tmp-file-')), false);
+
+  if (process.platform === 'win32') {
+    for (const [name, key] of [
+      ['con', 'server.files.name.reserved'],
+      ['nul.txt', 'server.files.name.reserved'],
+      ['trailing.', 'server.files.name.trailingDotOrSpace'],
+      ['what?.txt', 'server.files.name.invalidCharacter'],
+    ] as const) {
+      assert.throws(() => mkdirPath(inst.id, name), hasKey(key), `mkdir ${name}`);
+      assert.throws(() => renamePath(inst.id, 'a.txt', name), hasKey(key), `rename to ${name}`);
+      assert.throws(() => writeTextFile(inst.id, `configs/${name}`, 'x'), hasKey(key), `write ${name}`);
+    }
+    assert.deepEqual(entries(), ['a.txt']);
+  } else {
+    // Legal here, and a server brought over from another machine may contain them.
+    mkdirPath(inst.id, 'con');
+    writeTextFile(inst.id, 'con/trailing.', 'x');
+    renamePath(inst.id, 'a.txt', 'what?.txt');
+    assert.deepEqual(entries(), ['con', 'what?.txt']);
+
+    // An entry whose name would be refused today can still be saved, used as a parent, renamed and deleted.
+    const odd = 'odd\u0001name.txt';
+    fs.writeFileSync(path.join(root, odd), 'old');
+    fs.mkdirSync(path.join(root, 'odd\u0001dir'));
+    writeTextFile(inst.id, odd, 'new');
+    assert.equal(fs.readFileSync(path.join(root, odd), 'utf8'), 'new');
+    writeTextFile(inst.id, 'odd\u0001dir/inside.yml', 'x');
+    renamePath(inst.id, odd, 'fixed.txt');
+    await deletePath(inst.id, 'odd\u0001dir');
+    assert.deepEqual(entries(), ['con', 'fixed.txt', 'what?.txt']);
+  }
+});

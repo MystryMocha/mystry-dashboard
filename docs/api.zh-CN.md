@@ -265,6 +265,8 @@ Authorization: Bearer <token>
 
 已认证的 `DELETE .../download-ticket/:ticket` 仅在 ticket、当前用户与 URL 中的实例 ID 三者均匹配，且 ticket 仍为 `reserved` 时，取消 ticket 并随即释放预占槽位，返回 **204**。已进入 `streaming` 时不改动流与槽位，返回 **409**；票据不存在、所属用户或实例不匹配时一律返回 **404**。
 
+会新建文件或目录的请求（保存到新路径、`mkdir`、重命名的目标、上传），在新名称含控制字符时返回 **400**；在 Windows 上，名称含 `<>:"|?*` 之一、以句点或空格结尾，或为 `CON`、`NUL` 等设备名（无论是否带扩展名）时同样拒绝。已存在的条目不受检查，仍可保存、重命名与删除。
+
 上传文件超过 `MAX_UPLOAD_BYTES` 时返回 **413**；上传或下载并发已满时返回 **429**。相关超时见 [配置说明](configuration.zh-CN.md)。
 
 ## 实例备份 `/api/instances/:id/backups`
