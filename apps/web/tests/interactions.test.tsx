@@ -3241,6 +3241,74 @@ test('files: a typed path with stray spaces around it still opens the folder, an
   expect(requested).toHaveLength(sent);
 });
 
+test('files: a typed path that fails again without its stray spaces shows why the folder itself cannot be opened', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const prefix = '/api/instances/test/files?path=';
+    if (!url.startsWith(prefix)) return baseFetch(url, options);
+    const path = decodeURIComponent(url.slice(prefix.length));
+    if (path === '') {
+      return new Response(JSON.stringify([{ name: 'server.properties', path: 'server.properties', isDirectory: false, size: 10, modifiedAt }]));
+    }
+    return path === 'server.properties'
+      ? new Response(JSON.stringify({ error: 'Target is not a directory.', code: 'server.files.notDirectory' }), { status: 400 })
+      : new Response(JSON.stringify({ error: 'Directory not found.', code: 'server.files.dirNotFound' }), { status: 400 });
+  }));
+
+  const user = userEvent.setup();
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  await screen.findByText('server.properties');
+  await user.click(screen.getByRole('button', { name: '输入路径' }));
+  const box = screen.getByRole<HTMLInputElement>('textbox', { name: '路径' });
+  await user.clear(box);
+  await user.type(box, '/server.properties {Enter}');
+  expect((await screen.findByRole('alert')).textContent).toContain('目标不是目录');
+  expect(screen.getByText('server.properties', { selector: '.file-name' })).toBeTruthy();
+});
+
+test('files: a delete or a new file that fails still reloads the list, which may have changed before the failure', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  let listed = [
+    { name: 'world', path: 'world', isDirectory: true, size: 0, modifiedAt },
+    { name: 'eula.txt', path: 'eula.txt', isDirectory: false, size: 10, modifiedAt },
+  ];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/files?path=') return new Response(JSON.stringify(listed));
+    if (url === '/api/instances/test/files?path=eula.txt' && options?.method === 'DELETE') {
+      // Stands in for a folder removed in part: the entry is gone although the request failed.
+      listed = listed.filter((entry) => entry.path !== 'eula.txt');
+      return new Response(JSON.stringify({ error: 'delete failed midway' }), { status: 500 });
+    }
+    if (url === '/api/instances/test/files/content' && options?.method === 'PUT') {
+      // The file was created before the write to it failed.
+      listed = [...listed, { name: 'notes.txt', path: 'notes.txt', isDirectory: false, size: 0, modifiedAt }];
+      return new Response(JSON.stringify({ error: 'no space left on device' }), { status: 500 });
+    }
+    return baseFetch(url, options);
+  }));
+
+  const user = userEvent.setup();
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  await screen.findByText('eula.txt');
+
+  await user.click(screen.getByRole('button', { name: 'eula.txt 的操作' }));
+  await user.click(screen.getByRole('menuitem', { name: '删除' }));
+  await user.click(screen.getByRole('button', { name: '确认删除' }));
+  expect(await screen.findByText('delete failed midway')).toBeTruthy();
+  await waitFor(() => expect(screen.queryByText('eula.txt', { selector: '.file-name' })).toBeNull());
+  await user.keyboard('{Escape}');
+
+  await user.click(screen.getByRole('button', { name: '新建' }));
+  await user.click(screen.getByRole('menuitem', { name: '文件' }));
+  const dialog = screen.getByRole('dialog', { name: '新建文件' });
+  await user.type(within(dialog).getByRole('textbox', { name: '文件名' }), 'notes.txt');
+  await user.click(within(dialog).getByRole('button', { name: '创建' }));
+  expect(await within(dialog).findByText('no space left on device')).toBeTruthy();
+  expect(await screen.findByText('notes.txt', { selector: '.file-name' })).toBeTruthy();
+});
+
 test('detached orphan process: dashboard, instance console, and backups reflect detached state and enforce force stop flow', async () => {
   const user = userEvent.setup();
   const baseFetch = globalThis.fetch;

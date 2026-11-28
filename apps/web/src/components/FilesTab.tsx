@@ -498,6 +498,8 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       closeDelete();
     } catch (err) {
       setDeleteError(errorMessage(err));
+      // A folder may have been removed in part by then.
+      void reloadAfterChange();
     } finally {
       setDeleting(false);
     }
@@ -622,6 +624,9 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       }
     } catch (err) {
       setCreateError(errorMessage(err));
+      // A write that failed after the file was created leaves it there: without the reload a retry under the same name
+      // would be refused over a file the list does not show.
+      void reloadAfterChange();
     } finally {
       setCreating(false);
     }
@@ -666,8 +671,12 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
             if (trimmed === path) endPathEdit(true);
             else await openListedPath(trimmed);
             return;
-          } catch {
+          } catch (retryErr) {
             if (generation !== pathCheckGenerationRef.current) return;
+            // The path without the spaces is the one that was meant: its error says why it cannot be opened.
+            setPathDraftError(errorMessage(retryErr));
+            setPathChecking(false);
+            return;
           }
         }
       }
