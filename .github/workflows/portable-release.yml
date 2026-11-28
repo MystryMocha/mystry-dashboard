@@ -278,7 +278,8 @@ jobs:
 
       # Not --prerelease: GitHub never treats a prerelease as Latest, so the repository home
       # page and /releases/latest would offer no download. Not --latest either: rerunning an
-      # older tag would then demote the newest release.
+      # older tag would then demote the newest release. Not --generate-notes: it appends a list
+      # of pull request titles after the notes, which repeats them in terms users cannot read.
       - name: Create GitHub release
         shell: bash
         env:
@@ -288,6 +289,5 @@ jobs:
           set -euo pipefail
           gh release create "$RELEASE_TAG" release-assets/* \
             --verify-tag \
-            --generate-notes \
             --notes "$(cat .github/portable-preview-notes.md)" \
             --title "$RELEASE_TAG"
