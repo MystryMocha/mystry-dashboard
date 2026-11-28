@@ -4,31 +4,59 @@
 
 This file records notable changes to the project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers follow [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.0-preview.1] - 2026-11-28
+
+### Upgrade notes
+
+- This release upgrades `panel.db`. The panel first saves a copy to `db-backups/` in the data directory; going back to an earlier release needs that copy.
+- `CORE_DOWNLOAD_TIMEOUT_MS` now limits how long a download may stall, not how long it may take, and defaults to 60 seconds. If you set it in `panel.env`, review the value.
+- The server list moved from `/` to `/instances`, and `/` now opens **Home**.
 
 ### Added
 
-- **Panel Settings** gains an **Instances** group with **Restart After a Crash**, off until you turn it on and applying to every instance. When a server exits unexpectedly after it had finished starting, the panel starts it again after **Wait Before Restarting** (10 seconds by default), at most **Maximum Restarts** times in a row (3); one more crash leaves the server crashed until you start it, and the count starts over once the restarted server has stayed up for **Count Starts Over After** (10 minutes) after it finished starting. While the panel waits, the instance's **Start** button counts down and cancels the restart when clicked; when the panel stops trying or the start is refused, a line at the top of the console gives the reason. A server that fails while starting is not restarted. `GET` and `PUT /api/system/auto-restart` read and save the setting, `InstanceInfo` gains `autoRestartState`, and `DELETE /api/instances/:id/pending-restart` cancels a waiting restart.
-
-## [0.3.0-preview.1] - 2026-11-26
-
-### Added
-
-- The **Home** resource trend gains **Network** (download and upload) and **Disk I/O** (read and write) tabs on Windows and Linux. Every 5 minutes the panel reads whole-machine counters (raw WMI/CIM counters on Windows, `/proc/net/dev` and `/proc/diskstats` on Linux), counting physical network adapters and whole physical disks only so tunnels, bridges and partitions are not counted twice. Schema version 4 adds the rate columns to `metric_samples`, and `GET /api/stats/overview` returns them per bucket with an `ioMetricsSupported` flag. When the counters cannot be read, the tab says so instead of waiting for data, and `ioReadFailed` reports which half failed.
-- Added the overview history backend (`GET /api/stats/overview?range=24h|7d|30d`) and schema version 3 tables `instance_runs` and `metric_samples`. The panel records instance runs (separating pre-spawn failures, startup failures, unready exits, normal stops, crashes and unexpected panel exits), samples host and running-instance CPU and memory every 5 minutes with 30-day retention, aggregates series in fixed buckets anchored on host samples, and scans `instances` and `backups` directory sizes asynchronously once an hour without following symlinks or directory junctions.
-- On desktop screens (1025px and wider), the sidebar can collapse to a 64px icon rail from the button on the left of the top bar, showing each item's name on hover or keyboard focus and remembering the choice in the browser.
-- An instance's **Backups** tab gains **Scheduled Backups**, off until you turn it on. It backs the server up once a day at the **Time of Day** (04:00 by default, on the clock of the computer that runs the panel) and keeps the newest scheduled backups, as many as **Scheduled Backups to Keep** says (7 by default); manual, uploaded and "Before restore" backups are never deleted by it. A day is skipped when the server hasn't run and no files were changed in the panel since the last scheduled backup. A time the panel missed is made up once after it starts again, and a backup cut short by the server starting, stopping or crashing is made again shortly after, up to three times a day. A backup doesn't start when the disk holding the backups has less free space than the size of the newest backup plus 256 MiB. `GET` and `PUT /api/instances/:id/backup-schedule` read and save the schedule, and `BackupInfo.source` gains the value `scheduled`.
-- A new read-only **Home** dashboard opens after you sign in, with a persistent **24 Hours / 7 Days / 30 Days** range switch. It shows four live status blocks inside one panel (**Running**, **CPU**, **Memory** and **Data Disk**) whose click/keyboard popovers break down active instances, CPU and memory share and data-disk usage; a side-by-side CPU and memory trend chart (handling offline gaps and hover/touch tooltips) next to a **This Machine** card (system, processor, threads, memory, uptime, plus **Open on Another Device** at phone width); and an **Instance Activity** state timeline marking ready runs and crashes (or a horizontal **Quick Deploy** / **Import Server** empty state when no instances exist). The legacy remote-node list and `/nodes` page are removed (old `/nodes` links redirect to `/`), and the server management list moves to **Instances** (`/instances`), where host usage appears only as one line beside the filter on warnings or monitoring failures.
+- Home: A read-only dashboard opens after sign-in. It shows running servers, CPU, memory and data-disk usage, trends over 24 hours, 7 days or 30 days, this machine's specs, and a timeline of each instance's runs and crashes. Network and disk I/O trends are available on Windows and Linux.
+- Backups: **Scheduled Backups** back a server up once a day at a time you choose and keep the newest few. Off by default; manual and uploaded backups are never deleted by it.
+- Settings: **Restart After a Crash** starts a server again when it crashes after it had finished starting. Off by default; the wait and the number of restarts in a row can be set.
+- Instances: A server still running after the panel exited unexpectedly is shown as **Detached**. Stop it from its instance page before starting, backing up, restoring or deleting that instance.
+- Interface: The sidebar can collapse to an icon rail on desktop screens.
+- Files: The editor asks before discarding unsaved changes.
+- Console: When the connection cannot be restored, the console shows **Disconnected**, the reason and a **Reconnect** button.
 
 ### Changed
 
-- The interface takes a calmer, sharper look. Every surface is solid: lists and forms sit on panels with a 1px edge, the sidebar is docked to the window edge, and the top bar sits flush with the page, drawing a line beneath it only once content scrolls under it. Frosted glass is gone, so text keeps the sharp rendering of Windows and macOS, and Chinese text at body size and smaller uses a medium weight instead of semibold, which Microsoft YaHei draws as bold. Buttons have square corners while status pills and badges stay round, and the accent is now clay orange, used only for the main action, controls that are switched on, focus and progress. Warnings and in-between states such as **Starting** are amber, and the dark appearance is a deep graphite rather than near black.
-- **Instances** lists the servers that need attention first, no longer adds "Players can join now" after **Running**, and on wide screens draws **Start**, **Stop** and **Invite Players** without a fill. The sidebar drops its group titles, and the **Properties** tab no longer opens with a note about `server.properties`.
-- The README quick start and portable guide now lead with running the portable build, and the screenshots and social preview image are retaken from the current interface.
+- Interface: Every surface is now solid, without frosted glass, so text stays sharp on Windows and macOS. The accent is clay orange, the dark appearance is deep graphite, and buttons have square corners.
+- Instances: Servers that need attention are listed first.
+- Uploads and downloads: Transfers are stopped only when they stall, so a large upload or a slow download is no longer cut off for taking long.
+- Backups: An uploaded backup may now be up to 100 GiB by default (`MAX_BACKUP_UPLOAD_BYTES`, was 10 GiB).
+
+### Removed
+
+- The remote-node list and the `/nodes` page. Old links open **Home**.
 
 ### Fixed
 
-- The file editor opened binary files under 1 MiB, such as `level.dat`, a plugin `.jar` or `server-icon.png`, as garbled text, and **Save** wrote that text back and broke the file. A file with a NUL byte in its first 8 KiB now opens read-only, with a warning and only **Close**; `GET /api/instances/:id/files/content` reports it with `binary: true`.
+- Files: Binary files such as `level.dat`, a plugin `.jar` or `server-icon.png` opened as garbled text, and saving broke them. They now open read-only.
+- Console: Chinese and other non-ASCII text showed up garbled at random.
+- Console: Reopening the console of a server with a long, colored log could fail over and over, or leave fragments such as `31m` on the first line.
+- Console: After the server closed a connection, the console retried every second without end and did not say why.
+- Backups: A backup taken while a file was being written could store a truncated copy of it. Such a backup now fails and says which file changed.
+- Backups: A Forge or NeoForge server backed up on Windows failed to start after being restored on Linux, and the other way round.
+- Backups: Uploading a large backup froze the panel when the backup directory was on another drive.
+- Startup: The panel refused to start when the backup directory held folders such as `lost+found` or `System Volume Information`.
+- Startup: After a crash or a power loss, the panel could refuse to start until a leftover lock record was deleted by hand.
+- Deploy and Import: A deploy or import that failed at its last step could leave a folder under `instances/` that belonged to no instance.
+- Import: File names in a ZIP written in a legacy encoding, such as GBK from Windows Explorer, came out garbled. Such an archive is now refused with a hint when it carries no Unicode names.
+- Tasks: When the disk was full as a task ended, the panel shut down without stopping the servers it had started.
+- Portable (Linux): A package extracted as root refused to start because its files belonged to another user.
+- Launcher: The launcher crashed on a Linux server without a desktop.
+- Launcher: After `PORT` or `HOST` was changed in `panel.env` while the panel was running, `status`, `open`, `stop` and `reset-password` could not find the panel.
+
+### Security
+
+- Sign-in: Failed attempts are limited per address, and password checks no longer slow down the rest of the panel.
+- Rate limiting: Requests to paths that do not exist are limited as well.
+- Windows: The launcher restricts `config`, `data` and `logs` to the current user, `SYSTEM` and `Administrators`, and the panel warns at startup when other local accounts can reach the data directory.
+- Import: A ZIP that contains the panel's own marker files is refused.
 
 ## [0.2.0-preview.7] - 2026-11-24
 
