@@ -7,6 +7,8 @@ export type AtomicWriteOptions = {
   createMode?: number;
   /** Permission bits set on the file whatever the umask is, to keep those of the file being replaced. */
   exactMode?: number;
+  /** Takes the place of the process ID in the temp file's name, so that the caller can recognize its own leftovers. */
+  tempTag?: string;
   /** Tests only: stands in for the rename over the target. */
   renameSync?: typeof fs.renameSync;
 };
@@ -17,7 +19,7 @@ export function writeFileAtomic(target: string, content: string | Buffer, option
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const temp = path.join(
     dir,
-    `.${path.basename(target)}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`,
+    `.${path.basename(target)}.${options.tempTag ?? process.pid}.${randomBytes(8).toString('hex')}.tmp`,
   );
   const bytes = typeof content === 'string' ? Buffer.from(content, 'utf8') : content;
   const fd = fs.openSync(temp, 'wx', options.createMode ?? 0o600);

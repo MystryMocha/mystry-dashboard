@@ -478,6 +478,7 @@ test('saving a text file replaces it in one step: a failed save keeps the old co
   writeTextFile(inst.id, 'config/paper.yml', 'motd: second\n', {
     renameSync(source, destination) {
       renamed.push([path.dirname(String(source)), String(destination)]);
+      assert.match(path.basename(String(source)), /^\.paper\.yml\.mystry-save\.[0-9a-f]{16}\.tmp$/);
       assert.equal(fs.readFileSync(source, 'utf8'), 'motd: second\n');
       assert.equal(fs.readFileSync(target, 'utf8'), 'motd: 你好\n', 'the old file is whole until the rename');
       fs.renameSync(source, destination);
@@ -615,4 +616,82 @@ test('creating an entry refuses a name the system cannot handle, while entries t
     await deletePath(inst.id, 'odd\u0001dir');
     assert.deepEqual(entries(), ['con', 'fixed.txt', 'what?.txt']);
   }
+});
+
+test('a temp file left by a save that was cut short is not listed, and the next save in the directory removes it', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { listFiles, writeTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-save-leftover' });
+  const dir = path.join(defaultInstanceDir(inst.id), 'config');
+  fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, 'paper.yml'), 'motd: old\n');
+  const leftover = '.paper.yml.mystry-save.0123456789abcdef.tmp';
+  fs.writeFileSync(path.join(dir, leftover), 'motd: ha');
+  // Not the panel's: other files that merely look temporary are shown and kept.
+  const others = ['.paper.yml.4242.0123456789abcdef.tmp', 'world.mystry-save.0123456789abcdef.tmp', '.notes.tmp'];
+  for (const name of others) fs.writeFileSync(path.join(dir, name), 'keep');
+  fs.mkdirSync(path.join(dir, '.dir.mystry-save.0123456789abcdef.tmp'));
+
+  const listed = listFiles(inst.id, 'config').map((entry) => entry.name);
+  assert.equal(listed.includes(leftover), false);
+  assert.deepEqual(listed.sort(), ['.dir.mystry-save.0123456789abcdef.tmp', 'paper.yml', ...others].sort());
+
+  writeTextFile(inst.id, 'config/spigot.yml', 'x\n');
+  assert.equal(fs.existsSync(path.join(dir, leftover)), false);
+  assert.deepEqual(
+    fs.readdirSync(dir).sort(),
+    ['.dir.mystry-save.0123456789abcdef.tmp', 'paper.yml', 'spigot.yml', ...others].sort(),
+  );
+  assert.equal(fs.readFileSync(path.join(dir, 'paper.yml'), 'utf8'), 'motd: old\n');
+});
+
+test('a file the running server has open is saved in place, so the server keeps writing to the file that is shown', { skip: process.platform !== 'linux' }, async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { writeTextFile } = await import('./file-service.js');
+  const { isFileOpenInProcess } = await import('../utils/open-files.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-save-open' });
+  const root = defaultInstanceDir(inst.id);
+  fs.mkdirSync(path.join(root, 'logs'));
+  const log = path.join(root, 'logs', 'latest.log');
+  fs.writeFileSync(log, '[10:00:00] Starting\n[10:00:05] Done\n');
+  fs.writeFileSync(path.join(root, 'server.properties'), 'motd=old\n');
+  const noRename = () => assert.fail('a file held open must not be replaced by a rename');
+
+  // This test process stands in for the server: it holds the log open for appending, as a server does.
+  const fd = fs.openSync(log, 'a');
+  try {
+    assert.equal(isFileOpenInProcess(process.pid, log), true);
+    assert.equal(isFileOpenInProcess(process.pid, path.join(root, 'server.properties')), false);
+    const inode = fs.statSync(log).ino;
+
+    writeTextFile(inst.id, 'logs/latest.log', '[10:00:05] Done\n', { serverPids: [process.pid], renameSync: noRename });
+    fs.writeSync(fd, '[10:00:09] Saved the game\n');
+    assert.equal(fs.readFileSync(log, 'utf8'), '[10:00:05] Done\n[10:00:09] Saved the game\n');
+    assert.equal(fs.statSync(log).ino, inode);
+
+    // A file the server does not have open is still replaced by a rename, whether or not a server is running.
+    let renames = 0;
+    const countRename: typeof fs.renameSync = (source, destination) => {
+      renames += 1;
+      fs.renameSync(source, destination);
+    };
+    writeTextFile(inst.id, 'server.properties', 'motd=new\n', { serverPids: [process.pid], renameSync: countRename });
+    assert.equal(renames, 1);
+    assert.equal(fs.readFileSync(path.join(root, 'server.properties'), 'utf8'), 'motd=new\n');
+  } finally {
+    fs.closeSync(fd);
+  }
+  assert.equal(isFileOpenInProcess(process.pid, log), false);
+  // A process that does not exist has nothing open.
+  assert.equal(isFileOpenInProcess(2 ** 30, log), false);
 });

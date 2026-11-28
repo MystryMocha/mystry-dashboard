@@ -6,6 +6,7 @@ import type { FileEntry, ServerMessageKey } from '@mystry/shared';
 import { config } from '../config.js';
 import { writeFileAtomic } from '../utils/atomic-write.js';
 import { checkEntryName, type EntryNameIssue } from '../utils/entry-name.js';
+import { isFileOpenInProcess } from '../utils/open-files.js';
 import { getInstanceDir, OWNERSHIP_MARKER_FILE, resolveSafePath } from '../utils/path.js';
 import { streamToUploadTemp, removeUploadTemp } from './upload-service.js';
 import { hasErrorCode, PanelError } from '../utils/errors.js';
@@ -118,6 +119,8 @@ export function listFiles(instanceId: string, relativePath = ''): FileEntry[] {
     .readdirSync(target, { withFileTypes: true })
     // The ownership marker in the instance root is maintained by the panel and not shown to users; the modifying endpoints already refuse to operate on it.
     .filter((entry) => !samePath(path.join(target, entry.name), markerPath))
+    // Left by a save that was cut short; the next save in this directory removes them.
+    .filter((entry) => !(entry.isFile() && TEXT_SAVE_TEMP_NAME.test(entry.name)))
     .map((entry) => {
       const full = path.join(target, entry.name);
       const s = fs.lstatSync(full);
@@ -174,10 +177,31 @@ export function readTextFile(instanceId: string, relativePath: string): TextFile
   };
 }
 
-type TextWriteOperations = {
+type TextWriteOptions = {
+  /** Process IDs of the instance's server: a file one of them has open is written in place, see writeTextFile. */
+  serverPids?: number[];
   /** Tests only: stands in for the rename that puts the new content in place. */
   renameSync?: typeof fs.renameSync;
 };
+
+/** Marks the temp files of text saves: `.<name>.mystry-save.<16 hex digits>.tmp`, beside the file being saved. */
+const TEXT_SAVE_TEMP_TAG = 'mystry-save';
+const TEXT_SAVE_TEMP_NAME = /^\..+\.mystry-save\.[0-9a-f]{16}\.tmp$/;
+
+/**
+ * A panel that is killed between writing a temp file and renaming it leaves the temp file behind. A save runs from start to
+ * finish without yielding and only one panel process uses the data directory, so once a save has finished, every such file
+ * in the directory is a leftover. Failures are ignored: the listing hides these files, and the next save tries again.
+ */
+function removeLeftoverTextSaveTemps(dir: string): void {
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isFile() && TEXT_SAVE_TEMP_NAME.test(entry.name)) fs.rmSync(path.join(dir, entry.name), { force: true });
+    }
+  } catch {
+    /* See above. */
+  }
+}
 
 /**
  * Failures that mean the file cannot be replaced by a rename here, while writing into it may still work: on Windows another
@@ -190,7 +214,7 @@ export function writeTextFile(
   instanceId: string,
   relativePath: string,
   content: string,
-  operations: TextWriteOperations = {},
+  options: TextWriteOptions = {},
 ): void {
   if (typeof content !== 'string') {
     throw new PanelError('server.files.text.invalidContent');
@@ -215,17 +239,28 @@ export function writeTextFile(
   }
   assertCreatableNames(root, target);
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+  // Where a rename over an open file succeeds (Linux), the server would go on writing to the old file, which no longer has a
+  // name: its latest.log would stop growing where anyone can read it. Such a file is written in place, which is also where
+  // Windows ends up below, because it refuses the rename.
+  const heldOpenByServer = existingMode !== undefined
+    && (options.serverPids ?? []).some((pid) => isFileOpenInProcess(pid, target));
   try {
-    // Written beside the target and renamed over it: a panel that stops midway leaves the old file whole, not half a config file.
-    // An existing file keeps its permission bits (a start script stays executable); a new one gets the usual ones.
-    writeFileAtomic(target, bytes, {
-      ...(existingMode === undefined ? { createMode: 0o666 } : { exactMode: existingMode }),
-      renameSync: operations.renameSync,
-    });
+    if (heldOpenByServer) {
+      fs.writeFileSync(target, bytes);
+    } else {
+      // Written beside the target and renamed over it: a panel that stops midway leaves the old file whole, not half a config file.
+      // An existing file keeps its permission bits (a start script stays executable); a new one gets the usual ones.
+      writeFileAtomic(target, bytes, {
+        ...(existingMode === undefined ? { createMode: 0o666 } : { exactMode: existingMode }),
+        tempTag: TEXT_SAVE_TEMP_TAG,
+        renameSync: options.renameSync,
+      });
+    }
   } catch (error) {
-    if (!REPLACE_REFUSED_CODES.some((code) => hasErrorCode(error, code))) throw error;
+    if (heldOpenByServer || !REPLACE_REFUSED_CODES.some((code) => hasErrorCode(error, code))) throw error;
     fs.writeFileSync(target, bytes);
   }
+  removeLeftoverTextSaveTemps(path.dirname(target));
 }
 
 /** Before reading server.properties directly, checks that it is still a restricted regular text file. */

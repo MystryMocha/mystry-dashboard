@@ -107,6 +107,7 @@ test('file endpoints over HTTP', async (t) => {
     // The body limit is still there: nothing within the text limit can reach it.
     const overBodyLimit = await save('x'.repeat(limit * 16));
     assert.equal(overBodyLimit.statusCode, 413);
+    assert.equal(overBodyLimit.json<{ code: string }>().code, 'server.common.bodyTooLarge');
     assert.equal(read(), controlCharacters);
 
     // Other endpoints keep the general limit.

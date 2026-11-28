@@ -132,6 +132,13 @@ export async function deleteInstancePath(instanceId: string, relativePath: strin
   });
 }
 
+/** The instance's server process: the one the panel started, or one still running from before the panel restarted. */
+function serverPids(instanceId: string): number[] {
+  const started = processManager.getMetricTargets().find((target) => target.id === instanceId)?.pid;
+  const detached = processManager.getOrphanProcess(instanceId)?.pid;
+  return [started, detached].filter((pid): pid is number => typeof pid === 'number');
+}
+
 function validationMessage(reply: { code: (statusCode: number) => { send: (payload: unknown) => unknown } }, key: ServerMessageKey) {
   return reply.code(400).send(panelErrorBody(key));
 }
@@ -334,7 +341,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
         rejectWhileRestoring(req.params.id);
-        writeTextFile(req.params.id, req.body.path, req.body.content);
+        writeTextFile(req.params.id, req.body.path, req.body.content, { serverPids: serverPids(req.params.id) });
         noteInstanceFilesChanged(req.params.id);
         return { ok: true };
       } catch (err) {
