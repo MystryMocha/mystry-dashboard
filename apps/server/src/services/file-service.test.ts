@@ -454,3 +454,103 @@ test('a text read reports a file with a NUL byte in its first 8 KiB as binary, a
   assert.equal(readTextFile(inst.id, 'late-nul.txt').binary, false);
   assert.deepEqual(readTextFile(inst.id, 'empty.txt'), { content: '', binary: false });
 });
+
+test('saving a text file replaces it in one step: a failed save keeps the old content and leaves no temp file behind', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { readTextFile, writeTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-save' });
+  const root = defaultInstanceDir(inst.id);
+  const target = path.join(root, 'config', 'paper.yml');
+  const listing = () => fs.readdirSync(path.dirname(target));
+
+  // A new file, in a directory that does not exist yet.
+  writeTextFile(inst.id, 'config/paper.yml', 'motd: 你好\n');
+  assert.equal(fs.readFileSync(target, 'utf8'), 'motd: 你好\n');
+  assert.deepEqual(listing(), ['paper.yml']);
+
+  // An existing file is replaced by a rename of a temp file written beside it.
+  const renamed: string[][] = [];
+  writeTextFile(inst.id, 'config/paper.yml', 'motd: second\n', {
+    renameSync(source, destination) {
+      renamed.push([path.dirname(String(source)), String(destination)]);
+      assert.equal(fs.readFileSync(source, 'utf8'), 'motd: second\n');
+      assert.equal(fs.readFileSync(target, 'utf8'), 'motd: 你好\n', 'the old file is whole until the rename');
+      fs.renameSync(source, destination);
+    },
+  });
+  assert.deepEqual(renamed, [[path.dirname(target), target]]);
+  assert.deepEqual(readTextFile(inst.id, 'config/paper.yml'), { content: 'motd: second\n', binary: false });
+  assert.deepEqual(listing(), ['paper.yml']);
+
+  // The disk fills up, or anything else goes wrong: the old content stays and the save is reported as failed.
+  assert.throws(
+    () => writeTextFile(inst.id, 'config/paper.yml', 'motd: third\n', {
+      renameSync() {
+        throw Object.assign(new Error('injected: no space left'), { code: 'ENOSPC' });
+      },
+    }),
+    /injected: no space left/,
+  );
+  assert.equal(fs.readFileSync(target, 'utf8'), 'motd: second\n');
+  assert.deepEqual(listing(), ['paper.yml']);
+
+  // The file cannot be renamed over (held open by another program on Windows): it is written in place instead, as before.
+  for (const code of ['EPERM', 'EBUSY', 'EACCES']) {
+    writeTextFile(inst.id, 'config/paper.yml', `motd: ${code}\n`, {
+      renameSync() {
+        throw Object.assign(new Error(`injected: ${code}`), { code });
+      },
+    });
+    assert.equal(fs.readFileSync(target, 'utf8'), `motd: ${code}\n`);
+    assert.deepEqual(listing(), ['paper.yml']);
+  }
+
+  // Saving empty content empties the file.
+  writeTextFile(inst.id, 'config/paper.yml', '');
+  assert.equal(fs.statSync(target).size, 0);
+});
+
+test('saving a text file keeps its permission bits, and a file marked read-only is still refused', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { writeTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-save-mode' });
+  const root = defaultInstanceDir(inst.id);
+
+  // Windows has no permission bits beyond read-only.
+  if (process.platform !== 'win32') {
+    const script = path.join(root, 'start.sh');
+    fs.writeFileSync(script, '#!/bin/sh\n');
+    fs.chmodSync(script, 0o754);
+    writeTextFile(inst.id, 'start.sh', '#!/bin/sh\nexec java -jar server.jar\n');
+    assert.equal(fs.statSync(script).mode & 0o7777, 0o754);
+    assert.equal(fs.readFileSync(script, 'utf8'), '#!/bin/sh\nexec java -jar server.jar\n');
+  }
+
+  const locked = path.join(root, 'locked.properties');
+  fs.writeFileSync(locked, 'keep=1\n');
+  fs.chmodSync(locked, 0o444);
+  try {
+    // root may write to any file, so there is nothing to refuse.
+    if (process.getuid?.() !== 0) {
+      assert.throws(
+        () => writeTextFile(inst.id, 'locked.properties', 'keep=2\n'),
+        (err: unknown) => ['EACCES', 'EPERM'].includes(String((err as { code?: unknown }).code)),
+      );
+      assert.equal(fs.readFileSync(locked, 'utf8'), 'keep=1\n');
+      assert.deepEqual(fs.readdirSync(root).filter((entry) => entry.endsWith('.tmp')), []);
+    }
+  } finally {
+    // A read-only file would keep Windows from removing the data directory after the test.
+    fs.chmodSync(locked, 0o644);
+  }
+});

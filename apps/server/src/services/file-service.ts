@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import type { Readable } from 'node:stream';
 import type { FileEntry } from '@mystry/shared';
 import { config } from '../config.js';
+import { writeFileAtomic } from '../utils/atomic-write.js';
 import { getInstanceDir, OWNERSHIP_MARKER_FILE, resolveSafePath } from '../utils/path.js';
 import { streamToUploadTemp, removeUploadTemp } from './upload-service.js';
 import { hasErrorCode, PanelError } from '../utils/errors.js';
@@ -148,26 +149,57 @@ export function readTextFile(instanceId: string, relativePath: string): TextFile
   };
 }
 
-export function writeTextFile(instanceId: string, relativePath: string, content: string): void {
+type TextWriteOperations = {
+  /** Tests only: stands in for the rename that puts the new content in place. */
+  renameSync?: typeof fs.renameSync;
+};
+
+/**
+ * Failures that mean the file cannot be replaced by a rename here, while writing into it may still work: on Windows another
+ * program holds it open (a running server and its latest.log), the directory itself is not writable, or the name leaves no
+ * room for the temp file's suffix. A full disk is not one of them: writing in place would then cut the file short.
+ */
+const REPLACE_REFUSED_CODES = ['EPERM', 'EACCES', 'EBUSY', 'ENAMETOOLONG'];
+
+export function writeTextFile(
+  instanceId: string,
+  relativePath: string,
+  content: string,
+  operations: TextWriteOperations = {},
+): void {
   if (typeof content !== 'string') {
     throw new PanelError('server.files.text.invalidContent');
   }
-  const contentBytes = Buffer.byteLength(content, 'utf8');
-  if (contentBytes > maxTextFileBytes) {
+  const bytes = Buffer.from(content, 'utf8');
+  if (bytes.length > maxTextFileBytes) {
     throw new PanelError('server.files.text.tooLarge', { limit: maxTextFileBytes });
   }
 
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
   assertMutableTarget(root, target);
+  let existingMode: number | undefined;
   if (fs.existsSync(target)) {
     const stat = fs.lstatSync(target);
     if (stat.isSymbolicLink() || !stat.isFile()) {
       throw new PanelError('server.files.notRegularFile');
     }
+    // A rename replaces a file whatever its own permissions say, so a file marked read-only is refused here, as it was when it was written in place.
+    fs.accessSync(target, fs.constants.W_OK);
+    existingMode = stat.mode & 0o7777;
   }
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(target, Buffer.from(content, 'utf8'));
+  try {
+    // Written beside the target and renamed over it: a panel that stops midway leaves the old file whole, not half a config file.
+    // An existing file keeps its permission bits (a start script stays executable); a new one gets the usual ones.
+    writeFileAtomic(target, bytes, {
+      ...(existingMode === undefined ? { createMode: 0o666 } : { exactMode: existingMode }),
+      renameSync: operations.renameSync,
+    });
+  } catch (error) {
+    if (!REPLACE_REFUSED_CODES.some((code) => hasErrorCode(error, code))) throw error;
+    fs.writeFileSync(target, bytes);
+  }
 }
 
 /** Before reading server.properties directly, checks that it is still a restricted regular text file. */

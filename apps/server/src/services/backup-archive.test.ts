@@ -252,7 +252,7 @@ test('files appended or atomically replaced while being read abort the backup wi
     openMock.mock.restore();
   }
 
-  // Case 2: file is overwritten in place with same-length different content while open (e.g. writeTextFile).
+  // Case 2: file is overwritten in place with same-length different content while open (e.g. a text save that could not replace the file by a rename).
   const overwritten = path.join(source, 'config.yml');
   fs.writeFileSync(overwritten, 'mode: safe\n');
   const overwrittenScan = fs.statSync(overwritten);
