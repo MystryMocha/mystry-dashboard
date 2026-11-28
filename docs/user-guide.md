@@ -341,7 +341,7 @@ You can work only with files inside the current instance's root folder:
 
 **Edit** opens the file's content in a dialog; click **Save** or press **Ctrl+S** (**⌘S** on macOS) to write it back to disk. A new file opens in the editor as soon as it's created. If the name is already taken, the file isn't created, so an existing file is never emptied. Large files can't be edited online. A binary file, such as `level.dat` or a plugin `.jar`, opens read-only with a warning, because saving it here would break it.
 
-Paths are relative to the instance root. Before you change `mods`, `plugins` or world data, it's best to **stop the server first**.
+Paths are relative to the instance root. If a typed path has surrounding spaces and the directory is missing, the panel tries again without those spaces. If it cannot open the directory, the error appears in the path box and the current folder stays open. Before you change `mods`, `plugins` or world data, it's best to **stop the server first**.
 
 Downloads are saved directly by the browser, so even large files don't fill up the page's memory. By default at most 4 downloads run at once; when it's busy, you see "Downloads are busy. Try again later." To copy a whole folder, stop the server and use your system's file manager on the instance folder.
 

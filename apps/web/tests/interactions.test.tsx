@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { FileEntry } from '@mystry/shared';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -3101,6 +3102,94 @@ test('files: an upload that finishes after another folder was opened reloads tha
   expect(screen.getByText('level.dat')).toBeTruthy();
   expect(screen.queryByText('正在读取文件列表…')).toBeNull();
   expect(listed).toHaveLength(3);
+});
+
+test('files: typing the upload folder again shows a file uploaded after the path check started', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  let finishUpload: (() => void) | undefined;
+  let finishPathCheck: (() => void) | undefined;
+  let uploaded = false;
+  let holdPathCheck = false;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url === '/api/instances/test/files/upload?path=world') {
+      return new Promise<Response>((resolve) => {
+        finishUpload = () => {
+          uploaded = true;
+          resolve(new Response(JSON.stringify({ ok: true })));
+        };
+      });
+    }
+    if (url === '/api/instances/test/files?path=') {
+      return new Response(JSON.stringify([{ name: 'world', path: 'world', isDirectory: true, size: 0, modifiedAt }]));
+    }
+    if (url === '/api/instances/test/files?path=world') {
+      const listing: FileEntry[] = [{ name: 'level.dat', path: 'world/level.dat', isDirectory: false, size: 10, modifiedAt }];
+      if (uploaded) listing.push({ name: 'new.txt', path: 'world/new.txt', isDirectory: false, size: 1, modifiedAt });
+      const response = new Response(JSON.stringify(listing));
+      if (holdPathCheck) {
+        holdPathCheck = false;
+        return new Promise<Response>((resolve) => {
+          finishPathCheck = () => resolve(response);
+        });
+      }
+      return response;
+    }
+    return baseFetch(url, options);
+  }));
+
+  const user = userEvent.setup();
+  const { container } = render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  await user.click(await screen.findByTitle('打开 world'));
+  await screen.findByText('level.dat');
+  await user.upload(container.querySelector<HTMLInputElement>('input[type="file"]')!, new File(['x'], 'new.txt'));
+  expect(finishUpload).toBeDefined();
+
+  await user.click(screen.getByRole('button', { name: '实例根目录' }));
+  await screen.findByTitle('打开 world');
+  holdPathCheck = true;
+  await user.click(screen.getByRole('button', { name: '输入路径' }));
+  const box = screen.getByRole('textbox', { name: '路径' });
+  await user.clear(box);
+  await user.type(box, '/world{Enter}');
+  expect(finishPathCheck).toBeDefined();
+
+  await act(async () => finishUpload?.());
+  await act(async () => finishPathCheck?.());
+  expect(await screen.findByText('new.txt')).toBeTruthy();
+});
+
+test('files: a service error for a typed folder with spaces stays visible without opening another folder', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  const requested: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const prefix = '/api/instances/test/files?path=';
+    if (!url.startsWith(prefix)) return baseFetch(url, options);
+    const path = decodeURIComponent(url.slice(prefix.length));
+    requested.push(path);
+    if (path === 'world ') {
+      return new Response(JSON.stringify({
+        error: 'Directory contains a symbolic link.',
+        code: 'server.files.dirContainsLink',
+      }), { status: 400 });
+    }
+    return new Response(JSON.stringify(path === ''
+      ? [{ name: 'world', path: 'world', isDirectory: true, size: 0, modifiedAt }]
+      : [{ name: 'level.dat', path: 'world/level.dat', isDirectory: false, size: 10, modifiedAt }]));
+  }));
+
+  const user = userEvent.setup();
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  await screen.findByTitle('打开 world');
+  await user.click(screen.getByRole('button', { name: '输入路径' }));
+  const box = screen.getByRole<HTMLInputElement>('textbox', { name: '路径' });
+  await user.clear(box);
+  await user.type(box, '/world {Enter}');
+  expect((await screen.findByRole('alert')).textContent).toContain('目录中存在符号链接或目录联接，已拒绝访问');
+  expect(box.value).toBe('/world ');
+  expect(screen.getByTitle('打开 world')).toBeTruthy();
+  expect(requested).toEqual(['', 'world ']);
 });
 
 test('files: a typed path with stray spaces around it still opens the folder, and a padded drive path is refused in the box', async () => {

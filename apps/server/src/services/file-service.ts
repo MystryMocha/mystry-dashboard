@@ -237,25 +237,21 @@ function createTextFile(target: string, bytes: Buffer): void {
     // An empty file can be published immediately. On the fallback, the new file is visible during the write.
     const fd = fs.openSync(target, 'wx', 0o666);
     try {
-      try {
-        // One call may write less than it was given.
-        for (let written = 0; written < bytes.length;) {
-          written += fs.writeSync(fd, bytes, written);
-        }
-        fs.fsyncSync(fd);
-      } finally {
-        fs.closeSync(fd);
+      // One call may write less than it was given.
+      for (let written = 0; written < bytes.length;) {
+        written += fs.writeSync(fd, bytes, written);
       }
+      fs.fsyncSync(fd);
     } catch (error) {
-      // The exclusive open above created this file, so removing it takes nothing from anyone. Left in place, a file cut
-      // short by a full disk would answer every further attempt with "already exists".
+      // Another writer may have replaced the path. Leave it alone even if our write was incomplete.
       try {
-        fs.rmSync(target, { force: true });
+        fs.closeSync(fd);
       } catch {
         /* The write failure is the one to report. */
       }
       throw error;
     }
+    fs.closeSync(fd);
   } catch (error) {
     if (hasErrorCode(error, 'EEXIST')) throw fileAlreadyExists();
     throw error;

@@ -263,6 +263,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   const editTextRef = useRef<HTMLTextAreaElement>(null);
   /** File list request generation: late old lists are discarded after a directory change, so they do not overwrite the current view. */
   const loadGenerationRef = useRef(0);
+  const fileChangeRevisionRef = useRef(0);
   /** A refresh started after an async file operation reads the directory currently shown. */
   const pathRef = useRef('');
   const downloadControllersRef = useRef(new Set<AbortController>());
@@ -288,6 +289,11 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       if (generation === loadGenerationRef.current) setLoading(false);
     }
   }, [instanceId]);
+
+  function reloadAfterChange() {
+    fileChangeRevisionRef.current += 1;
+    return load();
+  }
 
   useEffect(() => {
     const controllers = downloadControllersRef.current;
@@ -466,7 +472,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       setSaved(true);
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
-      await load();
+      await reloadAfterChange();
     } catch (err) {
       setEditError(errorMessage(err));
     } finally {
@@ -488,7 +494,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
         method: 'DELETE',
       });
       if (editPath === deleteTarget.path) closeEditor();
-      await load();
+      await reloadAfterChange();
       closeDelete();
     } catch (err) {
       setDeleteError(errorMessage(err));
@@ -550,7 +556,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       if (editPath === renameTarget.path) closeEditor();
       closeRename();
       setError('');
-      await load();
+      await reloadAfterChange();
     } catch (err) {
       setRenameError(errorMessage(err));
     } finally {
@@ -570,7 +576,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
         method: 'POST',
         body: form,
       });
-      await load();
+      await reloadAfterChange();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -606,7 +612,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       setCreateKind(null);
       setCreateName('');
       const editGeneration = editGenerationRef.current;
-      await load();
+      await reloadAfterChange();
       // Opened once the dialog has closed and handed focus back, so that hand-back cannot land behind the editor. The list
       // stays clickable while it reloads: a file opened from it meanwhile is left alone, edits and all.
       if (!folder && editGeneration === editGenerationRef.current) {
@@ -637,26 +643,32 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     pathCheckGenerationRef.current = generation;
     setPathChecking(true);
     setPathDraftError('');
-    const listPath = (candidate: string) => api<FileEntry[]>(instanceApi(instanceId, `/files?path=${encodeURIComponent(candidate)}`));
+    const openListedPath = async (candidate: string) => {
+      while (generation === pathCheckGenerationRef.current) {
+        const revision = fileChangeRevisionRef.current;
+        const listing = await api<FileEntry[]>(instanceApi(instanceId, `/files?path=${encodeURIComponent(candidate)}`));
+        if (generation !== pathCheckGenerationRef.current) return;
+        // A completed write may have refreshed the directory we are leaving while this listing was in flight.
+        if (revision !== fileChangeRevisionRef.current) continue;
+        endPathEdit(true);
+        changePath(candidate, listing);
+        return;
+      }
+    };
     try {
-      const listing = await listPath(target);
-      if (generation !== pathCheckGenerationRef.current) return;
-      endPathEdit(true);
-      changePath(target, listing);
+      await openListedPath(target);
     } catch (err) {
       if (generation !== pathCheckGenerationRef.current) return;
-      // A folder whose name starts or ends with a space is rare, and a path pasted with spaces around it is not: when the
-      // path as typed cannot be listed, the one without them is tried. Its failure is not shown, the first one says more.
-      const trimmed = normalizeTypedPath(pathDraft.trim());
-      if (trimmed !== null && trimmed !== target) {
-        try {
-          const listing = trimmed === path ? undefined : await listPath(trimmed);
-          if (generation !== pathCheckGenerationRef.current) return;
-          endPathEdit(true);
-          if (listing) changePath(trimmed, listing);
-          return;
-        } catch {
-          if (generation !== pathCheckGenerationRef.current) return;
+      if (err instanceof ApiError && err.messageI18n?.key === 'server.files.dirNotFound') {
+        const trimmed = normalizeTypedPath(pathDraft.trim());
+        if (trimmed !== null && trimmed !== target) {
+          try {
+            if (trimmed === path) endPathEdit(true);
+            else await openListedPath(trimmed);
+            return;
+          } catch {
+            if (generation !== pathCheckGenerationRef.current) return;
+          }
         }
       }
       setPathDraftError(errorMessage(err));

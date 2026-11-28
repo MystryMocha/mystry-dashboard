@@ -654,7 +654,50 @@ test('creating a nonempty text file uses an exclusive write when the volume refu
   assert.deepEqual(fs.readdirSync(root).filter((entry) => entry.includes('mystry-save')), []);
 });
 
-test('a text file whose exclusive write fails is removed, so the name is free for the next attempt', async (t) => {
+test('a failed exclusive write leaves a concurrent replacement at the same path', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { writeTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-create-replaced' });
+  const root = defaultInstanceDir(inst.id);
+  const sync = fs.fsyncSync;
+  const close = fs.closeSync;
+  for (const [name, content] of [['empty.yml', ''], ['partial.yml', 'enabled: true\n']]) {
+    await t.test(name, (t) => {
+      const target = path.join(root, name);
+      const replacement = path.join(root, 'replacement.yml');
+      fs.writeFileSync(replacement, 'new content from another writer');
+      t.mock.method(fs, 'linkSync', () => {
+        throw Object.assign(new Error('hard links unavailable'), { code: 'ENOTSUP' });
+      });
+      let failedFd: number | undefined;
+      t.mock.method(fs, 'fsyncSync', (fd: number) => {
+        if (!fs.existsSync(target)) {
+          sync(fd);
+          return;
+        }
+        failedFd = fd;
+        throw Object.assign(new Error('no space left on device'), { code: 'ENOSPC' });
+      });
+      t.mock.method(fs, 'closeSync', (fd: number) => {
+        close(fd);
+        if (fd !== failedFd) return;
+        failedFd = undefined;
+        // Windows can refuse a rename over the open file. Replace it after close, before the failure handler runs.
+        fs.renameSync(replacement, target);
+      });
+
+      assert.throws(() => writeTextFile(inst.id, name, content, { onConflict: 'fail' }), { code: 'ENOSPC' });
+      assert.equal(fs.readFileSync(target, 'utf8'), 'new content from another writer');
+    });
+  }
+});
+
+test('a failed exclusive write leaves the file for inspection before retry', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');
   const { createInstance } = await import('./instance-service.js');
@@ -664,6 +707,8 @@ test('a text file whose exclusive write fails is removed, so the name is free fo
   initDb();
   const inst = createInstance({ name: 'text-create-write-fails' });
   const root = defaultInstanceDir(inst.id);
+  const partial = path.join(root, 'partial.yml');
+  const empty = path.join(root, 'empty.yml');
   const diskFull = () => Object.assign(new Error('no space left on device'), { code: 'ENOSPC' });
   const link = t.mock.method(fs, 'linkSync', () => {
     throw Object.assign(new Error('hard links unavailable'), { code: process.platform === 'win32' ? 'EISDIR' : 'EPERM' });
@@ -677,15 +722,20 @@ test('a text file whose exclusive write fails is removed, so the name is free fo
   let failEverySync = false;
 
   assert.throws(() => writeTextFile(inst.id, 'partial.yml', 'enabled: true\n', { onConflict: 'fail' }), { code: 'ENOSPC' });
-  assert.equal(fs.existsSync(path.join(root, 'partial.yml')), false);
+  assert.equal(fs.readFileSync(partial, 'utf8'), 'enabled: true\n');
 
   failEverySync = true;
   assert.throws(() => writeTextFile(inst.id, 'empty.yml', '', { onConflict: 'fail' }), { code: 'ENOSPC' });
-  assert.equal(fs.existsSync(path.join(root, 'empty.yml')), false);
+  assert.equal(fs.readFileSync(empty, 'utf8'), '');
 
   sync.mock.restore();
+  assert.throws(() => writeTextFile(inst.id, 'partial.yml', 'enabled: false\n', { onConflict: 'fail' }), {
+    messageKey: 'server.files.alreadyExists',
+  });
+  assert.equal(fs.readFileSync(partial, 'utf8'), 'enabled: true\n');
+  fs.unlinkSync(partial);
   writeTextFile(inst.id, 'partial.yml', 'enabled: true\n', { onConflict: 'fail' });
-  assert.equal(fs.readFileSync(path.join(root, 'partial.yml'), 'utf8'), 'enabled: true\n');
+  assert.equal(fs.readFileSync(partial, 'utf8'), 'enabled: true\n');
   assert.deepEqual(fs.readdirSync(root).filter((entry) => entry.includes('mystry-save')), []);
 });
 
