@@ -42,6 +42,8 @@ First run `mdash stop` in the old folder (`mystryctl stop` in 0.2.0-preview.5 an
 
 Full details are in `docs/portable-release.md` in the repository; the Chinese version is `docs/portable-release.zh-CN.md`.
 
+**Full changelog**: https://github.com/MystryMocha/mystry-dashboard/compare/v0.2.0-preview.7...v0.3.0-preview.1
+
 ## 简体中文
 
 0.3.0-preview.1 新增首页数据看板、每天定时备份与崩溃后自动重启，并修复控制台、备份与导入方面的若干问题。
@@ -83,3 +85,5 @@ Full details are in `docs/portable-release.md` in the repository; the Chinese ve
 - **依赖安全审计**：2026-11-28 针对官方 registry 的生产依赖审计结果为 0 critical、0 high、2 moderate。两项 moderate 均为 React Router 6 系依赖公告（GHSA-wrjc-x8rr-h8h6、GHSA-337j-9hxr-rhxg），仅 7.18 及更高版本修复。当前前端不使用 SSR hydration，导航目标均来自固定站内路径或服务端生成的实例 ID；这两项仍作为 Preview 残余风险保留，每次发布均重新审计。
 
 完整说明见仓库中的 `docs/portable-release.zh-CN.md`，英文版为 `docs/portable-release.md`。
+
+**完整变更记录**：https://github.com/MystryMocha/mystry-dashboard/compare/v0.2.0-preview.7...v0.3.0-preview.1

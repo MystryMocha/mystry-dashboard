@@ -150,6 +150,15 @@ test('the Release body has English first, and the English and Chinese sections m
   assertSameContent(english, chinese);
 });
 
+test('the Release body links to the comparison that ends at the version being released', async () => {
+  const root = path.join(scriptDir, '..', '..');
+  const notes = await fsp.readFile(path.join(root, '.github', 'portable-preview-notes.md'), 'utf8');
+  const { version } = JSON.parse(await fsp.readFile(path.join(root, 'package.json'), 'utf8'));
+  const targets = [...notes.matchAll(/\/compare\/v[\w.-]+?\.\.\.v([\w.-]+)$/gm)].map((match) => match[1]);
+  // One link per language. The link is written by hand, so a release that forgets it would keep pointing at the previous one.
+  assert.deepEqual(targets, [version, version]);
+});
+
 test('the English and Chinese versions of the portable release doc match', async () => {
   const docs = path.join(scriptDir, '..', '..', 'docs');
   const english = await fsp.readFile(path.join(docs, 'portable-release.md'), 'utf8');
