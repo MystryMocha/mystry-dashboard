@@ -48,12 +48,13 @@ function parentOf(relativePath: string): string {
  * well. Such a folder, possible on Linux, is still opened from the list. The server still checks the result.
  */
 function normalizeTypedPath(input: string): string | null {
-  const trimmed = input.trim();
   // Checked before the slashes are read: they hide the leading pair of a network path. Explorer's "Copy as path" wraps the
   // path in double quotes; anywhere else a quote belongs to the name.
-  if (/^(?:[A-Za-z]:|\\\\)/.test(trimmed.replace(/^"(.*)"$/, '$1'))) return null;
+  // A pasted path often carries spaces around it, which must not hide the drive letter or the quotes.
+  if (/^(?:[A-Za-z]:|\\\\)/.test(input.trim().replace(/^"(.*)"$/, '$1').trimStart())) return null;
   const segments: string[] = [];
-  for (const segment of trimmed.replace(/\\/g, '/').split('/')) {
+  // Whitespace can be part of a directory name, including the last segment: the caller tries the path as typed first.
+  for (const segment of input.replace(/\\/g, '/').split('/')) {
     if (segment === '' || segment === '.') continue;
     if (segment !== '..') {
       segments.push(segment);
@@ -262,6 +263,9 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   const editTextRef = useRef<HTMLTextAreaElement>(null);
   /** File list request generation: late old lists are discarded after a directory change, so they do not overwrite the current view. */
   const loadGenerationRef = useRef(0);
+  const fileChangeRevisionRef = useRef(0);
+  /** A refresh started after an async file operation reads the directory currently shown. */
+  const pathRef = useRef('');
   const downloadControllersRef = useRef(new Set<AbortController>());
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -271,7 +275,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     setLoading(true);
     try {
       const list = await api<FileEntry[]>(
-        instanceApi(instanceId, `/files?path=${encodeURIComponent(path)}`),
+        instanceApi(instanceId, `/files?path=${encodeURIComponent(pathRef.current)}`),
       );
       if (generation !== loadGenerationRef.current) return;
       setFiles(list);
@@ -284,7 +288,12 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     } finally {
       if (generation === loadGenerationRef.current) setLoading(false);
     }
-  }, [instanceId, path]);
+  }, [instanceId]);
+
+  function reloadAfterChange() {
+    fileChangeRevisionRef.current += 1;
+    return load();
+  }
 
   useEffect(() => {
     const controllers = downloadControllersRef.current;
@@ -297,6 +306,10 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
 
   useEffect(() => {
     void load();
+    return () => {
+      loadGenerationRef.current += 1;
+      pathCheckGenerationRef.current += 1;
+    };
   }, [load]);
 
   useEffect(() => {
@@ -402,14 +415,20 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   }
 
   // The callbacks passed to FileRow below keep stable references, so not every keystroke in an input re-renders the whole list.
-  const changePath = useCallback((nextPath: string) => {
-    loadGenerationRef.current += 1;
-    setFiles([]);
-    setLoaded(false);
-    setLoading(true);
-    setError('');
+  const changePath = useCallback((nextPath: string, listing?: FileEntry[]) => {
+    if (nextPath === pathRef.current) return;
+    pathRef.current = nextPath;
     setPath(nextPath);
-  }, []);
+    setError('');
+    setFiles(listing ?? []);
+    setLoaded(listing !== undefined);
+    if (listing === undefined) {
+      void load();
+    } else {
+      loadGenerationRef.current += 1;
+      setLoading(false);
+    }
+  }, [load]);
 
   const startEdit = useCallback(async (file: FileEntry) => {
     if (file.isDirectory) return;
@@ -453,7 +472,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       setSaved(true);
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       savedTimerRef.current = setTimeout(() => setSaved(false), 2000);
-      await load();
+      await reloadAfterChange();
     } catch (err) {
       setEditError(errorMessage(err));
     } finally {
@@ -475,10 +494,12 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
         method: 'DELETE',
       });
       if (editPath === deleteTarget.path) closeEditor();
-      await load();
+      await reloadAfterChange();
       closeDelete();
     } catch (err) {
       setDeleteError(errorMessage(err));
+      // A folder may have been removed in part by then.
+      void reloadAfterChange();
     } finally {
       setDeleting(false);
     }
@@ -537,7 +558,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       if (editPath === renameTarget.path) closeEditor();
       closeRename();
       setError('');
-      await load();
+      await reloadAfterChange();
     } catch (err) {
       setRenameError(errorMessage(err));
     } finally {
@@ -557,7 +578,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
         method: 'POST',
         body: form,
       });
-      await load();
+      await reloadAfterChange();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -593,7 +614,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       setCreateKind(null);
       setCreateName('');
       const editGeneration = editGenerationRef.current;
-      await load();
+      await reloadAfterChange();
       // Opened once the dialog has closed and handed focus back, so that hand-back cannot land behind the editor. The list
       // stays clickable while it reloads: a file opened from it meanwhile is left alone, edits and all.
       if (!folder && editGeneration === editGenerationRef.current) {
@@ -603,6 +624,9 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       }
     } catch (err) {
       setCreateError(errorMessage(err));
+      // A write that failed after the file was created leaves it there: without the reload a retry under the same name
+      // would be refused over a file the list does not show.
+      void reloadAfterChange();
     } finally {
       setCreating(false);
     }
@@ -624,13 +648,38 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     pathCheckGenerationRef.current = generation;
     setPathChecking(true);
     setPathDraftError('');
+    const openListedPath = async (candidate: string) => {
+      while (generation === pathCheckGenerationRef.current) {
+        const revision = fileChangeRevisionRef.current;
+        const listing = await api<FileEntry[]>(instanceApi(instanceId, `/files?path=${encodeURIComponent(candidate)}`));
+        if (generation !== pathCheckGenerationRef.current) return;
+        // A completed write may have refreshed the directory we are leaving while this listing was in flight.
+        if (revision !== fileChangeRevisionRef.current) continue;
+        endPathEdit(true);
+        changePath(candidate, listing);
+        return;
+      }
+    };
     try {
-      await api<FileEntry[]>(instanceApi(instanceId, `/files?path=${encodeURIComponent(target)}`));
-      if (generation !== pathCheckGenerationRef.current) return;
-      endPathEdit(true);
-      changePath(target);
+      await openListedPath(target);
     } catch (err) {
       if (generation !== pathCheckGenerationRef.current) return;
+      if (err instanceof ApiError && err.messageI18n?.key === 'server.files.dirNotFound') {
+        const trimmed = normalizeTypedPath(pathDraft.trim());
+        if (trimmed !== null && trimmed !== target) {
+          try {
+            if (trimmed === path) endPathEdit(true);
+            else await openListedPath(trimmed);
+            return;
+          } catch (retryErr) {
+            if (generation !== pathCheckGenerationRef.current) return;
+            // The path without the spaces is the one that was meant: its error says why it cannot be opened.
+            setPathDraftError(errorMessage(retryErr));
+            setPathChecking(false);
+            return;
+          }
+        }
+      }
       setPathDraftError(errorMessage(err));
       setPathChecking(false);
     }
