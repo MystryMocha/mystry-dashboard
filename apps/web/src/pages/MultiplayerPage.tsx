@@ -149,11 +149,11 @@ export function MultiplayerPage() {
             )}
           </div>
           {selected && (
-            <WhitelistNotice key={selected.id} instanceId={selected.id} status={selected.status} linkConsole />
+            <WhitelistNotice key={`notice-${selected.id}`} instanceId={selected.id} status={selected.status} linkConsole />
           )}
           {selected && method === 'direct' && (
             <DirectSection
-              key={selected.id}
+              key={`direct-${selected.id}`}
               instance={selected}
               guide={guide}
               onChooseVirtualLan={() => chooseMethod('lan')}
@@ -161,10 +161,10 @@ export function MultiplayerPage() {
             />
           )}
           {selected && method === 'lan' && (
-            <LanSection key={selected.id} instanceId={selected.id} guide={guide} />
+            <LanSection key={`lan-${selected.id}`} instanceId={selected.id} guide={guide} />
           )}
           {selected && method === 'frp' && (
-            <MultiplayerTab key={selected.id} instanceId={selected.id} guide={guide} />
+            <MultiplayerTab key={`frp-${selected.id}`} instanceId={selected.id} guide={guide} />
           )}
         </>
       )}

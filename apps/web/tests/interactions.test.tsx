@@ -1618,6 +1618,8 @@ test('the multiplayer page defaults to "Direct Connection": copyable addresses a
   }));
   const writeText = vi.fn(async () => {});
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  // React reports sibling elements that share a key through console.error; the whitelist notice sits beside each method's section.
+  const consoleError = vi.spyOn(console, 'error');
   mount(<MultiplayerPage />);
   expect(await screen.findByRole('button', { name: '直接连接', pressed: true })).toBeTruthy();
   expect(await screen.findByText('192.168.1.23:25565')).toBeTruthy();
@@ -1635,6 +1637,7 @@ test('the multiplayer page defaults to "Direct Connection": copyable addresses a
   expect(writeText).toHaveBeenCalledWith('[2408:8207:ab::10]:25565');
   await user.click(screen.getByRole('button', { name: '改用虚拟局域网' }));
   expect(await screen.findByRole('button', { name: '虚拟局域网', pressed: true })).toBeTruthy();
+  expect(consoleError.mock.calls.filter((args) => args.map(String).join(' ').includes('the same key'))).toEqual([]);
 });
 
 test('the multiplayer guide column can be closed and is remembered; manual install is collapsed by default when the client is not installed', async () => {
@@ -2308,7 +2311,8 @@ test('Java picker: a download can be cancelled, no error is shown after cancelli
   expect(screen.queryByText(/你取消了这个任务/)).toBeNull();
   expect(document.querySelector('p.error')).toBeNull();
   expect((screen.getByRole('button', { name: '安装 Java 21' }) as HTMLButtonElement).disabled).toBe(false);
-  expect(installingStates.at(-1)).toBe(false);
+  // The page is told through an effect, which can run after the progress bar has already left the DOM.
+  await waitFor(() => expect(installingStates.at(-1)).toBe(false));
 });
 
 test('Java picker: an install failure shows the reason and keeps the manual download entry', async () => {
@@ -2965,4 +2969,101 @@ test('files editor: clean close exits immediately; dirty edits confirm on Close,
   const leaveConfirm = await screen.findByRole('dialog', { name: '放弃未保存的文件修改？' });
   await user.click(within(leaveConfirm).getByRole('button', { name: '放弃修改并离开' }));
   expect(await screen.findByText('已离开文件页')).toBeTruthy();
+});
+
+test('restart after a crash: the Start button counts down and cancels when pressed, the console window says why the panel stopped trying, and panel settings hold the switch and its numbers', async () => {
+  const user = userEvent.setup();
+  const baseFetch = globalThis.fetch;
+  let restartState: unknown = { state: 'scheduled', attempt: 2, max: 3, at: '2026-09-08T10:00:08Z', remainingMs: 8_000 };
+  let instanceReads = 0;
+  let settings = { enabled: false, delaySeconds: 10, maxAttempts: 3, windowMinutes: 10 };
+  const calls: string[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    const method = options?.method ?? 'GET';
+    const current = () => ({ ...instance, name: '测试服', status: 'crashed', autoRestartState: restartState });
+    if (url === '/api/instances/test' && method === 'GET') {
+      instanceReads += 1;
+      return new Response(JSON.stringify(current()));
+    }
+    if (url === '/api/instances/test/pending-restart' && method === 'DELETE') {
+      calls.push(`DELETE ${url}`);
+      restartState = null;
+      return new Response(JSON.stringify(current()));
+    }
+    if (url === '/api/system/auto-restart') {
+      if (method === 'PUT') {
+        calls.push(`PUT ${String(options?.body)}`);
+        settings = JSON.parse(String(options?.body)) as typeof settings;
+      }
+      return new Response(JSON.stringify(settings));
+    }
+    return baseFetch(url, options);
+  }));
+  const open = () => render(<RouterProvider router={createMemoryRouter(
+    [{ path: '/instances/:id/*', element: <InstancePage /> }],
+    { initialEntries: ['/instances/test'] },
+  )} />);
+
+  // The countdown runs on a clock this test moves itself: waiting on real seconds, a slow machine could miss a number.
+  // Requests settle over a few turns of the event loop, none of which moves that clock.
+  vi.useFakeTimers();
+  const settle = async () => {
+    for (let turn = 0; turn < 5; turn += 1) await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+  };
+  const waiting = open();
+  await settle();
+  // The countdown takes the place of Start, and nothing is added above the console.
+  expect(screen.getByRole('button', { name: '取消自动重启，还有 8 秒' }).textContent).toBe('8 秒后重启');
+  expect(screen.queryByRole('button', { name: '启动' })).toBeNull();
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(instanceReads).toBe(1);
+  // Counted down on this device: the next poll is due after five seconds, and the instance is not read again before it.
+  await act(async () => { await vi.advanceTimersByTimeAsync(3_000); });
+  expect(screen.getByRole('button', { name: '取消自动重启，还有 5 秒' }).textContent).toBe('5 秒后重启');
+  expect(instanceReads).toBe(1);
+  fireEvent.click(screen.getByRole('button', { name: '取消自动重启，还有 5 秒' }));
+  await settle();
+  expect(calls).toEqual(['DELETE /api/instances/test/pending-restart']);
+  expect(screen.queryByText(/秒后重启/)).toBeNull();
+  expect(screen.getByRole('button', { name: '启动' })).toBeTruthy();
+  waiting.unmount();
+  vi.useRealTimers();
+
+  restartState = { state: 'failed', attempt: 1, max: 3, at: '2026-09-08T10:00:08Z', reason: { key: 'server.backups.busyBackingUp' } };
+  const refused = open();
+  const failedBar = await screen.findByRole('alert');
+  expect(failedBar.className).toBe('console-notice-bar');
+  expect(failedBar.textContent).toMatch(/^自动重启失败：.*备份/);
+  refused.unmount();
+
+  restartState = { state: 'gaveUp', attempt: 3, max: 3, at: '2026-09-08T10:00:08Z', windowMinutes: 10 };
+  const gaveUp = open();
+  const bar = await screen.findByRole('alert');
+  expect(bar.closest('.console-window')).toBeTruthy();
+  expect(bar.textContent).toBe('已连续重启 3 次，每次都在 10 分钟内再次崩溃，已停止自动重启。');
+  expect(screen.getByRole('button', { name: '启动' })).toBeTruthy();
+  gaveUp.unmount();
+
+  // Panel settings: the switch saves at once, the numbers show only with it on and are saved together with their button.
+  mount(<AuthProvider><SettingsPage /></AuthProvider>);
+  const toggle = await screen.findByRole('switch', { name: '崩溃后自动重启' }) as HTMLInputElement;
+  await waitFor(() => expect(toggle.disabled).toBe(false));
+  expect(toggle.checked).toBe(false);
+  expect(screen.queryByRole('textbox', { name: '重启前等待' })).toBeNull();
+  await user.click(toggle);
+  await waitFor(() => expect(calls.at(-1)).toBe('PUT {"enabled":true,"delaySeconds":10,"maxAttempts":3,"windowMinutes":10}'));
+  const delay = await screen.findByRole('textbox', { name: '重启前等待' }) as HTMLInputElement;
+  const save = screen.getByRole('button', { name: '保存' }) as HTMLButtonElement;
+  expect(delay.value).toBe('10');
+  expect(save.disabled).toBe(true);
+  await user.clear(delay);
+  await user.type(delay, '3');
+  await user.tab();
+  expect(await screen.findByText('填写 5–300 之间的整数')).toBeTruthy();
+  expect(save.disabled).toBe(true);
+  await user.clear(delay);
+  await user.type(delay, '30');
+  await user.click(save);
+  await waitFor(() => expect(calls.at(-1)).toBe('PUT {"enabled":true,"delaySeconds":30,"maxAttempts":3,"windowMinutes":10}'));
+  expect(await screen.findByText('已保存。')).toBeTruthy();
 });

@@ -3,6 +3,7 @@ import { ChevronRight, LogOut } from 'lucide-react';
 import type { PanelInfo } from '@mystry/shared';
 import { getPanelInfo } from '../api';
 import { useAuth } from '../auth';
+import { AutoRestartRows } from '../components/AutoRestartRows';
 import { ChangePasswordDialog } from '../components/ChangePasswordDialog';
 import { DownloadSourceRow } from '../components/DownloadSourceSection';
 import { PageHeader } from '../components/PageHeader';
@@ -244,6 +245,12 @@ export function SettingsPage() {
             </span>
             <ChevronRight size={16} aria-hidden="true" className="remote-entry-chevron" />
           </button>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title={t('settings.instances.title')} lead={t('settings.instances.lead')}>
+        <div className="list-group">
+          <AutoRestartRows />
         </div>
       </SettingsSection>
 

@@ -3,6 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Writable } from 'node:stream';
+import { TextDecoder } from 'node:util';
 import {
   renderPanelMessage,
   type InstanceStartIssue,
@@ -29,7 +30,7 @@ import { ensureServerPropertiesDefaults } from './config-service.js';
 import { resolveJavaRuntimeCommand } from './java-runtime-service.js';
 import { normalizeAndAssertJvmArgs } from './jvm-validation-service.js';
 import { resolvePlatformModLoaderArgsFile } from './server-launch-detect.js';
-import { diagnoseStartFailure, hasFinishedStarting } from './start-diagnosis.js';
+import { createFinishedStartingScanner, diagnoseStartFailure } from './start-diagnosis.js';
 import { errorMessage, hasErrorCode, PanelError } from '../utils/errors.js';
 
 const { maxCommandBytes, maxConsoleBufferBytes, maxConsoleChunkBytes, maxConsoleStdinBytes } = config;
@@ -83,6 +84,8 @@ type ManagedProcess = {
 type ProcessSnapshot = Pick<ManagedProcess, 'status' | 'buffer' | 'bufferBytes'> & {
   /** The startup failure reason recognized at the latest exit; cleared along with the snapshot on the next start. */
   startIssue: InstanceStartIssue | null;
+  /** Whether the run that exited had finished starting. */
+  reachedReady: boolean;
 };
 
 export type MinecraftProcessSpawner = (
@@ -128,6 +131,14 @@ export function registerStdinSafetyHandlers(stdin: Writable, state: StdinSafetyS
   stdin.on('error', markUnavailable);
   stdin.on('close', markUnavailable);
   stdin.on('finish', markUnavailable);
+}
+
+/**
+ * ignoreBOM keeps a leading BOM in the text, as Buffer#toString('utf8') does.
+ * A new decoder per stream is required: stdout and stderr interleave, and one stream's half character must not merge with the other's bytes.
+ */
+function createConsoleDecoder(): TextDecoder {
+  return new TextDecoder('utf-8', { ignoreBOM: true });
 }
 
 function takeUtf8Prefix(text: string, maxBytes: number): string {
@@ -301,6 +312,12 @@ export class ProcessManager extends EventEmitter {
   isReady(instanceId: string): boolean {
     const managed = this.processes.get(instanceId);
     return managed?.status === 'running' && managed.ready;
+  }
+
+  /** Whether the run that last exited had finished starting; false while a process is alive or when nothing has run. */
+  exitedAfterReady(instanceId: string): boolean {
+    if (this.processes.has(instanceId)) return false;
+    return this.snapshots.get(instanceId)?.reachedReady ?? false;
   }
 
   /** Provides the local collector only with live processes the panel currently holds; external PIDs are not accepted. */
@@ -589,22 +606,42 @@ export class ProcessManager extends EventEmitter {
         }
       }
 
-      const onChunk = (chunk: Buffer) => {
+      const decoders = { stdout: createConsoleDecoder(), stderr: createConsoleDecoder() };
+      const decodeChunk = (stream: keyof typeof decoders, chunk: Buffer): string => {
+        if (chunk.length <= maxConsoleChunkBytes) {
+          return decoders[stream].decode(chunk, { stream: true });
+        }
+        const retained = decoders[stream].decode(chunk.subarray(0, maxConsoleChunkBytes), { stream: true });
+        // The rest of an oversized chunk is discarded by design. Resetting the decoder also discards the partial character at the cut,
+        // so its remaining bytes cannot turn into a replacement character when they are never delivered.
+        decoders[stream] = createConsoleDecoder();
+        return retained;
+      };
+      const flushDecodedOutput = () => {
+        for (const stream of ['stdout', 'stderr'] as const) {
+          const tail = decoders[stream].decode();
+          if (tail) this.appendOutput(instance.id, tail);
+        }
+      };
+
+      const hasFinishedStarting = { stdout: createFinishedStartingScanner(), stderr: createFinishedStartingScanner() };
+
+      const onChunk = (stream: keyof typeof decoders) => (chunk: Buffer) => {
         if (this.processes.get(instance.id) !== managed) return;
-        this.appendOutput(instance.id, chunk);
+        const text = decodeChunk(stream, chunk);
+        this.appendOutput(instance.id, text);
         if (managed.status === 'starting') {
           managed.status = 'running';
           this.emitStatus(instance.id, 'running');
         }
-        // The marker line may be split across two adjacent output chunks, so it is checked together with the previous chunk.
-        if (!managed.ready && hasFinishedStarting(managed.buffer.slice(-2).join(''))) {
+        if (!managed.ready && hasFinishedStarting[stream](text)) {
           managed.ready = true;
           this.emit('ready', instance.id);
         }
       };
 
-      child.stdout.on('data', onChunk);
-      child.stderr.on('data', onChunk);
+      child.stdout.on('data', onChunk('stdout'));
+      child.stderr.on('data', onChunk('stderr'));
       // A pipe stream error without a listener becomes an uncaught exception; EPIPE on the pipe when the child exits is normal.
       child.stdout.on('error', () => {});
       child.stderr.on('error', () => {});
@@ -616,6 +653,7 @@ export class ProcessManager extends EventEmitter {
 
       child.on('error', (err) => {
         if (this.processes.get(instance.id) !== managed) return;
+        flushDecodedOutput();
         // Console log lines are written whole in English; Web recognizes the sentence pattern and rewrites it in the current language for display.
         const line = renderPanelMessage({
           key: 'server.instance.consoleProcessStartFailed',
@@ -627,6 +665,8 @@ export class ProcessManager extends EventEmitter {
 
       child.on('exit', (code, signal) => {
         if (this.processes.get(instance.id) !== managed) return;
+        // Flush before diagnosing so a half character still held by the decoder appears in the output the diagnosis reads.
+        flushDecodedOutput();
         const wasStopping = managed.status === 'stopping';
         // The process ending on its own with exit code 0 (EULA not accepted, stop run in-game, etc.) is not a crash.
         const status = wasStopping || code === 0 ? 'stopped' : 'crashed';
@@ -759,37 +799,43 @@ export class ProcessManager extends EventEmitter {
       buffer: [...managed.buffer],
       bufferBytes: managed.bufferBytes,
       startIssue,
+      reachedReady: managed.ready,
     });
     this.emitStatus(instanceId, status);
   }
 
-  private appendOutput(instanceId: string, text: string | Buffer): void {
+  private appendOutput(instanceId: string, text: string): void {
     const managed = this.processes.get(instanceId);
     if (!managed) return;
 
-    const chunkText = Buffer.isBuffer(text)
-      ? text.subarray(0, maxConsoleChunkBytes).toString('utf8')
-      : text;
-    const output = takeUtf8Prefix(chunkText, maxConsoleChunkBytes);
-    const outputBytes = Buffer.byteLength(output, 'utf8');
-    if (outputBytes === 0) return;
+    // Decoded text can be larger than the chunk limit: a partial character carried over from the previous chunk adds up to 3 bytes,
+    // and invalid bytes decode to 3-byte replacement characters. The console route closes the connection on a larger output
+    // message, and cutting would drop delivered text such as a newline, so the text is appended in pieces at character boundaries.
+    let rest = text;
+    while (rest) {
+      const output = takeUtf8Prefix(rest, maxConsoleChunkBytes);
+      // A configured limit smaller than one character admits nothing more.
+      if (!output) return;
+      rest = rest.slice(output.length);
+      const outputBytes = Buffer.byteLength(output, 'utf8');
 
-    managed.buffer.push(output);
-    managed.bufferBytes += outputBytes;
-    while (managed.bufferBytes > maxConsoleBufferBytes && managed.buffer.length > 0) {
-      const excess = managed.bufferBytes - maxConsoleBufferBytes;
-      const oldest = managed.buffer[0];
-      const oldestBytes = Buffer.byteLength(oldest, 'utf8');
-      if (oldestBytes <= excess) {
-        managed.buffer.shift();
-        managed.bufferBytes -= oldestBytes;
-      } else {
-        const retained = takeUtf8Suffix(oldest, oldestBytes - excess);
-        managed.buffer[0] = retained;
-        managed.bufferBytes -= oldestBytes - Buffer.byteLength(retained, 'utf8');
+      managed.buffer.push(output);
+      managed.bufferBytes += outputBytes;
+      while (managed.bufferBytes > maxConsoleBufferBytes && managed.buffer.length > 0) {
+        const excess = managed.bufferBytes - maxConsoleBufferBytes;
+        const oldest = managed.buffer[0];
+        const oldestBytes = Buffer.byteLength(oldest, 'utf8');
+        if (oldestBytes <= excess) {
+          managed.buffer.shift();
+          managed.bufferBytes -= oldestBytes;
+        } else {
+          const retained = takeUtf8Suffix(oldest, oldestBytes - excess);
+          managed.buffer[0] = retained;
+          managed.bufferBytes -= oldestBytes - Buffer.byteLength(retained, 'utf8');
+        }
       }
+      this.emit('output', instanceId, output);
     }
-    this.emit('output', instanceId, output);
   }
 
   private emitStatus(instanceId: string, status: InstanceStatus): void {

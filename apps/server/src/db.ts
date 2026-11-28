@@ -122,20 +122,6 @@ export type InstanceRunRow = {
   process_identity: string | null;
 };
 
-/** One 5-minute resource sample for either the host (instance_id IS NULL) or a running instance. */
-export type MetricSampleRow = {
-  id: number;
-  sampled_at: string;
-  instance_id: string | null;
-  cpu_percent: number | null;
-  memory_bytes: number | null;
-  /** Host rows only: average I/O rates in bytes per second since the previous background sample; NULL on instance rows. */
-  net_rx_bytes_per_sec: number | null;
-  net_tx_bytes_per_sec: number | null;
-  disk_read_bytes_per_sec: number | null;
-  disk_write_bytes_per_sec: number | null;
-};
-
 let db: DatabaseSync | undefined;
 
 export function closeDb(): void {

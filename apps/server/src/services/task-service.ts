@@ -215,13 +215,6 @@ export function recordTaskStaging(taskId: string, instanceId: string, stagingTok
   );
 }
 
-/**
- * @deprecated Kept for compatibility with legacy calls; new tasks should use recordTaskStaging, and must not write to the final instance before the files have landed.
- */
-export function recordTaskInstance(taskId: string, instanceId: string): TaskInfo {
-  return updateTask(taskId, { result: { instanceId } }, { phase: 'staging' });
-}
-
 export type InterruptedTaskRecovery = {
   interrupted: number;
   cleanedStaging: number;

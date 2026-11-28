@@ -34,6 +34,7 @@ import {
 } from './backup-archive.js';
 import { getInstanceRow, updateInstanceServerFiles } from './instance-service.js';
 import { processManager } from './process-manager.js';
+import { autoRestartService } from './auto-restart-service.js';
 import { findModLoaderArgsFile, resolvePlatformModLoaderArgsFile } from './server-launch-detect.js';
 import { recordTaskStaging, runBackgroundTask } from './task-service.js';
 import {
@@ -858,6 +859,8 @@ export async function startRestoreTask(
   const inUseKey = `${instanceId}/${backupId}`;
   if (backupsInUse.has(inUseKey)) throw new PanelError('server.backups.inUse', undefined, { statusCode: 409 });
   const release = await enterMaintenance(instanceId, 'server.backups.busyRestoring');
+  // A restore leaves a crashed instance crashed, so a restart still waiting would start the server on the restored files.
+  autoRestartService.cancel(instanceId);
   backupsInUse.add(inUseKey);
   const finish = () => {
     release();

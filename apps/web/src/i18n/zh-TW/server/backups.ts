@@ -5,7 +5,7 @@ export default {
   'server.backups.notFound': '找不到這個備份',
   'server.backups.idInvalid': '備份 ID 無效',
   'server.backups.invalidParams': '還原選項包含不支援的欄位或格式不正確',
-  'server.backups.legacyInstance': '請先把這個舊實例遷移到面板管理的目錄，再進行備份或還原',
+  'server.backups.legacyInstance': '請先把這個舊實例遷移到面板管理的目錄，再備份或還原',
   'server.backups.markerInvalid': '實例目錄的歸屬標記與面板記錄不一致，無法自動替換檔案',
   'server.backups.inUse': '這個備份正被執行中的任務使用，請等任務結束後再試',
   'server.backups.dirInsideManaged': 'BACKUP_DIR 不能位於實例、匯入、上傳或任務暫存目錄之內',

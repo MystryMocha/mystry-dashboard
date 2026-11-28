@@ -33,7 +33,7 @@ const realParentCache = new Map<string, string>();
  * Resolves symlinks and junctions only in the parent path (the install location) of the directory; the directory itself keeps its name.
  * For example, on distros where /home itself is a link, or when installed under a junction, the instance directory safety check would
  * treat the real path as an escape; switching to the real path here is enough. When the directory itself is a link, or contains links,
- * utils/path.ts still rejects it as before. Cached per config value so that not every config access walks the path with lstat.
+ * utils/path.ts still rejects it. Cached per config value so that not every config access walks the path with lstat.
  */
 function withRealParent(dir: string): string {
   let real = realParentCache.get(dir);
