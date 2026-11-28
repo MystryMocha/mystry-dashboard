@@ -3057,6 +3057,52 @@ test('files: a typed path preserves spaces in a folder name', async () => {
   expect(screen.queryByText('without-space.yml')).toBeNull();
 });
 
+test('files: an upload that finishes after another folder was opened reloads that folder, and the current folder\'s own crumb leaves the list alone', async () => {
+  const modifiedAt = '2026-11-25T08:00:00.000Z';
+  const baseFetch = globalThis.fetch;
+  const listed: string[] = [];
+  let releaseUpload: (() => void) | undefined;
+  vi.stubGlobal('fetch', vi.fn(async (url: string, options?: RequestInit) => {
+    if (url.startsWith('/api/instances/test/files/upload')) {
+      return new Promise<Response>((resolve) => {
+        releaseUpload = () => resolve(new Response(JSON.stringify({ ok: true })));
+      });
+    }
+    const prefix = '/api/instances/test/files?path=';
+    if (!url.startsWith(prefix)) return baseFetch(url, options);
+    const path = decodeURIComponent(url.slice(prefix.length));
+    listed.push(path);
+    return new Response(JSON.stringify(path === ''
+      ? [
+        { name: 'world', path: 'world', isDirectory: true, size: 0, modifiedAt },
+        { name: 'eula.txt', path: 'eula.txt', isDirectory: false, size: 10, modifiedAt },
+      ]
+      : [{ name: 'level.dat', path: 'world/level.dat', isDirectory: false, size: 10, modifiedAt }]));
+  }));
+
+  const user = userEvent.setup();
+  const { container } = render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <FilesTab instanceId="test" /> }])} />);
+  await screen.findByText('eula.txt');
+
+  await user.upload(container.querySelector<HTMLInputElement>('input[type="file"]')!, new File(['x'], 'mod.jar'));
+  expect(releaseUpload).toBeDefined();
+  await user.click(screen.getByTitle('打开 world'));
+  expect(await screen.findByText('level.dat')).toBeTruthy();
+  await act(async () => {
+    releaseUpload?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  // The reload after the upload reads the folder now shown, not the one the upload was started from.
+  expect(listed).toEqual(['', 'world', 'world']);
+  expect(screen.getByText('level.dat')).toBeTruthy();
+  expect(screen.queryByText('eula.txt')).toBeNull();
+
+  await user.click(within(screen.getByRole('navigation', { name: '当前路径' })).getByRole('button', { name: 'world' }));
+  expect(screen.getByText('level.dat')).toBeTruthy();
+  expect(screen.queryByText('正在读取文件列表…')).toBeNull();
+  expect(listed).toHaveLength(3);
+});
+
 test('files: a typed path with stray spaces around it still opens the folder, and a padded drive path is refused in the box', async () => {
   const modifiedAt = '2026-11-25T08:00:00.000Z';
   const baseFetch = globalThis.fetch;
