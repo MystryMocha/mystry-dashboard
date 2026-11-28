@@ -21,6 +21,7 @@ import type {
   InstallJavaRequest,
   JavaRuntimeListResult,
   JavaDetectResult,
+  AutoRestartSettings,
   DownloadSource,
   DownloadSourceSetting,
   SessionDuration,
@@ -383,6 +384,14 @@ export async function getStatsOverview(range: StatsRange, signal?: AbortSignal) 
   return api<StatsOverview>(`/api/stats/overview?range=${encodeURIComponent(range)}`, { signal });
 }
 
+export async function getAutoRestartSettings() {
+  return api<AutoRestartSettings>('/api/system/auto-restart');
+}
+
+export async function saveAutoRestartSettings(settings: AutoRestartSettings) {
+  return api<AutoRestartSettings>('/api/system/auto-restart', { method: 'PUT', json: settings });
+}
+
 export async function getDownloadSource() {
   return api<DownloadSourceSetting>('/api/system/download-source');
 }
@@ -606,6 +615,11 @@ export async function controlInstance(
   if (isInstanceStopPendingResult(result)) {
     throw Object.assign(new Error(result.error || t('request.stopPending')), { messageI18n: result.errorI18n });
   }
+}
+
+/** Cancels the restart the panel scheduled after a crash; the instance stays crashed until it is started. */
+export async function cancelPendingRestart(instanceId: string) {
+  return api<InstanceInfo>(instanceApi(instanceId, '/pending-restart'), { method: 'DELETE' });
 }
 
 const TASK_POLL_INTERVAL_MS = 2_000;

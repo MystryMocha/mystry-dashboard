@@ -45,6 +45,15 @@ export default {
   'instance.settings.unsaved.savingTitle': '正在儲存設定…',
   'instance.settings.unsaved.description': '離開設定頁面會遺失尚未儲存的實例設定。',
 
+  'instance.autoRestart.countdown_one': '{count} 秒後重新啟動',
+  'instance.autoRestart.countdown_other': '{count} 秒後重新啟動',
+  'instance.autoRestart.now': '正在重新啟動',
+  'instance.autoRestart.cancelTitle': '取消自動重新啟動',
+  'instance.autoRestart.cancelLabel_one': '取消自動重新啟動，還有 {count} 秒',
+  'instance.autoRestart.cancelLabel_other': '取消自動重新啟動，還有 {count} 秒',
+  'instance.autoRestart.gaveUp': '已連續重新啟動 {max} 次，每次都在 {minutes} 分鐘內再次當機，已停止自動重新啟動。',
+  'instance.autoRestart.failed': '自動重新啟動失敗：{reason}',
+
   // 启动失败原因提示（控制台上方）
   'instance.detached.title': '上次啟動的伺服器程序仍在執行中（PID {pid}）',
   'instance.detached.bodyUnix': '面板上次結束後已失去對此程序的主控台連線，目前無法檢視即時日誌或傳送指令。請先停止或強制停止它，再啟動、備份或刪除此實例。',

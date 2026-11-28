@@ -84,6 +84,8 @@ type ManagedProcess = {
 type ProcessSnapshot = Pick<ManagedProcess, 'status' | 'buffer' | 'bufferBytes'> & {
   /** The startup failure reason recognized at the latest exit; cleared along with the snapshot on the next start. */
   startIssue: InstanceStartIssue | null;
+  /** Whether the run that exited had finished starting. */
+  reachedReady: boolean;
 };
 
 export type MinecraftProcessSpawner = (
@@ -310,6 +312,12 @@ export class ProcessManager extends EventEmitter {
   isReady(instanceId: string): boolean {
     const managed = this.processes.get(instanceId);
     return managed?.status === 'running' && managed.ready;
+  }
+
+  /** Whether the run that last exited had finished starting; false while a process is alive or when nothing has run. */
+  exitedAfterReady(instanceId: string): boolean {
+    if (this.processes.has(instanceId)) return false;
+    return this.snapshots.get(instanceId)?.reachedReady ?? false;
   }
 
   /** Provides the local collector only with live processes the panel currently holds; external PIDs are not accepted. */
@@ -791,6 +799,7 @@ export class ProcessManager extends EventEmitter {
       buffer: [...managed.buffer],
       bufferBytes: managed.bufferBytes,
       startIssue,
+      reachedReady: managed.ready,
     });
     this.emitStatus(instanceId, status);
   }

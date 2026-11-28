@@ -30,6 +30,7 @@ export default {
   'server.instance.startShuttingDown': '面板正在關閉，無法啟動實例',
   'server.instance.startCancelledShuttingDown': '面板正在關閉，已取消啟動',
   'server.instance.alreadyRunning': '實例已在執行或正在啟動／停止',
+  'server.instance.autoRestartDidNotStart': '伺服器尚未完成啟動就再次當機',
   'server.instance.forgeArgsMissing': '找不到 Forge/NeoForge 啟動參數檔案：{path}，請重新部署該實例',
   'server.instance.modloaderNotInstalled': 'Forge/NeoForge 尚未完成安裝，請重新部署，或在任務中心查看安裝失敗原因',
   'server.instance.jarMissing': '找不到伺服器 jar：{jar}',

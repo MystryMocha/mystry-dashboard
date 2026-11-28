@@ -112,6 +112,8 @@ X-Setup-Token: <SETUP_TOKEN>
 | GET | `/api/system/panel-info` | 是 | `PanelInfo`：`{ host, port, dataDir, backupDir, configPath }`，即面板启动时从配置文件读取的监听地址与目录（绝对路径）。只读，不含密钥，供「面板设置」页的「运行信息」展示 |
 | GET | `/api/system/download-source` | 是 | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | 是 | 请求体 `{ source }`，返回保存后的值；其他取值返回 400 |
+| GET | `/api/system/auto-restart` | 是 | `AutoRestartSettings`：`{ enabled, delaySeconds, maxAttempts, windowMinutes }`；未保存过时为 `{ false, 10, 3, 10 }` |
+| PUT | `/api/system/auto-restart` | 是 | 请求体为 `AutoRestartSettings`，四个字段均须提供：`delaySeconds` 5–300，`maxAttempts` 1–10，`windowMinutes` 5–60，均为整数；返回保存后的值，其他取值返回 400。以 `enabled: false` 保存时，一并丢弃所有等待中的重启 |
 | GET | `/api/system/remote-access` | 是 | `RemoteAccessStatus`；每次读取都重新枚举网卡 |
 | PUT | `/api/system/remote-access/direct` | 是 | 请求体 `UpdateDirectAccessRequest`，返回 `RemoteAccessStatus` |
 | PUT | `/api/system/remote-access/overlay` | 是 | 请求体 `UpdateOverlayAccessRequest`（开启时 `interfaceName` 必填），返回 `RemoteAccessStatus` |
@@ -177,6 +179,7 @@ Java 状态响应的确切结构：
 | POST | `/api/instances/:id/start` | 启动 |
 | POST | `/api/instances/:id/stop` | 停止；`?force=1` 强制终止进程。普通停止超时且仍在停止中时返回 **202** `{ code: "INSTANCE_STOP_PENDING", error, errorI18n }` |
 | POST | `/api/instances/:id/restart` | 重启 |
+| DELETE | `/api/instances/:id/pending-restart` | 丢弃面板在崩溃后安排的重启，返回 `InstanceInfo`；没有等待中的重启时同样成功 |
 | POST | `/api/instances/:id/detached-process/dismiss` | 在 `orphanProcess.state` 为 `unknown`（面板无法确认该 PID 是否仍是该服务器）且用户确认其为其他程序后，清除 `orphanProcess`；同时结束对应的运行记录，不向任何进程发送信号。若已确认该 PID 仍是该服务器，返回 **409** `server.instance.orphanDismissAlive` |
 | POST | `/api/instances/:id/command` | Body：`{ command: string }`，发送控制台命令 |
 | GET | `/api/instances/:id/local-network` | 直连地址 `InstanceLocalNetwork`：`{ port, addresses, publicIpv4, publicIpv6, publicHost, serverIpBlocked, serverIpIsUnboundPublicHost, panelPort, platform }`。只读，不开放端口，也不修改配置 |
@@ -184,6 +187,18 @@ Java 状态响应的确切结构：
 `InstanceInfo.startIssue` 在最近一次启动失败且原因可识别时给出 `{ kind, requiredJava }`，否则为 `null`：`kind` 为 `eula`（尚未同意 Minecraft EULA）、`java-too-new` 或 `java-too-old`（所用 Java 过新或过旧；`requiredJava` 为所需主版本，无法判断时为 `null`）。这三种由面板按固定句式从该次进程的控制台输出中识别，仅存于内存；再次启动、删除实例或面板重启后清空。`kind` 也可为 `java-unavailable`（`requiredJava` 恒为 `null`）：实例 `javaRuntimeId` 指向的运行时在注册表中已标为不可用或已不存在。该项无需启动即可给出，每次读取实例时依据注册表实时计算，优先于上述三种；改选 Java 或重新扫描找回该运行时后消失。服务端打印 `Done (` 之后的退出不归因于 Java 版本。进程自行以退出码 0 结束（未同意 EULA、游戏内执行 `stop`）时状态为 `stopped`，非 0 才为 `crashed`。
 
 `InstanceInfo.ready` 表示本次运行中服务端已打印标志启动完成的 `Done (` 行，玩家可以进服；状态为 `running` 但世界仍在加载时为 `false`，正在停止或未运行时亦为 `false`。该字段同样仅存于内存。
+
+崩溃后自动重启是整个面板共用的一项设置（`/api/system/auto-restart`）。开启后，实例状态变为 `crashed` 时，面板等待 `delaySeconds` 秒，重新读取实例记录，经与 `POST /start` 相同的路径再次启动。仅重启已打印 `Done (` 的运行，启动途中退出的服务端不予重启；面板正在关闭或绑定的 Java 运行时不可用时亦不安排。重启按各实例的连续次数计：已连续重启 `maxAttempts` 次后再次崩溃，实例保持 `crashed`。仅当崩溃发生在重启后的服务端打印 `Done (` 的 `windowMinutes` 分钟之后，或用户启动了实例，方才重新计数；早于此的崩溃一律累计，无论首次重启距今多久。按默认值，每 4 分钟崩溃一次的服务端重启 3 次后不再重启，每 15 分钟崩溃一次的则每次都会重启。等待中的重启沿用崩溃时已保存的等待时长与次数上限。
+
+`InstanceInfo.autoRestartState` 给出该实例的当前进展，无可报告时为 `null`；仅存于内存，面板重启后不保留。`attempt` 为连续第几次重启（自 1 起），`max` 为当时适用的上限：
+
+| `state` | 含义 | 其他字段 |
+|---|---|---|
+| `scheduled` | 有重启在等待 | `at`（重启的 ISO 时间）、`remainingMs`（生成响应时所余毫秒数，供倒计时使用，无须比对时钟） |
+| `gaveUp` | 已达上限，实例保持崩溃，直至用户启动 | `at`、`windowMinutes` |
+| `failed` | 到点时启动被拒绝，或重启后的服务端尚未启动完成即再次崩溃（`reason.key` 为 `server.instance.autoRestartDidNotStart`）；不再重试 | `at`、`reason`（消息 `{ key, params }`；没有消息键的错误为纯文本） |
+
+启动被拒绝的情形包括实例正在备份或还原、JVM 参数未通过校验等。以下情形丢弃等待中的重启：`DELETE /pending-restart`，成功的 `POST /start` 或 `/restart`，删除实例，以 `enabled: false` 保存设置，实例开始还原，以及面板关闭。被拒绝的启动不影响等待中的重启。
 
 `local-network` 的 `addresses` 为本机的局域网 IPv4 地址（不含回环、`169.254.*` 与可识别的虚拟网卡，如 WSL、虚拟机、组网或代理软件的网卡；若全为虚拟网卡则照常列出。最多 6 个，`192.168.*` 优先）。`port` 取自 `server.properties` 的 `server-port`：未填写或留空时为游戏默认的 `25565`，填写的值不是 1–65535 的整数时为 `null`（frp 与虚拟局域网按同一规则读取端口）。`server-ip` 留空或为 `0.0.0.0` 时返回全部地址；等于其中某个地址时仅返回该地址；其余情况下 `serverIpBlocked` 为 `true` 且 `addresses` 为空。`publicIpv6` 为实体网卡上的公网 IPv6 地址（`2000::/3`，不含 6to4、Teredo 与文档示例段，最多 3 个），仅在 `server-ip` 留空、为 `*` 或 `::` 时给出，为 `0.0.0.0` 或具体地址时为空；面板不区分固定地址与系统临时地址，也不检测路由器是否放行。
 
@@ -221,6 +236,7 @@ Authorization: Bearer <token>
 | `javaRuntimeId` | string \| null | 绑定的 Java 运行时 ID；`null` 使用 PATH 中的 `java` |
 | `status` | `InstanceStatus` | 运行状态 |
 | `acceptEula` | boolean | 为 `true` 时每次启动写入 `eula=true`；为 `false` 时启动不修改 `eula.txt`（导入的服务端可能自带同意记录），仅在由 `true` 改为 `false` 的那次保存时写入 `eula=false` |
+| `autoRestartState` | object \| null | 崩溃后等待中的重启，或最近一次崩溃未重启的原因，见上文 |
 | `createdAt` / `updatedAt` | string | ISO 时间 |
 
 `jvmArgs` 在保存与启动前均经过 `@mystry/shared` 的同一套校验：`Xms` / `Xmx` 须各有且仅有一个；拒绝未闭合引号、重复或冲突的 GC 设置及 `Xms > Xmx`，也拒绝 `-jar`、classpath、模块启动、`@argfile` 与 `nogui` 等由面板负责的启动参数。请求省略 `jvmArgs` 时，创建、部署与导入仍使用兼容默认值 `-Xms1G -Xmx2G`。旧实例的文本不会仅因读取而被改写，但非法旧值须先修正，方可保存或启动。
