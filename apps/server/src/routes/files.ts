@@ -7,6 +7,7 @@ import {
   fileDownloadTicketBodySchema,
   type ApiErrorBody,
   type ServerMessageKey,
+  type TextFileSaveRequest,
 } from '@mystry/shared';
 import { config } from '../config.js';
 import {
@@ -68,6 +69,7 @@ const textContentBodySchema = {
   properties: {
     path: { type: 'string', maxLength: maxPathLength },
     content: { type: 'string', maxLength: maxTextFileBytes },
+    onConflict: { type: 'string', enum: ['fail', 'overwrite'] },
   },
 } as const;
 
@@ -333,7 +335,7 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  app.put<{ Params: { id: string }; Body: { path: string; content: string } }>(
+  app.put<{ Params: { id: string }; Body: TextFileSaveRequest }>(
     '/api/instances/:id/files/content',
     { attachValidation: true, bodyLimit: textContentBodyLimit, schema: { body: textContentBodySchema } },
     async (req, reply) => {
@@ -341,7 +343,10 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
       if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
         rejectWhileRestoring(req.params.id);
-        writeTextFile(req.params.id, req.body.path, req.body.content, { serverPids: serverPids(req.params.id) });
+        writeTextFile(req.params.id, req.body.path, req.body.content, {
+          onConflict: req.body.onConflict,
+          serverPids: serverPids(req.params.id),
+        });
         noteInstanceFilesChanged(req.params.id);
         return { ok: true };
       } catch (err) {

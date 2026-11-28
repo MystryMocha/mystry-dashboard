@@ -29,6 +29,7 @@ export const FILES_MESSAGES = {
   'server.files.rename.sameDirOnly': 'You can only rename within the same directory.',
   'server.files.rename.sourceNotFound': 'Source path not found.',
   'server.files.rename.conflict': "The target path already exists, so it can't be renamed.",
+  'server.files.alreadyExists': 'A file or folder with this name already exists here.',
   'server.files.serverProperties.tooLarge': 'server.properties exceeds the size limit ({limit} bytes).',
 
   // Request parameter validation
