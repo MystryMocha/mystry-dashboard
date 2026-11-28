@@ -260,7 +260,7 @@ Authorization: Bearer <token>
 | GET | `/config/server.properties` | 键值对象；`difficulty`、`gamemode` 的数字写法转换为名称（如 `1` → `easy`） |
 | PUT | `/config/server.properties` | Body：`Record<string, string>`。`difficulty`、`gamemode` 以名称提交；文件原为数字或实例版本为 1.13 及更早时，写回数字。非 ASCII 字符写为 `\uXXXX` |
 
-所有 `path` 均为**相对于 `DATA_DIR/instances/<id>` 的逻辑路径**，服务端校验后拒绝 `..` 逃逸；这些接口无法访问实例根目录以外的文件。仅可下载普通文件；`Content-Disposition` 仅使用 basename（含 RFC 5987 `filename*`）。不带 ticket 的下载使用 Bearer JWT；浏览器原生下载可先以 Bearer JWT 调用 `POST .../download-ticket`，再以 `GET .../download?path=&ticket=` 触发流式下载（该 GET 不带 Authorization header）。
+所有 `path` 均为**相对于 `DATA_DIR/instances/<id>` 的逻辑路径**，服务端校验后拒绝 `..` 逃逸，在 Windows 上还拒绝任何含 `:` 的路径；这些接口无法访问实例根目录以外的文件。仅可下载普通文件；`Content-Disposition` 仅使用 basename（含 RFC 5987 `filename*`）。不带 ticket 的下载使用 Bearer JWT；浏览器原生下载可先以 Bearer JWT 调用 `POST .../download-ticket`，再以 `GET .../download?path=&ticket=` 触发流式下载（该 GET 不带 Authorization header）。
 
 下载 ticket 的签发有效期由 `FILE_DOWNLOAD_TICKET_TTL_SECONDS` 控制，默认 60 秒。签发时状态为 `reserved`，并预占一个下载并发槽位；原生 GET 校验 `instance` 与 `path` 后将其原子地转为 `streaming`，签发有效期到期不回收已开流的槽位。状态查询返回 `reserved`、`streaming`、`consumed`、`failed` 或 `expired`：传输成功为 `consumed`；读流错误、连接中止、下载空闲超时及取消为 `failed`；签发有效期届满仍未开流为 `expired`。`expired`、`consumed` 与 `failed` 均按所属用户保留 60 秒的短时 tombstone，供状态查询返回终态；超过该期限或无权查询时返回 404。
 
