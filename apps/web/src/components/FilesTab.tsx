@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Download, File, FileText, Folder, FolderPlus, Pencil, RefreshCw, TextCursorInput, Trash2, Upload } from 'lucide-react';
 import type { FileEntry } from '@mystry/shared';
-import { ApiError, api, downloadAuthenticated, instanceApi } from '../api';
+import { ApiError, api, downloadAuthenticated, getPanelInfo, instanceApi } from '../api';
 import { errorMessage, isAbortError } from '../errors';
 import { useDialogOpen } from '../hooks/useDialogOpen';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
@@ -10,11 +10,12 @@ import { ActionMenu, type ActionMenuItem } from './ActionMenu';
 import { ConfirmDialog } from './ConfirmDialog';
 import { UnsavedChangesDialog } from './UnsavedChangesDialog';
 
-/** Aligned with the server's default MAX_TEXT_FILE_BYTES, used to decide whether to show "Edit". */
-const MAX_EDITABLE_FILE_BYTES = 1_048_576;
-
-function canEditFile(file: FileEntry): boolean {
-  return !file.isDirectory && file.size <= MAX_EDITABLE_FILE_BYTES;
+/**
+ * Whether to offer "Edit". maxBytes is the server's text file limit; null means it could not be read, and then every file is
+ * offered: the server still refuses to open one that is too large and says why.
+ */
+function canEditFile(file: FileEntry, maxBytes: number | null): boolean {
+  return !file.isDirectory && (maxBytes === null || file.size <= maxBytes);
 }
 
 function parentOf(relativePath: string): string {
@@ -35,6 +36,7 @@ function validateEntryName(name: string, folder = false): MessageKey | null {
 
 type FileRowProps = {
   file: FileEntry;
+  editable: boolean;
   /** This file is being prepared for download. */
   busy: boolean;
   deleting: boolean;
@@ -63,6 +65,7 @@ function sameFileRowProps(prev: FileRowProps, next: FileRowProps): boolean {
  */
 const FileRow = memo(function FileRow({
   file: f,
+  editable,
   busy,
   deleting,
   renaming,
@@ -73,7 +76,6 @@ const FileRow = memo(function FileRow({
   onDelete,
 }: FileRowProps) {
   const { t, fmt } = useI18n();
-  const editable = canEditFile(f);
   const Icon = f.isDirectory ? Folder : editable ? FileText : File;
   const meta = f.isDirectory
     ? t('files.row.folderMeta', { modified: fmt.dateTime(f.modifiedAt) })
@@ -155,6 +157,8 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
+  /** The server's text file limit: undefined until the request settles, null when it failed (see canEditFile). */
+  const [maxEditableBytes, setMaxEditableBytes] = useState<number | null | undefined>(undefined);
   const [editPath, setEditPath] = useState<string | null>(null);
   const [content, setContent] = useState('');
   /** The original content on a successful read; null means not read yet or the read failed, in which case no edit box is shown and saving is not possible, so the original file is not overwritten with empty content. */
@@ -225,6 +229,20 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    let active = true;
+    getPanelInfo()
+      .then((info) => {
+        if (active) setMaxEditableBytes(typeof info.maxTextFileBytes === 'number' ? info.maxTextFileBytes : null);
+      })
+      .catch(() => {
+        if (active) setMaxEditableBytes(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const editDirty = editPath !== null && !editBinary && editOriginal !== null && content !== editOriginal;
   const blocker = useUnsavedGuard(editDirty, saving);
 
@@ -278,7 +296,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
   }, []);
 
   const startEdit = useCallback(async (file: FileEntry) => {
-    if (!canEditFile(file)) return;
+    if (file.isDirectory) return;
     const generation = editGenerationRef.current + 1;
     editGenerationRef.current = generation;
     setLoadingEdit(true);
@@ -539,8 +557,9 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
       )}
       {saved && <p className="callout callout-success" role="status">{t('files.list.saved')}</p>}
 
-      {!loaded ? (
-        loading ? (
+      {!loaded || maxEditableBytes === undefined ? (
+        // The rows wait for the text file limit too, so none of them changes between editable and not once it arrives.
+        loading || loaded ? (
           <div className="page-loading" role="status" aria-live="polite">
             <span className="spinner" aria-hidden="true" />
             {t('files.list.loading')}
@@ -558,6 +577,7 @@ export function FilesTab({ instanceId }: { instanceId: string }) {
             <FileRow
               key={f.path}
               file={f}
+              editable={canEditFile(f, maxEditableBytes)}
               busy={busyPath === f.path}
               deleting={deleting}
               renaming={renaming}

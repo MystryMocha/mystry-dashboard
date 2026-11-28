@@ -71,6 +71,18 @@ const textContentBodySchema = {
   },
 } as const;
 
+/**
+ * Body limit of the text save endpoint. The content travels as a JSON string, where one UTF-8 byte can take up to six bytes
+ * (a control character becomes `\u00XX`), so under the general JSON limit a file within the text limit could be opened but not
+ * saved. Sized for the worst case of both fields plus the JSON punctuation around them, and never below the general limit.
+ */
+const JSON_STRING_MAX_BYTES_PER_UTF8_BYTE = 6;
+const textContentBodyLimit = Math.max(
+  config.maxJsonBodyBytes,
+  // The path limit counts characters, and no character takes more than six bytes in JSON either.
+  (maxTextFileBytes + maxPathLength) * JSON_STRING_MAX_BYTES_PER_UTF8_BYTE + 64,
+);
+
 const pathBodySchema = {
   type: 'object',
   additionalProperties: false,
@@ -118,6 +130,13 @@ export async function deleteInstancePath(instanceId: string, relativePath: strin
       noteInstanceFilesChanged(instanceId);
     }
   });
+}
+
+/** The instance's server process: the one the panel started, or one still running from before the panel restarted. */
+function serverPids(instanceId: string): number[] {
+  const started = processManager.getMetricTargets().find((target) => target.id === instanceId)?.pid;
+  const detached = processManager.getOrphanProcess(instanceId)?.pid;
+  return [started, detached].filter((pid): pid is number => typeof pid === 'number');
 }
 
 function validationMessage(reply: { code: (statusCode: number) => { send: (payload: unknown) => unknown } }, key: ServerMessageKey) {
@@ -275,8 +294,9 @@ export function cancelDownloadTicketRoute(
 }
 
 export async function fileRoutes(app: FastifyInstance): Promise<void> {
-  // Downloads can use a one-time ticket instead of the JWT (native browser navigation cannot send Authorization)
-  app.addHook('preHandler', async (req: FastifyRequest, reply: FastifyReply) => {
+  // Downloads can use a one-time ticket instead of the JWT (native browser navigation cannot send Authorization).
+  // The check runs in onRequest, before the body is read: a request that is not signed in must not get a body parsed for it.
+  app.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
     if (isDownloadRoute(req)) {
       const ticket = (req.query as { ticket?: string }).ticket;
       if (typeof ticket === 'string' && ticket.length > 0) return;
@@ -315,13 +335,13 @@ export async function fileRoutes(app: FastifyInstance): Promise<void> {
 
   app.put<{ Params: { id: string }; Body: { path: string; content: string } }>(
     '/api/instances/:id/files/content',
-    { attachValidation: true, schema: { body: textContentBodySchema } },
+    { attachValidation: true, bodyLimit: textContentBodyLimit, schema: { body: textContentBodySchema } },
     async (req, reply) => {
       if (req.validationError) return validationMessage(reply, 'server.files.validation.textBody');
       if (!getInstance(req.params.id)) return reply.code(404).send(panelErrorBody('server.files.instanceNotFound'));
       try {
         rejectWhileRestoring(req.params.id);
-        writeTextFile(req.params.id, req.body.path, req.body.content);
+        writeTextFile(req.params.id, req.body.path, req.body.content, { serverPids: serverPids(req.params.id) });
         noteInstanceFilesChanged(req.params.id);
         return { ok: true };
       } catch (err) {

@@ -66,7 +66,7 @@ The sign-in duration is no longer set with `JWT_EXPIRES_IN`; if the variable is 
 
 | Variable | Default | Description |
 |------|--------|------|
-| `MAX_JSON_BODY_BYTES` | `1048576` | JSON request body limit, 1 MiB |
+| `MAX_JSON_BODY_BYTES` | `1048576` | JSON request body limit, 1 MiB. Saving a text file is the exception: that request may be larger, so that any content within `MAX_TEXT_FILE_BYTES` fits |
 | `MAX_CONCURRENT_UPLOADS` | `1` | Maximum number of uploads handled at the same time |
 | `MAX_CONCURRENT_FILE_DOWNLOADS` | `4` | Maximum number of file downloads handled at the same time |
 | `MAX_CONCURRENT_TASKS` | `1` | Maximum number of deploy / import tasks running at the same time |

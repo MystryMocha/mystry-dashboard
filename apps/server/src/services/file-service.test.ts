@@ -454,3 +454,244 @@ test('a text read reports a file with a NUL byte in its first 8 KiB as binary, a
   assert.equal(readTextFile(inst.id, 'late-nul.txt').binary, false);
   assert.deepEqual(readTextFile(inst.id, 'empty.txt'), { content: '', binary: false });
 });
+
+test('saving a text file replaces it in one step: a failed save keeps the old content and leaves no temp file behind', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { readTextFile, writeTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-save' });
+  const root = defaultInstanceDir(inst.id);
+  const target = path.join(root, 'config', 'paper.yml');
+  const listing = () => fs.readdirSync(path.dirname(target));
+
+  // A new file, in a directory that does not exist yet.
+  writeTextFile(inst.id, 'config/paper.yml', 'motd: 你好\n');
+  assert.equal(fs.readFileSync(target, 'utf8'), 'motd: 你好\n');
+  assert.deepEqual(listing(), ['paper.yml']);
+
+  // An existing file is replaced by a rename of a temp file written beside it.
+  const renamed: string[][] = [];
+  writeTextFile(inst.id, 'config/paper.yml', 'motd: second\n', {
+    renameSync(source, destination) {
+      renamed.push([path.dirname(String(source)), String(destination)]);
+      assert.match(path.basename(String(source)), /^\.paper\.yml\.mystry-save\.[0-9a-f]{16}\.tmp$/);
+      assert.equal(fs.readFileSync(source, 'utf8'), 'motd: second\n');
+      assert.equal(fs.readFileSync(target, 'utf8'), 'motd: 你好\n', 'the old file is whole until the rename');
+      fs.renameSync(source, destination);
+    },
+  });
+  assert.deepEqual(renamed, [[path.dirname(target), target]]);
+  assert.deepEqual(readTextFile(inst.id, 'config/paper.yml'), { content: 'motd: second\n', binary: false });
+  assert.deepEqual(listing(), ['paper.yml']);
+
+  // The disk fills up, or anything else goes wrong: the old content stays and the save is reported as failed.
+  assert.throws(
+    () => writeTextFile(inst.id, 'config/paper.yml', 'motd: third\n', {
+      renameSync() {
+        throw Object.assign(new Error('injected: no space left'), { code: 'ENOSPC' });
+      },
+    }),
+    /injected: no space left/,
+  );
+  assert.equal(fs.readFileSync(target, 'utf8'), 'motd: second\n');
+  assert.deepEqual(listing(), ['paper.yml']);
+
+  // The file cannot be renamed over (held open by another program on Windows): it is written in place instead, as before.
+  for (const code of ['EPERM', 'EBUSY', 'EACCES']) {
+    writeTextFile(inst.id, 'config/paper.yml', `motd: ${code}\n`, {
+      renameSync() {
+        throw Object.assign(new Error(`injected: ${code}`), { code });
+      },
+    });
+    assert.equal(fs.readFileSync(target, 'utf8'), `motd: ${code}\n`);
+    assert.deepEqual(listing(), ['paper.yml']);
+  }
+
+  // Saving empty content empties the file.
+  writeTextFile(inst.id, 'config/paper.yml', '');
+  assert.equal(fs.statSync(target).size, 0);
+});
+
+test('saving a text file keeps its permission bits, and a file marked read-only is still refused', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { writeTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-save-mode' });
+  const root = defaultInstanceDir(inst.id);
+
+  // Windows has no permission bits beyond read-only.
+  if (process.platform !== 'win32') {
+    const script = path.join(root, 'start.sh');
+    fs.writeFileSync(script, '#!/bin/sh\n');
+    fs.chmodSync(script, 0o754);
+    writeTextFile(inst.id, 'start.sh', '#!/bin/sh\nexec java -jar server.jar\n');
+    assert.equal(fs.statSync(script).mode & 0o7777, 0o754);
+    assert.equal(fs.readFileSync(script, 'utf8'), '#!/bin/sh\nexec java -jar server.jar\n');
+  }
+
+  const locked = path.join(root, 'locked.properties');
+  fs.writeFileSync(locked, 'keep=1\n');
+  fs.chmodSync(locked, 0o444);
+  try {
+    // root may write to any file, so there is nothing to refuse.
+    if (process.getuid?.() !== 0) {
+      assert.throws(
+        () => writeTextFile(inst.id, 'locked.properties', 'keep=2\n'),
+        (err: unknown) => ['EACCES', 'EPERM'].includes(String((err as { code?: unknown }).code)),
+      );
+      assert.equal(fs.readFileSync(locked, 'utf8'), 'keep=1\n');
+      assert.deepEqual(fs.readdirSync(root).filter((entry) => entry.endsWith('.tmp')), []);
+    }
+  } finally {
+    // A read-only file would keep Windows from removing the data directory after the test.
+    fs.chmodSync(locked, 0o644);
+  }
+});
+
+test('creating an entry refuses a name the system cannot handle, while entries that are already there stay usable', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { config } = await import('../config.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { deletePath, mkdirPath, renamePath, saveUploadedFile, writeTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir, OWNERSHIP_MARKER_FILE } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'entry-names' });
+  const root = defaultInstanceDir(inst.id);
+  const entries = () => fs.readdirSync(root).filter((name) => name !== OWNERSHIP_MARKER_FILE).sort();
+  const hasKey = (key: string) => (err: unknown) => (err as { messageKey?: string }).messageKey === key;
+  fs.writeFileSync(path.join(root, 'a.txt'), 'a');
+
+  // A control character is refused on every system, by each entry point that can create something.
+  const bad = 'bad\u0001name';
+  const invalidCharacter = hasKey('server.files.name.invalidCharacter');
+  assert.throws(() => mkdirPath(inst.id, bad), invalidCharacter);
+  assert.throws(() => mkdirPath(inst.id, `plugins/${bad}/data`), invalidCharacter, 'a new folder is not created up to the bad name');
+  assert.throws(() => writeTextFile(inst.id, `${bad}.yml`, 'x'), invalidCharacter);
+  assert.throws(() => writeTextFile(inst.id, `${bad}/config.yml`, 'x'), invalidCharacter);
+  assert.throws(() => renamePath(inst.id, 'a.txt', `${bad}.txt`), invalidCharacter);
+  await assert.rejects(saveUploadedFile(inst.id, '', `${bad}.jar`, Readable.from('jar')), invalidCharacter);
+  await assert.rejects(saveUploadedFile(inst.id, `mods/${bad}`, 'mod.jar', Readable.from('jar')), invalidCharacter);
+  assert.deepEqual(entries(), ['a.txt']);
+  assert.equal(fs.readFileSync(path.join(root, 'a.txt'), 'utf8'), 'a');
+  // The upload was refused before anything of it was received.
+  assert.equal(fs.existsSync(config.uploadDir) && fs.readdirSync(config.uploadDir).some((entry) => entry.startsWith('.tmp-file-')), false);
+
+  if (process.platform === 'win32') {
+    for (const [name, key] of [
+      ['con', 'server.files.name.reserved'],
+      ['nul.txt', 'server.files.name.reserved'],
+      ['trailing.', 'server.files.name.trailingDotOrSpace'],
+      ['what?.txt', 'server.files.name.invalidCharacter'],
+    ] as const) {
+      assert.throws(() => mkdirPath(inst.id, name), hasKey(key), `mkdir ${name}`);
+      assert.throws(() => renamePath(inst.id, 'a.txt', name), hasKey(key), `rename to ${name}`);
+      assert.throws(() => writeTextFile(inst.id, `configs/${name}`, 'x'), hasKey(key), `write ${name}`);
+    }
+    assert.deepEqual(entries(), ['a.txt']);
+  } else {
+    // Legal here, and a server brought over from another machine may contain them.
+    mkdirPath(inst.id, 'con');
+    writeTextFile(inst.id, 'con/trailing.', 'x');
+    renamePath(inst.id, 'a.txt', 'what?.txt');
+    assert.deepEqual(entries(), ['con', 'what?.txt']);
+
+    // An entry whose name would be refused today can still be saved, used as a parent, renamed and deleted.
+    const odd = 'odd\u0001name.txt';
+    fs.writeFileSync(path.join(root, odd), 'old');
+    fs.mkdirSync(path.join(root, 'odd\u0001dir'));
+    writeTextFile(inst.id, odd, 'new');
+    assert.equal(fs.readFileSync(path.join(root, odd), 'utf8'), 'new');
+    writeTextFile(inst.id, 'odd\u0001dir/inside.yml', 'x');
+    renamePath(inst.id, odd, 'fixed.txt');
+    await deletePath(inst.id, 'odd\u0001dir');
+    assert.deepEqual(entries(), ['con', 'fixed.txt', 'what?.txt']);
+  }
+});
+
+test('a temp file left by a save that was cut short is not listed, and the next save in the directory removes it', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { listFiles, writeTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-save-leftover' });
+  const dir = path.join(defaultInstanceDir(inst.id), 'config');
+  fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(dir, 'paper.yml'), 'motd: old\n');
+  const leftover = '.paper.yml.mystry-save.0123456789abcdef.tmp';
+  fs.writeFileSync(path.join(dir, leftover), 'motd: ha');
+  // Not the panel's: other files that merely look temporary are shown and kept.
+  const others = ['.paper.yml.4242.0123456789abcdef.tmp', 'world.mystry-save.0123456789abcdef.tmp', '.notes.tmp'];
+  for (const name of others) fs.writeFileSync(path.join(dir, name), 'keep');
+  fs.mkdirSync(path.join(dir, '.dir.mystry-save.0123456789abcdef.tmp'));
+
+  const listed = listFiles(inst.id, 'config').map((entry) => entry.name);
+  assert.equal(listed.includes(leftover), false);
+  assert.deepEqual(listed.sort(), ['.dir.mystry-save.0123456789abcdef.tmp', 'paper.yml', ...others].sort());
+
+  writeTextFile(inst.id, 'config/spigot.yml', 'x\n');
+  assert.equal(fs.existsSync(path.join(dir, leftover)), false);
+  assert.deepEqual(
+    fs.readdirSync(dir).sort(),
+    ['.dir.mystry-save.0123456789abcdef.tmp', 'paper.yml', 'spigot.yml', ...others].sort(),
+  );
+  assert.equal(fs.readFileSync(path.join(dir, 'paper.yml'), 'utf8'), 'motd: old\n');
+});
+
+test('a file the running server has open is saved in place, so the server keeps writing to the file that is shown', { skip: process.platform !== 'linux' }, async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { writeTextFile } = await import('./file-service.js');
+  const { isFileOpenInProcess } = await import('../utils/open-files.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'text-save-open' });
+  const root = defaultInstanceDir(inst.id);
+  fs.mkdirSync(path.join(root, 'logs'));
+  const log = path.join(root, 'logs', 'latest.log');
+  fs.writeFileSync(log, '[10:00:00] Starting\n[10:00:05] Done\n');
+  fs.writeFileSync(path.join(root, 'server.properties'), 'motd=old\n');
+  const noRename = () => assert.fail('a file held open must not be replaced by a rename');
+
+  // This test process stands in for the server: it holds the log open for appending, as a server does.
+  const fd = fs.openSync(log, 'a');
+  try {
+    assert.equal(isFileOpenInProcess(process.pid, log), true);
+    assert.equal(isFileOpenInProcess(process.pid, path.join(root, 'server.properties')), false);
+    const inode = fs.statSync(log).ino;
+
+    writeTextFile(inst.id, 'logs/latest.log', '[10:00:05] Done\n', { serverPids: [process.pid], renameSync: noRename });
+    fs.writeSync(fd, '[10:00:09] Saved the game\n');
+    assert.equal(fs.readFileSync(log, 'utf8'), '[10:00:05] Done\n[10:00:09] Saved the game\n');
+    assert.equal(fs.statSync(log).ino, inode);
+
+    // A file the server does not have open is still replaced by a rename, whether or not a server is running.
+    let renames = 0;
+    const countRename: typeof fs.renameSync = (source, destination) => {
+      renames += 1;
+      fs.renameSync(source, destination);
+    };
+    writeTextFile(inst.id, 'server.properties', 'motd=new\n', { serverPids: [process.pid], renameSync: countRename });
+    assert.equal(renames, 1);
+    assert.equal(fs.readFileSync(path.join(root, 'server.properties'), 'utf8'), 'motd=new\n');
+  } finally {
+    fs.closeSync(fd);
+  }
+  assert.equal(isFileOpenInProcess(process.pid, log), false);
+  // A process that does not exist has nothing open.
+  assert.equal(isFileOpenInProcess(2 ** 30, log), false);
+});

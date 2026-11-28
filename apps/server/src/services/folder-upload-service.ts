@@ -19,6 +19,7 @@ import type {
 } from '@mystry/shared';
 import { config } from '../config.js';
 import { createByteCounter } from '../utils/byte-counter.js';
+import { checkEntryName } from '../utils/entry-name.js';
 import { hasErrorCode, PanelError } from '../utils/errors.js';
 import { OWNERSHIP_MARKER_FILE, assertSafeInstanceRoot, resolveSafePath } from '../utils/path.js';
 import {
@@ -36,8 +37,6 @@ export const FOLDER_UPLOAD_DIR_PREFIX = '.tmp-folder-upload-';
 export const FOLDER_UPLOAD_BATCH_MAX_FILES = 500;
 const MAX_RELATIVE_PATH_LENGTH = 1024;
 const MAX_PATH_DEPTH = 64;
-const MAX_SEGMENT_LENGTH = 255;
-const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(\..*)?$/i;
 /** Files the panel itself writes into the instance root; the root of an uploaded folder must not contain files with the same names. */
 const RESERVED_ROOT_FILES = [OWNERSHIP_MARKER_FILE, STAGING_MARKER_FILE].map((name) => name.toLowerCase());
 
@@ -145,14 +144,10 @@ function findOwnedSession(id: string, userId: string, now = Date.now()): FolderU
 export function normalizeUploadRelativePath(raw: string): string {
   const invalid = () => httpError('server.imports.folder.invalidPath', 400, { path: raw.slice(0, MAX_RELATIVE_PATH_LENGTH) });
   if (raw.length === 0 || raw.length > MAX_RELATIVE_PATH_LENGTH) throw invalid();
-  if (/[\u0000-\u001f\u007f\\]/.test(raw)) throw invalid();
-  const windows = process.platform === 'win32';
-  if (windows && /[<>:"|?*]/.test(raw)) throw invalid();
   const segments = raw.split('/');
   if (segments.length > MAX_PATH_DEPTH) throw invalid();
   for (const segment of segments) {
-    if (!segment || segment === '.' || segment === '..' || segment.length > MAX_SEGMENT_LENGTH) throw invalid();
-    if (windows && (/[. ]$/.test(segment) || WINDOWS_RESERVED_NAME.test(segment))) throw invalid();
+    if (checkEntryName(segment)) throw invalid();
   }
   if (segments.length === 1 && RESERVED_ROOT_FILES.includes(segments[0]!.toLowerCase())) {
     throw httpError('server.imports.folder.reservedName', 400, { path: raw });

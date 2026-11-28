@@ -2,8 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import type { Readable } from 'node:stream';
-import type { FileEntry } from '@mystry/shared';
+import type { FileEntry, ServerMessageKey } from '@mystry/shared';
 import { config } from '../config.js';
+import { writeFileAtomic } from '../utils/atomic-write.js';
+import { checkEntryName, type EntryNameIssue } from '../utils/entry-name.js';
+import { isFileOpenInProcess } from '../utils/open-files.js';
 import { getInstanceDir, OWNERSHIP_MARKER_FILE, resolveSafePath } from '../utils/path.js';
 import { streamToUploadTemp, removeUploadTemp } from './upload-service.js';
 import { hasErrorCode, PanelError } from '../utils/errors.js';
@@ -72,6 +75,30 @@ function assertMutableTarget(root: string, target: string): void {
   }
 }
 
+const ENTRY_NAME_MESSAGES: Record<Exclude<EntryNameIssue, 'empty' | 'tooLong'>, ServerMessageKey> = {
+  invalidCharacter: 'server.files.name.invalidCharacter',
+  trailingDotOrSpace: 'server.files.name.trailingDotOrSpace',
+  reserved: 'server.files.name.reserved',
+};
+
+/**
+ * Refuses to create an entry under a name the system cannot handle afterwards (see checkEntryName). Every entry point that
+ * may create a file or directory calls this for its target. Only the segments that do not exist yet are checked: an entry
+ * that is already there, whatever its name, can still be opened, saved, renamed and deleted.
+ */
+function assertCreatableNames(root: string, target: string): void {
+  let current = root;
+  for (const segment of path.relative(root, target).split(path.sep).filter(Boolean)) {
+    current = path.join(current, segment);
+    if (fs.existsSync(current)) continue;
+    const issue = checkEntryName(segment);
+    if (!issue) continue;
+    // A resolved path has no empty, "." or ".." segment left, and the system itself usually refuses an overlong name while the path is resolved.
+    if (issue === 'empty' || issue === 'tooLong') throw new PanelError('server.files.validation.path');
+    throw new PanelError(ENTRY_NAME_MESSAGES[issue], { name: segment });
+  }
+}
+
 export function listFiles(instanceId: string, relativePath = ''): FileEntry[] {
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
@@ -92,6 +119,8 @@ export function listFiles(instanceId: string, relativePath = ''): FileEntry[] {
     .readdirSync(target, { withFileTypes: true })
     // The ownership marker in the instance root is maintained by the panel and not shown to users; the modifying endpoints already refuse to operate on it.
     .filter((entry) => !samePath(path.join(target, entry.name), markerPath))
+    // Left by a save that was cut short; the next save in this directory removes them.
+    .filter((entry) => !(entry.isFile() && TEXT_SAVE_TEMP_NAME.test(entry.name)))
     .map((entry) => {
       const full = path.join(target, entry.name);
       const s = fs.lstatSync(full);
@@ -148,26 +177,90 @@ export function readTextFile(instanceId: string, relativePath: string): TextFile
   };
 }
 
-export function writeTextFile(instanceId: string, relativePath: string, content: string): void {
+type TextWriteOptions = {
+  /** Process IDs of the instance's server: a file one of them has open is written in place, see writeTextFile. */
+  serverPids?: number[];
+  /** Tests only: stands in for the rename that puts the new content in place. */
+  renameSync?: typeof fs.renameSync;
+};
+
+/** Marks the temp files of text saves: `.<name>.mystry-save.<16 hex digits>.tmp`, beside the file being saved. */
+const TEXT_SAVE_TEMP_TAG = 'mystry-save';
+const TEXT_SAVE_TEMP_NAME = /^\..+\.mystry-save\.[0-9a-f]{16}\.tmp$/;
+
+/**
+ * A panel that is killed between writing a temp file and renaming it leaves the temp file behind. A save runs from start to
+ * finish without yielding and only one panel process uses the data directory, so once a save has finished, every such file
+ * in the directory is a leftover. Failures are ignored: the listing hides these files, and the next save tries again.
+ */
+function removeLeftoverTextSaveTemps(dir: string): void {
+  try {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isFile() && TEXT_SAVE_TEMP_NAME.test(entry.name)) fs.rmSync(path.join(dir, entry.name), { force: true });
+    }
+  } catch {
+    /* See above. */
+  }
+}
+
+/**
+ * Failures that mean the file cannot be replaced by a rename here, while writing into it may still work: on Windows another
+ * program holds it open (a running server and its latest.log), the directory itself is not writable, or the name leaves no
+ * room for the temp file's suffix. A full disk is not one of them: writing in place would then cut the file short.
+ */
+const REPLACE_REFUSED_CODES = ['EPERM', 'EACCES', 'EBUSY', 'ENAMETOOLONG'];
+
+export function writeTextFile(
+  instanceId: string,
+  relativePath: string,
+  content: string,
+  options: TextWriteOptions = {},
+): void {
   if (typeof content !== 'string') {
     throw new PanelError('server.files.text.invalidContent');
   }
-  const contentBytes = Buffer.byteLength(content, 'utf8');
-  if (contentBytes > maxTextFileBytes) {
+  const bytes = Buffer.from(content, 'utf8');
+  if (bytes.length > maxTextFileBytes) {
     throw new PanelError('server.files.text.tooLarge', { limit: maxTextFileBytes });
   }
 
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
   assertMutableTarget(root, target);
+  let existingMode: number | undefined;
   if (fs.existsSync(target)) {
     const stat = fs.lstatSync(target);
     if (stat.isSymbolicLink() || !stat.isFile()) {
       throw new PanelError('server.files.notRegularFile');
     }
+    // A rename replaces a file whatever its own permissions say, so a file marked read-only is refused here, as it was when it was written in place.
+    fs.accessSync(target, fs.constants.W_OK);
+    existingMode = stat.mode & 0o7777;
   }
+  assertCreatableNames(root, target);
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(target, Buffer.from(content, 'utf8'));
+  // Where a rename over an open file succeeds (Linux), the server would go on writing to the old file, which no longer has a
+  // name: its latest.log would stop growing where anyone can read it. Such a file is written in place, which is also where
+  // Windows ends up below, because it refuses the rename.
+  const heldOpenByServer = existingMode !== undefined
+    && (options.serverPids ?? []).some((pid) => isFileOpenInProcess(pid, target));
+  try {
+    if (heldOpenByServer) {
+      fs.writeFileSync(target, bytes);
+    } else {
+      // Written beside the target and renamed over it: a panel that stops midway leaves the old file whole, not half a config file.
+      // An existing file keeps its permission bits (a start script stays executable); a new one gets the usual ones.
+      writeFileAtomic(target, bytes, {
+        ...(existingMode === undefined ? { createMode: 0o666 } : { exactMode: existingMode }),
+        tempTag: TEXT_SAVE_TEMP_TAG,
+        renameSync: options.renameSync,
+      });
+    }
+  } catch (error) {
+    if (heldOpenByServer || !REPLACE_REFUSED_CODES.some((code) => hasErrorCode(error, code))) throw error;
+    fs.writeFileSync(target, bytes);
+  }
+  removeLeftoverTextSaveTemps(path.dirname(target));
 }
 
 /** Before reading server.properties directly, checks that it is still a restricted regular text file. */
@@ -262,6 +355,7 @@ export function renamePath(instanceId: string, from: string, to: string): void {
   if (fs.existsSync(dest)) {
     throw new FileRenameConflictError();
   }
+  assertCreatableNames(root, dest);
   fs.renameSync(src, dest);
 }
 
@@ -269,6 +363,7 @@ export function mkdirPath(instanceId: string, relativePath: string): void {
   const root = getInstanceDir(instanceId);
   const target = resolveSafePath(root, relativePath);
   assertMutableTarget(root, target);
+  assertCreatableNames(root, target);
   fs.mkdirSync(target, { recursive: true, mode: 0o700 });
 }
 
@@ -320,6 +415,8 @@ export async function saveUploadedFile(
   const safeName = path.posix.basename(filename.replace(/\\/g, '/'));
   const target = resolveSafePath(root, path.posix.join(relativeDir || '', safeName));
   assertMutableTarget(root, target);
+  // Before the upload is received, so a name that would be refused does not cost the whole transfer first.
+  assertCreatableNames(root, target);
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
   const temp = await streamToUploadTemp(input, 'file');
   const renameSync = replaceOperations.renameSync ?? fs.renameSync;

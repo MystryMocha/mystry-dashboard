@@ -8,4 +8,5 @@ export const COMMON_MESSAGES = {
   'server.common.unauthorized': 'Your session has expired. Sign in again.',
   'server.common.tooManyRequests': 'Too many requests. Try again later.',
   'server.common.requestTimeout': 'The request timed out.',
+  'server.common.bodyTooLarge': 'The request is larger than the panel accepts.',
 } as const satisfies Record<string, string>;

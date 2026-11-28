@@ -21,6 +21,7 @@ Authorization: Bearer <token>
 - 来自 Node.js 系统错误、Java 或网络库的原始文本不带 `code`，`error` 原样返回。
 - 实例启停、删除与接管冲突（409）的 `code` 同样是消息键（如 `server.instance.alreadyRunning`），不再是 `INSTANCE_OPERATION_CONFLICT`。
 - 请求体校验失败（Fastify / AJV）返回 400，`code` 为 `server.common.invalidRequest`，`params.detail` 为英文校验说明。
+- JSON 请求体超过上限（`MAX_JSON_BODY_BYTES`）返回 413，`code` 为 `server.common.bodyTooLarge`。
 
 ## 总览性能监测
 
@@ -109,7 +110,7 @@ X-Setup-Token: <SETUP_TOKEN>
 | GET | `/api/system/java-runtimes` | 是 | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
 | POST | `/api/system/java-runtimes/install` | 是 | 请求体 `{ major }`（8、17、21、25），返回后台任务 `TaskInfo`；完成后 `result.javaRuntimeId` 为新运行时 |
 | POST | `/api/system/java-runtimes/install/:taskId/cancel` | 是 | 取消仍在排队或运行的一键安装 Java 任务，返回任务当前状态；目标不是进行中的 Java 安装任务时返回 409（`server.jvm.javaInstall.notCancellable`） |
-| GET | `/api/system/panel-info` | 是 | `PanelInfo`：`{ host, port, dataDir, backupDir, configPath }`，即面板启动时从配置文件读取的监听地址与目录（绝对路径）。只读，不含密钥，供「面板设置」页的「运行信息」展示 |
+| GET | `/api/system/panel-info` | 是 | `PanelInfo`：`{ host, port, dataDir, backupDir, configPath, maxTextFileBytes }`，即面板启动时从配置文件读取的监听地址、目录（绝对路径）与文本文件上限（`MAX_TEXT_FILE_BYTES`）。只读，不含密钥。监听地址与目录供「面板设置」页的「运行信息」展示；文件管理只对不超过 `maxTextFileBytes` 的文件提供编辑 |
 | GET | `/api/system/download-source` | 是 | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | 是 | 请求体 `{ source }`，返回保存后的值；其他取值返回 400 |
 | GET | `/api/system/auto-restart` | 是 | `AutoRestartSettings`：`{ enabled, delaySeconds, maxAttempts, windowMinutes }`；未保存过时为 `{ false, 10, 3, 10 }` |
@@ -245,9 +246,9 @@ Authorization: Bearer <token>
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/files?path=` | 列出实例根目录内的目录，返回 `FileEntry[]`；实例根目录下的面板所有权标记 `.mystry-instance.json` 不在列表中 |
+| GET | `/files?path=` | 列出实例根目录内的目录，返回 `FileEntry[]`；实例根目录下的面板所有权标记 `.mystry-instance.json` 不在列表中，保存被中断时留下的临时文件（`.<name>.mystry-save.<hex>.tmp`）也不在其中 |
 | GET | `/files/content?path=` | 读取文本 `{ path, content, binary }`。前 8 KiB 中含 NUL 字节时 `binary` 为 `true`，此时 `content` 有损（非 UTF-8 字节变为 U+FFFD），原样写回会损坏文件 |
-| PUT | `/files/content` | Body：`{ path, content }` |
+| PUT | `/files/content` | Body：`{ path, content }`。`content` 按 UTF-8 计至多 `MAX_TEXT_FILE_BYTES` 字节。本接口的请求体上限按这样的内容经 JSON 转义后仍能容纳来设定，可高于 `MAX_JSON_BODY_BYTES`，且不低于它。内容先写入同目录的临时文件，再改名覆盖原文件，原文件保留权限位；该目录中此前保存被中断留下的临时文件一并清除。原文件正被该实例的服务器进程打开（Linux），或无法通过改名覆盖（如 Windows 上被其他程序占用）时，改为直接写入原文件 |
 | DELETE | `/files?path=` | 删除实例根目录内的文件或目录。与该实例的启动、停止、重启及实例删除共用实例锁：其中一项进行时，删除排队等待；删除完成前，这些操作亦须等待 |
 | POST | `/files/mkdir` | Body：`{ path }` |
 | POST | `/files/rename` | Body：`{ from, to }` |
@@ -264,6 +265,8 @@ Authorization: Bearer <token>
 下载 ticket 的签发有效期由 `FILE_DOWNLOAD_TICKET_TTL_SECONDS` 控制，默认 60 秒。签发时状态为 `reserved`，并预占一个下载并发槽位；原生 GET 校验 `instance` 与 `path` 后将其原子地转为 `streaming`，签发有效期到期不回收已开流的槽位。状态查询返回 `reserved`、`streaming`、`consumed`、`failed` 或 `expired`：传输成功为 `consumed`；读流错误、连接中止、下载空闲超时及取消为 `failed`；签发有效期届满仍未开流为 `expired`。`expired`、`consumed` 与 `failed` 均按所属用户保留 60 秒的短时 tombstone，供状态查询返回终态；超过该期限或无权查询时返回 404。
 
 已认证的 `DELETE .../download-ticket/:ticket` 仅在 ticket、当前用户与 URL 中的实例 ID 三者均匹配，且 ticket 仍为 `reserved` 时，取消 ticket 并随即释放预占槽位，返回 **204**。已进入 `streaming` 时不改动流与槽位，返回 **409**；票据不存在、所属用户或实例不匹配时一律返回 **404**。
+
+会新建文件或目录的请求（保存到新路径、`mkdir`、重命名的目标、上传），在新名称含控制字符时返回 **400**；在 Windows 上，名称含 `<>:"|?*` 之一、以句点或空格结尾，或为 `CON`、`NUL` 等设备名（无论是否带扩展名）时同样拒绝。已存在的条目不受检查，仍可保存、重命名与删除。
 
 上传文件超过 `MAX_UPLOAD_BYTES` 时返回 **413**；上传或下载并发已满时返回 **429**。相关超时见 [配置说明](configuration.zh-CN.md)。
 

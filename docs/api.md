@@ -21,6 +21,7 @@ Error responses are JSON:
 - Raw text from Node.js system errors, Java or network libraries has no `code`; `error` is returned as is.
 - The `code` of instance start/stop, delete and takeover conflicts (409) is also a message key (such as `server.instance.alreadyRunning`), no longer `INSTANCE_OPERATION_CONFLICT`.
 - A request body validation failure (Fastify / AJV) returns 400 with `code` `server.common.invalidRequest` and `params.detail` holding the English validation message.
+- A JSON request body over the limit (`MAX_JSON_BODY_BYTES`) returns 413 with `code` `server.common.bodyTooLarge`.
 
 ## Overview Performance Monitoring
 
@@ -109,7 +110,7 @@ Tokens issued by 0.2.0-preview.3 and earlier have no `tv` and are treated as ver
 | GET | `/api/system/java-runtimes` | Yes | `{ runtimes: JavaRuntimeInfo[], installable: number[] }` |
 | POST | `/api/system/java-runtimes/install` | Yes | Request body `{ major }` (8, 17, 21, 25); returns the background task `TaskInfo`; on completion `result.javaRuntimeId` is the new runtime |
 | POST | `/api/system/java-runtimes/install/:taskId/cancel` | Yes | Cancels a one-click Java install task still queued or running and returns the task's current state; 409 when it is not a Java install task in progress (`server.jvm.javaInstall.notCancellable`) |
-| GET | `/api/system/panel-info` | Yes | `PanelInfo`: `{ host, port, dataDir, backupDir, configPath }`, the listen address and directories (absolute paths) the panel read from the config file at startup. Read-only, without secrets, shown as "Runtime Info" on the "Panel Settings" page |
+| GET | `/api/system/panel-info` | Yes | `PanelInfo`: `{ host, port, dataDir, backupDir, configPath, maxTextFileBytes }`, the listen address, directories (absolute paths) and text file limit (`MAX_TEXT_FILE_BYTES`) the panel read from the config file at startup. Read-only, without secrets. The address and directories are shown as "Runtime Info" on the "Panel Settings" page; the file manager offers editing for files up to `maxTextFileBytes` |
 | GET | `/api/system/download-source` | Yes | `{ source: 'official' \| 'china' }` |
 | PUT | `/api/system/download-source` | Yes | Request body `{ source }`; returns the saved value; other values return 400 |
 | GET | `/api/system/auto-restart` | Yes | `AutoRestartSettings`: `{ enabled, delaySeconds, maxAttempts, windowMinutes }`; `{ false, 10, 3, 10 }` until saved |
@@ -245,9 +246,9 @@ A successful takeover returns the updated `InstanceInfo`. The endpoint returns a
 
 | Method | Path | Description |
 |------|------|------|
-| GET | `/files?path=` | Lists a directory inside the instance root, `FileEntry[]`; the panel ownership marker `.mystry-instance.json` in the instance root is omitted from the list |
+| GET | `/files?path=` | Lists a directory inside the instance root, `FileEntry[]`; the panel ownership marker `.mystry-instance.json` in the instance root is omitted from the list, as are temp files left by a save that was cut short (`.<name>.mystry-save.<hex>.tmp`) |
 | GET | `/files/content?path=` | Reads text `{ path, content, binary }`. `binary` is `true` when the first 8 KiB contain a NUL byte; `content` is then lossy (bytes that are not UTF-8 become U+FFFD), so writing it back would break the file |
-| PUT | `/files/content` | Body: `{ path, content }` |
+| PUT | `/files/content` | Body: `{ path, content }`. `content` may be up to `MAX_TEXT_FILE_BYTES` bytes of UTF-8. The body limit of this endpoint is sized so that any such content fits once escaped as JSON; it can exceed `MAX_JSON_BODY_BYTES` and is never below it. The content is written to a temp file in the same directory and renamed over the file, which keeps its permission bits; temp files left in that directory by an earlier save that was cut short are removed. When the instance's server process has the file open (Linux), or the file cannot be replaced by a rename (for example, another program holds it open on Windows), the content is written into the file directly |
 | DELETE | `/files?path=` | Deletes a file or directory inside the instance root. It shares the per-instance lock with start, stop, restart and instance deletion: it waits for one of them in progress, and they wait until the delete has finished |
 | POST | `/files/mkdir` | Body: `{ path }` |
 | POST | `/files/rename` | Body: `{ from, to }` |
@@ -264,6 +265,8 @@ Every `path` is a **logical path relative to `DATA_DIR/instances/<id>`**; the se
 The issue lifetime of a download ticket is controlled by `FILE_DOWNLOAD_TICKET_TTL_SECONDS`, 60 seconds by default. On issue, the status is `reserved` and a download concurrency slot is pre-claimed; the native GET validates `instance` and `path` and atomically moves the ticket to `streaming`, and the end of the issue lifetime does not reclaim the slot of an opened stream. The status query returns `reserved`, `streaming`, `consumed`, `failed` or `expired`: a successful transfer is `consumed`; a read stream error, an aborted connection, a download idle timeout or a cancel is `failed`; and an issue lifetime that runs out before a stream opens is `expired`. `expired`, `consumed` and `failed` each keep a short-lived 60-second tombstone per owning user, so the status query can return the final state; after that, or without permission to query, it returns 404.
 
 An authenticated `DELETE .../download-ticket/:ticket` cancels the ticket and immediately releases the pre-claimed slot, returning **204**, only when the ticket, the current user and the instance ID in the URL all match and the ticket is still `reserved`. Once it is `streaming`, neither the stream nor the slot is changed and it returns **409**; a nonexistent ticket or a mismatched owner or instance always returns **404**.
+
+A request that would create a file or directory (saving to a new path, `mkdir`, the target of a rename, an upload) is refused with **400** when a new name contains a control character, and on Windows also when it contains one of `<>:"|?*`, ends with a dot or a space, or is a device name such as `CON` or `NUL` with or without an extension. Entries that already exist are not checked, so they can still be saved, renamed and deleted.
 
 An upload over `MAX_UPLOAD_BYTES` returns **413**; full upload or download concurrency returns **429**. Related timeouts are in [Configuration](configuration.md).
 

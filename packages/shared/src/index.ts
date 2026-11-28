@@ -387,7 +387,7 @@ export interface DownloadSourceSetting {
 }
 
 /**
- * GET /api/system/panel-info response: the listen address and directories the panel read from its config file at startup; shown in the UI only, not editable.
+ * GET /api/system/panel-info response: the listen address, directories and limits the panel read from its config file at startup; none can be changed from the UI.
  * Contains no secrets.
  */
 export interface PanelInfo {
@@ -400,6 +400,8 @@ export interface PanelInfo {
   backupDir: string;
   /** Path of the config file the panel reads; changes to this file take effect only after the panel restarts */
   configPath: string;
+  /** Largest text file, in bytes, the file endpoints read or save (MAX_TEXT_FILE_BYTES); the file manager offers editing up to this size */
+  maxTextFileBytes: number;
 }
 
 export interface DeployCoreInput {

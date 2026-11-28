@@ -46,13 +46,15 @@ export async function systemRoutes(app: FastifyInstance): Promise<void> {
   const metrics = getSharedMetricsService();
   app.get('/api/system/metrics', () => metrics.get());
 
-  // Panel runtime info: shows the listen address and directories on the "Panel Settings" page. Read-only, returning only non-secret items from the config file.
+  // Panel runtime info: the listen address and directories shown on the "Panel Settings" page, and the limits the web UI follows.
+  // Read-only, returning only non-secret items from the config file.
   app.get('/api/system/panel-info', (): PanelInfo => ({
     host: config.host,
     port: config.port,
     dataDir: path.resolve(config.dataDir),
     backupDir: path.resolve(config.backupDir),
     configPath: path.resolve(config.configPath),
+    maxTextFileBytes: config.maxTextFileBytes,
   }));
 
   app.get('/api/system/download-source', (): DownloadSourceSetting => ({ source: getDownloadSource() }));

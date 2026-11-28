@@ -10,4 +10,5 @@ export default {
   'server.common.unauthorized': '登入已失效，請重新登入',
   'server.common.tooManyRequests': '請求過於頻繁，請稍後再試',
   'server.common.requestTimeout': '請求逾時',
+  'server.common.bodyTooLarge': '請求內容超過面板可接受的大小',
 } satisfies Record<keyof typeof COMMON_MESSAGES, string>;

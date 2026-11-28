@@ -4,6 +4,20 @@
 
 本文件记录项目的重要变更。格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Fixed
+
+- 【文件】接近 1 MiB 编辑上限且换行较多的文本文件，能打开但无法保存。
+- 【文件】保存过程中面板停止或磁盘写满时，文件可能只写入一半。现在新内容完整写入之前，原内容保持不变。
+- 【文件】在 Windows 上，新建文件夹、重命名、新建文本文件或上传时可以使用 `con` 之类的名称或以句点结尾的名称，此后资源管理器既打不开也删不掉。现在拒绝此类名称。
+- 【文件】在 `panel.env` 中修改 `MAX_TEXT_FILE_BYTES` 之后，文件列表仍只对默认的 1 MiB 以内的文件提供「编辑」。
+- 【界面】请求内容过大时，无论界面语言为何，提示都是英文。
+
+### Security
+
+- 【文件】未登录的请求在读取请求体之前即被拒绝。
+
 ## [0.3.0-preview.1] - 2026-11-28
 
 ### Upgrade notes
