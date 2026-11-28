@@ -2311,7 +2311,8 @@ test('Java picker: a download can be cancelled, no error is shown after cancelli
   expect(screen.queryByText(/你取消了这个任务/)).toBeNull();
   expect(document.querySelector('p.error')).toBeNull();
   expect((screen.getByRole('button', { name: '安装 Java 21' }) as HTMLButtonElement).disabled).toBe(false);
-  expect(installingStates.at(-1)).toBe(false);
+  // The page is told through an effect, which can run after the progress bar has already left the DOM.
+  await waitFor(() => expect(installingStates.at(-1)).toBe(false));
 });
 
 test('Java picker: an install failure shows the reason and keeps the manual download entry', async () => {
