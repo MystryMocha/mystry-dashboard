@@ -140,6 +140,37 @@ test('the directory listing denies access on a symlink or directory junction', a
 
 const hasKey = (key: string) => (err: unknown) => (err as { messageKey?: string }).messageKey === key;
 
+test('a path with a colon is refused on Windows, where it names a drive or an alternate data stream, and is an ordinary name elsewhere', async (t) => {
+  prepareTempDataRoot(t);
+  const { initDb } = await import('../db.js');
+  const { createInstance } = await import('./instance-service.js');
+  const { listFiles, readTextFile } = await import('./file-service.js');
+  const { defaultInstanceDir } = await import('../utils/path.js');
+
+  initDb();
+  const inst = createInstance({ name: 'colon-paths' });
+  const root = defaultInstanceDir(inst.id);
+  fs.mkdirSync(path.join(root, 'data'));
+  fs.writeFileSync(path.join(root, 'data', 'level.dat'), 'level');
+
+  if (process.platform === 'win32') {
+    // On the root's own drive, `c:data` would otherwise resolve to `<root>\data` and list that folder.
+    const sameDrive = `${path.parse(root).root.slice(0, 1).toLowerCase()}:data`;
+    assert.throws(() => listFiles(inst.id, sameDrive), hasKey('server.files.path.outside'));
+    assert.throws(() => readTextFile(inst.id, 'data/level.dat:hidden'), hasKey('server.files.path.outside'));
+    assert.deepEqual(listFiles(inst.id, 'data').map((entry) => entry.name), ['level.dat']);
+  } else {
+    // A server brought over from another machine may have such a folder at the top level; it stays reachable from the list.
+    fs.mkdirSync(path.join(root, 'c:data'));
+    fs.writeFileSync(path.join(root, 'c:data', 'level.dat'), 'colon');
+    const listed = listFiles(inst.id).find((entry) => entry.name === 'c:data');
+    assert.ok(listed);
+    assert.equal(listed.path, 'c:data');
+    assert.deepEqual(listFiles(inst.id, listed.path).map((entry) => entry.name), ['level.dat']);
+    assert.equal(readTextFile(inst.id, 'c:data/level.dat').content, 'colon');
+  }
+});
+
 test('delete removes a file or a whole directory tree, and refuses the instance root, the ownership marker, missing paths and paths outside the instance', async (t) => {
   prepareTempDataRoot(t);
   const { initDb } = await import('../db.js');

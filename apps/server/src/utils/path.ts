@@ -85,6 +85,11 @@ function assertNoSymlinkTraversal(root: string, target: string): void {
 export function resolveSafePath(instanceRoot: string, relativePath = ''): string {
   const root = path.resolve(instanceRoot);
   const cleaned = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
+  // On Windows a colon is never part of a name: `c:data` is drive-relative and resolves to `<root>\data` when the root is on
+  // C:, and `a.txt:s` addresses an alternate data stream. Elsewhere it is an ordinary character that existing entries may use.
+  if (process.platform === 'win32' && cleaned.includes(':')) {
+    throw new PanelError('server.files.path.outside');
+  }
   const target = path.resolve(root, cleaned);
   const relative = path.relative(root, target);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
