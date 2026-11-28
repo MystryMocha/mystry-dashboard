@@ -44,8 +44,8 @@ function parentOf(relativePath: string): string {
  * Turns a typed path into the form the tab keeps ("world/region"): either slash, with empty and "." segments dropped and ".."
  * applied, as the server would resolve it. Returns null when ".." climbs above the instance root, or for a Windows path with a
  * drive letter or a network path, as pasted from Explorer, which would otherwise be read as folders named "C:", "Users" and so
- * on. A first folder named like "c:data" is refused too: the server on Windows would list the folder "data" for it. Such a
- * folder, possible on Linux, is still opened from the list. The server still checks the result.
+ * on. A first folder named like "c:data" is refused too, as it reads as a drive path; the server on Windows refuses it as
+ * well. Such a folder, possible on Linux, is still opened from the list. The server still checks the result.
  */
 function normalizeTypedPath(input: string): string | null {
   const trimmed = input.trim();
